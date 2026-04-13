@@ -1,0 +1,19 @@
+{
+  "appId": "com.gestionmatriculas.admin",
+  "productName": "Gestion Matriculas Admin",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "win": {
+    "target": "nsis",
+    "icon": "assets/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}
