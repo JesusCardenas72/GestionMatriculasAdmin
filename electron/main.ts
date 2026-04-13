@@ -1,6 +1,13 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  type AppConfig,
+  clearConfig,
+  hasConfig,
+  loadConfig,
+  saveConfig,
+} from "./config-store";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,7 +22,7 @@ function createWindow() {
     width: 1280,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, "preload.mjs"),
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -29,7 +36,17 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+function registerIpcHandlers() {
+  ipcMain.handle("config:has", () => hasConfig());
+  ipcMain.handle("config:load", () => loadConfig());
+  ipcMain.handle("config:save", (_e, cfg: AppConfig) => saveConfig(cfg));
+  ipcMain.handle("config:clear", () => clearConfig());
+}
+
+app.whenReady().then(() => {
+  registerIpcHandlers();
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
