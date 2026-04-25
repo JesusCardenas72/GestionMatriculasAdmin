@@ -1,0 +1,24 @@
+Flow: AdminListarSolicitudes: URL: 
+
+
+https://c627b3c984dee98bb3d3cffe8c91c0.4d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c4205c4bdb4f41d89c78c5da40e8e2ad/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=9VdviLN4Yy76BSwB2qReeMf1saXDBDGJSg-dQTY0Wyc
+
+
+
+
+AdminActualizarSolicitud
+
+https://c627b3c984dee98bb3d3cffe8c91c0.4d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/38c18f557dd943079d59593d2beeec3e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1iYvXdDl5LXJnTnc9g_GIHRNyz0VzL141_E8NEvgiYc
+
+
+
+
+AdminObtenerPDF
+
+https://c627b3c984dee98bb3d3cffe8c91c0.4d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b47e37ea258945f0896c2e2f8e4f8122/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dJeTsMOUZScHf6VkAIvZDo-v7q-PGI5z4khF5NYB5i8
+
+
+
+API-KEY
+
+i9VetqyFQ2NiUOlWafHdavLsZwzblpfJxgAVpDKvqto=
