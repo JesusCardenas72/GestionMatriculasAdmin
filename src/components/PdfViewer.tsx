@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Printer,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -42,6 +43,40 @@ export default function PdfViewer({
     a.download = fileName || "solicitud.pdf";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const [printing, setPrinting] = useState(false);
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      const fresh = base64ToUint8Array(contentBase64);
+      const pdf = await pdfjs.getDocument({ data: fresh }).promise;
+      const images: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const p = await pdf.getPage(i);
+        const viewport = p.getViewport({ scale: 2 });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d")!;
+        await p.render({ canvasContext: ctx, viewport, canvas }).promise;
+        images.push(canvas.toDataURL("image/png"));
+      }
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${
+        fileName || "solicitud"
+      }</title><style>
+        @page { margin: 0; }
+        html,body { margin:0; padding:0; }
+        .page { page-break-after: always; }
+        .page:last-child { page-break-after: auto; }
+        .page img { width:100%; height:100vh; object-fit:contain; display:block; }
+      </style></head><body>${images
+        .map((src) => `<div class="page"><img src="${src}"/></div>`)
+        .join("")}</body></html>`;
+      await window.adminAPI.pdf.printHtml(html);
+    } finally {
+      setPrinting(false);
+    }
   };
 
   return (
@@ -83,8 +118,20 @@ export default function PdfViewer({
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
+            onClick={handlePrint}
+            disabled={printing}
+            className="ml-2 inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {printing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Printer className="w-3.5 h-3.5" />
+            )}
+            Imprimir
+          </button>
+          <button
             onClick={handleDownload}
-            className="ml-2 inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs bg-slate-800 text-white hover:bg-slate-900"
+            className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs bg-slate-800 text-white hover:bg-slate-900"
           >
             <Download className="w-3.5 h-3.5" /> Descargar
           </button>

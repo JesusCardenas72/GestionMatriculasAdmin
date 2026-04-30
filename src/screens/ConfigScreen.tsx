@@ -19,13 +19,21 @@ import { FlowError } from "../api/client";
 const urlHttps = z
   .string()
   .trim()
-  .url("URL invalida")
+  .url("URL inválida")
   .refine((v) => v.startsWith("https://"), "Debe empezar por https://");
 
 const schema = z.object({
   urlListar: urlHttps,
   urlObtenerPdf: urlHttps,
   urlActualizar: urlHttps,
+  urlEditar: urlHttps,
+  urlBorrar: urlHttps,
+  urlListarAsignaturas: urlHttps,
+  urlCatalogoAsignaturas: urlHttps,
+  urlGuardarAsignaturas: urlHttps,
+  urlSubirMatricula: urlHttps,
+  urlCrearAmpliacion: urlHttps,
+  urlEnviarEmailAmpliacion: z.string().trim(),
   apiKey: z.string().trim().min(20, "La api-key debe tener al menos 20 caracteres"),
 });
 
@@ -61,6 +69,14 @@ export default function ConfigScreen({
       urlListar: "",
       urlObtenerPdf: "",
       urlActualizar: "",
+      urlEditar: "",
+      urlBorrar: "",
+      urlListarAsignaturas: "",
+      urlCatalogoAsignaturas: "",
+      urlGuardarAsignaturas: "",
+      urlSubirMatricula: "",
+      urlCrearAmpliacion: "",
+      urlEnviarEmailAmpliacion: "",
       apiKey: "",
     },
   });
@@ -108,10 +124,10 @@ export default function ConfigScreen({
           <GraduationCap className="w-10 h-10 text-indigo-600" />
           <div>
             <h1 className="text-2xl font-semibold text-slate-800">
-              Configuracion inicial
+              Configuración inicial
             </h1>
             <p className="text-sm text-slate-500">
-              Introduce las URLs de los 3 flows y la api-key. Se guardaran
+              Introduce las URLs de los 10 flows y la api-key. Se guardarán
               cifradas en tu equipo.
             </p>
           </div>
@@ -119,19 +135,59 @@ export default function ConfigScreen({
 
         <div className="mt-6 space-y-4">
           <Field
-            label="URL Flow A - Listar solicitudes"
+            label="AdminListarSolicitudes"
             error={errors.urlListar?.message}
             {...register("urlListar")}
           />
           <Field
-            label="URL Flow B - Obtener PDF"
+            label="AdminObtenerPDF"
             error={errors.urlObtenerPdf?.message}
             {...register("urlObtenerPdf")}
           />
           <Field
-            label="URL Flow C - Actualizar solicitud"
+            label="AdminActualizarSolicitud"
             error={errors.urlActualizar?.message}
             {...register("urlActualizar")}
+          />
+          <Field
+            label="AdminEditarSolicitud"
+            error={errors.urlEditar?.message}
+            {...register("urlEditar")}
+          />
+          <Field
+            label="AdminBorrarSolicitud"
+            error={errors.urlBorrar?.message}
+            {...register("urlBorrar")}
+          />
+          <Field
+            label="AdminListarAsignaturasSolicitud"
+            error={errors.urlListarAsignaturas?.message}
+            {...register("urlListarAsignaturas")}
+          />
+          <Field
+            label="AdminCatalogoAsignaturas"
+            error={errors.urlCatalogoAsignaturas?.message}
+            {...register("urlCatalogoAsignaturas")}
+          />
+          <Field
+            label="AdminGuardarAsignaturas"
+            error={errors.urlGuardarAsignaturas?.message}
+            {...register("urlGuardarAsignaturas")}
+          />
+          <Field
+            label="AdminSubirMatriculaEditada"
+            error={errors.urlSubirMatricula?.message}
+            {...register("urlSubirMatricula")}
+          />
+          <Field
+            label="AdminCrearAmpliacion"
+            error={errors.urlCrearAmpliacion?.message}
+            {...register("urlCrearAmpliacion")}
+          />
+          <Field
+            label="AdminEnviarEmailAmpliacion"
+            error={errors.urlEnviarEmailAmpliacion?.message}
+            {...register("urlEnviarEmailAmpliacion")}
           />
           <Field
             label="API Key"
@@ -145,13 +201,13 @@ export default function ConfigScreen({
           <div className="mt-4 p-3 rounded-lg border text-sm">
             {test.status === "testing" && (
               <div className="flex items-center gap-2 text-slate-600">
-                <Loader2 className="w-4 h-4 animate-spin" /> Probando conexion...
+                <Loader2 className="w-4 h-4 animate-spin" /> Probando conexión...
               </div>
             )}
             {test.status === "ok" && (
               <div className="flex items-center gap-2 text-emerald-700">
                 <CheckCircle2 className="w-4 h-4" />
-                Conexion OK - {test.total} solicitudes pendientes de tramitacion.
+                Conexión OK — {test.total} solicitudes pendientes de tramitación.
               </div>
             )}
             {test.status === "error" && (
@@ -169,14 +225,14 @@ export default function ConfigScreen({
             disabled={isSubmitting}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
           >
-            <Save className="w-4 h-4" /> Guardar configuracion
+            <Save className="w-4 h-4" /> Guardar configuración
           </button>
           <button
             type="button"
             onClick={probarConexion}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
           >
-            <Plug className="w-4 h-4" /> Probar conexion
+            <Plug className="w-4 h-4" /> Probar conexión
           </button>
           {onCancel && (
             <button
@@ -191,11 +247,11 @@ export default function ConfigScreen({
             <button
               type="button"
               onClick={() => {
-                if (confirm("Borrar la configuracion guardada?")) void onClear();
+                if (confirm("¿Borrar la configuración guardada?")) void onClear();
               }}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-red-600 text-sm font-medium hover:bg-red-50 ml-auto"
             >
-              <Trash2 className="w-4 h-4" /> Borrar configuracion
+              <Trash2 className="w-4 h-4" /> Borrar configuración
             </button>
           )}
         </div>

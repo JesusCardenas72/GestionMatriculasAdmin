@@ -6,6 +6,14 @@ export interface AppConfig {
   urlListar: string;
   urlObtenerPdf: string;
   urlActualizar: string;
+  urlEditar: string;
+  urlBorrar: string;
+  urlListarAsignaturas: string;
+  urlCatalogoAsignaturas: string;
+  urlGuardarAsignaturas: string;
+  urlSubirMatricula: string;
+  urlCrearAmpliacion: string;
+  urlEnviarEmailAmpliacion?: string;
   apiKey: string;
 }
 

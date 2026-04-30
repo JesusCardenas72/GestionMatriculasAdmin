@@ -8,6 +8,14 @@ import {
   loadConfig,
   saveConfig,
 } from "./config-store";
+import {
+  localListar,
+  localGuardar,
+  localActualizar,
+  localEliminar,
+  localMarcarSubida,
+} from "./local-store";
+import type { MatriculaLocal } from "../src/api/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,6 +33,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      plugins: true,
     },
   });
 
@@ -41,6 +50,107 @@ function registerIpcHandlers() {
   ipcMain.handle("config:load", () => loadConfig());
   ipcMain.handle("config:save", (_e, cfg: AppConfig) => saveConfig(cfg));
   ipcMain.handle("config:clear", () => clearConfig());
+
+  ipcMain.handle("local:listar", () => localListar());
+  ipcMain.handle("local:guardar", (_e, record: MatriculaLocal) => localGuardar(record));
+  ipcMain.handle("local:actualizar", (_e, localId: string, changes: Partial<MatriculaLocal>) =>
+    localActualizar(localId, changes),
+  );
+  ipcMain.handle("local:eliminar", (_e, localId: string) => localEliminar(localId));
+  ipcMain.handle("local:marcarSubida", (_e, localId: string) => localMarcarSubida(localId));
+
+  ipcMain.handle(
+    "pdf:generarPdfBase64",
+    async (
+      _e,
+      payload: { html: string },
+    ): Promise<{ success: boolean; base64?: string; error?: string }> => {
+      const pdfWin = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+
+      const cleanup = () => {
+        try {
+          if (!pdfWin.isDestroyed()) pdfWin.destroy();
+        } catch {
+          /* empty */
+        }
+      };
+
+      try {
+        const dataUrl =
+          "data:text/html;charset=utf-8;base64," +
+          Buffer.from(payload.html, "utf-8").toString("base64");
+        await pdfWin.loadURL(dataUrl);
+      } catch (err) {
+        cleanup();
+        return { success: false, error: (err as Error).message };
+      }
+
+      try {
+        const pdfBuffer = await pdfWin.webContents.printToPDF({
+          pageSize: "A4",
+          printBackground: true,
+          margins: { marginType: "none" },
+        });
+        cleanup();
+        return { success: true, base64: pdfBuffer.toString("base64") };
+      } catch (err) {
+        cleanup();
+        return { success: false, error: (err as Error).message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "pdf:printHtml",
+    async (
+      _e,
+      payload: { html: string },
+    ): Promise<{ success: boolean; error?: string }> => {
+      const printWin = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+
+      const cleanup = () => {
+        try {
+          if (!printWin.isDestroyed()) printWin.destroy();
+        } catch {
+          /* empty */
+        }
+      };
+
+      try {
+        const dataUrl =
+          "data:text/html;charset=utf-8;base64," +
+          Buffer.from(payload.html, "utf-8").toString("base64");
+        await printWin.loadURL(dataUrl);
+      } catch (err) {
+        cleanup();
+        return { success: false, error: (err as Error).message };
+      }
+
+      return await new Promise((resolve) => {
+        printWin.webContents.print(
+          { silent: false, printBackground: true },
+          (success, failureReason) => {
+            cleanup();
+            resolve({ success, error: success ? undefined : failureReason });
+          },
+        );
+      });
+    },
+  );
 }
 
 app.whenReady().then(() => {

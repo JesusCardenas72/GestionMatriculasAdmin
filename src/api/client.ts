@@ -14,6 +14,7 @@ export async function postFlow<TResponse>(
   apiKey: string,
   body: unknown,
 ): Promise<TResponse> {
+  const bodyStr = JSON.stringify(body ?? {});
   let res: Response;
   try {
     res = await fetch(url, {
@@ -22,7 +23,7 @@ export async function postFlow<TResponse>(
         "Content-Type": "application/json",
         "x-api-key": apiKey,
       },
-      body: JSON.stringify(body ?? {}),
+      body: bodyStr,
     });
   } catch (e) {
     throw new FlowError(

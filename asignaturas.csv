@@ -1,0 +1,923 @@
+﻿MATERIA,DESCRIPCION,ABREVIATURA,DEPARTAMENTO,CURSO,CURSO_N,ENSEÑANZAS,ESPECIALIDAD
+38141,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Fagot),1º,Profesional,Fagot
+38143,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Fagot),1º,Profesional,Fagot
+38147,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Fagot),1º,Profesional,Fagot
+38149,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Fagot),1º,Profesional,Fagot
+38597,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Fagot),3º,Profesional,Fagot
+38599,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Fagot),3º,Profesional,Fagot
+38603,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Fagot),3º,Profesional,Fagot
+38605,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Fagot),3º,Profesional,Fagot
+38609,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Fagot),3º,Profesional,Fagot
+38607,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Fagot),3º,Profesional,Fagot
+38885,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Fagot),4º,Profesional,Fagot
+38887,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Fagot),4º,Profesional,Fagot
+38891,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Fagot),4º,Profesional,Fagot
+38893,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Fagot),4º,Profesional,Fagot
+38895,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Fagot),4º,Profesional,Fagot
+38897,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Fagot),4º,Profesional,Fagot
+39717,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39719,Coro,CO,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39721,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39723,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39725,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39733,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39181,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39183,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39187,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39189,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39191,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Fagot),5º,Profesional,Fagot
+39437,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+39439,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+39443,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+39445,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+39447,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+40131,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+40135,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+40137,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+40139,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+40147,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Fagot),6º,Profesional,Fagot
+38845,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Canto),4º,Profesional,Canto
+38847,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Canto),4º,Profesional,Canto
+38849,Idioma aplicado al Canto,IDAPC,,4º de Enseñanzas Profesionales de Música (Canto),4º,Profesional,Canto
+38851,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Canto),4º,Profesional,Canto
+38853,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Canto),4º,Profesional,Canto
+38855,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Canto),4º,Profesional,Canto
+39663,Fundamentos de Composición,FCOM,DEPARTAMENTO DE COMPOSICIÓN,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39665,Coro,CO,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39667,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39669,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39671,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39679,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39133,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39135,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39137,Idioma aplicado al Canto,IDAPC,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39139,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+39141,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Canto),5º,Profesional,Canto
+40077,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+40079,Coro,CO,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+40081,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+40083,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+40085,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+40093,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+39403,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+39405,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+39407,Idioma aplicado al Canto,IDAPC,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+39409,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+39411,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Canto),6º,Profesional,Canto
+38121,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Clarinete),1º,Profesional,Clarinete
+38123,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Clarinete),1º,Profesional,Clarinete
+38125,Orquesta,ORQ,,1º de Enseñanzas Profesionales de Música (Clarinete),1º,Profesional,Clarinete
+38127,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Clarinete),1º,Profesional,Clarinete
+38129,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Clarinete),1º,Profesional,Clarinete
+38343,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Clarinete),2º,Profesional,Clarinete
+38345,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Clarinete),2º,Profesional,Clarinete
+38349,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Clarinete),2º,Profesional,Clarinete
+38351,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Clarinete),2º,Profesional,Clarinete
+38569,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Clarinete),3º,Profesional,Clarinete
+38571,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Clarinete),3º,Profesional,Clarinete
+38573,Orquesta,ORQ,,3º de Enseñanzas Profesionales de Música (Clarinete),3º,Profesional,Clarinete
+38575,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Clarinete),3º,Profesional,Clarinete
+38577,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Clarinete),3º,Profesional,Clarinete
+38579,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Clarinete),3º,Profesional,Clarinete
+38581,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Clarinete),3º,Profesional,Clarinete
+38857,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Clarinete),4º,Profesional,Clarinete
+38859,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Clarinete),4º,Profesional,Clarinete
+38863,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Clarinete),4º,Profesional,Clarinete
+38865,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Clarinete),4º,Profesional,Clarinete
+38867,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Clarinete),4º,Profesional,Clarinete
+38869,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Clarinete),4º,Profesional,Clarinete
+39681,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39683,Coro,CO,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39685,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39687,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39689,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39697,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39143,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39145,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39149,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39151,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+39153,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Clarinete),5º,Profesional,Clarinete
+40095,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+40097,Coro,CO,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+39413,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+39415,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+39419,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+39421,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+39423,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+40099,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+40101,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+40103,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+40111,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Clarinete),6º,Profesional,Clarinete
+38131,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Contrabajo),1º,Profesional,Contrabajo
+38133,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Contrabajo),1º,Profesional,Contrabajo
+38135,Orquesta,ORQ,,1º de Enseñanzas Profesionales de Música (Contrabajo),1º,Profesional,Contrabajo
+38139,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Contrabajo),1º,Profesional,Contrabajo
+38353,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Contrabajo),2º,Profesional,Contrabajo
+38355,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Contrabajo),2º,Profesional,Contrabajo
+38357,Orquesta,ORQ,,2º de Enseñanzas Profesionales de Música (Contrabajo),2º,Profesional,Contrabajo
+38361,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Contrabajo),2º,Profesional,Contrabajo
+38583,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Contrabajo),3º,Profesional,Contrabajo
+38585,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Contrabajo),3º,Profesional,Contrabajo
+38587,Orquesta,ORQ,,3º de Enseñanzas Profesionales de Música (Contrabajo),3º,Profesional,Contrabajo
+38591,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Contrabajo),3º,Profesional,Contrabajo
+38593,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Contrabajo),3º,Profesional,Contrabajo
+38595,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Contrabajo),3º,Profesional,Contrabajo
+39715,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39699,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39701,Coro,CO,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39703,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39705,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39707,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39169,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39171,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39173,Orquesta,ORQ,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39177,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39179,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Contrabajo),5º,Profesional,Contrabajo
+39337,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39339,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39343,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39347,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39969,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39971,Coro,CO,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39973,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39975,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39977,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+39985,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Percusión),5º,Profesional,Percusión
+40399,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+40403,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+40405,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+40407,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+40415,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+39589,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+39591,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+39595,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+39599,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Percusión),6º,Profesional,Percusión
+38269,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Piano),1º,Profesional,Piano
+38271,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Piano),1º,Profesional,Piano
+38273,Coro,CO,,1º de Enseñanzas Profesionales de Música (Piano),1º,Profesional,Piano
+38275,Conjunto,CON,,1º de Enseñanzas Profesionales de Música (Piano),1º,Profesional,Piano
+38491,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Piano),2º,Profesional,Piano
+38493,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Piano),2º,Profesional,Piano
+38495,Coro,CO,,2º de Enseñanzas Profesionales de Música (Piano),2º,Profesional,Piano
+38497,Conjunto,CON,,2º de Enseñanzas Profesionales de Música (Piano),2º,Profesional,Piano
+38761,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Piano),3º,Profesional,Piano
+38763,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Piano),3º,Profesional,Piano
+38765,Conjunto,CON,,3º de Enseñanzas Profesionales de Música (Piano),3º,Profesional,Piano
+38767,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Piano),3º,Profesional,Piano
+44566,Coro,CO,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39327,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39329,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39331,Conjunto,CON,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39333,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39335,Acompañamiento,AC,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39951,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39953,Coro (P),CO-P,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39955,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39957,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39959,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+39967,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Piano),5º,Profesional,Piano
+40365,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+40367,Coro (P),CO-P,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+40369,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+40371,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+40389,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+40397,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+39579,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+39581,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+39583,Conjunto,CON,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+39585,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+39587,Acompañamiento,AC,,6º de Enseñanzas Profesionales de Música (Piano),6º,Profesional,Piano
+38511,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Saxofón),2º,Profesional,Saxofón
+38513,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Saxofón),2º,Profesional,Saxofón
+38517,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Saxofón),2º,Profesional,Saxofón
+38521,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Saxofón),2º,Profesional,Saxofón
+38783,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Saxofón),3º,Profesional,Saxofón
+38785,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Saxofón),3º,Profesional,Saxofón
+38789,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Saxofón),3º,Profesional,Saxofón
+38793,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Saxofón),3º,Profesional,Saxofón
+38795,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Saxofón),3º,Profesional,Saxofón
+38797,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Saxofón),3º,Profesional,Saxofón
+39349,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39351,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39355,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39359,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39361,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39987,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39989,Coro,CO,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39991,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39993,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+39995,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+40003,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Saxofón),5º,Profesional,Saxofón
+40417,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+40421,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+40423,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+40425,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+40433,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+39601,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+39603,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+39607,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+39611,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+39613,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Saxofón),6º,Profesional,Saxofón
+38171,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Trombón),1º,Profesional,Trombón
+38173,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Trombón),1º,Profesional,Trombón
+38177,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Trombón),1º,Profesional,Trombón
+38179,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Trombón),1º,Profesional,Trombón
+38393,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Trombón),2º,Profesional,Trombón
+38395,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Trombón),2º,Profesional,Trombón
+38399,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Trombón),2º,Profesional,Trombón
+38401,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Trombón),2º,Profesional,Trombón
+38639,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Trombón),3º,Profesional,Trombón
+38641,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Trombón),3º,Profesional,Trombón
+38645,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Trombón),3º,Profesional,Trombón
+38647,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Trombón),3º,Profesional,Trombón
+38649,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Trombón),3º,Profesional,Trombón
+38651,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Trombón),3º,Profesional,Trombón
+38927,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Trombón),4º,Profesional,Trombón
+38929,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Trombón),4º,Profesional,Trombón
+38933,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Trombón),4º,Profesional,Trombón
+38935,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Trombón),4º,Profesional,Trombón
+38937,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Trombón),4º,Profesional,Trombón
+38939,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Trombón),4º,Profesional,Trombón
+39771,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39773,Coro,CO,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39775,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39777,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39779,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39787,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39217,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39219,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39223,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39225,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39227,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Trombón),5º,Profesional,Trombón
+39473,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+39475,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+39479,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+39481,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+39483,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+40185,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+40189,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+40191,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+40193,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+40201,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Trombón),6º,Profesional,Trombón
+38181,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Trompa),1º,Profesional,Trompa
+38183,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Trompa),1º,Profesional,Trompa
+38187,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Trompa),1º,Profesional,Trompa
+38189,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Trompa),1º,Profesional,Trompa
+38403,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Trompa),2º,Profesional,Trompa
+38405,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Trompa),2º,Profesional,Trompa
+38409,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Trompa),2º,Profesional,Trompa
+38411,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Trompa),2º,Profesional,Trompa
+38653,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Trompa),3º,Profesional,Trompa
+38655,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Trompa),3º,Profesional,Trompa
+38659,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Trompa),3º,Profesional,Trompa
+38661,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Trompa),3º,Profesional,Trompa
+38663,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Trompa),3º,Profesional,Trompa
+38665,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Trompa),3º,Profesional,Trompa
+38941,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Trompa),4º,Profesional,Trompa
+38943,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Trompa),4º,Profesional,Trompa
+38947,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Trompa),4º,Profesional,Trompa
+38949,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Trompa),4º,Profesional,Trompa
+38951,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Trompa),4º,Profesional,Trompa
+38953,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Trompa),4º,Profesional,Trompa
+39789,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39791,Coro,CO,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39793,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39795,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39797,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39805,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39235,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39237,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39239,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39229,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39231,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Trompa),5º,Profesional,Trompa
+39485,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+39487,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+40203,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+40207,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+40209,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+40211,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+40219,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+39491,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+39493,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+39495,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Trompa),6º,Profesional,Trompa
+38191,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Trompeta),1º,Profesional,Trompeta
+38193,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Trompeta),1º,Profesional,Trompeta
+38197,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Trompeta),1º,Profesional,Trompeta
+38199,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Trompeta),1º,Profesional,Trompeta
+38667,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Trompeta),3º,Profesional,Trompeta
+38669,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Trompeta),3º,Profesional,Trompeta
+38673,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Trompeta),3º,Profesional,Trompeta
+38675,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Trompeta),3º,Profesional,Trompeta
+38677,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Trompeta),3º,Profesional,Trompeta
+38679,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Trompeta),3º,Profesional,Trompeta
+38955,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Trompeta),4º,Profesional,Trompeta
+38957,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Trompeta),4º,Profesional,Trompeta
+38961,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Trompeta),4º,Profesional,Trompeta
+38963,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Trompeta),4º,Profesional,Trompeta
+38965,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Trompeta),4º,Profesional,Trompeta
+38967,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Trompeta),4º,Profesional,Trompeta
+39807,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39809,Coro,CO,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39811,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39813,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39241,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39243,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39247,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39249,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39251,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39815,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+39823,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Trompeta),5º,Profesional,Trompeta
+40221,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+40225,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+40227,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+40229,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+40237,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+39497,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+39499,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+39503,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+39505,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+39507,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Trompeta),6º,Profesional,Trompeta
+38201,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Tuba),1º,Profesional,Tuba
+38203,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Tuba),1º,Profesional,Tuba
+38207,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Tuba),1º,Profesional,Tuba
+38209,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Tuba),1º,Profesional,Tuba
+38681,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Tuba),3º,Profesional,Tuba
+38683,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Tuba),3º,Profesional,Tuba
+38687,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Tuba),3º,Profesional,Tuba
+38689,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Tuba),3º,Profesional,Tuba
+38691,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Tuba),3º,Profesional,Tuba
+38693,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Tuba),3º,Profesional,Tuba
+38969,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Tuba),4º,Profesional,Tuba
+38971,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Tuba),4º,Profesional,Tuba
+38975,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Tuba),4º,Profesional,Tuba
+38977,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Tuba),4º,Profesional,Tuba
+38979,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Tuba),4º,Profesional,Tuba
+38981,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Tuba),4º,Profesional,Tuba
+39833,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39841,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39253,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39255,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39259,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39261,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39263,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39825,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39827,Coro,CO,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39829,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39831,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Tuba),5º,Profesional,Tuba
+39425,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+39427,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+39429,Orquesta,ORQ,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+39433,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+39435,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+40113,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+40117,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+40119,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+40121,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+40129,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Contrabajo),6º,Profesional,Contrabajo
+38151,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Flauta Travesera),1º,Profesional,Flauta Travesera
+38153,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Flauta Travesera),1º,Profesional,Flauta Travesera
+38157,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Flauta Travesera),1º,Profesional,Flauta Travesera
+38159,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Flauta Travesera),1º,Profesional,Flauta Travesera
+38373,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Flauta Travesera),2º,Profesional,Flauta Travesera
+38375,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Flauta Travesera),2º,Profesional,Flauta Travesera
+38379,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Flauta Travesera),2º,Profesional,Flauta Travesera
+38381,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Flauta Travesera),2º,Profesional,Flauta Travesera
+38611,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Flauta Travesera),3º,Profesional,Flauta Travesera
+38613,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Flauta Travesera),3º,Profesional,Flauta Travesera
+38617,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Flauta Travesera),3º,Profesional,Flauta Travesera
+38619,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Flauta Travesera),3º,Profesional,Flauta Travesera
+38621,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Flauta Travesera),3º,Profesional,Flauta Travesera
+38623,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Flauta Travesera),3º,Profesional,Flauta Travesera
+38899,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Flauta Travesera),4º,Profesional,Flauta Travesera
+38901,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Flauta Travesera),4º,Profesional,Flauta Travesera
+38905,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Flauta Travesera),4º,Profesional,Flauta Travesera
+38907,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Flauta Travesera),4º,Profesional,Flauta Travesera
+38909,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Flauta Travesera),4º,Profesional,Flauta Travesera
+38911,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Flauta Travesera),4º,Profesional,Flauta Travesera
+39449,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+39451,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+39455,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+39457,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+39459,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+40149,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+40153,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+40155,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+40157,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+40165,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Flauta Travesera),6º,Profesional,Flauta Travesera
+38451,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Guitarra),2º,Profesional,Guitarra
+38453,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Guitarra),2º,Profesional,Guitarra
+38455,Coro,CO,,2º de Enseñanzas Profesionales de Música (Guitarra),2º,Profesional,Guitarra
+38457,Conjunto,CON,,2º de Enseñanzas Profesionales de Música (Guitarra),2º,Profesional,Guitarra
+38459,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Guitarra),2º,Profesional,Guitarra
+38717,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Guitarra),3º,Profesional,Guitarra
+38719,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Guitarra),3º,Profesional,Guitarra
+38721,Conjunto,CON,,3º de Enseñanzas Profesionales de Música (Guitarra),3º,Profesional,Guitarra
+38723,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Guitarra),3º,Profesional,Guitarra
+38725,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Guitarra),3º,Profesional,Guitarra
+39005,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Guitarra),4º,Profesional,Guitarra
+39007,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Guitarra),4º,Profesional,Guitarra
+39009,Conjunto,CON,,4º de Enseñanzas Profesionales de Música (Guitarra),4º,Profesional,Guitarra
+39011,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Guitarra),4º,Profesional,Guitarra
+39013,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Guitarra),4º,Profesional,Guitarra
+44558,Coro,CO,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39879,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39881,Coro (P),CO-P,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39883,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39885,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39887,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39895,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39289,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39291,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39293,Conjunto,CON,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39295,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+39297,Acompañamiento,AC,,5º de Enseñanzas Profesionales de Música (Guitarra),5º,Profesional,Guitarra
+40293,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+40297,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+40299,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+40301,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+40309,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+39541,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+39543,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+39545,Conjunto,CON,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+39547,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+39549,Acompañamiento,AC,,6º de Enseñanzas Profesionales de Música (Guitarra),6º,Profesional,Guitarra
+38277,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Percusión),1º,Profesional,Percusión
+38279,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Percusión),1º,Profesional,Percusión
+38283,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Percusión),1º,Profesional,Percusión
+38287,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Percusión),1º,Profesional,Percusión
+38499,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Percusión),2º,Profesional,Percusión
+38501,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Percusión),2º,Profesional,Percusión
+38505,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Percusión),2º,Profesional,Percusión
+38509,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Percusión),2º,Profesional,Percusión
+38769,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Percusión),3º,Profesional,Percusión
+38771,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Percusión),3º,Profesional,Percusión
+38775,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Percusión),3º,Profesional,Percusión
+38779,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Percusión),3º,Profesional,Percusión
+38781,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Percusión),3º,Profesional,Percusión
+38333,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Canto),2º,Profesional,Canto
+38335,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Canto),2º,Profesional,Canto
+38337,Coro,CO,,2º de Enseñanzas Profesionales de Música (Canto),2º,Profesional,Canto
+38339,Idioma aplicado al Canto,IDAPC,,2º de Enseñanzas Profesionales de Música (Canto),2º,Profesional,Canto
+38341,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Canto),2º,Profesional,Canto
+38557,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Canto),3º,Profesional,Canto
+38559,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Canto),3º,Profesional,Canto
+38561,Idioma aplicado al Canto,IDAPC,,3º de Enseñanzas Profesionales de Música (Canto),3º,Profesional,Canto
+38563,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Canto),3º,Profesional,Canto
+38565,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Canto),3º,Profesional,Canto
+38567,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Canto),3º,Profesional,Canto
+38161,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Oboe),1º,Profesional,Oboe
+38163,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Oboe),1º,Profesional,Oboe
+38167,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Oboe),1º,Profesional,Oboe
+38169,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Oboe),1º,Profesional,Oboe
+38383,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Oboe),2º,Profesional,Oboe
+38385,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Oboe),2º,Profesional,Oboe
+38389,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Oboe),2º,Profesional,Oboe
+38391,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Oboe),2º,Profesional,Oboe
+38635,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Oboe),3º,Profesional,Oboe
+38637,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Oboe),3º,Profesional,Oboe
+38625,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Oboe),3º,Profesional,Oboe
+38627,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Oboe),3º,Profesional,Oboe
+38631,Banda,BANDA,,3º de Enseñanzas Profesionales de Música (Oboe),3º,Profesional,Oboe
+38633,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Oboe),3º,Profesional,Oboe
+38913,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Oboe),4º,Profesional,Oboe
+38915,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Oboe),4º,Profesional,Oboe
+38919,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Oboe),4º,Profesional,Oboe
+38921,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Oboe),4º,Profesional,Oboe
+38923,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Oboe),4º,Profesional,Oboe
+38925,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Oboe),4º,Profesional,Oboe
+39753,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39755,Coro,CO,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39757,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39759,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39761,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39769,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39213,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39205,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39207,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39211,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39215,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Oboe),5º,Profesional,Oboe
+39461,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+39463,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+39467,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+39469,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+39471,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+40167,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+40171,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+40173,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+40175,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+40183,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Oboe),6º,Profesional,Oboe
+38301,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Viola),1º,Profesional,Viola
+38303,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Viola),1º,Profesional,Viola
+38305,Orquesta,ORQ,,1º de Enseñanzas Profesionales de Música (Viola),1º,Profesional,Viola
+38307,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Viola),1º,Profesional,Viola
+38523,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Viola),2º,Profesional,Viola
+38525,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Viola),2º,Profesional,Viola
+38527,Orquesta,ORQ,,2º de Enseñanzas Profesionales de Música (Viola),2º,Profesional,Viola
+38529,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Viola),2º,Profesional,Viola
+38799,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Viola),3º,Profesional,Viola
+38801,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Viola),3º,Profesional,Viola
+38803,Orquesta,ORQ,,3º de Enseñanzas Profesionales de Música (Viola),3º,Profesional,Viola
+38805,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Viola),3º,Profesional,Viola
+38807,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Viola),3º,Profesional,Viola
+38809,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Viola),3º,Profesional,Viola
+39087,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Viola),4º,Profesional,Viola
+39089,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Viola),4º,Profesional,Viola
+39091,Orquesta,ORQ,,4º de Enseñanzas Profesionales de Música (Viola),4º,Profesional,Viola
+39093,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Viola),4º,Profesional,Viola
+39095,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Viola),4º,Profesional,Viola
+39097,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Viola),4º,Profesional,Viola
+40009,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+40011,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+40013,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+40021,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+39363,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+39365,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+39367,Orquesta,ORQ,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+39369,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+39371,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+40005,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+40007,Coro,CO,,5º de Enseñanzas Profesionales de Música (Viola),5º,Profesional,Viola
+40435,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+39623,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+40439,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+40441,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+40443,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+40451,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+39617,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+39619,Orquesta,ORQ,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+39621,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+39615,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Viola),6º,Profesional,Viola
+38833,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Violoncello),3º,Profesional,Violoncello
+38823,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Violoncello),3º,Profesional,Violoncello
+38825,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Violoncello),3º,Profesional,Violoncello
+38827,Orquesta,ORQ,,3º de Enseñanzas Profesionales de Música (Violoncello),3º,Profesional,Violoncello
+38829,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Violoncello),3º,Profesional,Violoncello
+38831,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Violoncello),3º,Profesional,Violoncello
+40041,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+40043,Coro,CO,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+40045,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+40047,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+40049,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+40057,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+39383,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+39385,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+39387,Orquesta,ORQ,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+39389,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+39391,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Violoncello),5º,Profesional,Violoncello
+39635,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+39637,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+39639,Orquesta,ORQ,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+39641,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+39643,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+40471,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+40475,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+40477,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+40479,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+40487,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Violoncello),6º,Profesional,Violoncello
+38309,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Violín),1º,Profesional,Violín
+38311,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Violín),1º,Profesional,Violín
+38313,Orquesta,ORQ,,1º de Enseñanzas Profesionales de Música (Violín),1º,Profesional,Violín
+38315,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Violín),1º,Profesional,Violín
+38531,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Violín),2º,Profesional,Violín
+38533,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Violín),2º,Profesional,Violín
+38535,Orquesta,ORQ,,2º de Enseñanzas Profesionales de Música (Violín),2º,Profesional,Violín
+38537,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Violín),2º,Profesional,Violín
+38811,Instrumento,INS,,3º de Enseñanzas Profesionales de Música (Violín),3º,Profesional,Violín
+38813,Armonía,AR,,3º de Enseñanzas Profesionales de Música (Violín),3º,Profesional,Violín
+38815,Orquesta,ORQ,,3º de Enseñanzas Profesionales de Música (Violín),3º,Profesional,Violín
+38817,Historia de la Música,HM,,3º de Enseñanzas Profesionales de Música (Violín),3º,Profesional,Violín
+38819,Instrumento Complementario,INCOM,,3º de Enseñanzas Profesionales de Música (Violín),3º,Profesional,Violín
+38821,Repertorio acompañado,RA,,3º de Enseñanzas Profesionales de Música (Violín),3º,Profesional,Violín
+40023,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+40025,Coro,CO,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+40027,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+40029,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+40031,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+40039,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+39373,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+39375,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+39377,Orquesta,ORQ,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+39379,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+39381,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Violín),5º,Profesional,Violín
+39625,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+39627,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+39629,Orquesta,ORQ,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+39631,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+39633,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+40453,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+40457,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+40459,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+40461,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+40469,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Violín),6º,Profesional,Violín
+38317,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Violoncello),1º,Profesional,Violoncello
+38319,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Violoncello),1º,Profesional,Violoncello
+38321,Orquesta,ORQ,,1º de Enseñanzas Profesionales de Música (Violoncello),1º,Profesional,Violoncello
+38323,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Violoncello),1º,Profesional,Violoncello
+38539,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Violoncello),2º,Profesional,Violoncello
+38541,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Violoncello),2º,Profesional,Violoncello
+38543,Orquesta,ORQ,,2º de Enseñanzas Profesionales de Música (Violoncello),2º,Profesional,Violoncello
+38545,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Violoncello),2º,Profesional,Violoncello
+41041,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Percusión),4º,Elemental,Percusión
+41043,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Percusión),4º,Elemental,Percusión
+41045,Coro,CO,,4º de Enseñanzas Elementales de Música (Percusión),4º,Elemental,Percusión
+76698,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Percusión),4º,Elemental,Percusión
+40737,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Piano),1º,Elemental,Piano
+40739,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Piano),1º,Elemental,Piano
+76602,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Piano),1º,Elemental,Piano
+40825,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Piano),2º,Elemental,Piano
+40827,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Piano),2º,Elemental,Piano
+76616,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Piano),2º,Elemental,Piano
+40867,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Piano),3º,Elemental,Piano
+40869,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Piano),3º,Elemental,Piano
+40871,Coro,CO,,3º de Enseñanzas Elementales de Música (Piano),3º,Elemental,Piano
+76728,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Piano),3º,Elemental,Piano
+41047,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Piano),4º,Elemental,Piano
+41049,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Piano),4º,Elemental,Piano
+41051,Coro,CO,,4º de Enseñanzas Elementales de Música (Piano),4º,Elemental,Piano
+76700,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Piano),4º,Elemental,Piano
+40741,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Saxofón),1º,Elemental,Saxofón
+40743,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Saxofón),1º,Elemental,Saxofón
+76606,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Saxofón),1º,Elemental,Saxofón
+40829,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Saxofón),2º,Elemental,Saxofón
+40831,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Saxofón),2º,Elemental,Saxofón
+76640,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Saxofón),2º,Elemental,Saxofón
+40965,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Saxofón),3º,Elemental,Saxofón
+40967,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Saxofón),3º,Elemental,Saxofón
+40971,Coro,CO,,3º de Enseñanzas Elementales de Música (Saxofón),3º,Elemental,Saxofón
+76750,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Saxofón),3º,Elemental,Saxofón
+41133,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Saxofón),4º,Elemental,Saxofón
+41135,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Saxofón),4º,Elemental,Saxofón
+41139,Coro,CO,,4º de Enseñanzas Elementales de Música (Saxofón),4º,Elemental,Saxofón
+76690,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Saxofón),4º,Elemental,Saxofón
+40745,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Trombón),1º,Elemental,Trombón
+40747,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Trombón),1º,Elemental,Trombón
+76618,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Trombón),1º,Elemental,Trombón
+40835,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Trombón),2º,Elemental,Trombón
+40833,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Trombón),2º,Elemental,Trombón
+76642,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Trombón),2º,Elemental,Trombón
+40973,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Trombón),3º,Elemental,Trombón
+40975,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Trombón),3º,Elemental,Trombón
+40979,Coro,CO,,3º de Enseñanzas Elementales de Música (Trombón),3º,Elemental,Trombón
+76780,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Trombón),3º,Elemental,Trombón
+41141,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Trombón),4º,Elemental,Trombón
+41143,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Trombón),4º,Elemental,Trombón
+41147,Coro,CO,,4º de Enseñanzas Elementales de Música (Trombón),4º,Elemental,Trombón
+76694,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Trombón),4º,Elemental,Trombón
+40749,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Trompa),1º,Elemental,Trompa
+40751,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Trompa),1º,Elemental,Trompa
+76568,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Trompa),1º,Elemental,Trompa
+40837,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Trompa),2º,Elemental,Trompa
+40839,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Trompa),2º,Elemental,Trompa
+76646,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Trompa),2º,Elemental,Trompa
+40981,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Trompa),3º,Elemental,Trompa
+40983,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Trompa),3º,Elemental,Trompa
+40987,Coro,CO,,3º de Enseñanzas Elementales de Música (Trompa),3º,Elemental,Trompa
+76704,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Trompa),3º,Elemental,Trompa
+41149,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Trompa),4º,Elemental,Trompa
+41151,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Trompa),4º,Elemental,Trompa
+41155,Coro,CO,,4º de Enseñanzas Elementales de Música (Trompa),4º,Elemental,Trompa
+76718,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Trompa),4º,Elemental,Trompa
+40753,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Trompeta),1º,Elemental,Trompeta
+40755,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Trompeta),1º,Elemental,Trompeta
+76614,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Trompeta),1º,Elemental,Trompeta
+40841,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Trompeta),2º,Elemental,Trompeta
+40843,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Trompeta),2º,Elemental,Trompeta
+76778,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Trompeta),2º,Elemental,Trompeta
+40989,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Trompeta),3º,Elemental,Trompeta
+40991,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Trompeta),3º,Elemental,Trompeta
+40995,Coro,CO,,3º de Enseñanzas Elementales de Música (Trompeta),3º,Elemental,Trompeta
+76736,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Trompeta),3º,Elemental,Trompeta
+41157,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Trompeta),4º,Elemental,Trompeta
+41159,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Trompeta),4º,Elemental,Trompeta
+41163,Coro,CO,,4º de Enseñanzas Elementales de Música (Trompeta),4º,Elemental,Trompeta
+76720,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Trompeta),4º,Elemental,Trompeta
+40729,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Oboe),1º,Elemental,Oboe
+40731,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Oboe),1º,Elemental,Oboe
+76598,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Oboe),1º,Elemental,Oboe
+40761,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Viola),1º,Elemental,Viola
+40763,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Viola),1º,Elemental,Viola
+76630,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Viola),1º,Elemental,Viola
+40957,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Oboe),3º,Elemental,Oboe
+40959,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Oboe),3º,Elemental,Oboe
+40963,Coro,CO,,3º de Enseñanzas Elementales de Música (Oboe),3º,Elemental,Oboe
+76676,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Oboe),3º,Elemental,Oboe
+40861,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Percusión),3º,Elemental,Percusión
+40863,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Percusión),3º,Elemental,Percusión
+40865,Coro,CO,,3º de Enseñanzas Elementales de Música (Percusión),3º,Elemental,Percusión
+76740,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Percusión),3º,Elemental,Percusión
+41013,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Violín),3º,Elemental,Violín
+41015,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Violín),3º,Elemental,Violín
+41019,Coro,CO,,3º de Enseñanzas Elementales de Música (Violín),3º,Elemental,Violín
+76712,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Violín),3º,Elemental,Violín
+41021,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Violoncello),3º,Elemental,Violoncello
+41023,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Violoncello),3º,Elemental,Violoncello
+41027,Coro,CO,,3º de Enseñanzas Elementales de Música (Violoncello),3º,Elemental,Violoncello
+76714,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Violoncello),3º,Elemental,Violoncello
+38363,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Fagot),2º,Profesional,Fagot
+38365,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Fagot),2º,Profesional,Fagot
+38369,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Fagot),2º,Profesional,Fagot
+38371,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Fagot),2º,Profesional,Fagot
+40849,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Viola),2º,Elemental,Viola
+40851,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Viola),2º,Elemental,Viola
+76650,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Viola),2º,Elemental,Viola
+41005,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Viola),3º,Elemental,Viola
+41007,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Viola),3º,Elemental,Viola
+41011,Coro,CO,,3º de Enseñanzas Elementales de Música (Viola),3º,Elemental,Viola
+76752,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Viola),3º,Elemental,Viola
+41173,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Viola),4º,Elemental,Viola
+41175,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Viola),4º,Elemental,Viola
+41179,Coro,CO,,4º de Enseñanzas Elementales de Música (Viola),4º,Elemental,Viola
+76670,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Viola),4º,Elemental,Viola
+40853,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Violín),2º,Elemental,Violín
+40855,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Violín),2º,Elemental,Violín
+76652,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Violín),2º,Elemental,Violín
+41181,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Violín),4º,Elemental,Violín
+41183,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Violín),4º,Elemental,Violín
+41187,Coro,CO,,4º de Enseñanzas Elementales de Música (Violín),4º,Elemental,Violín
+76672,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Violín),4º,Elemental,Violín
+40769,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Violoncello),1º,Elemental,Violoncello
+40771,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Violoncello),1º,Elemental,Violoncello
+76644,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Violoncello),1º,Elemental,Violoncello
+40857,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Violoncello),2º,Elemental,Violoncello
+40859,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Violoncello),2º,Elemental,Violoncello
+76654,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Violoncello),2º,Elemental,Violoncello
+41189,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Violoncello),4º,Elemental,Violoncello
+41191,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Violoncello),4º,Elemental,Violoncello
+41195,Coro,CO,,4º de Enseñanzas Elementales de Música (Violoncello),4º,Elemental,Violoncello
+76724,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Violoncello),4º,Elemental,Violoncello
+40693,Instrumento,INS,DEPARTAMENTO DE INSTRUMENTOS DE VIENTO MADERA,1º de Enseñanzas Elementales de Música (Clarinete),1º,Elemental,Clarinete
+40695,Lenguaje Musical,LM,DEPARTAMENTO DE LENGUAJE MUSICAL,1º de Enseñanzas Elementales de Música (Clarinete),1º,Elemental,Clarinete
+76580,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Clarinete),1º,Elemental,Clarinete
+40781,Instrumento,INS,DEPARTAMENTO DE INSTRUMENTOS DE VIENTO MADERA,2º de Enseñanzas Elementales de Música (Clarinete),2º,Elemental,Clarinete
+40783,Lenguaje Musical,LM,DEPARTAMENTO DE LENGUAJE MUSICAL,2º de Enseñanzas Elementales de Música (Clarinete),2º,Elemental,Clarinete
+76604,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Clarinete),2º,Elemental,Clarinete
+40901,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Clarinete),3º,Elemental,Clarinete
+40903,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Clarinete),3º,Elemental,Clarinete
+40907,Coro,CO,,3º de Enseñanzas Elementales de Música (Clarinete),3º,Elemental,Clarinete
+76682,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Clarinete),3º,Elemental,Clarinete
+41069,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Clarinete),4º,Elemental,Clarinete
+41071,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Clarinete),4º,Elemental,Clarinete
+41075,Coro,CO,,4º de Enseñanzas Elementales de Música (Clarinete),4º,Elemental,Clarinete
+76660,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Clarinete),4º,Elemental,Clarinete
+40703,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Contrabajo),1º,Elemental,Contrabajo
+40701,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Contrabajo),1º,Elemental,Contrabajo
+76560,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Contrabajo),1º,Elemental,Contrabajo
+40791,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Contrabajo),2º,Elemental,Contrabajo
+40789,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Contrabajo),2º,Elemental,Contrabajo
+76608,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Contrabajo),2º,Elemental,Contrabajo
+40917,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Contrabajo),3º,Elemental,Contrabajo
+40919,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Contrabajo),3º,Elemental,Contrabajo
+40923,Coro,CO,,3º de Enseñanzas Elementales de Música (Contrabajo),3º,Elemental,Contrabajo
+76666,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Contrabajo),3º,Elemental,Contrabajo
+41085,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Contrabajo),4º,Elemental,Contrabajo
+41087,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Contrabajo),4º,Elemental,Contrabajo
+41091,Coro,CO,,4º de Enseñanzas Elementales de Música (Contrabajo),4º,Elemental,Contrabajo
+76678,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Contrabajo),4º,Elemental,Contrabajo
+40705,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Fagot),1º,Elemental,Fagot
+40707,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Fagot),1º,Elemental,Fagot
+76562,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Fagot),1º,Elemental,Fagot
+40795,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Fagot),2º,Elemental,Fagot
+40793,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Fagot),2º,Elemental,Fagot
+76596,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Fagot),2º,Elemental,Fagot
+40931,Coro,CO,,3º de Enseñanzas Elementales de Música (Fagot),3º,Elemental,Fagot
+40925,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Fagot),3º,Elemental,Fagot
+40927,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Fagot),3º,Elemental,Fagot
+76686,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Fagot),3º,Elemental,Fagot
+41093,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Fagot),4º,Elemental,Fagot
+41095,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Fagot),4º,Elemental,Fagot
+41099,Coro,CO,,4º de Enseñanzas Elementales de Música (Fagot),4º,Elemental,Fagot
+76680,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Fagot),4º,Elemental,Fagot
+40713,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Flauta Travesera),1º,Elemental,Flauta Travesera
+40715,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Flauta Travesera),1º,Elemental,Flauta Travesera
+76584,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Flauta Travesera),1º,Elemental,Flauta Travesera
+40801,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Flauta Travesera),2º,Elemental,Flauta Travesera
+40803,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Flauta Travesera),2º,Elemental,Flauta Travesera
+76612,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Flauta Travesera),2º,Elemental,Flauta Travesera
+40941,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Flauta Travesera),3º,Elemental,Flauta Travesera
+40943,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Flauta Travesera),3º,Elemental,Flauta Travesera
+40947,Coro,CO,,3º de Enseñanzas Elementales de Música (Flauta Travesera),3º,Elemental,Flauta Travesera
+76692,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Flauta Travesera),3º,Elemental,Flauta Travesera
+41109,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Flauta Travesera),4º,Elemental,Flauta Travesera
+41111,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Flauta Travesera),4º,Elemental,Flauta Travesera
+41115,Coro,CO,,4º de Enseñanzas Elementales de Música (Flauta Travesera),4º,Elemental,Flauta Travesera
+76572,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Flauta Travesera),4º,Elemental,Flauta Travesera
+40717,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Guitarra),1º,Elemental,Guitarra
+40719,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Guitarra),1º,Elemental,Guitarra
+76586,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Guitarra),1º,Elemental,Guitarra
+40805,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Guitarra),2º,Elemental,Guitarra
+40807,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Guitarra),2º,Elemental,Guitarra
+76620,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Guitarra),2º,Elemental,Guitarra
+40873,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Guitarra),3º,Elemental,Guitarra
+40875,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Guitarra),3º,Elemental,Guitarra
+40877,Coro,CO,,3º de Enseñanzas Elementales de Música (Guitarra),3º,Elemental,Guitarra
+76696,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Guitarra),3º,Elemental,Guitarra
+41029,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Guitarra),4º,Elemental,Guitarra
+41031,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Guitarra),4º,Elemental,Guitarra
+41033,Coro,CO,,4º de Enseñanzas Elementales de Música (Guitarra),4º,Elemental,Guitarra
+76574,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Guitarra),4º,Elemental,Guitarra
+38289,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Saxofón),1º,Profesional,Saxofón
+38291,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Saxofón),1º,Profesional,Saxofón
+38295,Banda,BANDA,,1º de Enseñanzas Profesionales de Música (Saxofón),1º,Profesional,Saxofón
+38299,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Saxofón),1º,Profesional,Saxofón
+40239,Fundamentos de Composición,FCOM,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+40243,Didáctica de la Música,DIMU,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+40245,Improvisación,IMP,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+40247,Informática musical,INMU,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+40255,Música moderna,MUMO,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+39509,Instrumento,INS,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+39511,Música de Cámara,MC,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+39515,Banda,BANDA,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+39517,Análisis,AN,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+39519,Repertorio acompañado,RA,,6º de Enseñanzas Profesionales de Música (Tuba),6º,Profesional,Tuba
+40817,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Oboe),2º,Elemental,Oboe
+40819,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Oboe),2º,Elemental,Oboe
+76628,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Oboe),2º,Elemental,Oboe
+41125,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Oboe),4º,Elemental,Oboe
+41127,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Oboe),4º,Elemental,Oboe
+41131,Coro,CO,,4º de Enseñanzas Elementales de Música (Oboe),4º,Elemental,Oboe
+76576,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Oboe),4º,Elemental,Oboe
+40733,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Percusión),1º,Elemental,Percusión
+40735,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Percusión),1º,Elemental,Percusión
+76590,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Percusión),1º,Elemental,Percusión
+40821,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Percusión),2º,Elemental,Percusión
+40823,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Percusión),2º,Elemental,Percusión
+76632,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Percusión),2º,Elemental,Percusión
+39057,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Percusión),4º,Profesional,Percusión
+39059,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Percusión),4º,Profesional,Percusión
+39063,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Percusión),4º,Profesional,Percusión
+39067,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Percusión),4º,Profesional,Percusión
+39069,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Percusión),4º,Profesional,Percusión
+38111,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Canto),1º,Profesional,Canto
+38113,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Canto),1º,Profesional,Canto
+38115,Coro,CO,,1º de Enseñanzas Profesionales de Música (Canto),1º,Profesional,Canto
+38117,Idioma aplicado al Canto,IDAPC,,1º de Enseñanzas Profesionales de Música (Canto),1º,Profesional,Canto
+38119,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Canto),1º,Profesional,Canto
+38229,Instrumento,INS,,1º de Enseñanzas Profesionales de Música (Guitarra),1º,Profesional,Guitarra
+38231,Lenguaje Musical,LM,,1º de Enseñanzas Profesionales de Música (Guitarra),1º,Profesional,Guitarra
+38233,Coro,CO,,1º de Enseñanzas Profesionales de Música (Guitarra),1º,Profesional,Guitarra
+38235,Conjunto,CON,,1º de Enseñanzas Profesionales de Música (Guitarra),1º,Profesional,Guitarra
+38237,Instrumento Complementario,INCOM,,1º de Enseñanzas Profesionales de Música (Guitarra),1º,Profesional,Guitarra
+38413,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Trompeta),2º,Profesional,Trompeta
+38415,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Trompeta),2º,Profesional,Trompeta
+38419,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Trompeta),2º,Profesional,Trompeta
+38421,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Trompeta),2º,Profesional,Trompeta
+38423,Instrumento,INS,,2º de Enseñanzas Profesionales de Música (Tuba),2º,Profesional,Tuba
+38425,Lenguaje Musical,LM,,2º de Enseñanzas Profesionales de Música (Tuba),2º,Profesional,Tuba
+38429,Banda,BANDA,,2º de Enseñanzas Profesionales de Música (Tuba),2º,Profesional,Tuba
+38431,Instrumento Complementario,INCOM,,2º de Enseñanzas Profesionales de Música (Tuba),2º,Profesional,Tuba
+38871,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Contrabajo),4º,Profesional,Contrabajo
+38873,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Contrabajo),4º,Profesional,Contrabajo
+38875,Orquesta,ORQ,,4º de Enseñanzas Profesionales de Música (Contrabajo),4º,Profesional,Contrabajo
+38879,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Contrabajo),4º,Profesional,Contrabajo
+38881,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Contrabajo),4º,Profesional,Contrabajo
+38883,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Contrabajo),4º,Profesional,Contrabajo
+39049,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Piano),4º,Profesional,Piano
+39051,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Piano),4º,Profesional,Piano
+39053,Conjunto,CON,,4º de Enseñanzas Profesionales de Música (Piano),4º,Profesional,Piano
+39055,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Piano),4º,Profesional,Piano
+39071,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Saxofón),4º,Profesional,Saxofón
+39073,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Saxofón),4º,Profesional,Saxofón
+39077,Banda,BANDA,,4º de Enseñanzas Profesionales de Música (Saxofón),4º,Profesional,Saxofón
+39081,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Saxofón),4º,Profesional,Saxofón
+39083,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Saxofón),4º,Profesional,Saxofón
+39085,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Saxofón),4º,Profesional,Saxofón
+39099,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Violín),4º,Profesional,Violín
+39101,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Violín),4º,Profesional,Violín
+39103,Orquesta,ORQ,,4º de Enseñanzas Profesionales de Música (Violín),4º,Profesional,Violín
+39105,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Violín),4º,Profesional,Violín
+39107,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Violín),4º,Profesional,Violín
+39109,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Violín),4º,Profesional,Violín
+39735,Fundamentos de Composición,FCOM,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39737,Coro,CO,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39739,Didáctica de la Música,DIMU,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39741,Improvisación,IMP,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39743,Informática musical,INMU,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39751,Música moderna,MUMO,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39193,Instrumento,INS,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39195,Música de Cámara,MC,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39199,Banda,BANDA,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39201,Análisis,AN,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+39203,Repertorio acompañado,RA,,5º de Enseñanzas Profesionales de Música (Flauta Travesera),5º,Profesional,Flauta Travesera
+40757,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Tuba),1º,Elemental,Tuba
+40759,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Tuba),1º,Elemental,Tuba
+76624,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Tuba),1º,Elemental,Tuba
+40847,Lenguaje Musical,LM,,2º de Enseñanzas Elementales de Música (Tuba),2º,Elemental,Tuba
+40845,Instrumento,INS,,2º de Enseñanzas Elementales de Música (Tuba),2º,Elemental,Tuba
+76648,Práctica Grupal,PG,,2º de Enseñanzas Elementales de Música (Tuba),2º,Elemental,Tuba
+40997,Instrumento,INS,,3º de Enseñanzas Elementales de Música (Tuba),3º,Elemental,Tuba
+40999,Lenguaje Musical,LM,,3º de Enseñanzas Elementales de Música (Tuba),3º,Elemental,Tuba
+41003,Coro,CO,,3º de Enseñanzas Elementales de Música (Tuba),3º,Elemental,Tuba
+76758,Práctica Grupal,PG,,3º de Enseñanzas Elementales de Música (Tuba),3º,Elemental,Tuba
+41165,Instrumento,INS,,4º de Enseñanzas Elementales de Música (Tuba),4º,Elemental,Tuba
+41167,Lenguaje Musical,LM,,4º de Enseñanzas Elementales de Música (Tuba),4º,Elemental,Tuba
+41171,Coro,CO,,4º de Enseñanzas Elementales de Música (Tuba),4º,Elemental,Tuba
+76722,Práctica Grupal,PG,,4º de Enseñanzas Elementales de Música (Tuba),4º,Elemental,Tuba
+40765,Instrumento,INS,,1º de Enseñanzas Elementales de Música (Violín),1º,Elemental,Violín
+40767,Lenguaje Musical,LM,,1º de Enseñanzas Elementales de Música (Violín),1º,Elemental,Violín
+76638,Práctica Grupal,PG,,1º de Enseñanzas Elementales de Música (Violín),1º,Elemental,Violín
+39111,Instrumento,INS,,4º de Enseñanzas Profesionales de Música (Violoncello),4º,Profesional,Violoncello
+39113,Armonía,AR,,4º de Enseñanzas Profesionales de Música (Violoncello),4º,Profesional,Violoncello
+39115,Orquesta,ORQ,,4º de Enseñanzas Profesionales de Música (Violoncello),4º,Profesional,Violoncello
+39117,Historia de la Música,HM,,4º de Enseñanzas Profesionales de Música (Violoncello),4º,Profesional,Violoncello
+39119,Instrumento Complementario,INCOM,,4º de Enseñanzas Profesionales de Música (Violoncello),4º,Profesional,Violoncello
+39121,Repertorio acompañado,RA,,4º de Enseñanzas Profesionales de Música (Violoncello),4º,Profesional,Violoncello
