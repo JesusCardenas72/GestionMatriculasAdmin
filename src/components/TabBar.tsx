@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { HardDrive } from "lucide-react";
+import { FileText, HardDrive } from "lucide-react";
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
-export type ActiveTab = EstadoTramite | "local";
+export type ActiveTab = EstadoTramite | "local" | "informes";
 
 export interface TabDef {
   estado: EstadoTramite;
@@ -98,6 +98,18 @@ export default function TabBar({ active, counts, pendingUploads, onChange }: Pro
             {pendingUploads}
           </span>
         )}
+      </button>
+
+      <button
+        ref={setRef("informes")}
+        onClick={() => onChange("informes")}
+        className={
+          "relative z-10 flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold transition-colors " +
+          (active === "informes" ? "text-amber-700" : "text-[#464555] hover:text-[#1b1b24]")
+        }
+      >
+        <FileText className="w-4 h-4" />
+        Informes
       </button>
     </div>
   );

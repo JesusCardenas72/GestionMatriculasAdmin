@@ -9,6 +9,7 @@ import TabBar, { type ActiveTab } from "../components/TabBar";
 import SolicitudList from "../components/SolicitudList";
 import SolicitudDetail from "../components/SolicitudDetail";
 import LocalScreen from "./LocalScreen";
+import InformesScreen from "./InformesScreen";
 
 interface Props {
   config: AppConfig;
@@ -31,7 +32,10 @@ export default function MainScreen({ config, onEditConfig }: Props) {
     [ESTADO.TRAMITADO]: q3,
   } as const;
 
-  const current = active !== "local" ? queryByEstado[active] : null;
+  const current =
+    active !== "local" && active !== "informes"
+      ? queryByEstado[active as EstadoTramite]
+      : null;
 
   const counts: Record<EstadoTramite, number | undefined> = {
     [ESTADO.PENDIENTE_TRAMITACION]: q1.data?.total ?? q1.data?.solicitudes.length,
@@ -71,6 +75,8 @@ export default function MainScreen({ config, onEditConfig }: Props) {
 
       {active === "local" ? (
         <LocalScreen config={config} />
+      ) : active === "informes" ? (
+        <InformesScreen config={config} />
       ) : (
         <div className="flex-1 grid grid-cols-[320px_1fr] overflow-hidden p-8 gap-4">
           {/* Panel izquierdo — tarjeta */}

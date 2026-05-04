@@ -254,8 +254,10 @@ export default function LocalList({
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    {m.nOrden != null && (
-                      <span className="text-lg font-bold text-orange-500">#{m.nOrden}</span>
+                    {(m._nOrdenDisplay ?? (m.nOrden != null ? String(m.nOrden) : null)) != null && (
+                      <span className="text-lg font-bold text-orange-500">
+                        #{m._nOrdenDisplay ?? m.nOrden}
+                      </span>
                     )}
                     {m._pendienteSubida && (
                       <span

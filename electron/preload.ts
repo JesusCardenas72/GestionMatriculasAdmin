@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppConfig } from "./config-store";
-import type { MatriculaLocal } from "../src/api/types";
+import type { ConfigInforme, MatriculaLocal } from "../src/api/types";
 
 const adminAPI = {
   config: {
@@ -34,6 +34,14 @@ const adminAPI = {
       ipcRenderer.invoke("local:eliminar", localId),
     marcarSubida: (localId: string): Promise<void> =>
       ipcRenderer.invoke("local:marcarSubida", localId),
+  },
+  presets: {
+    listar: (): Promise<ConfigInforme[]> =>
+      ipcRenderer.invoke("presets:listar"),
+    guardar: (preset: ConfigInforme): Promise<void> =>
+      ipcRenderer.invoke("presets:guardar", preset),
+    eliminar: (id: string): Promise<void> =>
+      ipcRenderer.invoke("presets:eliminar", id),
   },
 };
 

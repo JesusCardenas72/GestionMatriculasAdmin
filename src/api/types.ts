@@ -177,6 +177,46 @@ export interface CrearAmpliacionInput {
   pdfBase64: string | null;
 }
 
+// ── Informes ──────────────────────────────────────────────────────────────────
+
+export type CampoKey = keyof Omit<Solicitud, 'rowId' | 'nombreMatricula'>;
+
+export type OperadorFiltro =
+  | 'igual'
+  | 'contiene'
+  | 'distinto'
+  | 'es_true'
+  | 'es_false'
+  | 'vacio'
+  | 'no_vacio'
+  | 'mayor_que'
+  | 'menor_que'
+  | 'mayor_igual'
+  | 'menor_igual';
+
+export interface FiltroInforme {
+  id: string;
+  campo: CampoKey;
+  operador: OperadorFiltro;
+  valor: string;
+}
+
+export interface OrdenInforme {
+  id: string;
+  campo: CampoKey;
+  direccion: 'asc' | 'desc';
+}
+
+export interface ConfigInforme {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  predefinido?: boolean;
+  camposVisibles: CampoKey[];
+  filtros: FiltroInforme[];
+  orden: OrdenInforme[];
+}
+
 // ── Matrículas locales (store JSON) ──────────────────────────────────────────
 
 export interface AsignaturaLocal {
@@ -226,4 +266,5 @@ export interface MatriculaLocal {
   _guardadoEn: string;
   _modificadoEn: string;
   _pdfBase64: string | null;
+  _nOrdenDisplay?: string | null;
 }

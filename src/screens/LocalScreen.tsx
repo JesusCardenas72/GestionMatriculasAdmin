@@ -67,6 +67,11 @@ function solicitudALocal(
   };
 }
 
+function toIsoDate(s: string | null | undefined): string | null {
+  if (!s) return null;
+  return s.split("T")[0];
+}
+
 export default function LocalScreen({ config }: Props) {
   const { matriculas, isLoading, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas();
   const tramitadasQuery = useSolicitudes(config, ESTADO.TRAMITADO);
@@ -75,6 +80,8 @@ export default function LocalScreen({ config }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [showAmpliacion, setShowAmpliacion] = useState(false);
   const [subirError, setSubirError] = useState<string | null>(null);
+  const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
+  const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
   const syncedRef = useRef(false);
 
   // Auto-sincronización: descarga tramitadas de Dataverse que no estén en local
@@ -207,7 +214,7 @@ export default function LocalScreen({ config }: Props) {
           dni: selected.dni,
           email: selected.email,
           telefono: selected.telefono,
-          fechaNacimiento: selected.fechaNacimiento,
+          fechaNacimiento: toIsoDate(selected.fechaNacimiento),
           domicilio: selected.domicilio,
           localidad: selected.localidad,
           provincia: selected.provincia,
@@ -234,7 +241,7 @@ export default function LocalScreen({ config }: Props) {
           dni: selected.dni,
           email: selected.email,
           telefono: selected.telefono,
-          fechaNacimiento: selected.fechaNacimiento,
+          fechaNacimiento: toIsoDate(selected.fechaNacimiento),
           domicilio: selected.domicilio,
           localidad: selected.localidad,
           provincia: selected.provincia,
@@ -262,6 +269,81 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
+  async function handleSubirNubeTodo() {
+    const pendientes = matriculas.filter((m) => m._pendienteSubida);
+    if (pendientes.length === 0) return;
+    setIsSubiendoTodo(true);
+    setSubirTodoError(null);
+    let errores = 0;
+    for (const m of pendientes) {
+      try {
+        if (m.rowId) {
+          await subirMatriculaEditada(config, {
+            rowId: m.rowId,
+            nOrden: m.nOrden != null ? String(m.nOrden) : null,
+            nombre: m.nombre,
+            apellidos: m.apellidos,
+            dni: m.dni,
+            email: m.email,
+            telefono: m.telefono,
+            fechaNacimiento: toIsoDate(m.fechaNacimiento),
+            domicilio: m.domicilio,
+            localidad: m.localidad,
+            provincia: m.provincia,
+            cp: m.cp,
+            ensenanzaCurso: m.ensenanzaCurso,
+            especialidad: m.especialidad,
+            formaPago: m.formaPago,
+            reduccionTasas: m.reduccionTasas,
+            autorizacionImagen: m.autorizacionImagen,
+            disponibilidadManana: m.disponibilidadManana,
+            horaSalida: m.horaSalida,
+            asignaturasActualizadas: m.asignaturas
+              .filter((a) => a.rowId !== null)
+              .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
+            asignaturasNuevas: m.asignaturas
+              .filter((a) => a.rowId === null)
+              .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
+          });
+          await marcarSubida(m.localId);
+        } else {
+          const result = await crearAmpliacion(config, {
+            nombre: m.nombre,
+            apellidos: m.apellidos,
+            dni: m.dni,
+            email: m.email,
+            telefono: m.telefono,
+            fechaNacimiento: toIsoDate(m.fechaNacimiento),
+            domicilio: m.domicilio,
+            localidad: m.localidad,
+            provincia: m.provincia,
+            cp: m.cp,
+            ensenanzaCurso: m.ensenanzaCurso,
+            especialidad: m.especialidad,
+            formaPago: m.formaPago,
+            reduccionTasas: m.reduccionTasas,
+            autorizacionImagen: m.autorizacionImagen,
+            disponibilidadManana: m.disponibilidadManana,
+            horaSalida: m.horaSalida,
+            asignaturas: m.asignaturas.map((a) => ({
+              codigo: a.codigo,
+              nombre: a.nombre,
+              estado: a.estado,
+            })),
+            pdfBase64: m._pdfBase64,
+          });
+          await actualizar(m.localId, { rowId: result.rowId, _pendienteSubida: false });
+        }
+      } catch {
+        errores++;
+      }
+    }
+    setIsSubiendoTodo(false);
+    if (errores > 0) {
+      setSubirTodoError(`${errores} matrícula${errores > 1 ? "s" : ""} no se pudo${errores > 1 ? "ieron" : ""} subir`);
+    }
+  }
+
   const pendingUploads = matriculas.filter((m) => m._pendienteSubida).length;
 
   return (
@@ -279,6 +361,36 @@ export default function LocalScreen({ config }: Props) {
             void tramitadasQuery.refetch();
           }}
         />
+        {pendingUploads > 0 && (
+          <div className="p-3 border-t border-[#c7c4d8]/50 flex flex-col gap-1.5">
+            <button
+              onClick={() => void handleSubirNubeTodo()}
+              disabled={isSubiendoTodo || isSaving}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors"
+            >
+              {isSubiendoTodo ? (
+                <>
+                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Subiendo...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
+                  </svg>
+                  Subir a la Nube Todo ({pendingUploads})
+                </>
+              )}
+            </button>
+            {subirTodoError && (
+              <p className="text-xs text-red-500 text-center">{subirTodoError}</p>
+            )}
+          </div>
+        )}
       </div>
       <div className="overflow-y-auto pb-6 px-6">
         {selected ? (

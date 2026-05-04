@@ -15,7 +15,12 @@ import {
   localEliminar,
   localMarcarSubida,
 } from "./local-store";
-import type { MatriculaLocal } from "../src/api/types";
+import {
+  presetsListar,
+  presetsGuardar,
+  presetsEliminar,
+} from "./presets-store";
+import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -58,6 +63,10 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("local:eliminar", (_e, localId: string) => localEliminar(localId));
   ipcMain.handle("local:marcarSubida", (_e, localId: string) => localMarcarSubida(localId));
+
+  ipcMain.handle("presets:listar", () => presetsListar());
+  ipcMain.handle("presets:guardar", (_e, preset: ConfigInforme) => presetsGuardar(preset));
+  ipcMain.handle("presets:eliminar", (_e, id: string) => presetsEliminar(id));
 
   ipcMain.handle(
     "pdf:generarPdfBase64",
