@@ -6,11 +6,12 @@
   },
   "files": [
     "dist/**/*",
-    "dist-electron/**/*"
+    "dist-electron/**/*",
+    "PergaminoIcon.ico"
   ],
   "win": {
     "target": "nsis",
-    "icon": "assets/icon.ico"
+    "icon": "PergaminoIcon.ico"
   },
   "nsis": {
     "oneClick": false,
