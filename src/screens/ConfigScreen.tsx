@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  DownloadCloud,
+  UploadCloud,
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { listarSolicitudes } from "../api/solicitudes";
@@ -226,6 +228,37 @@ export default function ConfigScreen({
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
           >
             <Save className="w-4 h-4" /> Guardar configuración
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const path = await window.adminAPI.config.export();
+                if (path) alert(`Configuración exportada a:\n${path}`);
+              } catch (e) {
+                alert(`Error exportando configuración: ${(e as Error).message}`);
+              }
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
+          >
+            <DownloadCloud className="w-4 h-4" /> Exportar
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const imported = await window.adminAPI.config.import();
+                if (imported) {
+                  await onSave(imported);
+                  alert("Configuración importada correctamente.");
+                }
+              } catch (e) {
+                alert(`Error importando configuración: ${(e as Error).message}`);
+              }
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
+          >
+            <UploadCloud className="w-4 h-4" /> Importar
           </button>
           <button
             type="button"

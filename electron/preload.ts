@@ -9,6 +9,8 @@ const adminAPI = {
     save: (cfg: AppConfig): Promise<void> =>
       ipcRenderer.invoke("config:save", cfg),
     clear: (): Promise<void> => ipcRenderer.invoke("config:clear"),
+    export: (): Promise<string | null> => ipcRenderer.invoke("config:export"),
+    import: (): Promise<AppConfig> => ipcRenderer.invoke("config:import"),
   },
   pdf: {
     printHtml: (

@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -56,6 +57,32 @@ function registerIpcHandlers() {
   ipcMain.handle("config:load", () => loadConfig());
   ipcMain.handle("config:save", (_e, cfg: AppConfig) => saveConfig(cfg));
   ipcMain.handle("config:clear", () => clearConfig());
+  ipcMain.handle("config:export", async () => {
+    const cfg = loadConfig();
+    if (!cfg) throw new Error("No hay configuración guardada para exportar");
+    const res = await dialog.showSaveDialog({
+      title: "Exportar configuración",
+      defaultPath: "config.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (res.canceled || !res.filePath) return null;
+    fs.writeFileSync(res.filePath, JSON.stringify(cfg, null, 2), { encoding: "utf-8" });
+    return res.filePath;
+  });
+
+  ipcMain.handle("config:import", async () => {
+    const res = await dialog.showOpenDialog({
+      title: "Importar configuración",
+      properties: ["openFile"],
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (res.canceled || !res.filePaths || res.filePaths.length === 0) throw new Error("No se seleccionó ningún archivo");
+    const file = res.filePaths[0];
+    const json = fs.readFileSync(file, { encoding: "utf-8" });
+    const parsed = JSON.parse(json) as AppConfig;
+    saveConfig(parsed);
+    return parsed;
+  });
 
   ipcMain.handle("local:listar", () => localListar());
   ipcMain.handle("local:guardar", (_e, record: MatriculaLocal) => localGuardar(record));

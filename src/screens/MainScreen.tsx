@@ -43,7 +43,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
     [ESTADO.TRAMITADO]: q3.data?.total ?? q3.data?.solicitudes.length,
   };
 
-  const pendingUploads = localMatriculas.filter((m) => m._pendienteSubida).length;
+  const pendingUploads = localMatriculas.length;
 
   const handleTabChange = (tab: ActiveTab) => {
     setActive(tab);
@@ -62,7 +62,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           active={active}
           counts={counts}
           pendingUploads={pendingUploads}
-          onChange={handleTabChange}
+onChange={handleTabChange}
         />
         <button
           onClick={onEditConfig}

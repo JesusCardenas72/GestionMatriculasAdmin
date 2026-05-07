@@ -1855,26 +1855,26 @@ Actualiza un registro existente de cpmmr_matriculas y sus asignaturas asociadas.
 "disponibilidadManana": { "type": "boolean" },
 "horaSalida": { "type": "string" },
 "asignaturasActualizadas": {
-  "type": "array",
-  "items": {
-    "type": "object",
-    "properties": {
-      "rowId": { "type": "string" },
-      "estado": { "type": "integer" },
-      "observaciones": { "type": "string" }
-    }
-  }
+"type": "array",
+"items": {
+"type": "object",
+"properties": {
+"rowId": { "type": "string" },
+"estado": { "type": "integer" },
+"observaciones": { "type": "string" }
+}
+}
 },
 "asignaturasNuevas": {
-  "type": "array",
-  "items": {
-    "type": "object",
-    "properties": {
-      "codigo": { "type": "integer" },
-      "nombre": { "type": "string" },
-      "estado": { "type": "integer" }
-    }
-  }
+"type": "array",
+"items": {
+"type": "object",
+"properties": {
+"codigo": { "type": "integer" },
+"nombre": { "type": "string" },
+"estado": { "type": "integer" }
+}
+}
 }
 },
 "required": ["rowId"]
@@ -2020,15 +2020,15 @@ Crea un registro nuevo completo en cpmmr_matriculas (ampliación), sube el PDF y
 "disponibilidadManana": { "type": "boolean" },
 "horaSalida": { "type": "string" },
 "asignaturas": {
-  "type": "array",
-  "items": {
-    "type": "object",
-    "properties": {
-      "codigo": { "type": "integer" },
-      "nombre": { "type": "string" },
-      "estado": { "type": "integer" }
-    }
-  }
+"type": "array",
+"items": {
+"type": "object",
+"properties": {
+"codigo": { "type": "integer" },
+"nombre": { "type": "string" },
+"estado": { "type": "integer" }
+}
+}
 },
 "pdfBase64": { "type": "string" }
 },
@@ -2090,7 +2090,7 @@ Si @not(empty(triggerBody()?['pdfBase64'])):
 "recordId": "@outputs('Add_a_new_row')?['body/cpmmr_matriculaid']",
 "fileImageFieldName": "cpmmr_solicitudpdf",
 "item/cpmmr_solicitudpdf": {
-  "$content-type": "application/pdf",
+"$content-type": "application/pdf",
   "$content": "@triggerBody()?['pdfBase64']"
 }
 },
@@ -2137,7 +2137,7 @@ Si @not(empty(triggerBody()?['pdfBase64'])):
 "statusCode": 200,
 "headers": { "Content-Type": "application/json" },
 "body": {
-  "rowId": "@{outputs('Add_a_new_row')?['body/cpmmr_matriculaid']}"
+"rowId": "@{outputs('Add_a_new_row')?['body/cpmmr_matriculaid']}"
 }
 },
 "runAfter": { "Apply_to_each_Asignaturas": ["Succeeded"] }
@@ -2285,8 +2285,8 @@ https://c627b3c984dee98bb3d3cffe8c91c0.4d.environment.api.powerplatform.com:443/
 
 AdminSubirMatriculaEditada
 
-(URL — rellenar tras crear el flow)
+[(URL — rellenar tras crear el flow)](https://c627b3c984dee98bb3d3cffe8c91c0.4d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b516571d24954a858ec7b31565128284/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=yxJJeE3-tbutQ2ZDMSm3cWlwIokKsYhNaLv1sOxmDEM)
 
 AdminCrearAmpliacion
 
-(URL — rellenar tras crear el flow)
+[(URL — rellenar tras crear el flow)](https://c627b3c984dee98bb3d3cffe8c91c0.4d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d109e08638e8422c94ac6009800cbc21/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ar9qm60brbB1O7IKHQtqZ751D1wdhZ6evowiehilj2w)

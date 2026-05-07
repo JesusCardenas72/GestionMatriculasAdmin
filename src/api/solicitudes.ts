@@ -79,6 +79,7 @@ export async function listarSolicitudes(
     cfg.urlListar,
     cfg.apiKey,
     { estado },
+    "AdminListarSolicitudes",
   );
   return {
     solicitudes: (res.solicitudes ?? []).map(mapSolicitud),
@@ -90,28 +91,28 @@ export function obtenerPDF(
   cfg: AppConfig,
   rowId: string,
 ): Promise<ObtenerPDFResponse> {
-  return postFlow<ObtenerPDFResponse>(cfg.urlObtenerPdf, cfg.apiKey, { rowId });
+  return postFlow<ObtenerPDFResponse>(cfg.urlObtenerPdf, cfg.apiKey, { rowId }, "AdminObtenerPDF");
 }
 
 export function actualizarSolicitud(
   cfg: AppConfig,
   input: ActualizarSolicitudInput,
 ): Promise<{ ok: boolean }> {
-  return postFlow<{ ok: boolean }>(cfg.urlActualizar, cfg.apiKey, input);
+  return postFlow<{ ok: boolean }>(cfg.urlActualizar, cfg.apiKey, input, "AdminActualizarSolicitud");
 }
 
 export function editarSolicitud(
   cfg: AppConfig,
   input: EditarSolicitudInput,
 ): Promise<{ ok: boolean }> {
-  return postFlow<{ ok: boolean }>(cfg.urlEditar, cfg.apiKey, input);
+  return postFlow<{ ok: boolean }>(cfg.urlEditar, cfg.apiKey, input, "AdminEditarSolicitud");
 }
 
 export function borrarSolicitud(
   cfg: AppConfig,
   input: BorrarSolicitudInput,
 ): Promise<{ ok: boolean }> {
-  return postFlow<{ ok: boolean }>(cfg.urlBorrar, cfg.apiKey, input);
+  return postFlow<{ ok: boolean }>(cfg.urlBorrar, cfg.apiKey, input, "AdminBorrarSolicitud");
 }
 
 // ── Asignaturas matriculadas ──────────────────────────────────────────────────
@@ -143,6 +144,7 @@ export async function listarAsignaturasSolicitud(
     cfg.urlListarAsignaturas,
     cfg.apiKey,
     input,
+    "AdminListarAsignaturasSolicitud",
   );
   return (res.asignaturas ?? []).map((r) => ({
     rowId: r.cr955_matriculaasignaturaid,
@@ -161,6 +163,7 @@ export async function listarCatalogoAsignaturas(
     cfg.urlCatalogoAsignaturas,
     cfg.apiKey,
     input,
+    "AdminCatalogoAsignaturas",
   );
   return (res.asignaturas ?? []).map((r) => ({
     rowId: r.cr955_asignaturasid,
@@ -178,7 +181,7 @@ export function guardarAsignaturas(
   cfg: AppConfig,
   input: GuardarAsignaturasInput,
 ): Promise<{ ok: boolean }> {
-  return postFlow<{ ok: boolean }>(cfg.urlGuardarAsignaturas, cfg.apiKey, input);
+  return postFlow<{ ok: boolean }>(cfg.urlGuardarAsignaturas, cfg.apiKey, input, "AdminGuardarAsignaturas");
 }
 
 // ── Subir a la Nube ───────────────────────────────────────────────────────────
@@ -187,19 +190,19 @@ export function subirMatriculaEditada(
   cfg: AppConfig,
   input: SubirMatriculaInput,
 ): Promise<{ ok: boolean }> {
-  return postFlow<{ ok: boolean }>(cfg.urlSubirMatricula, cfg.apiKey, input);
+  return postFlow<{ ok: boolean }>(cfg.urlSubirMatricula, cfg.apiKey, input, "AdminSubirMatriculaEditada");
 }
 
 export function crearAmpliacion(
   cfg: AppConfig,
   input: CrearAmpliacionInput,
 ): Promise<{ rowId: string }> {
-  return postFlow<{ rowId: string }>(cfg.urlCrearAmpliacion, cfg.apiKey, input);
+  return postFlow<{ rowId: string }>(cfg.urlCrearAmpliacion, cfg.apiKey, input, "AdminCrearAmpliacion");
 }
 
 export function enviarEmailAmpliacion(
   cfg: AppConfig,
   input: { email: string; nombre: string; apellidos: string; emailHtml: string },
 ): Promise<{ ok: boolean }> {
-  return postFlow<{ ok: boolean }>(cfg.urlEnviarEmailAmpliacion!, cfg.apiKey, input);
+  return postFlow<{ ok: boolean }>(cfg.urlEnviarEmailAmpliacion!, cfg.apiKey, input, "AdminEnviarEmailAmpliacion");
 }

@@ -13,7 +13,9 @@ export async function postFlow<TResponse>(
   url: string,
   apiKey: string,
   body: unknown,
+  name?: string,
 ): Promise<TResponse> {
+  const flowLabel = name ?? url.match(/\/workflows\/([^/]+)\//)?.[1]?.slice(0, 8) ?? url.slice(-20);
   const bodyStr = JSON.stringify(body ?? {});
   let res: Response;
   try {
@@ -27,7 +29,7 @@ export async function postFlow<TResponse>(
     });
   } catch (e) {
     throw new FlowError(
-      `No se pudo conectar con el flow: ${(e as Error).message}`,
+      `[${flowLabel}] No se pudo conectar con el flow: ${(e as Error).message}`,
       0,
     );
   }
@@ -37,13 +39,13 @@ export async function postFlow<TResponse>(
   if (!res.ok) {
     if (res.status === 401) {
       throw new FlowError(
-        "API key invalida o rechazada por el flow (401).",
+        `[${flowLabel}] API key invalida o rechazada por el flow (401).`,
         401,
         text,
       );
     }
     throw new FlowError(
-      `El flow devolvio ${res.status} ${res.statusText}`,
+      `[${flowLabel}] El flow devolvio ${res.status} ${res.statusText}`,
       res.status,
       text,
     );
