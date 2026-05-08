@@ -455,16 +455,53 @@ export default function InformesScreen({ config: _cfg }: Props) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-8 gap-0">
+    <div className="flex-1 flex flex-col overflow-hidden px-6 py-5 gap-0">
 
-      {/* ── Barra superior ────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-t-2xl border border-[#c7c4d8] shadow-sm px-4 py-2.5 flex flex-wrap items-center gap-2 shrink-0">
+      {/* ── Cabecera de sección ────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between mb-4 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center shadow-sm">
+            <FileText className="w-4.5 h-4.5 text-amber-600" />
+          </div>
+          <div>
+            <h2 className="text-[15px] font-bold text-[#1b1b24] leading-tight">Informes</h2>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">
+              {camposVisibles.length === 0
+                ? 'Configura los campos del informe'
+                : `${camposVisibles.length} campo${camposVisibles.length !== 1 ? 's' : ''}${
+                    informe.filtros.length > 0
+                      ? ` · ${informe.filtros.length} filtro${informe.filtros.length !== 1 ? 's' : ''} activo${informe.filtros.length !== 1 ? 's' : ''}`
+                      : ''
+                  }`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          {!isLoading && camposVisibles.length > 0 && (
+            <div className="text-right">
+              <div className="text-2xl font-bold text-[#1b1b24] tabular-nums leading-none">{resultados.length}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">registro{resultados.length !== 1 ? 's' : ''}</div>
+            </div>
+          )}
+          <button
+            onClick={handleImprimir}
+            disabled={printing || isLoading || camposVisibles.length === 0 || resultados.length === 0}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 disabled:opacity-40 transition-colors shadow-sm"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            {printing ? 'Generando…' : 'Imprimir PDF'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Barra de herramientas ──────────────────────────────────────────── */}
+      <div className="bg-white rounded-t-2xl border border-[#c7c4d8] shadow-sm px-4 py-3 flex flex-wrap items-center gap-2 shrink-0">
 
         {/* Selector de informe base */}
         <select
           value={currentSelectId}
           onChange={e => loadPredefinido(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30"
+          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
         >
           <option value="personalizado">— Personalizado —</option>
           <optgroup label="Predefinidos">
@@ -488,7 +525,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
             value={informe.nombre}
             onChange={e => setInforme(prev => ({ ...prev, nombre: e.target.value }))}
             placeholder="Nombre del informe..."
-            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 w-44"
+            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30 w-44"
           />
         )}
 
@@ -519,7 +556,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
         {!showNuevoPreset ? (
           <button
             onClick={() => { setShowNuevoPreset(true); setNuevoPresetNombre(informe.nombre); }}
-            className="flex items-center gap-1 text-xs text-[#3525cd] hover:text-[#2a1db5] transition-colors"
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
           >
             <Save className="w-3.5 h-3.5" />
             {isSavedPreset ? 'Guardar como nuevo...' : 'Guardar preset...'}
@@ -536,7 +573,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
               }}
               placeholder="Nombre del preset..."
               autoFocus
-              className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#3525cd]/30 w-36"
+              className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400/30 w-36"
             />
             <button
               onClick={handleGuardarNuevoPreset}
@@ -562,35 +599,17 @@ export default function InformesScreen({ config: _cfg }: Props) {
           className={
             'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ' +
             (showFilters || informe.filtros.length > 0
-              ? 'bg-[#3525cd]/10 border-[#3525cd]/30 text-[#3525cd]'
+              ? 'bg-amber-50 border-amber-300/60 text-amber-700'
               : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-600')
           }
         >
           <Filter className="w-3.5 h-3.5" />
           Filtros
           {informe.filtros.length > 0 && (
-            <span className="bg-[#3525cd] text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-semibold">
+            <span className="bg-amber-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-semibold">
               {informe.filtros.length}
             </span>
           )}
-        </button>
-
-        {/* Contador */}
-        {!isLoading && camposVisibles.length > 0 && (
-          <span className="text-xs text-slate-400 shrink-0">
-            <FileText className="w-3.5 h-3.5 inline -mt-0.5 mr-0.5 text-slate-300" />
-            {resultados.length} registro{resultados.length !== 1 ? 's' : ''}
-          </span>
-        )}
-
-        {/* Imprimir */}
-        <button
-          onClick={handleImprimir}
-          disabled={printing || isLoading || camposVisibles.length === 0 || resultados.length === 0}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3525cd] text-white text-xs font-semibold rounded-lg hover:bg-[#2a1db5] disabled:opacity-40 transition-colors"
-        >
-          <Printer className="w-3.5 h-3.5" />
-          {printing ? 'Generando…' : 'Imprimir PDF'}
         </button>
       </div>
 
@@ -605,7 +624,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
             transition={{ duration: 0.18, ease: 'easeOut' }}
             className="overflow-hidden shrink-0"
           >
-            <div className="bg-slate-50/80 border-x border-b border-[#c7c4d8] px-4 py-3">
+            <div className="bg-amber-50/50 border-x border-b border-[#c7c4d8] px-4 py-3">
               <div className="flex flex-wrap gap-2 items-start">
                 {informe.filtros.length === 0 && (
                   <span className="text-xs text-slate-400 self-center">
@@ -622,7 +641,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                   return (
                     <div
                       key={filtro.id}
-                      className="flex flex-col gap-1 bg-white rounded-lg border border-slate-200 p-2 shadow-sm"
+                      className="flex flex-col gap-1 bg-white rounded-lg border border-amber-200/60 p-2 shadow-sm"
                       style={{ minWidth: 160 }}
                     >
                       <div className="flex gap-1 items-center">
@@ -703,7 +722,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
 
                 <button
                   onClick={addFiltro}
-                  className="flex items-center gap-1 text-xs text-[#3525cd] hover:text-[#2a1db5] transition-colors self-center px-1 py-1"
+                  className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 transition-colors self-center px-1 py-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Añadir filtro
@@ -724,14 +743,18 @@ export default function InformesScreen({ config: _cfg }: Props) {
             </div>
           ) : camposVisibles.length === 0 ? (
             /* Estado vacío: sin columnas */
-            <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400 text-sm">
-              <p>Añade al menos un campo para ver el informe</p>
+            <div className="h-full flex flex-col items-center justify-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mb-1">
+                <FileText className="w-6 h-6 text-amber-300" />
+              </div>
+              <p className="text-sm font-medium text-slate-500">Añade campos para construir el informe</p>
+              <p className="text-xs text-slate-400">Selecciona un informe predefinido o configura los campos manualmente</p>
               {camposDisponibles.length > 0 && (
-                <div className="relative">
+                <div className="relative mt-1">
                   <button
                     ref={addFieldBtnRef}
                     onClick={() => setShowAddField(v => !v)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3525cd]/10 text-[#3525cd] hover:bg-[#3525cd]/20 text-xs font-semibold transition-colors"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 text-xs font-semibold transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Añadir campo
@@ -745,7 +768,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                         <button
                           key={c.key}
                           onClick={() => addCampoInline(c.key)}
-                          className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-[#3525cd]/5 hover:text-[#3525cd] transition-colors"
+                          className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
                         >
                           {c.label}
                         </button>
@@ -758,7 +781,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
           ) : (
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-20">
-                <tr className="bg-[#3525cd]/5 border-b border-[#3525cd]/10">
+                <tr className="bg-amber-50/70 border-b border-amber-100">
                   <AnimatePresence initial={false} mode="popLayout">
                     {displayColItems.map(item => {
                       if (item.type === 'placeholder') {
@@ -801,7 +824,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                           <div className="flex items-center gap-0.5 py-2">
                             <span
                               onMouseDown={e => handleGripMouseDown(e, item.originalIdx)}
-                              className="cursor-grab text-slate-300 hover:text-slate-500 transition-colors shrink-0 opacity-30 group-hover:opacity-100 pr-0.5"
+                              className="cursor-grab text-amber-300 hover:text-amber-500 transition-colors shrink-0 opacity-30 group-hover:opacity-100 pr-0.5"
                               title="Arrastrar para reordenar"
                             >
                               <GripVertical className="w-3 h-3" />
@@ -809,7 +832,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
 
                             <button
                               onClick={() => handleClickSort(c.key)}
-                              className="flex items-center gap-1 group/sort text-xs font-semibold text-[#3525cd] uppercase tracking-wide hover:text-[#2a1db5] transition-colors"
+                              className="flex items-center gap-1 group/sort text-xs font-semibold text-amber-700 uppercase tracking-wide hover:text-amber-800 transition-colors"
                               title={
                                 ordenEntry
                                   ? ordenEntry.direccion === 'asc'
@@ -826,7 +849,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                                     : <ChevronDown className="w-3.5 h-3.5" />
                                   }
                                   {informe.orden.length > 1 && (
-                                    <span className="text-[10px] font-bold text-[#3525cd]/50 leading-none">
+                                    <span className="text-[10px] font-bold text-amber-600/50 leading-none">
                                       {ordenIdx + 1}
                                     </span>
                                   )}
@@ -838,7 +861,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
 
                             <button
                               onClick={() => removeCampo(c.key)}
-                              className="ml-0.5 p-0.5 rounded hover:bg-red-100 hover:text-red-500 transition-colors text-slate-300"
+                              className="ml-0.5 p-0.5 rounded hover:bg-red-100 hover:text-red-500 transition-colors text-amber-200"
                               title="Eliminar columna"
                             >
                               <X className="w-3 h-3" />
@@ -859,8 +882,8 @@ export default function InformesScreen({ config: _cfg }: Props) {
                           className={
                             'flex items-center justify-center w-6 h-6 rounded-full transition-colors ' +
                             (showAddField
-                              ? 'bg-[#3525cd] text-white'
-                              : 'bg-[#3525cd]/10 hover:bg-[#3525cd]/25 text-[#3525cd]')
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-amber-100 hover:bg-amber-200 text-amber-700')
                           }
                           title="Añadir campo"
                         >
@@ -876,7 +899,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                               <button
                                 key={c.key}
                                 onClick={() => addCampoInline(c.key)}
-                                className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-[#3525cd]/5 hover:text-[#3525cd] transition-colors"
+                                className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
                               >
                                 {c.label}
                               </button>
@@ -901,7 +924,13 @@ export default function InformesScreen({ config: _cfg }: Props) {
                   </tr>
                 ) : (
                   resultados.map((s, i) => (
-                    <tr key={s.rowId} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
+                    <tr
+                      key={s.rowId}
+                      className={
+                        'border-b border-slate-100 hover:bg-amber-50/30 transition-colors ' +
+                        (i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
+                      }
+                    >
                       {camposVisibles.map(c => {
                         const val    = formatCelda(s, c);
                         const isTrue  = c.tipo === 'booleano' && val === 'Sí';
@@ -910,7 +939,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                           <td
                             key={c.key}
                             className={
-                              'px-3 py-1.5 border-b border-slate-100 text-sm ' +
+                              'px-3 py-2 text-sm ' +
                               (isTrue  ? 'text-emerald-700 font-medium' :
                                isFalse ? 'text-rose-600'                 :
                                          'text-slate-700')
@@ -921,7 +950,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                         );
                       })}
                       {/* Celda vacía para columna del botón + */}
-                      <td className="border-b border-slate-100 px-2" />
+                      <td className="px-2" />
                     </tr>
                   ))
                 )}
@@ -941,9 +970,9 @@ export default function InformesScreen({ config: _cfg }: Props) {
             width: colDrag.width,
           }}
         >
-          <div className="flex items-center gap-1 px-2 py-2 bg-white shadow-xl rounded-lg border border-[#3525cd]/30 ring-1 ring-[#3525cd]/10 opacity-90">
+          <div className="flex items-center gap-1 px-2 py-2 bg-white shadow-xl rounded-lg border border-amber-300/40 ring-1 ring-amber-100 opacity-90">
             <GripVertical className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="text-xs font-semibold text-[#3525cd] uppercase tracking-wide truncate">
+            <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide truncate">
               {camposVisibles[colDrag.colIdx]?.label}
             </span>
           </div>
