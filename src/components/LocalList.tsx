@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  HardDrive,
   Inbox,
   Loader2,
   RefreshCw,
@@ -105,7 +106,35 @@ export default function LocalList({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 pt-4 pb-3 border-b border-[#c7c4d8]/50 flex flex-col gap-2.5">
+
+      {/* ── Cabecera del panel ─────────────────────────────────────────────── */}
+      <div className="px-4 pt-4 pb-3 flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-center shadow-sm shrink-0">
+          <HardDrive className="w-3.75 h-3.75 text-emerald-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-bold text-[#1b1b24]">Matrículas Locales</span>
+            {!isLoading && (
+              <span className="text-[11px] text-slate-400 tabular-nums">
+                {filtered.length !== data.length
+                  ? `${filtered.length} / ${data.length}`
+                  : data.length}
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={isSyncing || isLoading}
+          title="Refrescar"
+          className="p-1.5 rounded-lg text-[#464555] hover:bg-emerald-50 disabled:opacity-50 transition-colors shrink-0"
+        >
+          <RefreshCw className={"w-3.5 h-3.5 " + (isSyncing ? "animate-spin text-emerald-600" : "")} />
+        </button>
+      </div>
+
+      <div className="px-4 pb-3 border-b border-[#c7c4d8]/50 flex flex-col gap-2.5">
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -114,17 +143,9 @@ export default function LocalList({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar alumno..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-[#f5f2ff] border border-[#c7c4d8] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 placeholder:text-[#6b7280]"
+              className="w-full pl-9 pr-3 py-2 text-xs bg-[#f5f2ff] border border-[#c7c4d8] rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 placeholder:text-[#6b7280]"
             />
           </div>
-          <button
-            onClick={onRefresh}
-            disabled={isSyncing || isLoading}
-            title="Refrescar"
-            className="p-1.5 rounded-lg text-[#464555] hover:bg-[#eae6f4] disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw className={"w-3.5 h-3.5 " + (isSyncing ? "animate-spin" : "")} />
-          </button>
         </div>
 
         <div className="flex gap-2">
@@ -132,9 +153,9 @@ export default function LocalList({
             value={filterEnsenanza}
             onChange={(e) => handleEnsenanzaChange(e.target.value)}
             className={
-              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 " +
+              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 " +
               (filterEnsenanza
-                ? "border-[#3525cd]/40 bg-[#eef2ff] text-[#3525cd] font-medium"
+                ? "border-emerald-400/50 bg-emerald-50 text-emerald-700 font-medium"
                 : "border-[#c7c4d8]/50 bg-white text-[#1b1b24]")
             }
           >
@@ -149,9 +170,9 @@ export default function LocalList({
             onChange={(e) => setFilterEspecialidad(e.target.value)}
             disabled={especialidades.length === 0}
             className={
-              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 disabled:opacity-40 " +
+              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 disabled:opacity-40 " +
               (filterEspecialidad
-                ? "border-[#3525cd]/40 bg-[#eef2ff] text-[#3525cd] font-medium"
+                ? "border-emerald-400/50 bg-emerald-50 text-emerald-700 font-medium"
                 : "border-[#c7c4d8]/50 bg-white text-[#1b1b24]")
             }
           >
@@ -165,13 +186,13 @@ export default function LocalList({
         {hasFilters && (
           <button
             onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); }}
-            className="self-start text-xs text-[#3525cd] font-medium hover:underline"
+            className="self-start text-xs text-emerald-700 font-medium hover:underline"
           >
             Limpiar filtros
           </button>
         )}
 
-        <div className="bg-[#eae6f4] rounded-full p-1 flex items-center gap-0.5 flex-wrap">
+        <div className="bg-emerald-50 rounded-full p-1 flex items-center gap-0.5 flex-wrap border border-emerald-100">
           {SORT_BUTTONS.map(({ field, label }) => {
             const active = sort.field === field;
             return (
@@ -181,7 +202,7 @@ export default function LocalList({
                 className={
                   "flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
                   (active
-                    ? "bg-white shadow-sm text-[#3525cd]"
+                    ? "bg-white shadow-sm text-emerald-700"
                     : "text-[#464555] hover:text-[#1b1b24]")
                 }
               >
@@ -207,23 +228,25 @@ export default function LocalList({
           </div>
         )}
         {!isLoading && filtered.length === 0 && (
-          <div className="p-8 flex flex-col items-center gap-2 text-[#464555] text-sm">
-            <Inbox className="w-8 h-8 opacity-40" />
+          <div className="p-8 flex flex-col items-center gap-2 text-slate-400 text-sm">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-1">
+              <Inbox className="w-5 h-5 text-emerald-300" />
+            </div>
             Sin matrículas locales
           </div>
         )}
         <ul>
           {filtered.map((m) => {
-            const selected = m.localId === selectedId;
+            const isSelected = m.localId === selectedId;
             return (
               <li key={m.localId} className="border-t border-[#eae6f4] first:border-t-0">
                 <button
                   onClick={() => onSelect(m)}
                   className={
-                    "w-full text-left px-4 py-2.5 hover:bg-[#f5f2ff] transition-colors flex items-center gap-2 " +
-                    (selected
-                      ? "bg-[rgba(226,223,255,0.3)] border-l-4 border-[#3525cd] pl-3"
-                      : "border-l-4 border-transparent") +
+                    "w-full text-left px-4 py-3 transition-colors flex items-center gap-2 " +
+                    (isSelected
+                      ? "bg-emerald-50/60 border-l-[3px] border-emerald-500 pl-3.25"
+                      : "border-l-[3px] border-transparent hover:bg-[#f5f2ff]") +
                     (m.anulacion ? " opacity-50" : "")
                   }
                 >
@@ -238,24 +261,27 @@ export default function LocalList({
                         {m.nombre} {m.apellidos}
                       </span>
                       {m.anulacion && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
                           Anulada
                         </span>
                       )}
                       {m.ampliacion && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700">
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700">
                           Ampliación
                         </span>
                       )}
                     </div>
                     <div className="text-xs mt-0.5 truncate text-[#6b7280]">
                       {m.ensenanzaCurso}
-                      {m.especialidad ? ` - ${m.especialidad}` : ""}
+                      {m.especialidad ? ` · ${m.especialidad}` : ""}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     {(m._nOrdenDisplay ?? (m.nOrden != null ? String(m.nOrden) : null)) != null && (
-                      <span className="text-lg font-bold text-orange-500">
+                      <span className={
+                        "text-base font-bold tabular-nums " +
+                        (isSelected ? "text-emerald-600" : "text-orange-500")
+                      }>
                         #{m._nOrdenDisplay ?? m.nOrden}
                       </span>
                     )}

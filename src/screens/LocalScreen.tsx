@@ -347,7 +347,7 @@ export default function LocalScreen({ config }: Props) {
   const pendingUploads = matriculas.filter((m) => m._pendienteSubida).length;
 
   return (
-    <div className="flex-1 grid grid-cols-[380px_1fr] overflow-hidden p-8 gap-4">
+    <div className="flex-1 grid grid-cols-[380px_1fr] overflow-hidden px-6 py-5 gap-4">
       <div className="bg-white rounded-2xl border border-[#c7c4d8] shadow-sm overflow-hidden flex flex-col">
         <LocalList
           data={matriculas}
@@ -366,7 +366,7 @@ export default function LocalScreen({ config }: Props) {
             <button
               onClick={() => void handleSubirNubeTodo()}
               disabled={isSubiendoTodo || isSaving}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm"
             >
               {isSubiendoTodo ? (
                 <>
@@ -374,7 +374,7 @@ export default function LocalScreen({ config }: Props) {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
-                  Subiendo...
+                  Subiendo…
                 </>
               ) : (
                 <>
@@ -382,7 +382,7 @@ export default function LocalScreen({ config }: Props) {
                     <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
                     <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
                   </svg>
-                  Subir a la Nube Todo ({pendingUploads})
+                  Subir todo a la nube ({pendingUploads})
                 </>
               )}
             </button>
@@ -392,7 +392,7 @@ export default function LocalScreen({ config }: Props) {
           </div>
         )}
       </div>
-      <div className="overflow-y-auto pb-6 px-6">
+      <div className="overflow-y-auto pb-6 px-4">
         {selected ? (
           <LocalDetail
             matricula={selected}
@@ -406,13 +406,20 @@ export default function LocalScreen({ config }: Props) {
             onBorrar={() => void handleBorrar()}
           />
         ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-400 text-sm">
-            <span>Selecciona una matrícula del listado</span>
-            {pendingUploads > 0 && (
-              <span className="text-amber-500 font-medium">
-                {pendingUploads} matrícula{pendingUploads > 1 ? "s" : ""} pendiente
-                {pendingUploads > 1 ? "s" : ""} de subir
-              </span>
+          <div className="h-full flex flex-col items-center justify-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-1">
+              <svg className="w-6 h-6 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-slate-500">Selecciona una matrícula</p>
+            {pendingUploads > 0 ? (
+              <p className="text-xs text-amber-600 font-medium">
+                {pendingUploads} matrícula{pendingUploads > 1 ? "s" : ""} pendiente{pendingUploads > 1 ? "s" : ""} de subir
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400">Elige un registro del listado para ver sus detalles</p>
             )}
           </div>
         )}
