@@ -5,6 +5,7 @@
     "bradlc.vscode-tailwindcss",
     "ms-vscode.vscode-typescript-next",
     "yoavbls.pretty-ts-errors",
-    "usernamehw.errorlens"
+    "usernamehw.errorlens",
+    "sst-dev.opencode"
   ]
 }
