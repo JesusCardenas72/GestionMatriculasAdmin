@@ -53,9 +53,9 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   const isTramitado = selected?.estado === ESTADO.TRAMITADO;
 
   return (
-    <div className="h-screen flex flex-col bg-[#fcf8ff]">
-      <header className="h-16 shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-200/50 drop-shadow-sm px-8 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
+    <div className="h-screen flex flex-col bg-[var(--tc-bg)]">
+      <header className="h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center justify-between">
+        <h1 className="font-display text-[22px] font-normal text-[var(--tc-ink)] tracking-[-0.6px]">
           Gestión de Matrículas
         </h1>
         <TabBar
@@ -78,9 +78,9 @@ onChange={handleTabChange}
       ) : active === "informes" ? (
         <InformesScreen config={config} />
       ) : (
-        <div className="flex-1 grid grid-cols-[320px_1fr] overflow-hidden p-8 gap-4">
+        <div className="flex-1 grid grid-cols-[320px_1fr] overflow-hidden p-6 gap-4">
           {/* Panel izquierdo — tarjeta */}
-          <div className="bg-white rounded-2xl border border-[#c7c4d8] shadow-sm overflow-hidden flex flex-col">
+          <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
             <SolicitudList
               data={current!.data?.solicitudes}
               isLoading={current!.isLoading}
@@ -100,7 +100,7 @@ onChange={handleTabChange}
                 onDone={() => setSelected(null)}
               />
             ) : (
-              <div className="h-full flex items-center justify-center text-[#464555] text-sm">
+              <div className="h-full flex items-center justify-center text-[var(--tc-ink-mute)] text-sm">
                 Selecciona una solicitud del listado
               </div>
             )}

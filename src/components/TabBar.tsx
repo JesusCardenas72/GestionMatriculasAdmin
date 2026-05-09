@@ -1,4 +1,4 @@
-import { LayoutGroup, motion, AnimatePresence } from "framer-motion";
+import { LayoutGroup, motion } from "framer-motion";
 import { CheckCircle, Clock, Eye, FileText, HardDrive } from "lucide-react";
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
@@ -13,9 +13,9 @@ export interface TabDef {
 }
 
 export const TABS: Omit<TabDef, "count">[] = [
-  { estado: ESTADO.PENDIENTE_TRAMITACION, label: "Pendiente de tramitación", icon: <Clock className="w-4 h-4 shrink-0" /> },
-  { estado: ESTADO.PENDIENTE_VALIDACION, label: "Pendiente de validación", icon: <Eye className="w-4 h-4 shrink-0" /> },
-  { estado: ESTADO.TRAMITADO, label: "Tramitado", icon: <CheckCircle className="w-4 h-4 shrink-0" /> },
+  { estado: ESTADO.PENDIENTE_TRAMITACION, label: "Pendiente de tramitación", icon: <Clock className="w-3.5 h-3.5 shrink-0" /> },
+  { estado: ESTADO.PENDIENTE_VALIDACION, label: "Pendiente de validación", icon: <Eye className="w-3.5 h-3.5 shrink-0" /> },
+  { estado: ESTADO.TRAMITADO, label: "Tramitado", icon: <CheckCircle className="w-3.5 h-3.5 shrink-0" /> },
 ];
 
 interface Props {
@@ -30,7 +30,7 @@ const spring = { type: "spring", stiffness: 400, damping: 35 } as const;
 export default function TabBar({ active, counts, pendingUploads, onChange }: Props) {
   return (
     <LayoutGroup>
-      <div className="bg-[#eae6f4] rounded-full p-1 flex items-center gap-0.5">
+      <div className="bg-[var(--tc-bg-panel)] rounded-full p-1 flex items-center gap-0.5 border border-[var(--tc-border)]">
 
         {TABS.map((tab) => {
           const isActive = tab.estado === active;
@@ -41,137 +41,90 @@ export default function TabBar({ active, counts, pendingUploads, onChange }: Pro
               key={tab.estado}
               onClick={() => onChange(tab.estado)}
               className={
-                "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors overflow-hidden " +
-                (isActive ? "text-[#3525cd]" : "text-[#464555] hover:text-[#1b1b24]")
+                "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+                (isActive ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
               }
             >
               {isActive && (
                 <motion.span
                   layoutId="tab-pill"
-                  className="absolute inset-0 rounded-full bg-white shadow-sm"
+                  className="absolute inset-0 rounded-full bg-[var(--tc-card)] shadow-sm"
                   transition={spring}
                 />
               )}
-              <span className="relative z-10 flex items-center gap-2">
+              <span className="relative z-10 flex items-center gap-1.5">
                 {tab.icon}
-                <AnimatePresence initial={false}>
-                  {isActive && (
-                    <motion.span
-                      key="label"
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={spring}
-                      className="whitespace-nowrap overflow-hidden"
-                    >
-                      {tab.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                <AnimatePresence initial={false}>
-                  {count !== undefined && count > 0 && (
-                    <motion.span
-                      key="count"
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={spring}
-                      className={
-                        "inline-flex items-center justify-center min-w-5 px-1.5 py-0.5 rounded-full text-xs overflow-hidden " +
-                        (isActive ? "bg-[#eae6f4] text-[#3525cd]" : "bg-white/60 text-[#464555]")
-                      }
-                    >
-                      {count}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+                <span className={isActive ? "font-semibold" : ""}>{tab.label}</span>
+                {count !== undefined && count > 0 && (
+                  <span
+                    className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
+                    style={
+                      isActive
+                        ? { background: "var(--tc-primary)", color: "#fff" }
+                        : { background: "var(--tc-card)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }
+                    }
+                  >
+                    {count}
+                  </span>
+                )}
               </span>
             </motion.button>
           );
         })}
 
+        {/* Local */}
         <motion.button
           layout
           onClick={() => onChange("local")}
           className={
-            "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors overflow-hidden " +
-            (active === "local" ? "text-emerald-700" : "text-[#464555] hover:text-[#1b1b24]")
+            "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+            (active === "local" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
           }
         >
           {active === "local" && (
             <motion.span
               layoutId="tab-pill"
-              className="absolute inset-0 rounded-full bg-white shadow-sm"
+              className="absolute inset-0 rounded-full bg-[var(--tc-card)] shadow-sm"
               transition={spring}
             />
           )}
-          <span className="relative z-10 flex items-center gap-2">
-            <HardDrive className="w-4 h-4 shrink-0" />
-            <AnimatePresence initial={false}>
-              {active === "local" && (
-                <motion.span
-                  key="label"
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: "auto", opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={spring}
-                  className="whitespace-nowrap overflow-hidden"
-                >
-                  Local
-                </motion.span>
-              )}
-            </AnimatePresence>
-            <AnimatePresence initial={false}>
-              {pendingUploads !== undefined && pendingUploads > 0 && (
-                <motion.span
-                  key="badge"
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: "auto", opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={spring}
-                  className={
-                    "inline-flex items-center justify-center min-w-5 px-1.5 py-0.5 rounded-full text-xs overflow-hidden " +
-                    (active === "local" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")
-                  }
-                >
-                  {pendingUploads}
-                </motion.span>
-              )}
-            </AnimatePresence>
+          <span className="relative z-10 flex items-center gap-1.5">
+            <HardDrive className="w-3.5 h-3.5 shrink-0" />
+            <span className={active === "local" ? "font-semibold" : ""}>Local</span>
+            {pendingUploads !== undefined && pendingUploads > 0 && (
+              <span
+                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
+                style={
+                  active === "local"
+                    ? { background: "var(--tc-primary)", color: "#fff" }
+                    : { background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }
+                }
+              >
+                {pendingUploads}
+              </span>
+            )}
           </span>
         </motion.button>
 
+        {/* Informes */}
         <motion.button
           layout
           onClick={() => onChange("informes")}
           className={
-            "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors overflow-hidden " +
-            (active === "informes" ? "text-amber-700" : "text-[#464555] hover:text-[#1b1b24]")
+            "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+            (active === "informes" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
           }
         >
           {active === "informes" && (
             <motion.span
               layoutId="tab-pill"
-              className="absolute inset-0 rounded-full bg-white shadow-sm"
+              className="absolute inset-0 rounded-full bg-[var(--tc-card)] shadow-sm"
               transition={spring}
             />
           )}
-          <span className="relative z-10 flex items-center gap-2">
-            <FileText className="w-4 h-4 shrink-0" />
-            <AnimatePresence initial={false}>
-              {active === "informes" && (
-                <motion.span
-                  key="label"
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: "auto", opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
-                  transition={spring}
-                  className="whitespace-nowrap overflow-hidden"
-                >
-                  Informes
-                </motion.span>
-              )}
-            </AnimatePresence>
+          <span className="relative z-10 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span className={active === "informes" ? "font-semibold" : ""}>Informes</span>
           </span>
         </motion.button>
 

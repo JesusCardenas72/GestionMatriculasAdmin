@@ -215,66 +215,112 @@ export default function LocalDetail({
   }
 
   const listaVisible = items.filter((i) => !i._deleted);
+  const nOrdenDisplay = form.nOrden
+    ? String(form.nOrden).padStart(2, "0")
+    : "—";
 
   return (
     <div className="max-w-4xl">
-      <div className="bg-white rounded-xl shadow p-6">
-        {/* Cabecera */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div className="flex-1 min-w-0">
-            <div className="flex gap-2 mb-1">
-              <input
-                value={form.nombre}
-                onChange={(e) => setField("nombre", e.target.value)}
-                onBlur={() => saveForm()}
-                placeholder="Nombre"
-                className="text-xl font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none w-full min-w-0"
-              />
-              <input
-                value={form.apellidos}
-                onChange={(e) => setField("apellidos", e.target.value)}
-                onBlur={() => saveForm()}
-                placeholder="Apellidos"
-                className="text-xl font-semibold text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none w-full min-w-0"
-              />
-            </div>
-            <p className="text-sm text-slate-500 mt-1">
-              {[m.ensenanzaCurso, m.especialidad].filter(Boolean).join(" - ")}
-            </p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {m.anulacion && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                  Anulada
-                </span>
-              )}
-              {m.ampliacion && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-700">
-                  Ampliación de matrícula
-                </span>
-              )}
-              {m._pendienteSubida && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                  Pendiente de subir
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* nOrden editable */}
-          <div className="flex flex-col items-center shrink-0">
-            <p className="text-xs text-slate-400 mb-1">Nº Orden</p>
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: "var(--tc-card)",
+          border: "1px solid var(--tc-border)",
+          boxShadow: "0 1px 2px rgba(45,36,29,0.04), 0 14px 30px -12px rgba(45,36,29,0.10)",
+        }}
+      >
+        {/* ── Cabecera editorial ───────────────────────────────────────────── */}
+        <div
+          style={{
+            padding: "24px 28px 20px",
+            borderBottom: "1px solid var(--tc-border-soft)",
+            background: "linear-gradient(180deg, var(--tc-bg-panel) 0%, transparent 100%)",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 20,
+          }}
+        >
+          {/* Número enorme editable */}
+          <div className="shrink-0 flex flex-col items-center" style={{ width: 96 }}>
             <input
               type="number"
               value={form.nOrden}
               onChange={(e) => setField("nOrden", e.target.value)}
               onBlur={() => saveForm()}
               placeholder="—"
-              className="w-20 text-3xl font-bold text-orange-500 text-center bg-transparent border-b-2 border-transparent hover:border-orange-300 focus:border-orange-500 focus:outline-none"
+              className="font-display w-full text-center bg-transparent border-none outline-none focus:ring-0"
+              style={{
+                fontSize: 80,
+                lineHeight: 0.85,
+                fontWeight: 400,
+                letterSpacing: -4,
+                color: "var(--tc-primary)",
+                MozAppearance: "textfield",
+              }}
             />
+            <p className="text-[10px] text-[var(--tc-ink-mute)] uppercase tracking-widest mt-2">
+              Nº Orden
+            </p>
+          </div>
+
+          <div className="flex-1 min-w-0 pt-1">
+            {/* Eyebrow — estado */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {m.anulacion && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+                  style={{ background: "var(--tc-primary-tint)", color: "var(--tc-primary)", borderColor: "var(--tc-primary-border)" }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                  Anulada
+                </span>
+              )}
+              {m.ampliacion && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+                  style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-border)" }}
+                >
+                  Ampliación de matrícula
+                </span>
+              )}
+              {m._pendienteSubida && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+                  style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", borderColor: "var(--tc-warn-border)" }}
+                >
+                  Pendiente de subir
+                </span>
+              )}
+            </div>
+
+            {/* Nombre editable */}
+            <div className="flex gap-2 mb-2">
+              <input
+                value={form.nombre}
+                onChange={(e) => setField("nombre", e.target.value)}
+                onBlur={() => saveForm()}
+                placeholder="Nombre"
+                className="font-display min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none"
+                style={{ fontSize: 24, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
+              />
+              <input
+                value={form.apellidos}
+                onChange={(e) => setField("apellidos", e.target.value)}
+                onBlur={() => saveForm()}
+                placeholder="Apellidos"
+                className="font-display flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none"
+                style={{ fontSize: 24, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
+              />
+            </div>
+
+            {/* Meta */}
+            <p className="text-sm" style={{ color: "var(--tc-ink-soft)" }}>
+              {[m.ensenanzaCurso, m.especialidad].filter(Boolean).join(" · ")}
+            </p>
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="p-6 space-y-2">
           {/* Datos Personales */}
           <AccordionBlock title="Datos Personales">
             <div className="grid grid-cols-2 gap-x-8 gap-y-3">
@@ -373,22 +419,31 @@ export default function LocalDetail({
           <AccordionBlock title={`Asignaturas (${listaVisible.length})`}>
             <div className="space-y-3">
               {listaVisible.length === 0 && !showAdd && (
-                <p className="text-sm text-slate-400 italic">Sin asignaturas</p>
+                <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Sin asignaturas</p>
               )}
               {listaVisible.map((item) => (
                 <div
                   key={item.localId}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50"
+                  className="flex items-center gap-3 p-3 rounded-lg"
+                  style={{
+                    background: "var(--tc-bg-panel)",
+                    border: "1px solid var(--tc-border-soft)",
+                  }}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{item.nombre}</p>
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--tc-ink)" }}>{item.nombre}</p>
                   </div>
                   <select
                     value={item.estado}
                     onChange={(e) =>
                       cambiarEstadoAsig(item.localId, Number(e.target.value) as EstadoAsignatura)
                     }
-                    className="text-xs border border-slate-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2"
+                    style={{
+                      borderColor: "var(--tc-border)",
+                      background: "var(--tc-card)",
+                      color: "var(--tc-ink)",
+                    }}
                   >
                     {Object.entries(ESTADO_ASIGNATURA).map(([, val]) => (
                       <option key={val} value={val}>
@@ -398,7 +453,16 @@ export default function LocalDetail({
                   </select>
                   <button
                     onClick={() => eliminarAsig(item.localId)}
-                    className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="p-1 rounded-md transition-colors"
+                    style={{ color: "var(--tc-ink-mute)" }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
+                      (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-mute)";
+                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    }}
                     title="Eliminar asignatura"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -407,15 +471,22 @@ export default function LocalDetail({
               ))}
 
               {showAdd ? (
-                <div className="p-3 rounded-lg border border-indigo-200 bg-indigo-50 space-y-3">
-                  <p className="text-xs font-semibold text-indigo-700">Añadir asignatura</p>
+                <div
+                  className="p-3 rounded-lg space-y-3"
+                  style={{
+                    background: "var(--tc-primary-tint)",
+                    border: "1px solid var(--tc-primary-border)",
+                  }}
+                >
+                  <p className="text-xs font-semibold" style={{ color: "var(--tc-primary-dark)" }}>Añadir asignatura</p>
                   <select
                     value={addEstado}
                     onChange={(e) => {
                       setAddEstado(Number(e.target.value) as EstadoAsignatura);
                       setAddCodigo("");
                     }}
-                    className="w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="w-full text-sm border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2"
+                    style={{ borderColor: "var(--tc-border)", background: "var(--tc-card)", color: "var(--tc-ink)" }}
                   >
                     {Object.entries(ESTADO_ASIGNATURA).map(([, val]) => (
                       <option key={val} value={val}>
@@ -424,13 +495,14 @@ export default function LocalDetail({
                     ))}
                   </select>
                   {!especialidad ? (
-                    <p className="text-xs text-amber-600">La matrícula no tiene especialidad definida.</p>
+                    <p className="text-xs" style={{ color: "var(--tc-warn-ink)" }}>La matrícula no tiene especialidad definida.</p>
                   ) : (
                     <>
                       <select
                         value={addCodigo}
                         onChange={(e) => setAddCodigo(e.target.value)}
-                        className="w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                        className="w-full text-sm border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2"
+                        style={{ borderColor: "var(--tc-border)", background: "var(--tc-card)", color: "var(--tc-ink)" }}
                       >
                         <option value="">— Selecciona una asignatura —</option>
                         {catalogoFiltrado.map((a) => {
@@ -445,7 +517,7 @@ export default function LocalDetail({
                         })}
                       </select>
                       {catalogoFiltrado.length === 0 && (
-                        <p className="text-xs text-slate-500">No hay asignaturas disponibles para añadir.</p>
+                        <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>No hay asignaturas disponibles para añadir.</p>
                       )}
                     </>
                   )}
@@ -453,13 +525,15 @@ export default function LocalDetail({
                     <button
                       onClick={agregarAsig}
                       disabled={!addCodigo}
-                      className="px-3 py-1.5 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
+                      className="px-3 py-1.5 text-sm rounded-md text-white font-semibold disabled:opacity-40"
+                      style={{ background: "var(--tc-primary)" }}
                     >
                       Añadir
                     </button>
                     <button
                       onClick={() => { setShowAdd(false); setAddCodigo(""); }}
-                      className="px-3 py-1.5 text-sm rounded-md text-slate-600 hover:bg-slate-100"
+                      className="px-3 py-1.5 text-sm rounded-md"
+                      style={{ color: "var(--tc-ink-soft)" }}
                     >
                       Cancelar
                     </button>
@@ -468,7 +542,8 @@ export default function LocalDetail({
               ) : (
                 <button
                   onClick={() => setShowAdd(true)}
-                  className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800"
+                  className="flex items-center gap-2 text-sm font-medium"
+                  style={{ color: "var(--tc-primary)" }}
                 >
                   <Plus className="w-4 h-4" /> Añadir asignatura
                 </button>
@@ -504,7 +579,12 @@ export default function LocalDetail({
               onBlur={() => saveForm()}
               rows={3}
               placeholder="Documentación faltante u observaciones..."
-              className="w-full text-sm border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 resize-none"
+              style={{
+                borderColor: "var(--tc-border)",
+                background: "var(--tc-bg-panel)",
+                color: "var(--tc-ink)",
+              }}
             />
           </AccordionBlock>
 
@@ -513,16 +593,17 @@ export default function LocalDetail({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-700">Anulación de matrícula</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Marca esta matrícula como anulada</p>
+                  <p className="text-sm font-medium" style={{ color: "var(--tc-ink)" }}>Anulación de matrícula</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>Marca esta matrícula como anulada</p>
                 </div>
                 <button
                   onClick={onToggleAnulacion}
                   disabled={isSaving}
                   className={
-                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 " +
-                    (m.anulacion ? "bg-red-500" : "bg-slate-200")
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 " +
+                    (m.anulacion ? "bg-red-500 focus:ring-red-400" : "focus:ring-[var(--tc-primary-border)]")
                   }
+                  style={!m.anulacion ? { background: "var(--tc-border)" } : {}}
                 >
                   <span
                     className={
@@ -536,32 +617,38 @@ export default function LocalDetail({
               {m.ampliacion && (
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-700">PDF de ampliación</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-sm font-medium" style={{ color: "var(--tc-ink)" }}>PDF de ampliación</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>
                       {m._pdfBase64 ? "PDF generado y listo para subir" : "Genera el documento oficial de ampliación"}
                     </p>
                   </div>
                   {m._pdfBase64 && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                      style={{ background: "var(--tc-primary-tint)", color: "var(--tc-primary)" }}
+                    >
                       PDF listo
                     </span>
                   )}
                 </div>
               )}
 
-              <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-x-8 gap-y-2 text-xs text-slate-400">
+              <div
+                className="pt-3 border-t grid grid-cols-2 gap-x-8 gap-y-2 text-xs"
+                style={{ borderColor: "var(--tc-border-soft)", color: "var(--tc-ink-mute)" }}
+              >
                 <div>
                   <p className="uppercase tracking-wide">Guardado en local</p>
-                  <p className="text-slate-600 mt-0.5">{new Date(m._guardadoEn).toLocaleString("es-ES")}</p>
+                  <p className="mt-0.5" style={{ color: "var(--tc-ink-soft)" }}>{new Date(m._guardadoEn).toLocaleString("es-ES")}</p>
                 </div>
                 <div>
                   <p className="uppercase tracking-wide">Última modificación</p>
-                  <p className="text-slate-600 mt-0.5">{new Date(m._modificadoEn).toLocaleString("es-ES")}</p>
+                  <p className="mt-0.5" style={{ color: "var(--tc-ink-soft)" }}>{new Date(m._modificadoEn).toLocaleString("es-ES")}</p>
                 </div>
                 {m.rowId && (
                   <div className="col-span-2">
                     <p className="uppercase tracking-wide">ID Dataverse</p>
-                    <p className="text-slate-600 mt-0.5 break-all">{m.rowId}</p>
+                    <p className="mt-0.5 break-all" style={{ color: "var(--tc-ink-soft)" }}>{m.rowId}</p>
                   </div>
                 )}
               </div>
@@ -569,13 +656,17 @@ export default function LocalDetail({
           </AccordionBlock>
         </div>
 
-        {/* Acciones */}
-        <section className="mt-6 border-t border-slate-100 pt-4 flex flex-wrap items-center gap-2">
+        {/* ── Acciones ─────────────────────────────────────────────────────── */}
+        <section
+          className="px-6 py-4 flex flex-wrap items-center gap-2"
+          style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
+        >
           {!m.ampliacion && !m.anulacion && (
             <button
               onClick={onAmpliacion}
               disabled={isSaving}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "var(--tc-violet-ink)" }}
             >
               <TrendingUp className="w-4 h-4" />
               Crear Ampliación
@@ -586,7 +677,8 @@ export default function LocalDetail({
               <button
                 onClick={onGenerarPdf}
                 disabled={isSaving}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: "var(--tc-violet-ink)" }}
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                 {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
@@ -594,7 +686,8 @@ export default function LocalDetail({
               {m._pdfBase64 && (
                 <button
                   onClick={() => descargarPdf(m)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm bg-slate-700 text-white hover:bg-slate-800"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: "var(--tc-ink-soft)" }}
                 >
                   <Download className="w-4 h-4" />
                   Descargar PDF
@@ -605,16 +698,16 @@ export default function LocalDetail({
           <button
             onClick={onSubirNube}
             disabled={isSaving || !m._pendienteSubida}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
             Subir a la Nube
           </button>
           {!m._pendienteSubida && (
-            <p className="self-center text-xs text-slate-400">Sin cambios pendientes de subir</p>
+            <p className="self-center text-xs" style={{ color: "var(--tc-ink-mute)" }}>Sin cambios pendientes de subir</p>
           )}
 
-          {/* Borrar — separado con divisor */}
+          {/* Borrar — separado */}
           <div className="ml-auto flex items-center gap-2">
             {confirmDelete ? (
               <>
@@ -622,7 +715,7 @@ export default function LocalDetail({
                 <button
                   onClick={onBorrar}
                   disabled={isSaving}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
                 >
                   <Trash2 className="w-4 h-4" />
                   Sí, borrar
@@ -630,7 +723,8 @@ export default function LocalDetail({
                 <button
                   onClick={() => setConfirmDelete(false)}
                   disabled={isSaving}
-                  className="px-3 py-2 rounded-md text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                  className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
+                  style={{ color: "var(--tc-ink-soft)" }}
                 >
                   Cancelar
                 </button>
@@ -640,7 +734,7 @@ export default function LocalDetail({
                 onClick={() => setConfirmDelete(true)}
                 disabled={isSaving}
                 title="Borrar matrícula del almacén local"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
               >
                 <Trash2 className="w-4 h-4" />
                 Borrar
@@ -650,7 +744,7 @@ export default function LocalDetail({
         </section>
 
         {subirError && (
-          <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="mx-6 mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             Error al subir: {subirError}
           </p>
         )}
@@ -684,18 +778,29 @@ function AccordionBlock({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
+    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--tc-border)" }}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 transition-colors text-left"
+        style={{ background: open ? "var(--tc-bg-panel)" : "var(--tc-bg-panel)" }}
+        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg)")}
+        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)")}
       >
-        <span className="text-sm font-semibold text-slate-700">{title}</span>
+        <span className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>{title}</span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          style={{ color: "var(--tc-ink-mute)" }}
         />
       </button>
-      {open && <div className="px-4 py-4 border-t border-slate-100">{children}</div>}
+      {open && (
+        <div
+          className="px-4 py-4"
+          style={{ borderTop: "1px solid var(--tc-border-soft)" }}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -717,13 +822,29 @@ function EditField({
 }) {
   return (
     <div className={className}>
-      <p className="text-xs text-slate-400 uppercase tracking-wide mb-0.5">{label}</p>
+      <p
+        className="text-xs uppercase tracking-wide mb-0.5"
+        style={{ color: "var(--tc-ink-mute)" }}
+      >
+        {label}
+      </p>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
-        className="w-full text-sm text-slate-800 font-medium bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5"
+        className="w-full text-sm font-medium bg-transparent border-b border-transparent py-0.5 focus:outline-none"
+        style={{ color: "var(--tc-ink)", borderColor: "transparent" }}
+        onFocus={(e) => (e.currentTarget.style.borderColor = "var(--tc-primary)")}
+        onBlurCapture={(e) => (e.currentTarget.style.borderColor = "transparent")}
+        onMouseEnter={(e) => {
+          if (document.activeElement !== e.currentTarget)
+            e.currentTarget.style.borderColor = "var(--tc-border)";
+        }}
+        onMouseLeave={(e) => {
+          if (document.activeElement !== e.currentTarget)
+            e.currentTarget.style.borderColor = "transparent";
+        }}
       />
     </div>
   );
@@ -748,9 +869,12 @@ function SelectField({
   return (
     <div className={className}>
       <div className="flex items-center gap-2 mb-0.5">
-        <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
+        <p className="text-xs uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{label}</p>
         {editado && (
-          <span className="text-xs font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+          <span
+            className="text-xs font-semibold px-1.5 py-0.5 rounded"
+            style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)" }}
+          >
             Editado
           </span>
         )}
@@ -758,12 +882,12 @@ function SelectField({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={
-          "w-full text-sm text-slate-800 font-medium border-b focus:outline-none py-0.5 transition-colors " +
-          (editado
-            ? "bg-red-50 border-red-400 focus:border-red-500"
-            : "bg-transparent border-transparent hover:border-slate-300 focus:border-indigo-500")
-        }
+        className="w-full text-sm font-medium border-b py-0.5 focus:outline-none transition-colors bg-transparent"
+        style={{
+          color: "var(--tc-ink)",
+          borderColor: editado ? "var(--tc-primary)" : "transparent",
+          background: editado ? "var(--tc-primary-tint)" : "transparent",
+        }}
       >
         <option value="">—</option>
         {options.map((opt) => (
@@ -787,14 +911,14 @@ function ToggleField({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
+      <p className="text-xs uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{label}</p>
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={
-          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 " +
-          (checked ? "bg-indigo-500" : "bg-slate-200")
-        }
+        className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1"
+        style={{
+          background: checked ? "var(--tc-primary)" : "var(--tc-border)",
+        }}
       >
         <span
           className={

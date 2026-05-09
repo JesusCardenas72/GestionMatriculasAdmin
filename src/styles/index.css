@@ -1,1 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
 @import "tailwindcss";
+
+:root {
+  --tc-bg: #f7f1e8;
+  --tc-bg-panel: #f0e8da;
+  --tc-card: #fffaf2;
+  --tc-ink: #2d241d;
+  --tc-ink-soft: #5e4f43;
+  --tc-ink-mute: #9c8a7a;
+  --tc-border: #e6dac6;
+  --tc-border-soft: #efe5d3;
+  --tc-primary: #b85c3a;
+  --tc-primary-dark: #9d4a2c;
+  --tc-primary-tint: #fbe7dc;
+  --tc-primary-border: #e8b8a3;
+  --tc-warn-bg: #fae0bf;
+  --tc-warn-ink: #8a5320;
+  --tc-warn-border: #e8c18f;
+  --tc-violet-bg: #e8dde6;
+  --tc-violet-ink: #6a3d65;
+  --tc-violet-border: #cdbfca;
+  --tc-info-bg: #e1eaee;
+  --tc-info-ink: #3d5560;
+  --tc-info-border: #c0d0d6;
+}
+
+body {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: 'DM Serif Display', Georgia, serif;
+}

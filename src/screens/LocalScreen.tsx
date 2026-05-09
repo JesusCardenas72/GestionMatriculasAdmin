@@ -348,7 +348,7 @@ export default function LocalScreen({ config }: Props) {
 
   return (
     <div className="flex-1 grid grid-cols-[380px_1fr] overflow-hidden px-6 py-5 gap-4">
-      <div className="bg-white rounded-2xl border border-[#c7c4d8] shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
         <LocalList
           data={matriculas}
           isLoading={isLoading}
@@ -362,7 +362,7 @@ export default function LocalScreen({ config }: Props) {
           }}
         />
         {pendingUploads > 0 && (
-          <div className="p-3 border-t border-[#c7c4d8]/50 flex flex-col gap-1.5">
+          <div className="p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
             <button
               onClick={() => void handleSubirNubeTodo()}
               disabled={isSubiendoTodo || isSaving}
@@ -407,19 +407,19 @@ export default function LocalScreen({ config }: Props) {
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-1">
-              <svg className="w-6 h-6 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--tc-primary-tint)] border border-[var(--tc-primary-border)] flex items-center justify-center mb-1">
+              <svg className="w-6 h-6 text-[var(--tc-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <path d="M3 9h18M9 21V9" />
               </svg>
             </div>
-            <p className="text-sm font-medium text-slate-500">Selecciona una matrícula</p>
+            <p className="text-sm font-medium text-[var(--tc-ink-soft)]">Selecciona una matrícula</p>
             {pendingUploads > 0 ? (
-              <p className="text-xs text-amber-600 font-medium">
+              <p className="text-xs text-[var(--tc-warn-ink)] font-medium">
                 {pendingUploads} matrícula{pendingUploads > 1 ? "s" : ""} pendiente{pendingUploads > 1 ? "s" : ""} de subir
               </p>
             ) : (
-              <p className="text-xs text-slate-400">Elige un registro del listado para ver sus detalles</p>
+              <p className="text-xs text-[var(--tc-ink-mute)]">Elige un registro del listado para ver sus detalles</p>
             )}
           </div>
         )}

@@ -39,7 +39,6 @@ interface Props {
 type PendingAction = "pedir" | "aprobar" | "tramitar" | "borrar" | null;
 type AsignaturaLocal = AsignaturaMatriculada & { isNew?: boolean; deleted?: boolean };
 
-// Orden de visualización de grupos
 const ORDEN_ESTADOS: EstadoAsignatura[] = [
   ESTADO_ASIGNATURA.MATRICULADA,
   ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION,
@@ -48,33 +47,73 @@ const ORDEN_ESTADOS: EstadoAsignatura[] = [
   ESTADO_ASIGNATURA.PENDIENTE,
 ];
 
-// Colores extraídos del esquema del PDF
-const ASIG_COLORS: Record<EstadoAsignatura, { row: string; select: string; label: string }> = {
+// Colores por estado — mapeados a las variables terracota
+const ASIG_COLORS: Record<
+  EstadoAsignatura,
+  { rowBg: string; rowBorder: string; badgeBg: string; badgeBorder: string; badgeInk: string; selectBorder: string }
+> = {
   [ESTADO_ASIGNATURA.MATRICULADA]: {
-    row: "bg-sky-50 border-sky-200",
-    select: "border-sky-300 text-sky-800",
-    label: "text-sky-700 bg-sky-100",
+    rowBg: "var(--tc-info-bg)", rowBorder: "var(--tc-info-border)",
+    badgeBg: "var(--tc-info-bg)", badgeBorder: "var(--tc-info-border)", badgeInk: "var(--tc-info-ink)",
+    selectBorder: "var(--tc-info-border)",
   },
   [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: {
-    row: "bg-violet-50 border-violet-200",
-    select: "border-violet-300 text-violet-800",
-    label: "text-violet-700 bg-violet-100",
+    rowBg: "var(--tc-violet-bg)", rowBorder: "var(--tc-violet-border)",
+    badgeBg: "var(--tc-violet-bg)", badgeBorder: "var(--tc-violet-border)", badgeInk: "var(--tc-violet-ink)",
+    selectBorder: "var(--tc-violet-border)",
   },
   [ESTADO_ASIGNATURA.CONVALIDADA]: {
-    row: "bg-emerald-50 border-emerald-200",
-    select: "border-emerald-300 text-emerald-800",
-    label: "text-emerald-700 bg-emerald-100",
+    rowBg: "#e8f5e9", rowBorder: "#a5d6a7",
+    badgeBg: "#e8f5e9", badgeBorder: "#a5d6a7", badgeInk: "#2e7d32",
+    selectBorder: "#a5d6a7",
   },
   [ESTADO_ASIGNATURA.SIMULTANEADA]: {
-    row: "bg-amber-50 border-amber-200",
-    select: "border-amber-300 text-amber-800",
-    label: "text-amber-700 bg-amber-100",
+    rowBg: "var(--tc-warn-bg)", rowBorder: "var(--tc-warn-border)",
+    badgeBg: "var(--tc-warn-bg)", badgeBorder: "var(--tc-warn-border)", badgeInk: "var(--tc-warn-ink)",
+    selectBorder: "var(--tc-warn-border)",
   },
   [ESTADO_ASIGNATURA.PENDIENTE]: {
-    row: "bg-orange-50 border-orange-200",
-    select: "border-orange-300 text-orange-800",
-    label: "text-orange-700 bg-orange-100",
+    rowBg: "var(--tc-primary-tint)", rowBorder: "var(--tc-primary-border)",
+    badgeBg: "var(--tc-primary-tint)", badgeBorder: "var(--tc-primary-border)", badgeInk: "var(--tc-primary)",
+    selectBorder: "var(--tc-primary-border)",
   },
+};
+
+// Icono SVG por tipo de estado para la cabecera de sección
+const ESTADO_ICON: Record<EstadoAsignatura, ReactNode> = {
+  [ESTADO_ASIGNATURA.MATRICULADA]: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tc-info-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
+    </svg>
+  ),
+  [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tc-violet-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  [ESTADO_ASIGNATURA.CONVALIDADA]: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6 9 17l-5-5"/>
+    </svg>
+  ),
+  [ESTADO_ASIGNATURA.SIMULTANEADA]: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tc-warn-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  ),
+  [ESTADO_ASIGNATURA.PENDIENTE]: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tc-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  ),
+};
+
+const ESTADO_INK: Record<EstadoAsignatura, string> = {
+  [ESTADO_ASIGNATURA.MATRICULADA]: "var(--tc-info-ink)",
+  [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: "var(--tc-violet-ink)",
+  [ESTADO_ASIGNATURA.CONVALIDADA]: "#2e7d32",
+  [ESTADO_ASIGNATURA.SIMULTANEADA]: "var(--tc-warn-ink)",
+  [ESTADO_ASIGNATURA.PENDIENTE]: "var(--tc-primary)",
 };
 
 function parseEnsenanzaCurso(ensenanzaCurso: string): { cursoActual: number; especialidadStr: string } {
@@ -91,7 +130,6 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
   const [pending, setPending] = useState<PendingAction>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // — asignaturas inline state —
   const [asigItems, setAsigItems] = useState<AsignaturaLocal[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [addAsignaturaId, setAddAsignaturaId] = useState("");
@@ -118,11 +156,9 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
   const mutation = useActualizarSolicitud(config);
   const borrarMutation = useBorrarSolicitud(config);
 
-  // — asignaturas queries —
   const asignaturasQuery = useAsignaturasSolicitud(config, solicitud.rowId);
   const guardarMutation = useGuardarAsignaturas(config);
 
-  // Inicializa items desde la query solo la primera vez (o tras cambio de solicitud)
   useEffect(() => {
     if (asignaturasQuery.data && asigItems === null) {
       setAsigItems(asignaturasQuery.data.map((a) => ({ ...a })));
@@ -130,7 +166,6 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asignaturasQuery.data]);
 
-  // Asignaturas visibles, agrupadas por estado en el orden definido
   const gruposAsig = useMemo(() => {
     const visibles = (asigItems ?? []).filter((i) => !i.deleted);
     return ORDEN_ESTADOS
@@ -199,29 +234,19 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
     originales: AsignaturaMatriculada[],
   ): string {
     const lineas: string[] = [];
-
-    current
-      .filter((i) => i.deleted && !i.isNew)
-      .forEach((i) => {
-        const orig = originales.find((o) => o.rowId === i.rowId);
-        const estadoAnterior = orig ? ESTADO_ASIGNATURA_LABEL[orig.estado] : "—";
-        lineas.push(`- ${i.nombre} ha pasado de ${estadoAnterior} a Eliminada.`);
-      });
-
-    current
-      .filter((i) => !i.deleted && !i.isNew)
-      .forEach((i) => {
-        const orig = originales.find((o) => o.rowId === i.rowId);
-        if (orig && orig.estado !== i.estado)
-          lineas.push(`- ${i.nombre} ha pasado de ${ESTADO_ASIGNATURA_LABEL[orig.estado]} a ${ESTADO_ASIGNATURA_LABEL[i.estado]}.`);
-      });
-
-    current
-      .filter((i) => !i.deleted && i.isNew)
-      .forEach((i) => {
-        lineas.push(`- ${i.nombre} ha sido añadida (${ESTADO_ASIGNATURA_LABEL[i.estado]}).`);
-      });
-
+    current.filter((i) => i.deleted && !i.isNew).forEach((i) => {
+      const orig = originales.find((o) => o.rowId === i.rowId);
+      const estadoAnterior = orig ? ESTADO_ASIGNATURA_LABEL[orig.estado] : "—";
+      lineas.push(`- ${i.nombre} ha pasado de ${estadoAnterior} a Eliminada.`);
+    });
+    current.filter((i) => !i.deleted && !i.isNew).forEach((i) => {
+      const orig = originales.find((o) => o.rowId === i.rowId);
+      if (orig && orig.estado !== i.estado)
+        lineas.push(`- ${i.nombre} ha pasado de ${ESTADO_ASIGNATURA_LABEL[orig.estado]} a ${ESTADO_ASIGNATURA_LABEL[i.estado]}.`);
+    });
+    current.filter((i) => !i.deleted && i.isNew).forEach((i) => {
+      lineas.push(`- ${i.nombre} ha sido añadida (${ESTADO_ASIGNATURA_LABEL[i.estado]}).`);
+    });
     if (!lineas.length) return "";
     const hoy = new Date().toLocaleDateString("es-ES");
     return `Se han producido los siguientes cambios en las asignaturas de su solicitud de matrícula (${hoy}):\n${lineas.join("\n")}`;
@@ -231,25 +256,15 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
     if (!asigItems) return;
     const originales = asignaturasQuery.data ?? [];
     const originalesIds = new Set(originales.map((o) => o.rowId));
-
-    const eliminados = asigItems
-      .filter((i) => i.deleted && !i.isNew)
-      .map((i) => i.rowId);
-
+    const eliminados = asigItems.filter((i) => i.deleted && !i.isNew).map((i) => i.rowId);
     const actualizados = asigItems
       .filter((i) => !i.deleted && !i.isNew && originalesIds.has(i.rowId))
-      .filter((i) => {
-        const orig = originales.find((o) => o.rowId === i.rowId);
-        return orig && orig.estado !== i.estado;
-      })
+      .filter((i) => { const orig = originales.find((o) => o.rowId === i.rowId); return orig && orig.estado !== i.estado; })
       .map((i) => ({ matriculaAsignaturaId: i.rowId, estado: i.estado, observaciones: i.observaciones }));
-
     const nuevos = asigItems
       .filter((i) => !i.deleted && i.isNew)
       .map((i) => ({ codigo: parseInt(i.asignaturaId, 10), nombre: i.nombre, estado: i.estado }));
-
     const resumen = buildObservaciones(asigItems, originales);
-
     guardarMutation.mutate(
       { matriculaId: solicitud.rowId, eliminados, actualizados, nuevos },
       {
@@ -275,7 +290,6 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
   const runAction = () => {
     if (!pending) return;
     setValidationError(null);
-
     if (pending === "borrar") {
       borrarMutation.mutate(
         { rowId: solicitud.rowId },
@@ -286,153 +300,159 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
       );
       return;
     }
-
   };
 
   function handleConfirmTramitar(observaciones: string, emailHtml: string) {
     mutation.mutate(
-      {
-        rowId: solicitud.rowId,
-        nuevoEstado: ESTADO.TRAMITADO,
-        docFaltante: observaciones,
-        emailHtml,
-        enviarEmail: true,
-      },
-      {
-        onSuccess: () => { setPending(null); onDone(); },
-        onError: () => setPending(null),
-      },
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.TRAMITADO, docFaltante: observaciones, emailHtml, enviarEmail: true },
+      { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
     );
   }
 
   function handleConfirmPedir(docFaltanteText: string, emailHtml: string) {
     mutation.mutate(
-      {
-        rowId: solicitud.rowId,
-        nuevoEstado: ESTADO.PENDIENTE_VALIDACION,
-        docFaltante: docFaltanteText,
-        emailHtml,
-        enviarEmail: true,
-      },
-      {
-        onSuccess: () => { setPending(null); onDone(); },
-        onError: () => setPending(null),
-      },
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, emailHtml, enviarEmail: true },
+      { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
     );
   }
 
-  // ── Tramitados: vista en bloques acordeón ────────────────────────────────
+  const nOrdenDisplay = solicitud.nOrden != null
+    ? String(solicitud.nOrden).padStart(2, "0")
+    : "—";
+
+  // ── Header compartido ────────────────────────────────────────────────────
+  const DetailHeader = (
+    <div
+      style={{
+        padding: "22px 28px 18px",
+        borderBottom: "1px solid var(--tc-border-soft)",
+        background: "linear-gradient(180deg, var(--tc-bg-panel) 0%, transparent 100%)",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 20,
+      }}
+    >
+      {/* Número enorme */}
+      <div
+        className="font-display shrink-0 leading-none tabular-nums"
+        style={{
+          fontSize: 80,
+          lineHeight: 0.85,
+          fontWeight: 400,
+          letterSpacing: -4,
+          color: "var(--tc-primary)",
+          width: 96,
+          textAlign: "center",
+        }}
+      >
+        {nOrdenDisplay}
+      </div>
+
+      <div className="flex-1 min-w-0 pt-1">
+        {/* Eyebrow */}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span
+            className="text-[10.5px] font-bold uppercase tracking-widest"
+            style={{ color: "var(--tc-ink-mute)" }}
+          >
+            Solicitud Nº {solicitud.nOrden ?? "—"}
+          </span>
+          <EstadoBadge estado={solicitud.estado} />
+        </div>
+
+        {/* Nombre */}
+        <h2
+          className="font-display mb-2 leading-tight truncate"
+          style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
+        >
+          {solicitud.nombre} {solicitud.apellidos}
+        </h2>
+
+        {/* Meta */}
+        <div className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--tc-ink-soft)" }}>
+          <span className="font-bold uppercase tracking-wide text-[10.5px]">Curso</span>
+          <span
+            className="px-2 py-0.5 rounded font-bold text-xs"
+            style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)" }}
+          >
+            {solicitud.ensenanzaCurso ?? "—"}
+          </span>
+          <span style={{ color: "var(--tc-border)" }}>|</span>
+          <span className="font-bold uppercase tracking-wide text-[10.5px]">Esp.</span>
+          <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{solicitud.especialidad ?? "—"}</span>
+        </div>
+      </div>
+
+      {/* Borrar */}
+      <button
+        onClick={() => setPending("borrar")}
+        disabled={mutation.isPending || borrarMutation.isPending}
+        className="px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+        style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2"; (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-soft)"; }}
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+        Borrar
+      </button>
+    </div>
+  );
+
+  // ── Tramitados ───────────────────────────────────────────────────────────
   if (isP3) {
     return (
       <div className="max-w-4xl">
-        <div className="bg-white rounded-xl shadow p-6">
-          {/* Cabecera */}
-          <div className="flex items-start justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800">
-                {solicitud.nombre} {solicitud.apellidos}
-              </h2>
-              <p className="text-sm text-slate-500 mt-1">
-                {[solicitud.ensenanzaCurso, solicitud.especialidad].filter(Boolean).join(" - ")}
-              </p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              {solicitud.nOrden != null && (
-                <span className="text-3xl font-bold text-orange-500">
-                  #{solicitud.nOrden}
-                </span>
-              )}
-              <EstadoBadge estado={solicitud.estado} />
-              <button
-                onClick={() => setPending("borrar")}
-                disabled={borrarMutation.isPending}
-                title="Borrar solicitud"
-                className="p-2 rounded-md text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+        <div
+          className="rounded-xl overflow-hidden"
+          style={{
+            background: "var(--tc-card)",
+            border: "1px solid var(--tc-border)",
+            boxShadow: "0 1px 2px rgba(45,36,29,0.04), 0 14px 30px -12px rgba(45,36,29,0.10)",
+          }}
+        >
+          {DetailHeader}
 
-          <div className="space-y-2">
-            {/* 1. Datos Personales */}
+          <div className="p-6 space-y-2">
             <AccordionBlock title="Datos Personales">
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <DataField label="Nombre y apellidos" value={`${solicitud.nombre} ${solicitud.apellidos}`} />
                 <DataField label="D.N.I. / N.I.E." value={solicitud.dni} />
                 <DataField
                   label="Fecha de nacimiento"
-                  value={solicitud.fechaNacimiento
-                    ? new Date(solicitud.fechaNacimiento).toLocaleDateString("es-ES")
-                    : null}
+                  value={solicitud.fechaNacimiento ? new Date(solicitud.fechaNacimiento).toLocaleDateString("es-ES") : null}
                 />
                 <DataField label="Correo electrónico" value={solicitud.email} />
                 <DataField label="Teléfono" value={solicitud.telefono} />
                 <DataField label="Domicilio" value={solicitud.domicilio} />
                 <DataField label="Localidad" value={solicitud.localidad} />
-                <DataField
-                  label="Provincia / C.P."
-                  value={[solicitud.provincia, solicitud.cp].filter(Boolean).join(" — ")}
-                />
+                <DataField label="Provincia / C.P." value={[solicitud.provincia, solicitud.cp].filter(Boolean).join(" — ")} />
               </div>
             </AccordionBlock>
 
-            {/* 2. Datos de Matrícula */}
             <AccordionBlock title="Datos de Matrícula">
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <DataField label="Tipo de enseñanza" value={ensenanza} />
                 <DataField label="Curso" value={cursoActual ? `${cursoActual}º` : null} />
                 <DataField label="Especialidad" value={especialidad} />
                 <DataField label="Hora de salida" value={solicitud.horaSalida} />
-                <DataField
-                  label="Disponibilidad mañana"
-                  value={solicitud.disponibilidadManana ? "Sí" : "No"}
-                />
-                <DataField
-                  label="Autorización imagen"
-                  value={solicitud.autorizacionImagen ? "Sí" : "No"}
-                />
+                <DataField label="Disponibilidad mañana" value={solicitud.disponibilidadManana ? "Sí" : "No"} />
+                <DataField label="Autorización imagen" value={solicitud.autorizacionImagen ? "Sí" : "No"} />
               </div>
             </AccordionBlock>
 
-            {/* 3. Asignaturas */}
             <AccordionBlock title="Asignaturas">
               {asignaturasQuery.isLoading && (
-                <div className="flex items-center gap-2 text-sm text-slate-500">
+                <div className="flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
                   <Loader2 className="w-4 h-4 animate-spin" /> Cargando asignaturas...
                 </div>
               )}
-              {gruposAsig.length === 0 && !asignaturasQuery.isLoading && (
-                <p className="text-sm text-slate-400 italic">Sin asignaturas matriculadas</p>
-              )}
               <div className="space-y-4">
-                {gruposAsig.map(({ estado, items }) => {
-                  const colors = ASIG_COLORS[estado];
-                  return (
-                    <div key={estado}>
-                      <p className={`text-xs font-semibold mb-1.5 px-1 ${colors.label.split(" ")[0]}`}>
-                        {ESTADO_ASIGNATURA_LABEL[estado]}
-                      </p>
-                      <div className="space-y-1.5">
-                        {items.map((item) => (
-                          <div
-                            key={item.rowId}
-                            className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${colors.row}`}
-                          >
-                            <p className="text-sm font-medium text-slate-800">{item.nombre}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors.label}`}>
-                              {ESTADO_ASIGNATURA_LABEL[item.estado]}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                {gruposAsig.map(({ estado, items }) => (
+                  <AsignaturaGroup key={estado} estado={estado} items={items} readOnly />
+                ))}
               </div>
             </AccordionBlock>
 
-            {/* 4. Forma de Pago */}
             <AccordionBlock title="Forma de Pago">
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <DataField label="Modalidad" value={solicitud.formaPago} />
@@ -440,60 +460,29 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
               </div>
             </AccordionBlock>
 
-            {/* 5. Solicitud en PDF */}
             <AccordionBlock title="Solicitud en PDF" defaultOpen={false}>
               {pdfQuery.isLoading && (
-                <div className="flex items-center gap-2 text-sm text-slate-500">
+                <div className="flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
                   <Loader2 className="w-4 h-4 animate-spin" /> Descargando PDF...
                 </div>
               )}
-              {pdfQuery.error && !pdfVacio && (
-                <div className="text-sm text-red-600 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 mt-0.5" />
-                  <div>
-                    <div>{(pdfQuery.error as Error).message}</div>
-                    {pdfQuery.error instanceof FlowError && pdfQuery.error.body && (
-                      <pre className="mt-1 text-xs text-red-500 whitespace-pre-wrap break-all">
-                        {pdfQuery.error.body}
-                      </pre>
-                    )}
-                  </div>
-                </div>
-              )}
-              {pdfVacio && (
-                <div className="text-sm text-slate-500 italic">
-                  Esta solicitud no tiene PDF adjunto.
-                </div>
-              )}
+              {pdfVacio && <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Esta solicitud no tiene PDF adjunto.</p>}
               {pdfQuery.data?.contentBase64 && (
-                <PdfViewer
-                  contentBase64={pdfQuery.data.contentBase64}
-                  fileName={pdfQuery.data.fileName}
-                  mimeType={pdfQuery.data.mimeType}
-                />
+                <PdfViewer contentBase64={pdfQuery.data.contentBase64} fileName={pdfQuery.data.fileName} mimeType={pdfQuery.data.mimeType} />
               )}
             </AccordionBlock>
           </div>
 
           {solicitud.docFaltante && (
-            <section className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <h3 className="text-xs font-semibold text-amber-700 mb-1 uppercase tracking-wide">
-                Observaciones
-              </h3>
-              <p className="text-sm text-slate-600 whitespace-pre-wrap">{solicitud.docFaltante}</p>
-            </section>
-          )}
-
-          <section className="mt-6 border-t border-slate-100 pt-4">
-            <p className="text-xs text-slate-400">Solicitud tramitada. Sin acciones disponibles.</p>
-          </section>
-
-          {borrarMutation.error && (
-            <div className="mt-3 text-sm text-red-600 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 mt-0.5" />
-              <div>{(borrarMutation.error as Error).message}</div>
+            <div className="mx-6 mb-4 p-3 rounded-lg" style={{ background: "var(--tc-warn-bg)", border: "1px solid var(--tc-warn-border)" }}>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--tc-warn-ink)" }}>Observaciones</p>
+              <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--tc-ink-soft)" }}>{solicitud.docFaltante}</p>
             </div>
           )}
+
+          <div className="px-6 py-4" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+            <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>Solicitud tramitada. Sin acciones disponibles.</p>
+          </div>
         </div>
 
         <ConfirmDialog
@@ -512,256 +501,236 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
 
   // ── Pendiente tramitación / Pendiente validación ─────────────────────────
   return (
-    <div className="h-full flex flex-col bg-white rounded-2xl border border-[#c7c4d8] shadow-sm overflow-hidden">
-
-      {/* Cabecera */}
-      <div className="px-6 pt-5 pb-4 border-b border-[#c7c4d8]/50 flex items-center justify-between shrink-0">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-[#1b1b24]">
-              {solicitud.nombre} {solicitud.apellidos}
-            </h2>
-            {solicitud.nOrden != null && (
-              <span className="bg-[#3525cd]/10 text-[#3525cd] text-xs font-medium px-2 py-0.5 rounded-md">
-                #{solicitud.nOrden}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-[#464555] mt-0.5 ml-4">
-            {[solicitud.ensenanzaCurso, solicitud.especialidad].filter(Boolean).join(" - ")}
-          </p>
-        </div>
-        <div className="flex items-center gap-4 shrink-0">
-          <EstadoBadge estado={solicitud.estado} />
-          <button
-            onClick={() => setPending("borrar")}
-            disabled={mutation.isPending || borrarMutation.isPending}
-            title="Borrar solicitud"
-            className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+    <div
+      className="h-full flex flex-col rounded-2xl overflow-hidden"
+      style={{
+        background: "var(--tc-card)",
+        border: "1px solid var(--tc-border)",
+        boxShadow: "0 1px 2px rgba(45,36,29,0.04), 0 14px 30px -12px rgba(45,36,29,0.10)",
+      }}
+    >
+      {DetailHeader}
 
       {/* Cuerpo: dos columnas */}
       <div className="flex-1 min-h-0 flex gap-5 p-6 overflow-hidden">
 
         {/* Columna izquierda: asignaturas + notas */}
-        <div className="overflow-y-auto pr-2 flex flex-col gap-5 shrink-0">
+        <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0" style={{ minWidth: 0 }}>
 
-          {/* Asignaturas matriculadas */}
-          <section>
-            <div className="flex items-center justify-between pb-3">
-              <h3 className="text-base font-semibold text-[#1b1b24]">Asignaturas matriculadas</h3>
-              {asigSaved && (
-                <span className="text-xs text-emerald-600 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Guardado
-                </span>
+          {/* Título sección asignaturas */}
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-[17px] font-normal" style={{ color: "var(--tc-ink)", letterSpacing: -0.3 }}>
+              Asignaturas matriculadas
+            </h3>
+            {asigSaved && (
+              <span className="text-xs flex items-center gap-1" style={{ color: "var(--tc-primary)" }}>
+                <CheckCircle2 className="w-3 h-3" /> Guardado
+              </span>
+            )}
+          </div>
+
+          {asignaturasQuery.isLoading && (
+            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
+              <Loader2 className="w-4 h-4 animate-spin" /> Cargando asignaturas...
+            </div>
+          )}
+          {asignaturasQuery.isError && (
+            <div className="flex items-center gap-2 text-sm text-red-600">
+              <AlertCircle className="w-4 h-4" /> Error al cargar las asignaturas
+            </div>
+          )}
+          {gruposAsig.length === 0 && !asignaturasQuery.isLoading && (
+            <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Sin asignaturas matriculadas</p>
+          )}
+
+          <div className="space-y-5 min-w-max">
+            {gruposAsig.map(({ estado, items }) => (
+              <AsignaturaGroup
+                key={estado}
+                estado={estado}
+                items={items}
+                onCambiarEstado={cambiarEstadoAsig}
+                onEliminar={eliminarAsig}
+              />
+            ))}
+          </div>
+
+          {/* Añadir asignatura */}
+          {showAdd ? (
+            <div
+              className="p-3 rounded-xl space-y-3"
+              style={{ background: "var(--tc-primary-tint)", border: "1.5px dashed var(--tc-primary-border)" }}
+            >
+              <p className="text-xs font-semibold" style={{ color: "var(--tc-primary-dark)" }}>Añadir asignatura</p>
+              <select
+                value={addEstado}
+                onChange={(e) => { setAddEstado(Number(e.target.value) as EstadoAsignatura); setAddAsignaturaId(""); }}
+                className="w-full text-sm border rounded-lg px-2 py-1.5 focus:outline-none"
+                style={{ borderColor: "var(--tc-border)", background: "var(--tc-card)", color: "var(--tc-ink)" }}
+              >
+                {ORDEN_ESTADOS.map((val) => (
+                  <option key={val} value={val}>{ESTADO_ASIGNATURA_LABEL[val]}</option>
+                ))}
+              </select>
+              <select
+                value={addAsignaturaId}
+                onChange={(e) => setAddAsignaturaId(e.target.value)}
+                className="w-full text-sm border rounded-lg px-2 py-1.5 focus:outline-none"
+                style={{ borderColor: "var(--tc-border)", background: "var(--tc-card)", color: "var(--tc-ink)" }}
+              >
+                <option value="">— Selecciona una asignatura —</option>
+                {catalogoFiltradoAsig.map((a) => (
+                  <option key={a.rowId} value={a.rowId}>
+                    {a.descripcion || a.abreviatura}{a.cursoDesc ? ` (${a.cursoDesc})` : ""}
+                  </option>
+                ))}
+              </select>
+              {catalogoFiltradoAsig.length === 0 && (
+                <p className="text-xs italic" style={{ color: "var(--tc-ink-mute)" }}>No hay asignaturas disponibles para añadir.</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={agregarAsig}
+                  disabled={!addAsignaturaId}
+                  className="px-3 py-1.5 text-sm rounded-lg text-white font-semibold disabled:opacity-40"
+                  style={{ background: "var(--tc-primary)" }}
+                >
+                  Añadir
+                </button>
+                <button
+                  onClick={() => { setShowAdd(false); setAddAsignaturaId(""); }}
+                  className="px-3 py-1.5 text-sm rounded-lg"
+                  style={{ color: "var(--tc-ink-soft)" }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAdd(true)}
+              disabled={asignaturasQuery.isLoading}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold disabled:opacity-40 transition-colors"
+              style={{
+                border: "1.5px dashed var(--tc-primary-border)",
+                background: "var(--tc-primary-tint)",
+                color: "var(--tc-primary-dark)",
+              }}
+            >
+              <Plus className="w-4 h-4" /> Añadir asignatura
+            </button>
+          )}
+
+          {hayChangiosAsig && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleGuardarAsig}
+                disabled={guardarMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg text-white font-semibold disabled:opacity-50"
+                style={{ background: "var(--tc-primary)" }}
+              >
+                {guardarMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                Guardar cambios
+              </button>
+              {guardarMutation.error && (
+                <span className="text-xs text-red-600">{(guardarMutation.error as Error).message}</span>
               )}
             </div>
-
-            {asignaturasQuery.isLoading && (
-              <div className="flex items-center gap-2 text-sm text-[#464555]">
-                <Loader2 className="w-4 h-4 animate-spin" /> Cargando asignaturas...
-              </div>
-            )}
-            {asignaturasQuery.isError && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
-                <AlertCircle className="w-4 h-4" /> Error al cargar las asignaturas
-              </div>
-            )}
-            {gruposAsig.length === 0 && !asignaturasQuery.isLoading && (
-              <p className="text-sm text-[#464555] italic">Sin asignaturas matriculadas</p>
-            )}
-
-            <div className="space-y-4 min-w-max">
-              {gruposAsig.map(({ estado, items }) => {
-                const colors = ASIG_COLORS[estado];
-                return (
-                  <div key={estado}>
-                    <p className={`text-xs font-medium mb-2 ${colors.label.split(" ")[0]}`}>
-                      {ESTADO_ASIGNATURA_LABEL[estado]}
-                    </p>
-                    <div className="space-y-2">
-                      {items.map((item) => (
-                        <div
-                          key={item.rowId}
-                          className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-3 rounded-xl border ${colors.row}`}
-                        >
-                          <p className="text-sm font-medium text-[#1b1b24] whitespace-nowrap">
-                            {item.nombre}
-                          </p>
-                          <select
-                            value={item.estado}
-                            onChange={(e) =>
-                              cambiarEstadoAsig(item.rowId, Number(e.target.value) as EstadoAsignatura)
-                            }
-                            className={`text-xs border rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 ${colors.select}`}
-                          >
-                            {ORDEN_ESTADOS.map((val) => (
-                              <option key={val} value={val}>
-                                {ESTADO_ASIGNATURA_LABEL[val]}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => eliminarAsig(item.rowId)}
-                            className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                            title="Eliminar asignatura"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Formulario añadir asignatura */}
-            {showAdd ? (
-              <div className="mt-3 p-3 rounded-xl border border-[#3525cd]/20 bg-[#f5f2ff] space-y-3">
-                <p className="text-xs font-semibold text-[#3525cd]">Añadir asignatura</p>
-                <select
-                  value={addEstado}
-                  onChange={(e) => {
-                    setAddEstado(Number(e.target.value) as EstadoAsignatura);
-                    setAddAsignaturaId("");
-                  }}
-                  className="w-full text-sm border border-[#c7c4d8] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 bg-white"
-                >
-                  {ORDEN_ESTADOS.map((val) => (
-                    <option key={val} value={val}>{ESTADO_ASIGNATURA_LABEL[val]}</option>
-                  ))}
-                </select>
-                <select
-                  value={addAsignaturaId}
-                  onChange={(e) => setAddAsignaturaId(e.target.value)}
-                  className="w-full text-sm border border-[#c7c4d8] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3525cd]/30 bg-white"
-                >
-                  <option value="">— Selecciona una asignatura —</option>
-                  {catalogoFiltradoAsig.map((a) => (
-                    <option key={a.rowId} value={a.rowId}>
-                      {a.descripcion || a.abreviatura}
-                      {a.cursoDesc ? ` (${a.cursoDesc})` : ""}
-                    </option>
-                  ))}
-                </select>
-                {catalogoFiltradoAsig.length === 0 && (
-                  <p className="text-xs text-[#464555] italic">No hay asignaturas disponibles para añadir.</p>
-                )}
-                {addEstado === ESTADO_ASIGNATURA.PENDIENTE && (
-                  <p className="text-xs text-amber-600">
-                    Solo se muestran asignaturas de cursos hasta {cursoActual}º.
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={agregarAsig}
-                    disabled={!addAsignaturaId}
-                    className="px-3 py-1.5 text-sm rounded-lg bg-[#3525cd] text-white hover:bg-[#3525cd]/90 disabled:opacity-40"
-                  >
-                    Añadir
-                  </button>
-                  <button
-                    onClick={() => { setShowAdd(false); setAddAsignaturaId(""); }}
-                    className="px-3 py-1.5 text-sm rounded-lg text-[#464555] hover:bg-[#eae6f4]"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAdd(true)}
-                disabled={asignaturasQuery.isLoading}
-                className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#3525cd] hover:text-[#3525cd]/80 disabled:opacity-40"
-              >
-                <Plus className="w-4 h-4" /> Añadir asignatura
-              </button>
-            )}
-
-            {hayChangiosAsig && (
-              <div className="mt-3 flex items-center gap-3">
-                <button
-                  onClick={handleGuardarAsig}
-                  disabled={guardarMutation.isPending}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-[#3525cd] text-white hover:bg-[#3525cd]/90 disabled:opacity-50"
-                >
-                  {guardarMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Guardar cambios
-                </button>
-                {guardarMutation.error && (
-                  <span className="text-xs text-red-600">
-                    {(guardarMutation.error as Error).message}
-                  </span>
-                )}
-              </div>
-            )}
-          </section>
+          )}
 
           {/* Notas del Administrador */}
-          <section>
-            <div className="bg-[#e4e1ee] border border-[rgba(199,196,216,0.5)] rounded-xl p-4 flex flex-col gap-2">
-              <h4 className="text-sm font-semibold text-[#1b1b24]">Notas del Administrador</h4>
-              <textarea
-                value={docFaltante}
-                onChange={(e) => setDocFaltante(e.target.value)}
-                rows={3}
-                className="w-full text-sm text-[#464555] bg-transparent resize-none border-none focus:outline-none placeholder:italic placeholder:text-slate-400"
-                placeholder="Escribe aquí las observaciones o documentación faltante..."
-              />
+          <div>
+            {/* Section header */}
+            <div className="flex items-center gap-2 mb-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tc-ink-soft)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
+              </svg>
+              <span
+                className="font-display text-[17px] font-normal"
+                style={{ color: "var(--tc-ink-soft)", letterSpacing: -0.3 }}
+              >
+                Notas del Administrador
+              </span>
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wide"
+                style={{ color: "var(--tc-ink-mute)" }}
+              >
+                0 asignaturas
+              </span>
+              <div className="flex-1 h-px" style={{ background: "var(--tc-border-soft)" }} />
             </div>
-            {validationError && (
-              <p className="mt-1 text-xs text-red-600">{validationError}</p>
-            )}
-          </section>
+            <textarea
+              value={docFaltante}
+              onChange={(e) => setDocFaltante(e.target.value)}
+              rows={3}
+              className="w-full text-sm bg-transparent resize-none border-none focus:outline-none placeholder:italic"
+              placeholder="Escribe aquí las observaciones o documentación faltante..."
+              style={{
+                color: "var(--tc-ink-soft)",
+                background: "var(--tc-bg-panel)",
+                border: "1px solid var(--tc-border-soft)",
+                borderRadius: 12,
+                padding: "12px 14px",
+                lineHeight: 1.55,
+              }}
+            />
+            {validationError && <p className="mt-1 text-xs text-red-600">{validationError}</p>}
+          </div>
         </div>
 
         {/* Columna derecha: PDF */}
         <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden min-h-0">
-          <div className="flex items-center justify-between pb-1 shrink-0">
-            <h3 className="text-base font-semibold text-[#1b1b24]">Solicitud en PDF</h3>
+          <div className="flex items-center gap-2 pb-1 shrink-0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tc-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
+            </svg>
+            <h3
+              className="font-display text-[17px] font-normal"
+              style={{ color: "var(--tc-ink)", letterSpacing: -0.3 }}
+            >
+              Solicitud en PDF
+            </h3>
           </div>
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div
+            className="flex-1 min-h-0 overflow-hidden rounded-xl"
+            style={{ border: "1px solid var(--tc-border)", background: "var(--tc-bg-panel)" }}
+          >
             {pdfQuery.isLoading && (
-              <div className="h-full flex items-center justify-center bg-[#eae6f4] rounded-xl">
-                <Loader2 className="w-5 h-5 animate-spin text-[#464555]" />
+              <div className="h-full flex items-center justify-center">
+                <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--tc-ink-mute)" }} />
               </div>
             )}
             {pdfVacio && (
-              <div className="h-full flex items-center justify-center bg-[#eae6f4] rounded-xl text-sm text-[#464555] italic p-4 text-center">
+              <div
+                className="h-full flex items-center justify-center text-sm italic p-4 text-center"
+                style={{ color: "var(--tc-ink-mute)" }}
+              >
                 Esta solicitud no tiene PDF adjunto.
               </div>
             )}
             {pdfQuery.error && !pdfVacio && (
-              <div className="p-4 bg-red-50 rounded-xl text-sm text-red-600 flex items-start gap-2">
+              <div className="p-4 text-sm text-red-600 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <div>
                   <div>{(pdfQuery.error as Error).message}</div>
                   {pdfQuery.error instanceof FlowError && pdfQuery.error.body && (
-                    <pre className="mt-1 text-xs text-red-500 whitespace-pre-wrap break-all">
-                      {pdfQuery.error.body}
-                    </pre>
+                    <pre className="mt-1 text-xs text-red-500 whitespace-pre-wrap break-all">{pdfQuery.error.body}</pre>
                   )}
                 </div>
               </div>
             )}
             {pdfQuery.data?.contentBase64 && (
-              <PdfViewer
-                contentBase64={pdfQuery.data.contentBase64}
-                fileName={pdfQuery.data.fileName}
-                mimeType={pdfQuery.data.mimeType}
-              />
+              <PdfViewer contentBase64={pdfQuery.data.contentBase64} fileName={pdfQuery.data.fileName} mimeType={pdfQuery.data.mimeType} />
             )}
           </div>
         </div>
       </div>
 
       {/* Footer: acciones */}
-      <div className="px-6 py-4 border-t border-[#c7c4d8]/50 bg-[#fcf8ff] flex items-center justify-end gap-3 shrink-0">
+      <div
+        className="px-6 py-4 flex items-center justify-end gap-3 shrink-0"
+        style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
+      >
         {(mutation.error || borrarMutation.error) && (
           <span className="text-xs text-red-600 mr-auto flex items-center gap-1">
             <AlertCircle className="w-3.5 h-3.5" />
@@ -773,17 +742,32 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
             <button
               onClick={() => setPending("pedir")}
               disabled={mutation.isPending}
-              className="px-6 py-2.5 rounded-lg border border-[#7e3000] text-[#7e3000] text-sm font-semibold bg-white hover:bg-[#ffdbcc]/30 disabled:opacity-50 shadow-sm transition-colors"
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+              style={{
+                border: "1.5px solid var(--tc-warn-border)",
+                color: "var(--tc-warn-ink)",
+                background: "var(--tc-card)",
+              }}
             >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
               Pedir documentación
             </button>
             <button
               onClick={() => setPending("aprobar")}
               disabled={mutation.isPending}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#3525cd] text-white text-sm font-semibold hover:bg-[#3525cd]/90 disabled:opacity-50 shadow-sm transition-colors"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+              style={{
+                background: "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
+                boxShadow: "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+              }}
             >
               {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              <CheckCircle2 className="w-4 h-4" /> Aprobar y tramitar
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
+              </svg>
+              Aprobar y tramitar
             </button>
           </>
         )}
@@ -791,7 +775,11 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
           <button
             onClick={() => setPending("tramitar")}
             disabled={mutation.isPending}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#3525cd] text-white text-sm font-semibold hover:bg-[#3525cd]/90 disabled:opacity-50 shadow-sm transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+            style={{
+              background: "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
+              boxShadow: "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+            }}
           >
             {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             <CheckCircle2 className="w-4 h-4" /> Documentación recibida — Tramitar
@@ -823,24 +811,136 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
   );
 }
 
+// ── Componente de grupo de asignaturas ───────────────────────────────────────
+function AsignaturaGroup({
+  estado,
+  items,
+  readOnly = false,
+  onCambiarEstado,
+  onEliminar,
+}: {
+  estado: EstadoAsignatura;
+  items: AsignaturaMatriculada[];
+  readOnly?: boolean;
+  onCambiarEstado?: (rowId: string, nuevoEstado: EstadoAsignatura) => void;
+  onEliminar?: (rowId: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const colors = ASIG_COLORS[estado];
+  const ink = ESTADO_INK[estado];
+  const icon = ESTADO_ICON[estado];
+
+  return (
+    <div>
+      {/* Section header */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 w-full mb-2 group"
+      >
+        {icon}
+        <span
+          className="font-display text-[17px] font-normal"
+          style={{ color: ink, letterSpacing: -0.3 }}
+        >
+          {ESTADO_ASIGNATURA_LABEL[estado]}
+        </span>
+        <span
+          className="text-[11px] font-semibold uppercase tracking-wide"
+          style={{ color: "var(--tc-ink-mute)" }}
+        >
+          {items.length} {items.length === 1 ? "asignatura" : "asignaturas"}
+        </span>
+        <div className="flex-1 h-px" style={{ background: "var(--tc-border-soft)" }} />
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          style={{ color: "var(--tc-ink-mute)" }}
+        />
+      </button>
+
+      {open && (
+        <div className="space-y-1.5">
+          {items.map((item) => (
+            <div
+              key={item.rowId}
+              className="grid items-center gap-3 px-4 py-3 rounded-xl"
+              style={{
+                gridTemplateColumns: "1fr auto auto",
+                background: colors.rowBg,
+                border: `1px solid ${colors.rowBorder}`,
+              }}
+            >
+              <p className="text-sm font-semibold whitespace-nowrap" style={{ color: "var(--tc-ink)" }}>
+                {item.nombre}
+              </p>
+              {readOnly ? (
+                <span
+                  className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                  style={{ background: colors.badgeBg, border: `1px solid ${colors.badgeBorder}`, color: colors.badgeInk }}
+                >
+                  {ESTADO_ASIGNATURA_LABEL[item.estado]}
+                </span>
+              ) : (
+                <select
+                  value={item.estado}
+                  onChange={(e) => onCambiarEstado?.(item.rowId, Number(e.target.value) as EstadoAsignatura)}
+                  className="text-xs border rounded-lg px-2 py-1 focus:outline-none"
+                  style={{
+                    background: colors.badgeBg,
+                    border: `1px solid ${colors.selectBorder}`,
+                    color: colors.badgeInk,
+                    fontWeight: 600,
+                  }}
+                >
+                  {ORDEN_ESTADOS.map((val) => (
+                    <option key={val} value={val}>{ESTADO_ASIGNATURA_LABEL[val]}</option>
+                  ))}
+                </select>
+              )}
+              {!readOnly && (
+                <button
+                  onClick={() => onEliminar?.(item.rowId)}
+                  className="p-1 rounded-md transition-colors"
+                  style={{ color: "var(--tc-ink-mute)" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-mute)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  title="Eliminar asignatura"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EstadoBadge({ estado }: { estado: Solicitud["estado"] }) {
   const map = {
     [ESTADO.PENDIENTE_TRAMITACION]: {
       label: "Pendiente de tramitación",
-      cls: "bg-[#ffdbcc] border border-[rgba(126,48,0,0.2)] text-[#351000]",
+      bg: "var(--tc-warn-bg)", border: "var(--tc-warn-border)", ink: "var(--tc-warn-ink)",
     },
     [ESTADO.PENDIENTE_VALIDACION]: {
       label: "Pendiente de validación",
-      cls: "bg-amber-100 border border-amber-200 text-amber-800",
+      bg: "var(--tc-primary-tint)", border: "var(--tc-primary-border)", ink: "var(--tc-primary)",
     },
     [ESTADO.TRAMITADO]: {
       label: "Tramitado",
-      cls: "bg-emerald-100 border border-emerald-200 text-emerald-800",
+      bg: "#e8f5e9", border: "#a5d6a7", ink: "#2e7d32",
     },
   } as const;
-  const { label, cls } = map[estado];
+  const s = map[estado];
   return (
-    <span className={"px-3 py-1 rounded-full text-xs font-semibold " + cls}>{label}</span>
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+      style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.ink }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.ink }} />
+      {s.label}
+    </span>
   );
 }
 
@@ -855,19 +955,23 @@ function AccordionBlock({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
+    <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--tc-border)" }}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 transition-colors text-left"
+        style={{ background: "var(--tc-bg-panel)" }}
+        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg)")}
+        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)")}
       >
-        <span className="text-sm font-semibold text-slate-700">{title}</span>
+        <span className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>{title}</span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          style={{ color: "var(--tc-ink-mute)" }}
         />
       </button>
       {open && (
-        <div className="px-4 py-4 border-t border-slate-100">
+        <div className="px-4 py-4" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
           {children}
         </div>
       )}
@@ -879,8 +983,8 @@ function DataField({ label, value }: { label: string; value: string | null | und
   if (!value) return null;
   return (
     <div>
-      <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
-      <p className="text-sm text-slate-800 mt-0.5 font-medium">{value}</p>
+      <p className="text-xs uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{label}</p>
+      <p className="text-sm font-medium mt-0.5" style={{ color: "var(--tc-ink)" }}>{value}</p>
     </div>
   );
 }

@@ -109,14 +109,14 @@ export default function LocalList({
 
       {/* ── Cabecera del panel ─────────────────────────────────────────────── */}
       <div className="px-4 pt-4 pb-3 flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-center shadow-sm shrink-0">
-          <HardDrive className="w-3.75 h-3.75 text-emerald-600" />
+        <div className="w-8 h-8 rounded-xl bg-[var(--tc-primary-tint)] border border-[var(--tc-primary-border)] flex items-center justify-center shadow-sm shrink-0">
+          <HardDrive className="w-3.5 h-3.5 text-[var(--tc-primary)]" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
-            <span className="text-sm font-bold text-[#1b1b24]">Matrículas Locales</span>
+            <span className="text-sm font-bold text-[var(--tc-ink)]">Matrículas Locales</span>
             {!isLoading && (
-              <span className="text-[11px] text-slate-400 tabular-nums">
+              <span className="text-[11px] text-[var(--tc-ink-mute)] tabular-nums">
                 {filtered.length !== data.length
                   ? `${filtered.length} / ${data.length}`
                   : data.length}
@@ -128,22 +128,22 @@ export default function LocalList({
           onClick={onRefresh}
           disabled={isSyncing || isLoading}
           title="Refrescar"
-          className="p-1.5 rounded-lg text-[#464555] hover:bg-emerald-50 disabled:opacity-50 transition-colors shrink-0"
+          className="p-1.5 rounded-lg text-[var(--tc-ink-soft)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50 transition-colors shrink-0"
         >
-          <RefreshCw className={"w-3.5 h-3.5 " + (isSyncing ? "animate-spin text-emerald-600" : "")} />
+          <RefreshCw className={"w-3.5 h-3.5 " + (isSyncing ? "animate-spin text-[var(--tc-primary)]" : "")} />
         </button>
       </div>
 
-      <div className="px-4 pb-3 border-b border-[#c7c4d8]/50 flex flex-col gap-2.5">
+      <div className="px-4 pb-3 border-b border-[var(--tc-border)] flex flex-col gap-2.5">
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#6b7280]" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tc-ink-mute)]" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar alumno..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-[#f5f2ff] border border-[#c7c4d8] rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 placeholder:text-[#6b7280]"
+              className="w-full pl-9 pr-3 py-2 text-xs bg-[var(--tc-bg)] border border-[var(--tc-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tc-primary-border)] placeholder:text-[var(--tc-ink-mute)]"
             />
           </div>
         </div>
@@ -153,10 +153,10 @@ export default function LocalList({
             value={filterEnsenanza}
             onChange={(e) => handleEnsenanzaChange(e.target.value)}
             className={
-              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 " +
+              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tc-primary-border)] " +
               (filterEnsenanza
-                ? "border-emerald-400/50 bg-emerald-50 text-emerald-700 font-medium"
-                : "border-[#c7c4d8]/50 bg-white text-[#1b1b24]")
+                ? "border-[var(--tc-primary-border)] bg-[var(--tc-primary-tint)] text-[var(--tc-primary)] font-medium"
+                : "border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)]")
             }
           >
             <option value="">Curso: Todos</option>
@@ -170,10 +170,10 @@ export default function LocalList({
             onChange={(e) => setFilterEspecialidad(e.target.value)}
             disabled={especialidades.length === 0}
             className={
-              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 disabled:opacity-40 " +
+              "flex-1 text-xs py-1.5 px-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tc-primary-border)] disabled:opacity-40 " +
               (filterEspecialidad
-                ? "border-emerald-400/50 bg-emerald-50 text-emerald-700 font-medium"
-                : "border-[#c7c4d8]/50 bg-white text-[#1b1b24]")
+                ? "border-[var(--tc-primary-border)] bg-[var(--tc-primary-tint)] text-[var(--tc-primary)] font-medium"
+                : "border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)]")
             }
           >
             <option value="">Especialidad</option>
@@ -186,13 +186,13 @@ export default function LocalList({
         {hasFilters && (
           <button
             onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); }}
-            className="self-start text-xs text-emerald-700 font-medium hover:underline"
+            className="self-start text-xs text-[var(--tc-primary)] font-medium hover:underline"
           >
             Limpiar filtros
           </button>
         )}
 
-        <div className="bg-emerald-50 rounded-full p-1 flex items-center gap-0.5 flex-wrap border border-emerald-100">
+        <div className="bg-[var(--tc-bg-panel)] rounded-full p-1 flex items-center gap-0.5 flex-wrap border border-[var(--tc-border-soft)]">
           {SORT_BUTTONS.map(({ field, label }) => {
             const active = sort.field === field;
             return (
@@ -202,8 +202,8 @@ export default function LocalList({
                 className={
                   "flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
                   (active
-                    ? "bg-white shadow-sm text-emerald-700"
-                    : "text-[#464555] hover:text-[#1b1b24]")
+                    ? "bg-[var(--tc-card)] shadow-sm text-[var(--tc-primary)]"
+                    : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
                 }
               >
                 {label}
@@ -215,7 +215,7 @@ export default function LocalList({
         </div>
 
         {isSyncing && (
-          <p className="text-xs text-emerald-600 flex items-center gap-1">
+          <p className="text-xs text-[var(--tc-primary)] flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" /> Descargando nuevas tramitadas...
           </p>
         )}
@@ -223,14 +223,14 @@ export default function LocalList({
 
       <div className="flex-1 overflow-y-auto">
         {isLoading && (
-          <div className="p-6 flex items-center gap-2 text-[#464555] text-sm">
+          <div className="p-6 flex items-center gap-2 text-[var(--tc-ink-soft)] text-sm">
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando...
           </div>
         )}
         {!isLoading && filtered.length === 0 && (
-          <div className="p-8 flex flex-col items-center gap-2 text-slate-400 text-sm">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-1">
-              <Inbox className="w-5 h-5 text-emerald-300" />
+          <div className="p-8 flex flex-col items-center gap-2 text-[var(--tc-ink-mute)] text-sm">
+            <div className="w-10 h-10 rounded-xl bg-[var(--tc-primary-tint)] border border-[var(--tc-primary-border)] flex items-center justify-center mb-1">
+              <Inbox className="w-5 h-5 text-[var(--tc-primary)]" style={{ opacity: 0.5 }} />
             </div>
             Sin matrículas locales
           </div>
@@ -239,24 +239,45 @@ export default function LocalList({
           {filtered.map((m) => {
             const isSelected = m.localId === selectedId;
             return (
-              <li key={m.localId} className="border-t border-[#eae6f4] first:border-t-0">
+              <li key={m.localId} className="border-t border-[var(--tc-border-soft)] first:border-t-0">
                 <button
                   onClick={() => onSelect(m)}
                   className={
-                    "w-full text-left px-4 py-3 transition-colors flex items-center gap-2 " +
+                    "w-full text-left px-3 py-3.5 transition-colors flex items-center gap-3 " +
                     (isSelected
-                      ? "bg-emerald-50/60 border-l-[3px] border-emerald-500 pl-3.25"
-                      : "border-l-[3px] border-transparent hover:bg-[#f5f2ff]") +
+                      ? "bg-[var(--tc-primary-tint)]"
+                      : "hover:bg-[var(--tc-bg-panel)]") +
                     (m.anulacion ? " opacity-50" : "")
                   }
+                  style={isSelected ? { boxShadow: "inset 3px 0 0 var(--tc-primary)" } : {}}
                 >
+                  {/* Número editorial */}
+                  <div
+                    className="font-display shrink-0 w-12 text-center leading-none tabular-nums"
+                    style={{
+                      fontSize: 36,
+                      letterSpacing: -2,
+                      color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
+                      opacity: isSelected ? 1 : 0.5,
+                    }}
+                  >
+                    {m.nOrden != null
+                      ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0")
+                      : "—"}
+                  </div>
+
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
                       <span
                         className={
-                          "font-medium text-sm " +
-                          (m.anulacion ? "line-through text-[#6b7280]" : "text-[#1b1b24]")
+                          "font-semibold text-[13px] " +
+                          (m.anulacion
+                            ? "line-through text-[var(--tc-ink-mute)]"
+                            : isSelected
+                              ? "text-[var(--tc-primary-dark)]"
+                              : "text-[var(--tc-ink)]")
                         }
+                        style={{ letterSpacing: -0.1 }}
                       >
                         {m.nombre} {m.apellidos}
                       </span>
@@ -266,35 +287,41 @@ export default function LocalList({
                         </span>
                       )}
                       {m.ampliacion && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700">
+                        <span
+                          className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                          style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}
+                        >
                           Ampliación
                         </span>
                       )}
                     </div>
-                    <div className="text-xs mt-0.5 truncate text-[#6b7280]">
-                      {m.ensenanzaCurso}
-                      {m.especialidad ? ` · ${m.especialidad}` : ""}
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10.5px] font-bold"
+                        style={{
+                          background: isSelected ? "var(--tc-card)" : "var(--tc-bg-panel)",
+                          color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)",
+                          letterSpacing: 0.2,
+                        }}
+                      >
+                        {m.ensenanzaCurso}
+                      </span>
+                      {m.especialidad && (
+                        <span className="text-xs text-[var(--tc-ink-mute)] truncate">{m.especialidad}</span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {(m._nOrdenDisplay ?? (m.nOrden != null ? String(m.nOrden) : null)) != null && (
-                      <span className={
-                        "text-base font-bold tabular-nums " +
-                        (isSelected ? "text-emerald-600" : "text-orange-500")
-                      }>
-                        #{m._nOrdenDisplay ?? m.nOrden}
-                      </span>
-                    )}
-                    {m._pendienteSubida && (
-                      <span
-                        title="Pendiente de subir a la nube"
-                        className="flex items-center gap-0.5 text-[10px] text-amber-600 font-medium"
-                      >
-                        <Upload className="w-3 h-3" />
-                        Pendiente
-                      </span>
-                    )}
-                  </div>
+
+                  {m._pendienteSubida && (
+                    <span
+                      title="Pendiente de subir a la nube"
+                      className="flex items-center gap-0.5 text-[10px] font-medium shrink-0"
+                      style={{ color: "var(--tc-warn-ink)" }}
+                    >
+                      <Upload className="w-3 h-3" />
+                      Pendiente
+                    </span>
+                  )}
                 </button>
               </li>
             );
