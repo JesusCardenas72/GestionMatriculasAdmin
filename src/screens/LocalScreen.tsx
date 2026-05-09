@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AppConfig } from "../../electron/config-store";
 import {
   ESTADO,
+  ESTADO_ASIGNATURA_LABEL,
   type AsignaturaMatriculada,
   type MatriculaLocal,
   type Solicitud,
@@ -13,6 +14,7 @@ import LocalList from "../components/LocalList";
 import LocalDetail from "../components/LocalDetail";
 import AmpliacionWizard from "../components/AmpliacionWizard";
 import { buildHtmlMatricula } from "../utils/pdfMatricula";
+import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 
 interface Props {
   config: AppConfig;
@@ -60,6 +62,7 @@ function solicitudALocal(
     })),
     anulacion: false,
     ampliacion: false,
+    ampliada: false,
     _pendienteSubida: false,
     _guardadoEn: now,
     _modificadoEn: now,
@@ -77,17 +80,17 @@ export default function LocalScreen({ config }: Props) {
   const tramitadasQuery = useSolicitudes(config, ESTADO.TRAMITADO);
   const [selected, setSelected] = useState<MatriculaLocal | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const isSyncingRef = useRef(false);
+  isSyncingRef.current = isSyncing;
   const [isSaving, setIsSaving] = useState(false);
   const [showAmpliacion, setShowAmpliacion] = useState(false);
   const [subirError, setSubirError] = useState<string | null>(null);
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
-  const syncedRef = useRef(false);
 
   // Auto-sincronización: descarga tramitadas de Dataverse que no estén en local
   useEffect(() => {
-    if (syncedRef.current) return;
-    if (isLoading || !tramitadasQuery.data) return;
+    if (isLoading || !tramitadasQuery.data || isSyncingRef.current) return;
 
     const localRowIds = new Set(
       matriculas.map((m) => m.rowId).filter((id): id is string => id !== null),
@@ -95,13 +98,9 @@ export default function LocalScreen({ config }: Props) {
     const nuevas = tramitadasQuery.data.solicitudes.filter(
       (s) => !localRowIds.has(s.rowId),
     );
-    if (nuevas.length === 0) {
-      syncedRef.current = true;
-      return;
-    }
+    if (nuevas.length === 0) return;
 
     setIsSyncing(true);
-    syncedRef.current = true;
 
     Promise.allSettled(
       nuevas.map(async (solicitud) => {
@@ -123,19 +122,6 @@ export default function LocalScreen({ config }: Props) {
     const actualizado = matriculas.find((m) => m.localId === selected.localId);
     if (actualizado) setSelected(actualizado);
   }, [matriculas, selected]);
-
-  async function handleToggleAnulacion() {
-    if (!selected) return;
-    setIsSaving(true);
-    try {
-      await actualizar(selected.localId, {
-        anulacion: !selected.anulacion,
-        _pendienteSubida: true,
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  }
 
   async function handleSaveEdit(changes: Partial<MatriculaLocal>) {
     if (!selected) return;
@@ -166,10 +152,27 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
-  async function handleCrearAmpliacion(nueva: MatriculaLocal, emailHtml: string) {
+  async function handleCrearAmpliacion(nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps) {
     setIsSaving(true);
     try {
-      await guardar(nueva);
+      // Generar PDF de la ampliación con @react-pdf/renderer
+      let pdfBase64: string | null = null;
+      try {
+        const { buildAmpliacionPdfBytes, uint8ToBase64 } = await import("../pdf/buildAmpliacionPdf");
+        const bytes = await buildAmpliacionPdfBytes(pdfProps);
+        pdfBase64 = uint8ToBase64(bytes);
+      } catch (e) {
+        console.error("Error generando PDF de ampliación:", e);
+      }
+
+      const nuevaConPdf = { ...nueva, _pdfBase64: pdfBase64 };
+      await guardar(nuevaConPdf);
+      if (selected) {
+        await actualizar(selected.localId, {
+          ampliada: true,
+          _pendienteSubida: true,
+        });
+      }
       if (config.urlEnviarEmailAmpliacion) {
         try {
           await enviarEmailAmpliacion(config, {
@@ -177,13 +180,14 @@ export default function LocalScreen({ config }: Props) {
             nombre: nueva.nombre,
             apellidos: nueva.apellidos,
             emailHtml,
+            pdfBase64: pdfBase64 ?? undefined,
           });
         } catch (e) {
           console.error("Error enviando email de ampliación:", e);
         }
       }
       setShowAmpliacion(false);
-      setSelected(nueva);
+      setSelected(nuevaConPdf);
     } finally {
       setIsSaving(false);
     }
@@ -346,6 +350,15 @@ export default function LocalScreen({ config }: Props) {
 
   const pendingUploads = matriculas.filter((m) => m._pendienteSubida).length;
 
+  const yaTieneAmpliacion = selected
+    ? matriculas.some(
+        (m) =>
+          m.localId !== selected.localId &&
+          m.origenRowId === selected.origenRowId &&
+          m.ampliacion,
+      )
+    : false;
+
   return (
     <div className="flex-1 grid grid-cols-[380px_1fr] overflow-hidden px-6 py-5 gap-4">
       <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
@@ -356,7 +369,6 @@ export default function LocalScreen({ config }: Props) {
           selectedId={selected?.localId ?? null}
           onSelect={setSelected}
           onRefresh={() => {
-            syncedRef.current = false;
             void refetch();
             void tramitadasQuery.refetch();
           }}
@@ -398,9 +410,12 @@ export default function LocalScreen({ config }: Props) {
             matricula={selected}
             isSaving={isSaving}
             subirError={subirError}
+            yaTieneAmpliacion={yaTieneAmpliacion}
             onSave={(changes) => void handleSaveEdit(changes)}
-            onToggleAnulacion={handleToggleAnulacion}
-            onAmpliacion={() => setShowAmpliacion(true)}
+            onAmpliacion={() => {
+              if (yaTieneAmpliacion) return;
+              setShowAmpliacion(true);
+            }}
             onSubirNube={() => void handleSubirNube()}
             onGenerarPdf={() => void handleGenerarPdf()}
             onBorrar={() => void handleBorrar()}
@@ -429,7 +444,7 @@ export default function LocalScreen({ config }: Props) {
           matricula={selected}
           isSaving={isSaving}
           onClose={() => setShowAmpliacion(false)}
-          onCrear={(nueva, emailHtml) => void handleCrearAmpliacion(nueva, emailHtml)}
+          onCrear={(nueva, emailHtml, pdfProps) => void handleCrearAmpliacion(nueva, emailHtml, pdfProps)}
         />
       )}
     </div>

@@ -2,6 +2,18 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 const HORAS_SALIDA = ["Antes de las 17 h", "17 h", "18 h"];
 const FORMAS_PAGO = ["Pago Único", "Pago Fraccionado", "Solicita Beca", "Becado"];
+const FORMAS_PAGO_MAP: Record<string, string> = {
+  "unico": "Pago Único",
+  "fraccionado": "Pago Fraccionado",
+  "beca": "Solicita Beca",
+  "Becado": "Becado",
+};
+const FORMAS_PAGO_REVERSE: Record<string, string> = {
+  "Pago Único": "unico",
+  "Pago Fraccionado": "fraccionado",
+  "Solicita Beca": "beca",
+  "Becado": "Becado",
+};
 const REDUCCIONES_TASAS = [
   "Ninguna",
   "Familia Numerosa General",
@@ -11,6 +23,24 @@ const REDUCCIONES_TASAS = [
   "Violencia de Género",
   "Ingreso Mínimo de Solidaridad",
 ];
+const REDUCCIONES_TASAS_MAP: Record<string, string> = {
+  "ninguna": "Ninguna",
+  "fam_num_general": "Familia Numerosa General",
+  "fam_num_especial": "Familia Numerosa Especial",
+  "discapacidad": "Discapacidad",
+  "terrorismo": "Víctima de Terrorismo",
+  "violencia_genero": "Violencia de Género",
+  "ingreso_minimo": "Ingreso Mínimo de Solidaridad",
+};
+const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
+  "Ninguna": "ninguna",
+  "Familia Numerosa General": "fam_num_general",
+  "Familia Numerosa Especial": "fam_num_especial",
+  "Discapacidad": "discapacidad",
+  "Víctima de Terrorismo": "terrorismo",
+  "Violencia de Género": "violencia_genero",
+  "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
+};
 import { ChevronDown, Cloud, Download, FileText, Loader2, Plus, Trash2, TrendingUp } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
@@ -41,6 +71,7 @@ interface FormData {
   reduccionTasas: string;
   autorizacionImagen: boolean;
   disponibilidadManana: boolean;
+  anulacion: boolean;
   horaSalida: string;
   docFaltante: string;
 }
@@ -49,8 +80,8 @@ interface Props {
   matricula: MatriculaLocal;
   isSaving: boolean;
   subirError?: string | null;
+  yaTieneAmpliacion: boolean;
   onSave: (changes: Partial<MatriculaLocal>) => void;
-  onToggleAnulacion: () => void;
   onAmpliacion: () => void;
   onSubirNube: () => void;
   onGenerarPdf: () => void;
@@ -72,10 +103,11 @@ function initForm(m: MatriculaLocal): FormData {
     cp: m.cp ?? "",
     ensenanzaCurso: m.ensenanzaCurso,
     especialidad: m.especialidad ?? "",
-    formaPago: m.formaPago ?? "",
-    reduccionTasas: m.reduccionTasas ?? "",
+    formaPago: FORMAS_PAGO_MAP[m.formaPago ?? ""] ?? m.formaPago ?? "",
+    reduccionTasas: REDUCCIONES_TASAS_MAP[m.reduccionTasas ?? ""] ?? m.reduccionTasas ?? "",
     autorizacionImagen: m.autorizacionImagen,
     disponibilidadManana: m.disponibilidadManana,
+    anulacion: m.anulacion,
     horaSalida: m.horaSalida ?? "",
     docFaltante: m.docFaltante ?? "",
   };
@@ -85,14 +117,15 @@ export default function LocalDetail({
   matricula: m,
   isSaving,
   subirError,
+  yaTieneAmpliacion,
   onSave,
-  onToggleAnulacion,
   onAmpliacion,
   onSubirNube,
   onGenerarPdf,
   onBorrar,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmAmpliacion, setConfirmAmpliacion] = useState(false);
   const [form, setForm] = useState<FormData>(() => initForm(m));
   const [items, setItems] = useState<AsignaturaEdit[]>(() => m.asignaturas.map((a) => ({ ...a })));
   const [showAdd, setShowAdd] = useState(false);
@@ -101,15 +134,15 @@ export default function LocalDetail({
 
   const originalValues = useRef({
     horaSalida: m.horaSalida ?? "",
-    formaPago: m.formaPago ?? "",
-    reduccionTasas: m.reduccionTasas ?? "",
+    formaPago: FORMAS_PAGO_MAP[m.formaPago ?? ""] ?? m.formaPago ?? "",
+    reduccionTasas: REDUCCIONES_TASAS_MAP[m.reduccionTasas ?? ""] ?? m.reduccionTasas ?? "",
   });
 
   useEffect(() => {
     originalValues.current = {
       horaSalida: m.horaSalida ?? "",
-      formaPago: m.formaPago ?? "",
-      reduccionTasas: m.reduccionTasas ?? "",
+      formaPago: FORMAS_PAGO_MAP[m.formaPago ?? ""] ?? m.formaPago ?? "",
+    reduccionTasas: REDUCCIONES_TASAS_MAP[m.reduccionTasas ?? ""] ?? m.reduccionTasas ?? "",
     };
     setForm(initForm(m));
     setItems(m.asignaturas.map((a) => ({ ...a })));
@@ -151,10 +184,11 @@ export default function LocalDetail({
       cp: n(f.cp),
       ensenanzaCurso: f.ensenanzaCurso.trim(),
       especialidad: n(f.especialidad),
-      formaPago: n(f.formaPago),
-      reduccionTasas: n(f.reduccionTasas),
+      formaPago: n(FORMAS_PAGO_REVERSE[f.formaPago] ?? f.formaPago),
+      reduccionTasas: n(REDUCCIONES_TASAS_REVERSE[f.reduccionTasas] ?? f.reduccionTasas),
       autorizacionImagen: f.autorizacionImagen,
       disponibilidadManana: f.disponibilidadManana,
+      anulacion: f.anulacion,
       horaSalida: n(f.horaSalida),
       docFaltante: n(f.docFaltante),
       _pendienteSubida: true,
@@ -281,6 +315,14 @@ export default function LocalDetail({
                   style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-border)" }}
                 >
                   Ampliación de matrícula
+                </span>
+              )}
+              {m.ampliada && !m.ampliacion && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+                  style={{ background: "var(--tc-info-bg)", color: "var(--tc-info-ink)", borderColor: "var(--tc-info-border)" }}
+                >
+                  Matrícula ampliada
                 </span>
               )}
               {m._pendienteSubida && (
@@ -412,6 +454,49 @@ export default function LocalDetail({
                   onChange={(v) => saveBool("autorizacionImagen", v)}
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 mt-4 pt-4" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+              <div>
+                <ToggleField
+                  label="Ampliación"
+                  checked={m.ampliacion}
+                  onChange={(v) => {
+                    if (v && !m.ampliacion) {
+                      setConfirmAmpliacion(true);
+                    }
+                  }}
+                />
+                {confirmAmpliacion && (
+                  <div className="mt-2 p-3 rounded-lg border" style={{ background: "var(--tc-bg-panel)", borderColor: "var(--tc-border-soft)" }}>
+                    <p className="text-xs font-medium mb-2" style={{ color: "var(--tc-ink)" }}>¿Crear ampliación de matrícula?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setConfirmAmpliacion(false);
+                          onAmpliacion();
+                        }}
+                        disabled={isSaving}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+                      >
+                        Sí, ampliar
+                      </button>
+                      <button
+                        onClick={() => setConfirmAmpliacion(false)}
+                        disabled={isSaving}
+                        className="px-3 py-1.5 rounded-lg text-xs disabled:opacity-40"
+                        style={{ color: "var(--tc-ink-soft)" }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <ToggleField
+                label="Anulación"
+                checked={form.anulacion}
+                onChange={(v) => saveBool("anulacion", v)}
+              />
             </div>
           </AccordionBlock>
 
@@ -591,29 +676,6 @@ export default function LocalDetail({
           {/* Gestión Local */}
           <AccordionBlock title="Gestión Local" defaultOpen={false}>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium" style={{ color: "var(--tc-ink)" }}>Anulación de matrícula</p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>Marca esta matrícula como anulada</p>
-                </div>
-                <button
-                  onClick={onToggleAnulacion}
-                  disabled={isSaving}
-                  className={
-                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 " +
-                    (m.anulacion ? "bg-red-500 focus:ring-red-400" : "focus:ring-[var(--tc-primary-border)]")
-                  }
-                  style={!m.anulacion ? { background: "var(--tc-border)" } : {}}
-                >
-                  <span
-                    className={
-                      "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform " +
-                      (m.anulacion ? "translate-x-6" : "translate-x-1")
-                    }
-                  />
-                </button>
-              </div>
-
               {m.ampliacion && (
                 <div className="flex items-center justify-between">
                   <div>
@@ -661,7 +723,7 @@ export default function LocalDetail({
           className="px-6 py-4 flex flex-wrap items-center gap-2"
           style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
         >
-          {!m.ampliacion && !m.anulacion && (
+          {!m.ampliacion && !m.anulacion && !yaTieneAmpliacion && (
             <button
               onClick={onAmpliacion}
               disabled={isSaving}
@@ -671,6 +733,20 @@ export default function LocalDetail({
               <TrendingUp className="w-4 h-4" />
               Crear Ampliación
             </button>
+          )}
+          {!m.ampliacion && !m.anulacion && yaTieneAmpliacion && (
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border"
+              style={{
+                background: "var(--tc-violet-bg)",
+                color: "var(--tc-violet-ink)",
+                borderColor: "var(--tc-violet-border)",
+              }}
+              title="Ya existe una ampliación para esta matrícula"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              Ampliación ya creada
+            </span>
           )}
           {m.ampliacion && (
             <>

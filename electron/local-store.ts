@@ -11,7 +11,19 @@ function readAll(): MatriculaLocal[] {
   const file = storePath();
   if (!fs.existsSync(file)) return [];
   try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as MatriculaLocal[];
+    const data = JSON.parse(fs.readFileSync(file, "utf-8")) as MatriculaLocal[];
+    const ampliados = new Set(
+      data.filter((r) => r.ampliacion).map((r) => r.origenRowId),
+    );
+    return data.map((r) => ({
+      ...r,
+      ampliada:
+        (r.ampliada ?? false) ||
+        r.ampliacion ||
+        ampliados.has(r.localId) ||
+        ampliados.has(r.rowId || "") ||
+        ampliados.has(r.origenRowId),
+    }));
   } catch {
     return [];
   }

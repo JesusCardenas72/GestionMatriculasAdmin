@@ -235,28 +235,34 @@ export default function LocalList({
             Sin matrículas locales
           </div>
         )}
-        <ul>
+        <ul className="px-2 pb-2">
           {filtered.map((m) => {
             const isSelected = m.localId === selectedId;
             return (
-              <li key={m.localId} className="border-t border-[var(--tc-border-soft)] first:border-t-0">
+              <li key={m.localId} className="mb-0.5">
                 <button
                   onClick={() => onSelect(m)}
                   className={
-                    "w-full text-left px-3 py-3.5 transition-colors flex items-center gap-3 " +
+                    "w-full text-left cursor-pointer flex items-center gap-3.5 border-none " +
                     (isSelected
-                      ? "bg-[var(--tc-primary-tint)]"
+                      ? ""
                       : "hover:bg-[var(--tc-bg-panel)]") +
                     (m.anulacion ? " opacity-50" : "")
                   }
-                  style={isSelected ? { boxShadow: "inset 3px 0 0 var(--tc-primary)" } : {}}
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: 12,
+                    background: isSelected ? "var(--tc-primary-tint)" : "transparent",
+                    boxShadow: isSelected ? "inset 3px 0 0 var(--tc-primary)" : "none",
+                  }}
                 >
                   {/* Número editorial */}
                   <div
-                    className="font-display shrink-0 w-12 text-center leading-none tabular-nums"
+                    className="font-display shrink-0 text-center leading-none tabular-nums"
                     style={{
-                      fontSize: 36,
+                      fontSize: 40,
                       letterSpacing: -2,
+                      width: 48,
                       color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
                       opacity: isSelected ? 1 : 0.5,
                     }}
@@ -270,14 +276,14 @@ export default function LocalList({
                     <div className="flex items-center gap-1.5 flex-wrap mb-1">
                       <span
                         className={
-                          "font-semibold text-[13px] " +
+                          "text-[13px] " +
                           (m.anulacion
                             ? "line-through text-[var(--tc-ink-mute)]"
                             : isSelected
                               ? "text-[var(--tc-primary-dark)]"
                               : "text-[var(--tc-ink)]")
                         }
-                        style={{ letterSpacing: -0.1 }}
+                        style={{ fontWeight: 700, letterSpacing: -0.1 }}
                       >
                         {m.nombre} {m.apellidos}
                       </span>
@@ -297,9 +303,11 @@ export default function LocalList({
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="px-1.5 py-0.5 rounded text-[10.5px] font-bold"
+                        className="rounded-md font-bold"
                         style={{
-                          background: isSelected ? "var(--tc-card)" : "var(--tc-bg-panel)",
+                          padding: "2px 8px",
+                          fontSize: 11,
+                          background: "var(--tc-card)",
                           color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)",
                           letterSpacing: 0.2,
                         }}

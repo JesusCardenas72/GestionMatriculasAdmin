@@ -4,6 +4,7 @@ import type { AsignaturaLocal, EstadoAsignatura, MatriculaLocal } from "../api/t
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
 import { ensenanzaDesdeCode, getCatalogoParaCurso } from "../data/catalogoLocal";
 import { buildAmpliacionEmailHtml } from "../utils/emailTemplate";
+import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 
 const FORMAS_PAGO = ["Pago Único", "Pago Fraccionado", "Solicita Beca", "Becado"];
 
@@ -72,7 +73,7 @@ interface Props {
   matricula: MatriculaLocal;
   isSaving: boolean;
   onClose: () => void;
-  onCrear: (nueva: MatriculaLocal, emailHtml: string) => void;
+  onCrear: (nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps) => void;
 }
 
 function calcularNuevoCurso(ensenanzaCurso: string) {
@@ -148,7 +149,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       localId: crypto.randomUUID(),
       rowId: null,
       origenRowId: m.origenRowId,
-      nOrden: null,
+      nOrden: m.nOrden,
       nombreMatricula: m.nombreMatricula,
       nombre: m.nombre,
       apellidos: m.apellidos,
@@ -183,6 +184,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       ),
       anulacion: false,
       ampliacion: true,
+      ampliada: true,
       _pendienteSubida: true,
       _guardadoEn: now,
       _modificadoEn: now,
@@ -193,22 +195,58 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
 
   function handleConfirmar() {
     const nueva = buildNueva();
+    const asignaturasEmail = asignaturasSeleccionadas.map((a) => ({
+      nombre: a.nombre,
+      estado: a.estado,
+      horario: a.horario,
+    }));
+    const debePagar =
+      !calculo.esExento &&
+      formaPago !== "Solicita Beca" &&
+      formaPago !== "Becado";
+
     const emailHtml = buildAmpliacionEmailHtml({
       nombre: m.nombre,
       apellidos: m.apellidos,
       cursoActual: m.ensenanzaCurso,
       nuevoCurso,
       especialidad: m.especialidad,
+      asignaturas: asignaturasEmail,
+      formaPago: formaPago.trim() || null,
+      cuantia: cuantia.trim() || null,
+      observaciones,
+      debePagar,
+    });
+    const pdfProps: AmpliacionPdfProps = {
+      nombre: m.nombre,
+      apellidos: m.apellidos,
+      dni: m.dni,
+      email: m.email,
+      telefono: m.telefono,
+      fechaNacimiento: m.fechaNacimiento,
+      domicilio: m.domicilio,
+      localidad: m.localidad,
+      provincia: m.provincia,
+      cp: m.cp,
+      autorizacionImagen: m.autorizacionImagen,
+      disponibilidadManana: m.disponibilidadManana,
+      horaSalida: m.horaSalida,
+      cursoActual: m.ensenanzaCurso,
+      nuevoCurso,
+      especialidad: m.especialidad,
+      fechaInscripcion: nueva.fechaInscripcion,
       asignaturas: asignaturasSeleccionadas.map((a) => ({
         nombre: a.nombre,
-        estado: a.estado,
+        estadoLabel: ESTADO_ASIGNATURA_LABEL[a.estado],
         horario: a.horario,
       })),
       formaPago: formaPago.trim() || null,
       cuantia: cuantia.trim() || null,
+      reduccionTasas: m.reduccionTasas,
       observaciones,
-    });
-    onCrear(nueva, emailHtml);
+      nOrden: m.nOrden,
+    };
+    onCrear(nueva, emailHtml, pdfProps);
   }
 
   function avanzar() {
@@ -338,6 +376,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
           formaPago={formaPago}
           cuantia={cuantia}
           observaciones={observaciones}
+          debePagar={!calculo.esExento && formaPago !== "Solicita Beca" && formaPago !== "Becado"}
           isSaving={isSaving}
           onObservacionesChange={setObservaciones}
           onCancel={() => setShowEmailPreview(false)}
@@ -631,6 +670,7 @@ function EmailPreviewOverlay({
   formaPago,
   cuantia,
   observaciones,
+  debePagar,
   isSaving,
   onObservacionesChange,
   onCancel,
@@ -646,6 +686,7 @@ function EmailPreviewOverlay({
   formaPago: string;
   cuantia: string;
   observaciones: string;
+  debePagar: boolean;
   isSaving: boolean;
   onObservacionesChange: (v: string) => void;
   onCancel: () => void;
@@ -665,6 +706,7 @@ function EmailPreviewOverlay({
     formaPago: formaPago.trim() || null,
     cuantia: cuantia.trim() || null,
     observaciones,
+    debePagar,
   });
 
   return (

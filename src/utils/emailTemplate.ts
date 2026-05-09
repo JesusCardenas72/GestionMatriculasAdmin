@@ -382,8 +382,9 @@ export function buildAmpliacionEmailHtml(params: {
   formaPago: string | null;
   cuantia: string | null;
   observaciones: string;
+  debePagar?: boolean;
 }): string {
-  const { nombre, apellidos, cursoActual, nuevoCurso, especialidad, asignaturas, formaPago, cuantia, observaciones } = params;
+  const { nombre, apellidos, cursoActual, nuevoCurso, especialidad, asignaturas, formaPago, cuantia, observaciones, debePagar = false } = params;
 
   const hoy = new Date().toLocaleDateString("es-ES", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -553,6 +554,30 @@ export function buildAmpliacionEmailHtml(params: {
     ${pagoSection}
     ${asigSection}
     ${obsSection}
+
+    ${debePagar ? `
+    <!-- AVISO PAGO -->
+    <tr>
+      <td style="padding:24px 40px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+          style="background:#fff7ed;border:2px solid #f97316;border-radius:12px;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#ea580c,#f97316);padding:10px 20px;">
+              <p style="margin:0;font-size:12px;font-weight:800;color:#ffffff;text-transform:uppercase;letter-spacing:1px;">
+                ⚠️ &nbsp;Aviso importante sobre el pago
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 20px;">
+              <p style="margin:0;font-size:15px;font-weight:800;color:#c2410c;line-height:1.65;">
+                La formalización de la matrícula por ampliación se hará efectiva en el momento de la notificación a esta Secretaría del justificante de pago de la tasa correspondiente.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : ""}
 
     <!-- CIERRE -->
     <tr>

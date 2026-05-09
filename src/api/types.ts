@@ -30,6 +30,7 @@ export interface Solicitud {
   horaSalida: string | null;
   estado: EstadoTramite;
   docFaltante: string | null;
+  ampliada?: boolean;
 }
 
 export interface ListarSolicitudesResponse {
@@ -261,6 +262,7 @@ export interface MatriculaLocal {
 
   anulacion: boolean;
   ampliacion: boolean;
+  ampliada: boolean;
 
   _pendienteSubida: boolean;
   _guardadoEn: string;

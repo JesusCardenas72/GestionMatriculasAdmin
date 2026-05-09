@@ -12,6 +12,8 @@ import {
   Save,
   Trash2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import type { AppConfig } from '../../electron/config-store';
 import type {
@@ -27,7 +29,6 @@ import {
   CAMPOS_META,
   ESTADO_TRAMITE_LABELS,
   INFORME_VACIO,
-  INFORMES_PREDEFINIDOS,
   getOperadores,
   type CampoMeta,
 } from '../data/informesConfig';
@@ -145,6 +146,7 @@ function localToSolicitud(r: MatriculaLocal): Solicitud {
     horaSalida: r.horaSalida,
     estado: ESTADO.PENDIENTE_TRAMITACION,
     docFaltante: r.docFaltante,
+    ampliada: r.ampliada,
   };
 }
 
@@ -173,11 +175,14 @@ export default function InformesScreen({ config: _cfg }: Props) {
     return map;
   }, [allSolicitudes]);
 
-  const [informe, setInforme] = useState<ConfigInforme>(() => deepClone(INFORMES_PREDEFINIDOS[0]));
+  const [informe, setInforme] = useState<ConfigInforme>(() => deepClone(INFORME_VACIO));
   const [printing, setPrinting] = useState(false);
   const [presets, setPresets] = useState<ConfigInforme[]>([]);
-  const [showNuevoPreset, setShowNuevoPreset] = useState(false);
-  const [nuevoPresetNombre, setNuevoPresetNombre] = useState('');
+
+  // Vista previa PDF
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewOrientacion, setPreviewOrientacion] = useState<'portrait' | 'landscape'>('landscape');
+  const [previewZoom, setPreviewZoom] = useState(1);
 
   // UI state
   const [showFilters, setShowFilters] = useState(false);
@@ -249,19 +254,16 @@ export default function InformesScreen({ config: _cfg }: Props) {
   // ── Handlers de configuración ─────────────────────────────────────────────
 
   function loadPredefinido(id: string) {
-    setShowNuevoPreset(false);
     if (id === 'personalizado') {
       setInforme(deepClone(INFORME_VACIO));
     } else {
-      const pred = INFORMES_PREDEFINIDOS.find(p => p.id === id);
-      if (pred) { setInforme(deepClone(pred)); return; }
       const preset = presets.find(p => p.id === id);
       if (preset) setInforme(deepClone(preset));
     }
   }
 
   async function handleGuardarNuevoPreset() {
-    const nombre = nuevoPresetNombre.trim();
+    const nombre = informe.nombre.trim();
     if (!nombre) return;
     const nuevoPreset: ConfigInforme = {
       ...deepClone(informe),
@@ -273,8 +275,6 @@ export default function InformesScreen({ config: _cfg }: Props) {
     const lista = await window.adminAPI.presets.listar();
     setPresets(lista);
     setInforme(nuevoPreset);
-    setShowNuevoPreset(false);
-    setNuevoPresetNombre('');
   }
 
   async function handleActualizarPreset() {
@@ -427,16 +427,28 @@ export default function InformesScreen({ config: _cfg }: Props) {
 
   // ── Imprimir ──────────────────────────────────────────────────────────────
 
-  async function handleImprimir() {
+  const previewHtml = useMemo(() => {
+    if (!showPreview) return '';
+    return buildHtmlInforme({
+      nombre: informe.nombre,
+      filtrosDesc: describeFiltros(informe.filtros),
+      campos: camposVisibles,
+      rows: resultados,
+      orientacion: previewOrientacion,
+      zoom: previewZoom,
+    });
+  }, [showPreview, previewOrientacion, previewZoom, informe.nombre, informe.filtros, camposVisibles, resultados]);
+
+  function handleAbrirVistaPrevia() {
+    setPreviewOrientacion('landscape');
+    setPreviewZoom(1);
+    setShowPreview(true);
+  }
+
+  async function handlePrintFromPreview() {
     setPrinting(true);
     try {
-      const html = buildHtmlInforme({
-        nombre: informe.nombre,
-        filtrosDesc: describeFiltros(informe.filtros),
-        campos: camposVisibles,
-        rows: resultados,
-      });
-      await window.adminAPI.pdf.printHtml(html);
+      await window.adminAPI.pdf.printHtml(previewHtml);
     } finally {
       setPrinting(false);
     }
@@ -448,9 +460,8 @@ export default function InformesScreen({ config: _cfg }: Props) {
     'text-xs border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#3525cd]/30';
   const iconBtnCls = 'p-0.5 rounded transition-colors';
 
-  const isPredefined  = INFORMES_PREDEFINIDOS.some(p => p.id === informe.id);
   const isSavedPreset = presets.some(p => p.id === informe.id);
-  const currentSelectId = isPredefined || isSavedPreset ? informe.id : 'personalizado';
+  const currentSelectId = isSavedPreset ? informe.id : 'personalizado';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -484,7 +495,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
             </div>
           )}
           <button
-            onClick={handleImprimir}
+            onClick={handleAbrirVistaPrevia}
             disabled={printing || isLoading || camposVisibles.length === 0 || resultados.length === 0}
             className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 disabled:opacity-40 transition-colors shadow-sm"
           >
@@ -504,11 +515,6 @@ export default function InformesScreen({ config: _cfg }: Props) {
           className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
         >
           <option value="personalizado">— Personalizado —</option>
-          <optgroup label="Predefinidos">
-            {INFORMES_PREDEFINIDOS.map(p => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
-          </optgroup>
           {presets.length > 0 && (
             <optgroup label="Mis presets">
               {presets.map(p => (
@@ -519,23 +525,16 @@ export default function InformesScreen({ config: _cfg }: Props) {
         </select>
 
         {/* Nombre editable */}
-        {!isPredefined && (
-          <input
-            type="text"
-            value={informe.nombre}
-            onChange={e => setInforme(prev => ({ ...prev, nombre: e.target.value }))}
-            placeholder="Nombre del informe..."
-            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30 w-44"
-          />
-        )}
-
-        {/* Descripción de predefinido */}
-        {isPredefined && informe.descripcion && (
-          <span className="text-xs text-slate-400 hidden sm:inline">{informe.descripcion}</span>
-        )}
+        <input
+          type="text"
+          value={informe.nombre}
+          onChange={e => setInforme(prev => ({ ...prev, nombre: e.target.value }))}
+          placeholder="Nombre del informe..."
+          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30 w-44"
+        />
 
         {/* Actualizar + Eliminar preset */}
-        {isSavedPreset && !showNuevoPreset && (
+        {isSavedPreset && (
           <>
             <button
               onClick={handleActualizarPreset}
@@ -553,43 +552,14 @@ export default function InformesScreen({ config: _cfg }: Props) {
         )}
 
         {/* Guardar como preset */}
-        {!showNuevoPreset ? (
-          <button
-            onClick={() => { setShowNuevoPreset(true); setNuevoPresetNombre(informe.nombre); }}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <Save className="w-3.5 h-3.5" />
-            {isSavedPreset ? 'Guardar como nuevo...' : 'Guardar preset...'}
-          </button>
-        ) : (
-          <div className="flex gap-1 items-center">
-            <input
-              type="text"
-              value={nuevoPresetNombre}
-              onChange={e => setNuevoPresetNombre(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') handleGuardarNuevoPreset();
-                if (e.key === 'Escape') setShowNuevoPreset(false);
-              }}
-              placeholder="Nombre del preset..."
-              autoFocus
-              className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400/30 w-36"
-            />
-            <button
-              onClick={handleGuardarNuevoPreset}
-              disabled={!nuevoPresetNombre.trim()}
-              className="px-2 py-1.5 rounded bg-[#3525cd] text-white text-xs disabled:opacity-40 hover:bg-[#2a1db5] transition-colors"
-            >
-              <Save className="w-3 h-3" />
-            </button>
-            <button
-              onClick={() => setShowNuevoPreset(false)}
-              className="px-1.5 py-1.5 rounded bg-slate-100 text-slate-500 text-xs hover:bg-slate-200 transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        )}
+        <button
+          onClick={handleGuardarNuevoPreset}
+          disabled={!informe.nombre.trim()}
+          className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Save className="w-3.5 h-3.5" />
+          {isSavedPreset ? 'Guardar como nuevo...' : 'Guardar preset...'}
+        </button>
 
         <div className="flex-1 min-w-2" />
 
@@ -978,6 +948,116 @@ export default function InformesScreen({ config: _cfg }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── Modal Vista Previa PDF ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showPreview && (
+          <motion.div
+            key="preview-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0 gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-[#1b1b24] truncate">{informe.nombre}</h3>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {describeFiltros(informe.filtros) || 'Sin filtros'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Orientación */}
+                  <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setPreviewOrientacion('portrait')}
+                      className={
+                        'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
+                        (previewOrientacion === 'portrait'
+                          ? 'bg-white text-[#3525cd] shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700')
+                      }
+                    >
+                      Vertical
+                    </button>
+                    <button
+                      onClick={() => setPreviewOrientacion('landscape')}
+                      className={
+                        'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
+                        (previewOrientacion === 'landscape'
+                          ? 'bg-white text-[#3525cd] shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700')
+                      }
+                    >
+                      Horizontal
+                    </button>
+                  </div>
+
+                  {/* Zoom */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPreviewZoom(z => Math.max(0.5, +(z - 0.1).toFixed(1)))}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-[11px] font-semibold text-slate-600 w-10 text-center">
+                      {Math.round(previewZoom * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setPreviewZoom(z => Math.min(2.0, +(z + 0.1).toFixed(1)))}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handlePrintFromPreview}
+                    disabled={printing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-40 transition-colors shadow-sm"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    {printing ? 'Generando…' : 'Imprimir'}
+                  </button>
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-auto bg-slate-100 p-6 flex justify-center">
+                <iframe
+                  title="Vista previa PDF"
+                  srcDoc={previewHtml}
+                  className="bg-white shadow-xl"
+                  style={{
+                    width: previewOrientacion === 'portrait' ? 908 : 1237,
+                    height: previewOrientacion === 'portrait' ? 1237 : 908,
+                    border: 'none',
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

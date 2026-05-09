@@ -31,6 +31,7 @@ export const CAMPOS_META: CampoMeta[] = [
   { key: 'horaSalida',           label: 'Hora Salida',         tipo: 'texto'    },
   { key: 'estado',               label: 'Estado',              tipo: 'estado'   },
   { key: 'docFaltante',          label: 'Doc. Faltante',       tipo: 'texto'    },
+  { key: 'ampliada',             label: 'Matrícula ampliada',  tipo: 'booleano' },
 ];
 
 export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(

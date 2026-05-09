@@ -11,6 +11,24 @@ const REDUCCIONES_TASAS = [
   "Violencia de Género",
   "Ingreso Mínimo de Solidaridad",
 ];
+const REDUCCIONES_TASAS_MAP: Record<string, string> = {
+  "ninguna": "Ninguna",
+  "fam_num_general": "Familia Numerosa General",
+  "fam_num_especial": "Familia Numerosa Especial",
+  "discapacidad": "Discapacidad",
+  "terrorismo": "Víctima de Terrorismo",
+  "violencia_genero": "Violencia de Género",
+  "ingreso_minimo": "Ingreso Mínimo de Solidaridad",
+};
+const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
+  "Ninguna": "ninguna",
+  "Familia Numerosa General": "fam_num_general",
+  "Familia Numerosa Especial": "fam_num_especial",
+  "Discapacidad": "discapacidad",
+  "Víctima de Terrorismo": "terrorismo",
+  "Violencia de Género": "violencia_genero",
+  "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
+};
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import type { AsignaturaLocal, MatriculaLocal, EstadoAsignatura } from "../api/types";
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
@@ -68,7 +86,7 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
     provincia: matricula.provincia ?? "",
     cp: matricula.cp ?? "",
     formaPago: matricula.formaPago ?? "",
-    reduccionTasas: matricula.reduccionTasas ?? "",
+    reduccionTasas: REDUCCIONES_TASAS_MAP[matricula.reduccionTasas ?? ""] ?? matricula.reduccionTasas ?? "",
     autorizacionImagen: matricula.autorizacionImagen,
     disponibilidadManana: matricula.disponibilidadManana,
     horaSalida: matricula.horaSalida ?? "",
@@ -147,7 +165,7 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
       provincia: n(form.provincia),
       cp: n(form.cp),
       formaPago: n(form.formaPago),
-      reduccionTasas: n(form.reduccionTasas),
+      reduccionTasas: n(REDUCCIONES_TASAS_REVERSE[form.reduccionTasas] ?? form.reduccionTasas),
       autorizacionImagen: form.autorizacionImagen,
       disponibilidadManana: form.disponibilidadManana,
       horaSalida: n(form.horaSalida),
@@ -277,7 +295,7 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
                   <SelectField
                     label="Reducción de tasas"
                     value={form.reduccionTasas}
-                    originalValue={matricula.reduccionTasas ?? ""}
+                    originalValue={REDUCCIONES_TASAS_MAP[matricula.reduccionTasas ?? ""] ?? matricula.reduccionTasas ?? ""}
                     options={REDUCCIONES_TASAS}
                     onChange={(v) => setField("reduccionTasas", v)}
                   />

@@ -35,9 +35,11 @@ export interface InformeParams {
   filtrosDesc: string;
   campos: CampoMeta[];
   rows: Solicitud[];
+  orientacion?: 'portrait' | 'landscape';
+  zoom?: number;
 }
 
-export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows }: InformeParams): string {
+export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacion = 'landscape', zoom = 1 }: InformeParams): string {
   const hoy = new Date().toLocaleDateString('es-ES', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -66,9 +68,14 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows }: InformeP
 <meta charset="UTF-8">
 <title>${esc(nombre)}</title>
 <style>
-  @page { size: A4 landscape; margin: 1.2cm 1.5cm; }
+  @page { size: A4 ${orientacion}; margin: 1.5cm; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; color: #1e1e2e; margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; color: #1e1e2e; }
+  .page-wrapper { zoom: ${zoom}; }
+  @media screen {
+    body { padding: 1.5cm; }
+  }
   h1 { font-size: 13pt; font-weight: bold; margin: 0 0 3px; color: #1a1560; }
   .meta { font-size: 7.5pt; color: #64748b; margin-bottom: 10px; }
   table { width: 100%; border-collapse: collapse; }
@@ -86,6 +93,7 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows }: InformeP
 </style>
 </head>
 <body>
+<div class="page-wrapper">
 <h1>${esc(nombre)}</h1>
 <div class="meta">${metaParts}</div>
 <table>
@@ -93,6 +101,7 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows }: InformeP
   <tbody>${bodyRows}</tbody>
 </table>
 <div class="footer">Gestión de Matrículas</div>
+</div>
 </body>
 </html>`;
 }

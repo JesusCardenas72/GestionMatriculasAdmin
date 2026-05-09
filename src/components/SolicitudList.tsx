@@ -239,19 +239,17 @@ export default function SolicitudList({
             Sin solicitudes
           </div>
         )}
-        <ul>
+        <ul className="px-2 pb-2">
           {filtered.map((s) => {
             const isSelected = s.rowId === selectedId;
             return (
-              <li
-                key={s.rowId}
-                className="first:border-t-0"
-                style={{ borderTop: "1px solid var(--tc-border-soft)" }}
-              >
+              <li key={s.rowId} className="mb-0.5">
                 <button
                   onClick={() => onSelect(s)}
-                  className="w-full text-left px-3 py-3.5 transition-colors flex items-center gap-3"
+                  className="w-full text-left cursor-pointer flex items-center gap-3.5 border-none"
                   style={{
+                    padding: "14px 16px",
+                    borderRadius: 12,
                     background: isSelected ? "var(--tc-primary-tint)" : "transparent",
                     boxShadow: isSelected ? "inset 3px 0 0 var(--tc-primary)" : "none",
                   }}
@@ -264,10 +262,11 @@ export default function SolicitudList({
                 >
                   {/* Número editorial */}
                   <div
-                    className="font-display shrink-0 w-12 text-center leading-none tabular-nums"
+                    className="font-display shrink-0 text-center leading-none tabular-nums"
                     style={{
-                      fontSize: 36,
+                      fontSize: 40,
                       letterSpacing: -2,
+                      width: 48,
                       color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
                       opacity: isSelected ? 1 : 0.5,
                     }}
@@ -277,8 +276,9 @@ export default function SolicitudList({
 
                   <div className="flex-1 min-w-0">
                     <div
-                      className="font-semibold text-[13px] truncate mb-1"
+                      className="text-[13px] truncate mb-1"
                       style={{
+                        fontWeight: 700,
                         letterSpacing: -0.1,
                         color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink)",
                       }}
@@ -287,9 +287,11 @@ export default function SolicitudList({
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="px-1.5 py-0.5 rounded text-[10.5px] font-bold"
+                        className="rounded-md font-bold"
                         style={{
-                          background: isSelected ? "var(--tc-card)" : "var(--tc-bg-panel)",
+                          padding: "2px 8px",
+                          fontSize: 11,
+                          background: "var(--tc-card)",
                           color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)",
                           letterSpacing: 0.2,
                         }}

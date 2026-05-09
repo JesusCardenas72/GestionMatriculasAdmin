@@ -40,7 +40,7 @@ interface DataverseSolicitud {
   cpmmr_horasalida: string | null;
   cpmmr_estado: EstadoTramite;
   cpmmr_fechainscripcion?: string | null;
-  cpmmr_docfaltante?: string | null;
+  cr955_docfaltante?: string | null;
 }
 
 function mapSolicitud(r: DataverseSolicitud): Solicitud {
@@ -61,13 +61,13 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
     fechaInscripcion: r.cpmmr_fechainscripcion ?? "",
     ensenanzaCurso: r.cpmmr_ensenanzaycurso ?? "",
     especialidad: r.cpmmr_especialidad,
-    formaPago: r.cpmmr_formadepago,
+    formaPago: r.cpmmr_formadepago ?? null,
     reduccionTasas: r.cpmmr_reducciontasas,
     autorizacionImagen: r.cpmmr_autorizacionimagen ?? false,
     disponibilidadManana: r.cpmmr_disponibilidadmanana ?? false,
     horaSalida: r.cpmmr_horasalida,
     estado: r.cpmmr_estado,
-    docFaltante: r.cpmmr_docfaltante ?? null,
+    docFaltante: r.cr955_docfaltante ?? null,
   };
 }
 
@@ -202,7 +202,7 @@ export function crearAmpliacion(
 
 export function enviarEmailAmpliacion(
   cfg: AppConfig,
-  input: { email: string; nombre: string; apellidos: string; emailHtml: string },
+  input: { email: string; nombre: string; apellidos: string; emailHtml: string; pdfBase64?: string },
 ): Promise<{ ok: boolean }> {
   return postFlow<{ ok: boolean }>(cfg.urlEnviarEmailAmpliacion!, cfg.apiKey, input, "AdminEnviarEmailAmpliacion");
 }
