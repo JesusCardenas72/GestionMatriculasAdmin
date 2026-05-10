@@ -15,6 +15,7 @@ import LocalDetail from "../components/LocalDetail";
 import AmpliacionWizard from "../components/AmpliacionWizard";
 import { buildHtmlMatricula } from "../utils/pdfMatricula";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
+import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 
 interface Props {
   config: AppConfig;
@@ -137,15 +138,50 @@ export default function LocalScreen({ config }: Props) {
     if (!selected) return;
     setIsSaving(true);
     try {
-      const html = buildHtmlMatricula(selected);
-      const result = await window.adminAPI.pdf.generarBase64(html);
-      if (result.success && result.base64) {
-        await actualizar(selected.localId, {
-          _pdfBase64: result.base64,
-          _pendienteSubida: true,
-        });
+      if (selected.ampliacion) {
+        const { buildAmpliacionPdfBytes, uint8ToBase64 } = await import("../pdf/buildAmpliacionPdf");
+        const pdfProps: AmpliacionPdfProps = {
+          nombre: selected.nombre,
+          apellidos: selected.apellidos,
+          dni: selected.dni,
+          email: selected.email,
+          telefono: selected.telefono,
+          fechaNacimiento: selected.fechaNacimiento,
+          domicilio: selected.domicilio,
+          localidad: selected.localidad,
+          provincia: selected.provincia,
+          cp: selected.cp,
+          autorizacionImagen: selected.autorizacionImagen,
+          disponibilidadManana: selected.disponibilidadManana,
+          horaSalida: selected.horaSalida,
+          cursoActual: cursoActualDesdeAmpliacion(selected.ensenanzaCurso),
+          nuevoCurso: selected.ensenanzaCurso,
+          especialidad: selected.especialidad,
+          fechaInscripcion: selected.fechaInscripcion,
+          asignaturas: selected.asignaturas.map((a) => ({
+            nombre: a.nombre,
+            estadoLabel: ESTADO_ASIGNATURA_LABEL[a.estado],
+            horario: a.horario ?? undefined,
+          })),
+          formaPago: selected.formaPago,
+          cuantia: calcularCuantiaAmpliacion(selected.ensenanzaCurso, selected.reduccionTasas),
+          reduccionTasas: selected.reduccionTasas,
+          nOrden: selected.nOrden,
+        };
+        const bytes = await buildAmpliacionPdfBytes(pdfProps);
+        const base64 = uint8ToBase64(bytes);
+        await actualizar(selected.localId, { _pdfBase64: base64, _pendienteSubida: true });
       } else {
-        console.error("Error generando PDF:", result.error);
+        const html = buildHtmlMatricula(selected);
+        const result = await window.adminAPI.pdf.generarBase64(html);
+        if (result.success && result.base64) {
+          await actualizar(selected.localId, {
+            _pdfBase64: result.base64,
+            _pendienteSubida: true,
+          });
+        } else {
+          console.error("Error generando PDF:", result.error);
+        }
       }
     } finally {
       setIsSaving(false);
