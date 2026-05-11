@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -20,6 +20,240 @@ const SORT_BUTTONS: { field: SortField; label: string }[] = [
   { field: "especialidad", label: "Especialidad" },
   { field: "ensenanza", label: "Curso" },
 ];
+
+type GroupedItem =
+  | { type: "single"; matricula: MatriculaLocal }
+  | {
+      type: "pair";
+      ampliacion: MatriculaLocal;
+      original: MatriculaLocal;
+    };
+
+function groupPairs(data: MatriculaLocal[]): GroupedItem[] {
+  const used = new Set<string>();
+  const result: GroupedItem[] = [];
+  for (const m of data) {
+    if (used.has(m.localId)) continue;
+    if (m.ampliacion) {
+      const original = data.find(
+        (o) =>
+          !o.ampliacion &&
+          o.origenRowId === m.origenRowId &&
+          o.localId !== m.localId,
+      );
+      if (original) {
+        result.push({ type: "pair", ampliacion: m, original });
+        used.add(m.localId);
+        used.add(original.localId);
+        continue;
+      }
+    }
+    if (m.ampliada && !m.ampliacion) {
+      const amp = data.find(
+        (a) =>
+          a.ampliacion &&
+          a.origenRowId === m.origenRowId &&
+          a.localId !== m.localId,
+      );
+      if (amp && !used.has(amp.localId)) {
+        result.push({ type: "pair", ampliacion: amp, original: m });
+        used.add(m.localId);
+        used.add(amp.localId);
+        continue;
+      }
+    }
+    result.push({ type: "single", matricula: m });
+    used.add(m.localId);
+  }
+  return result;
+}
+
+function renderCardContent(m: MatriculaLocal, selected: boolean) {
+  return (
+    <>
+      <div
+        className="font-display shrink-0 text-center leading-none tabular-nums"
+        style={{
+          fontSize: 40,
+          letterSpacing: -2,
+          width: 48,
+          color: selected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
+          opacity: selected ? 1 : 0.5,
+        }}
+      >
+        {m.nOrden != null
+          ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0")
+          : "\u2014"}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+          <span
+            className={
+              "text-[13px] " +
+              (m.anulacion
+                ? "line-through text-[var(--tc-ink-mute)]"
+                : selected
+                  ? "text-[var(--tc-primary-dark)]"
+                  : "text-[var(--tc-ink)]")
+            }
+            style={{ fontWeight: 700, letterSpacing: -0.1 }}
+          >
+            {m.nombre} {m.apellidos}
+          </span>
+          {m.anulacion && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
+              Anulada
+            </span>
+          )}
+          {m.ampliacion && (
+            <span
+              className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+              style={{
+                background: "var(--tc-violet-bg)",
+                color: "var(--tc-violet-ink)",
+              }}
+            >
+              Ampliación
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="rounded-md font-bold"
+            style={{
+              padding: "2px 8px",
+              fontSize: 11,
+              background: "var(--tc-card)",
+              color: selected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)",
+              letterSpacing: 0.2,
+            }}
+          >
+            {m.ensenanzaCurso}
+          </span>
+          {m.especialidad && (
+            <span className="text-xs text-[var(--tc-ink-mute)] truncate">
+              {m.especialidad}
+            </span>
+          )}
+        </div>
+      </div>
+      {m._pendienteSubida && (
+        <span
+          title="Pendiente de subir a la nube"
+          className="flex items-center gap-0.5 text-[10px] font-medium shrink-0"
+          style={{ color: "var(--tc-warn-ink)" }}
+        >
+          <Upload className="w-3 h-3" />
+          Pendiente
+        </span>
+      )}
+    </>
+  );
+}
+
+interface StackedCardRowProps {
+  ampliacion: MatriculaLocal;
+  original: MatriculaLocal;
+  selectedId: string | null;
+  onSelect: (m: MatriculaLocal) => void;
+}
+
+function StackedCardRow({
+  ampliacion,
+  original,
+  selectedId,
+  onSelect,
+}: StackedCardRowProps) {
+  const [hovered, setHovered] = useState(false);
+  const ampRef = useRef<HTMLButtonElement>(null);
+  const [ampHeight, setAmpHeight] = useState(72);
+  const OFFSET = 10;
+  const GAP = 2;
+
+  useEffect(() => {
+    if (ampRef.current) {
+      const h = ampRef.current.offsetHeight;
+      if (h > 0) setAmpHeight(h);
+    }
+  }, []);
+
+  const ampSelected = ampliacion.localId === selectedId;
+  const origSelected = original.localId === selectedId;
+  const collapsedH = ampHeight + OFFSET;
+  const expandedH = ampHeight * 2 + GAP;
+
+  return (
+    <li
+      className="relative mb-0.5"
+      style={{
+        height: hovered ? expandedH : collapsedH,
+        transition: "height 0.35s cubic-bezier(0.33, 1, 0.68, 1)",
+        overflow: "hidden",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        ref={ampRef}
+        onClick={() => onSelect(ampliacion)}
+        className={
+          "w-full text-left cursor-pointer flex items-center gap-3.5 border-none " +
+          (ampSelected ? "" : "hover:bg-[var(--tc-bg-panel)]") +
+          (ampliacion.anulacion ? " opacity-50" : "")
+        }
+        style={{
+          position: "relative",
+          zIndex: 2,
+          padding: "14px 16px",
+          borderRadius: 12,
+          background:
+            hovered && !ampSelected
+              ? "transparent"
+              : ampSelected
+                ? "var(--tc-primary-tint)"
+                : "var(--tc-card)",
+          boxShadow: ampSelected
+            ? "inset 3px 0 0 var(--tc-primary)"
+            : "none",
+          transition: "background 0.3s ease",
+        }}
+      >
+        {renderCardContent(ampliacion, ampSelected)}
+      </button>
+      <button
+        onClick={() => onSelect(original)}
+        className={
+          "w-full text-left cursor-pointer flex items-center gap-3.5 border-none " +
+          (origSelected || hovered
+            ? "hover:bg-[var(--tc-bg-panel)]"
+            : "") +
+          (original.anulacion ? " opacity-50" : "")
+        }
+        style={{
+          position: "absolute",
+          top: hovered ? ampHeight + GAP : 0,
+          left: 0,
+          right: 0,
+          zIndex: 1,
+          padding: "14px 16px",
+          borderRadius: 12,
+          background: origSelected
+            ? "var(--tc-primary-tint)"
+            : "transparent",
+          boxShadow: origSelected
+            ? "inset 3px 0 0 var(--tc-primary)"
+            : "none",
+          transform: hovered ? "none" : `translateY(${OFFSET}px)`,
+          opacity: hovered ? 1 : 0.85,
+          transition:
+            "top 0.35s cubic-bezier(0.33, 1, 0.68, 1), transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.35s ease",
+        }}
+      >
+        {renderCardContent(original, origSelected)}
+      </button>
+    </li>
+  );
+}
 
 interface Props {
   data: MatriculaLocal[];
@@ -103,6 +337,8 @@ export default function LocalList({
   }
 
   const hasFilters = filterEnsenanza || filterEspecialidad;
+
+  const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
   return (
     <div className="flex flex-col h-full">
@@ -236,7 +472,19 @@ export default function LocalList({
           </div>
         )}
         <ul className="px-2 pb-2">
-          {filtered.map((m) => {
+          {grouped.map((item) => {
+            if (item.type === "pair") {
+              return (
+                <StackedCardRow
+                  key={item.ampliacion.localId}
+                  ampliacion={item.ampliacion}
+                  original={item.original}
+                  selectedId={selectedId}
+                  onSelect={onSelect}
+                />
+              );
+            }
+            const m = item.matricula;
             const isSelected = m.localId === selectedId;
             return (
               <li key={m.localId} className="mb-0.5">
@@ -256,80 +504,7 @@ export default function LocalList({
                     boxShadow: isSelected ? "inset 3px 0 0 var(--tc-primary)" : "none",
                   }}
                 >
-                  {/* Número editorial */}
-                  <div
-                    className="font-display shrink-0 text-center leading-none tabular-nums"
-                    style={{
-                      fontSize: 40,
-                      letterSpacing: -2,
-                      width: 48,
-                      color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
-                      opacity: isSelected ? 1 : 0.5,
-                    }}
-                  >
-                    {m.nOrden != null
-                      ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0")
-                      : "—"}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                      <span
-                        className={
-                          "text-[13px] " +
-                          (m.anulacion
-                            ? "line-through text-[var(--tc-ink-mute)]"
-                            : isSelected
-                              ? "text-[var(--tc-primary-dark)]"
-                              : "text-[var(--tc-ink)]")
-                        }
-                        style={{ fontWeight: 700, letterSpacing: -0.1 }}
-                      >
-                        {m.nombre} {m.apellidos}
-                      </span>
-                      {m.anulacion && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
-                          Anulada
-                        </span>
-                      )}
-                      {m.ampliacion && (
-                        <span
-                          className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                          style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}
-                        >
-                          Ampliación
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="rounded-md font-bold"
-                        style={{
-                          padding: "2px 8px",
-                          fontSize: 11,
-                          background: "var(--tc-card)",
-                          color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)",
-                          letterSpacing: 0.2,
-                        }}
-                      >
-                        {m.ensenanzaCurso}
-                      </span>
-                      {m.especialidad && (
-                        <span className="text-xs text-[var(--tc-ink-mute)] truncate">{m.especialidad}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {m._pendienteSubida && (
-                    <span
-                      title="Pendiente de subir a la nube"
-                      className="flex items-center gap-0.5 text-[10px] font-medium shrink-0"
-                      style={{ color: "var(--tc-warn-ink)" }}
-                    >
-                      <Upload className="w-3 h-3" />
-                      Pendiente
-                    </span>
-                  )}
+                  {renderCardContent(m, isSelected)}
                 </button>
               </li>
             );

@@ -43,6 +43,8 @@ const mockSolicitud: Solicitud = {
   provincia: null,
   cp: null,
   fechaInscripcion: "2024-09-01",
+  createdon: "2024-09-01T10:00:00Z",
+  cursoEscolar: "24/25",
   ensenanzaCurso: "EP3",
   especialidad: "Piano",
   formaPago: null,

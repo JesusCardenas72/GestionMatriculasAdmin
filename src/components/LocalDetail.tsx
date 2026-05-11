@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import PdfViewer from "./PdfViewer";
 
 const HORAS_SALIDA = ["Antes de las 17 h", "17 h", "18 h"];
 const FORMAS_PAGO = ["Pago Único", "Pago Fraccionado", "Solicita Beca", "Becado"];
@@ -131,6 +132,7 @@ export default function LocalDetail({
   const [showAdd, setShowAdd] = useState(false);
   const [addCodigo, setAddCodigo] = useState("");
   const [addEstado, setAddEstado] = useState<EstadoAsignatura>(ESTADO_ASIGNATURA.MATRICULADA);
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
 
   const originalValues = useRef({
     horaSalida: m.horaSalida ?? "",
@@ -488,7 +490,7 @@ export default function LocalDetail({
                       >
                         Cancelar
                       </button>
-                    </div>
+      </div>
                   </div>
                 )}
               </div>
@@ -761,7 +763,7 @@ export default function LocalDetail({
               </button>
               {m._pdfBase64 && (
                 <button
-                  onClick={() => descargarPdf(m)}
+                  onClick={() => setShowPdfPreview(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
                   style={{ background: "var(--tc-ink-soft)" }}
                 >
@@ -825,22 +827,35 @@ export default function LocalDetail({
           </p>
         )}
       </div>
+
+      {showPdfPreview && m._pdfBase64 && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--tc-border)]">
+              <span className="text-sm font-semibold text-[var(--tc-ink)]">
+                Vista previa — {m.nombre} {m.apellidos}
+              </span>
+              <button
+                onClick={() => setShowPdfPreview(false)}
+                className="p-1.5 rounded-lg text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <PdfViewer
+                contentBase64={m._pdfBase64}
+                fileName={`ampliacion_${m.apellidos}_${m.nombre}.pdf`.replace(/\s+/g, "_")}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
-}
-
-function descargarPdf(m: MatriculaLocal) {
-  if (!m._pdfBase64) return;
-  const bytes = atob(m._pdfBase64);
-  const arr = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  const blob = new Blob([arr], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `ampliacion_${m.apellidos}_${m.nombre}.pdf`.replace(/\s+/g, "_");
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 function AccordionBlock({

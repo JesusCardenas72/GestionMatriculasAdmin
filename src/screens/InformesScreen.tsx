@@ -137,6 +137,8 @@ function localToSolicitud(r: MatriculaLocal): Solicitud {
     provincia: r.provincia,
     cp: r.cp,
     fechaInscripcion: r.fechaInscripcion,
+    createdon: r.createdon,
+    cursoEscolar: r.cursoEscolar,
     ensenanzaCurso: r.ensenanzaCurso,
     especialidad: r.especialidad,
     formaPago: r.formaPago,

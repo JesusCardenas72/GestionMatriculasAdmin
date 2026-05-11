@@ -1,4 +1,5 @@
 import type { AppConfig } from "../../electron/config-store";
+import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { postFlow } from "./client";
 import type {
   ActualizarSolicitudInput,
@@ -40,6 +41,7 @@ interface DataverseSolicitud {
   cpmmr_horasalida: string | null;
   cpmmr_estado: EstadoTramite;
   cpmmr_fechainscripcion?: string | null;
+  createdon?: string | null;
   cr955_docfaltante?: string | null;
 }
 
@@ -59,6 +61,8 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
     provincia: r.cpmmr_provincia,
     cp: r.cpmmr_cp,
     fechaInscripcion: r.cpmmr_fechainscripcion ?? "",
+    createdon: r.createdon ?? r.cpmmr_fechainscripcion ?? new Date().toISOString(),
+    cursoEscolar: calcularCursoEscolar(r.createdon ?? r.cpmmr_fechainscripcion),
     ensenanzaCurso: r.cpmmr_ensenanzaycurso ?? "",
     especialidad: r.cpmmr_especialidad,
     formaPago: r.cpmmr_formadepago ?? null,

@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Loader2, Mail, X } from "lucide-react";
 import type { AsignaturaLocal, EstadoAsignatura, MatriculaLocal } from "../api/types";
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
 import { ensenanzaDesdeCode, getCatalogoParaCurso } from "../data/catalogoLocal";
+import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { buildAmpliacionEmailHtml } from "../utils/emailTemplate";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 
@@ -162,6 +163,8 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       provincia: m.provincia,
       cp: m.cp,
       fechaInscripcion,
+      createdon: now,
+      cursoEscolar: calcularCursoEscolar(now),
       ensenanzaCurso: nuevoCurso,
       especialidad: m.especialidad,
       formaPago: formaPago.trim() || null,

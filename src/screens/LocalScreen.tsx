@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type { AppConfig } from "../../electron/config-store";
 import {
@@ -42,6 +43,8 @@ function solicitudALocal(
     provincia: s.provincia,
     cp: s.cp,
     fechaInscripcion: s.fechaInscripcion,
+    createdon: s.createdon,
+    cursoEscolar: s.cursoEscolar,
     ensenanzaCurso: s.ensenanzaCurso,
     especialidad: s.especialidad,
     formaPago: s.formaPago,
@@ -76,7 +79,8 @@ function toIsoDate(s: string | null | undefined): string | null {
 }
 
 export default function LocalScreen({ config }: Props) {
-  const { matriculas, isLoading, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas();
+  const qc = useQueryClient();
+  const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas();
   const tramitadasQuery = useSolicitudes(config, ESTADO.TRAMITADO);
   const [selected, setSelected] = useState<MatriculaLocal | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -112,9 +116,9 @@ export default function LocalScreen({ config }: Props) {
       }),
     ).finally(() => {
       setIsSyncing(false);
-      void refetch();
+      void qc.invalidateQueries({ queryKey: ["localMatriculas"] });
     });
-  }, [isLoading, tramitadasQuery.data, matriculas, config, refetch]);
+  }, [isLoading, tramitadasQuery.data, matriculas, config, qc]);
 
   // Mantiene el panel derecho actualizado si el registro seleccionado cambia en la lista
   useEffect(() => {
@@ -155,12 +159,17 @@ export default function LocalScreen({ config }: Props) {
   async function handleCrearAmpliacion(nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps) {
     setIsSaving(true);
     try {
-      // Generar PDF de la ampliación con @react-pdf/renderer
+      // Generar PDF de la ampliación con el mismo formato que la solicitud
       let pdfBase64: string | null = null;
       try {
-        const { buildAmpliacionPdfBytes, uint8ToBase64 } = await import("../pdf/buildAmpliacionPdf");
-        const bytes = await buildAmpliacionPdfBytes(pdfProps);
-        pdfBase64 = uint8ToBase64(bytes);
+        const { buildAmpliacionPdfHtml } = await import("../utils/pdfAmpliacion");
+        const html = buildAmpliacionPdfHtml(pdfProps);
+        const result = await window.adminAPI.pdf.generarBase64(html);
+        if (result.success && result.base64) {
+          pdfBase64 = result.base64;
+        } else {
+          console.error("Error generando PDF de ampliación:", result.error);
+        }
       } catch (e) {
         console.error("Error generando PDF de ampliación:", e);
       }
@@ -364,7 +373,7 @@ export default function LocalScreen({ config }: Props) {
       <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
         <LocalList
           data={matriculas}
-          isLoading={isLoading}
+          isLoading={isLoading || isFetching}
           isSyncing={isSyncing}
           selectedId={selected?.localId ?? null}
           onSelect={setSelected}

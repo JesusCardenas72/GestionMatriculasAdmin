@@ -1,19 +1,28 @@
-import { ESTADO_ASIGNATURA_LABEL, type EstadoAsignatura } from "../api/types";
+import { LOGO_CPM_B64, LOGO_JCCM_B64 } from "../assets/pdf/logos";
 
 export interface AmpliacionPdfParams {
   nombre: string;
   apellidos: string;
   dni?: string | null;
   email?: string | null;
+  telefono?: string | null;
+  fechaNacimiento?: string | null;
+  domicilio?: string | null;
+  localidad?: string | null;
+  provincia?: string | null;
+  cp?: string | null;
+  autorizacionImagen?: boolean;
+  disponibilidadManana?: boolean;
+  horaSalida?: string | null;
   cursoActual: string;
   nuevoCurso: string;
-  especialidad: string | null;
+  especialidad?: string | null;
   fechaInscripcion: string;
-  asignaturas: { nombre: string; estado: EstadoAsignatura; horario: string }[];
-  formaPago: string | null;
-  cuantia: string | null;
+  asignaturas: { nombre: string; estadoLabel: string; horario?: string }[];
+  formaPago?: string | null;
+  cuantia?: string | null;
   reduccionTasas?: string | null;
-  observaciones: string;
+  observaciones?: string;
 }
 
 function esc(s: string | null | undefined): string {
@@ -26,20 +35,27 @@ function esc(s: string | null | undefined): string {
 }
 
 function field(label: string, value: string | null | undefined): string {
-  if (!value) return "";
+  if (!value && value !== "0") return "";
   return `<div class="field">
     <span class="label">${label}</span>
     <span class="value">${esc(value)}</span>
   </div>`;
 }
 
-function formatFecha(iso: string): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
+function cursoNum(curso: string): string {
+  const m = curso.match(/\d+/);
+  return m ? `${m[0]}\u00BA` : curso;
 }
 
-export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
+function formatFechaNac(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("es-ES");
+}
+
+export function buildAmpliacionPdfHtml(
+  p: AmpliacionPdfParams,
+): string {
   const hoy = new Date().toLocaleDateString("es-ES", {
     day: "numeric",
     month: "long",
@@ -52,12 +68,18 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
     return mes >= 8 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
   })();
 
+  const encabezadoAmp =
+    `Ampliaci\u00F3n del curso ${cursoNum(p.cursoActual)} a ${cursoNum(p.nuevoCurso)}` +
+    (p.especialidad
+      ? ` en la especialidad de ${esc(p.especialidad)}`
+      : "");
+
   const asigRows = p.asignaturas
     .map(
       (a) => `<tr>
       <td class="td-nombre">${esc(a.nombre)}</td>
-      <td class="td-horario">${esc(a.horario) || "<span class='nd'>—</span>"}</td>
-      <td class="td-estado">${esc(ESTADO_ASIGNATURA_LABEL[a.estado])}</td>
+      <td class="td-horario">${esc(a.horario) || "<span class='nd'>\u2014</span>"}</td>
+      <td class="td-estado">${esc(a.estadoLabel)}</td>
     </tr>`,
     )
     .join("");
@@ -79,18 +101,6 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
   </div>`
       : "";
 
-  const pagoSection =
-    p.formaPago || p.cuantia
-      ? `<div class="section">
-    <p class="section-title">Información de pago</p>
-    <div class="pago-box">
-      ${field("Forma de pago", p.formaPago)}
-      ${field("Cuantía", p.cuantia)}
-      ${field("Reducción de tasas", p.reduccionTasas)}
-    </div>
-  </div>`
-      : "";
-
   const obsSection = p.observaciones
     ? `<div class="obs-box">
     <p class="obs-title">Observaciones</p>
@@ -102,7 +112,7 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Ampliación de Matrícula — ${esc(p.nombre)} ${esc(p.apellidos)}</title>
+<title>Ampliaci\u00F3n de Matr\u00EDcula \u2014 ${esc(p.nombre)} ${esc(p.apellidos)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -115,116 +125,60 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
 
   /* ── Cabecera ── */
   .header {
-    background: linear-gradient(135deg, #3b0764 0%, #5b21b6 55%, #7c3aed 100%);
+    background: #1e3a5f;
     color: #fff;
-    padding: 22px 28px 18px;
-    border-radius: 8px;
+    padding: 16px 20px;
+    border-radius: 6px;
     margin-bottom: 22px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
   }
-  .header-left {
+  .header-logos {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
   }
-  .header-badge {
-    display: inline-block;
-    background: rgba(255,255,255,0.18);
-    border-radius: 4px;
-    padding: 2px 10px;
-    font-size: 10px;
-    color: #ddd6fe;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    font-weight: 700;
-    margin-bottom: 4px;
-    width: fit-content;
+  .header-logos img {
+    height: 36px;
+    width: auto;
+  }
+  .header-text {
+    text-align: center;
+    flex: 1;
   }
   .header h1 {
-    font-size: 32px;
-    font-weight: 900;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #fff;
-    line-height: 1;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
   }
   .header .sub {
     font-size: 11px;
-    color: #c4b5fd;
-    margin-top: 4px;
+    color: #93c5fd;
+    letter-spacing: 0.3px;
   }
-  .header-right {
-    text-align: right;
+  .header .sub-amp {
     font-size: 10px;
-    color: #ddd6fe;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .header-right strong {
-    font-size: 12px;
-    color: #fff;
+    color: #93c5fd;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
   }
 
   /* ── Secciones ── */
   .section { margin-bottom: 18px; }
   .section-title {
-    font-size: 9px;
+    font-size: 9.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
-    color: #5b21b6;
-    border-bottom: 1.5px solid #ddd6fe;
+    letter-spacing: 1.1px;
+    color: #64748b;
+    border-bottom: 1.5px solid #e2e8f0;
     padding-bottom: 5px;
     margin-bottom: 10px;
   }
-
-  /* ── Curso banner ── */
-  .curso-banner {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    margin-bottom: 18px;
-    border: 1.5px solid #ddd6fe;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .curso-cell {
-    flex: 1;
-    padding: 12px 18px;
-    background: #faf5ff;
-  }
-  .curso-cell .clabel {
-    font-size: 8px;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    color: #9ca3af;
-    font-weight: 700;
-    margin-bottom: 3px;
-  }
-  .curso-cell .cval {
-    font-size: 16px;
-    font-weight: 700;
-    color: #6b7280;
-  }
-  .curso-arrow {
-    padding: 0 12px;
-    font-size: 20px;
-    color: #7c3aed;
-    font-weight: 900;
-    background: #ede9fe;
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-  }
-  .curso-cell.nuevo .cval {
-    font-size: 20px;
-    color: #5b21b6;
-    font-weight: 900;
-  }
-  .curso-cell.nuevo { background: #ede9fe; }
 
   /* ── Grid de campos ── */
   .grid2 {
@@ -235,12 +189,11 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
   .field { }
   .field .label {
     display: block;
-    font-size: 8px;
+    font-size: 8.5px;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #9ca3af;
+    letter-spacing: 0.9px;
+    color: #94a3b8;
     margin-bottom: 1px;
-    font-weight: 700;
   }
   .field .value {
     display: block;
@@ -253,51 +206,37 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
   .asig-table {
     width: 100%;
     border-collapse: collapse;
-    border: 1.5px solid #ddd6fe;
+    border: 1px solid #cbd5e1;
     font-size: 11px;
-    border-radius: 6px;
-    overflow: hidden;
   }
   .asig-table th {
-    background: #ede9fe;
+    background: #f8fafc;
     padding: 6px 10px;
-    font-size: 8px;
+    font-size: 8.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #5b21b6;
-    border-bottom: 1.5px solid #ddd6fe;
+    letter-spacing: 0.9px;
+    color: #64748b;
+    border-bottom: 1px solid #cbd5e1;
     text-align: left;
   }
-  .th-estado { text-align: center; width: 140px; }
+  .th-estado { text-align: center; width: 150px; }
   .th-horario { width: 160px; }
-  .td-nombre { padding: 6px 10px; border-bottom: 1px solid #f3f0ff; color: #1e293b; }
-  .td-horario { padding: 6px 10px; border-bottom: 1px solid #f3f0ff; color: #6b7280; font-size: 10.5px; }
+  .td-nombre { padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+  .td-horario { padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #6b7280; font-size: 10.5px; }
   .td-estado {
-    padding: 6px 10px;
-    border-bottom: 1px solid #f3f0ff;
+    padding: 5px 10px;
+    border-bottom: 1px solid #f1f5f9;
     text-align: center;
     color: #475569;
     font-style: italic;
-    font-size: 10.5px;
   }
   .nd { color: #9ca3af; }
 
-  /* ── Pago ── */
-  .pago-box {
-    background: #faf5ff;
-    border: 1.5px solid #ddd6fe;
-    border-radius: 6px;
-    padding: 12px 16px;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px 24px;
-  }
-
   /* ── Observaciones ── */
   .obs-box {
-    background: #faf5ff;
-    border-left: 4px solid #7c3aed;
+    background: #fffbeb;
+    border-left: 4px solid #f59e0b;
     border-radius: 0 6px 6px 0;
     padding: 12px 16px;
     margin-bottom: 18px;
@@ -307,7 +246,7 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #5b21b6;
+    color: #92400e;
     margin-bottom: 6px;
   }
   .obs-body { font-size: 11px; color: #334155; line-height: 1.6; white-space: pre-wrap; }
@@ -320,7 +259,7 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
     margin-top: 36px;
   }
   .firma-box {
-    border-top: 1px solid #a78bfa;
+    border-top: 1px solid #94a3b8;
     padding-top: 6px;
     text-align: center;
     font-size: 10px;
@@ -340,55 +279,59 @@ export function buildAmpliacionPdfHtml(p: AmpliacionPdfParams): string {
 
   /* ── Pie ── */
   .pie {
-    margin-top: 24px;
-    border-top: 1px solid #ede9fe;
+    margin-top: 28px;
+    border-top: 1px solid #e2e8f0;
     padding-top: 10px;
     text-align: center;
     font-size: 9px;
-    color: #a78bfa;
+    color: #94a3b8;
   }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div class="header-left">
-    <span class="header-badge">C.P.M. Marcos Redondo · Ciudad Real</span>
-    <h1>AMPLIACIÓN</h1>
-    <p class="sub">Curso académico ${anoCurso}</p>
+  <div class="header-logos">
+    <img src="${LOGO_JCCM_B64}" alt="JCCM" />
+    <img src="${LOGO_CPM_B64}" alt="CPM Marcos Redondo" />
   </div>
-  <div class="header-right">
-    <span>Fecha de inscripción</span>
-    <strong>${esc(formatFecha(p.fechaInscripcion))}</strong>
-    <span style="margin-top:6px;">Generado el ${esc(hoy)}</span>
-  </div>
-</div>
-
-<!-- Curso anterior → nuevo -->
-<div class="curso-banner">
-  <div class="curso-cell">
-    <div class="clabel">Curso anterior</div>
-    <div class="cval">${esc(p.cursoActual)}</div>
-  </div>
-  <div class="curso-arrow">→</div>
-  <div class="curso-cell nuevo">
-    <div class="clabel">Nuevo curso</div>
-    <div class="cval">${esc(p.nuevoCurso)}${p.especialidad ? ` · ${esc(p.especialidad)}` : ""}</div>
+  <div class="header-text">
+    <h1>AMPLIACI\u00D3N DE MATR\u00CDCULA</h1>
+    <p class="sub">CPM Marcos Redondo \u00B7 Ciudad Real \u00B7 Curso ${anoCurso}</p>
+    <p class="sub-amp">${encabezadoAmp}</p>
   </div>
 </div>
 
 <div class="section">
-  <p class="section-title">Datos del alumno/a</p>
+  <p class="section-title">Datos Personales</p>
   <div class="grid2">
     ${field("Nombre y apellidos", `${p.nombre} ${p.apellidos}`)}
     ${field("D.N.I. / N.I.E.", p.dni)}
-    ${field("Correo electrónico", p.email)}
+    ${p.fechaNacimiento ? field("Fecha de nacimiento", formatFechaNac(p.fechaNacimiento)) : ""}
+    ${field("Correo electr\u00F3nico", p.email)}
+    ${field("Tel\u00E9fono", p.telefono)}
+    ${field("Domicilio", p.domicilio)}
+    ${field("Localidad", p.localidad)}
+    ${p.provincia || p.cp ? field("Provincia / C.P.", [p.provincia, p.cp].filter(Boolean).join(" \u2014 ")) : ""}
+  </div>
+</div>
+
+<div class="section">
+  <p class="section-title">Datos de Matr\u00EDcula</p>
+  <div class="grid2">
+    ${field("Curso actual", p.cursoActual)}
+    ${field("Nuevo curso", p.nuevoCurso)}
+    ${field("Especialidad", p.especialidad)}
+    ${field("Forma de pago", p.formaPago)}
+    ${field("Importe", p.cuantia)}
+    ${field("Reducci\u00F3n de tasas", p.reduccionTasas)}
+    ${field("Autorizaci\u00F3n imagen", p.autorizacionImagen ? "S\u00ED" : "No")}
+    ${field("Disponibilidad ma\u00F1ana", p.disponibilidadManana ? "S\u00ED" : "No")}
+    ${p.horaSalida ? field("Hora de salida", p.horaSalida) : ""}
   </div>
 </div>
 
 ${asigSection}
-
-${pagoSection}
 
 ${obsSection}
 
@@ -398,13 +341,13 @@ ${obsSection}
     <p class="firma-nombre">${esc(p.nombre)} ${esc(p.apellidos)}</p>
   </div>
   <div class="firma-box">
-    <p>Sello y firma de Secretaría</p>
+    <p>Sello y firma de Secretar\u00EDa</p>
     <p class="firma-lugar">Ciudad Real, ${esc(hoy)}</p>
   </div>
 </div>
 
 <div class="pie">
-  Documento generado por el sistema de gestión de matrículas del CPM Marcos Redondo · Ciudad Real
+  Documento generado por el sistema de gesti\u00F3n de matr\u00EDculas del CPM Marcos Redondo \u00B7 Ciudad Real
 </div>
 
 </body>

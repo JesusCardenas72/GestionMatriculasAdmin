@@ -21,6 +21,8 @@ export interface Solicitud {
   provincia: string | null;
   cp: string | null;
   fechaInscripcion: string;
+  createdon: string;
+  cursoEscolar: string | null;
   ensenanzaCurso: string;
   especialidad: string | null;
   formaPago: string | null;
@@ -249,6 +251,8 @@ export interface MatriculaLocal {
   provincia: string | null;
   cp: string | null;
   fechaInscripcion: string;
+  createdon: string;
+  cursoEscolar: string | null;
   ensenanzaCurso: string;
   especialidad: string | null;
   formaPago: string | null;

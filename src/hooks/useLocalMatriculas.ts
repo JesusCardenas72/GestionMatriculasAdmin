@@ -1,63 +1,53 @@
-import { useState, useEffect, useCallback } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { localStore } from "../api/localStore";
 import type { MatriculaLocal } from "../api/types";
 
+const KEY = ["localMatriculas"] as const;
+
 export function useLocalMatriculas() {
-  const [matriculas, setMatriculas] = useState<MatriculaLocal[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const qc = useQueryClient();
 
-  const cargar = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      setMatriculas(await localStore.listar());
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const query = useQuery({
+    queryKey: KEY,
+    queryFn: () => localStore.listar(),
+  });
 
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
+  const guardarMut = useMutation({
+    mutationFn: (record: MatriculaLocal) => localStore.guardar(record),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
 
-  const guardar = useCallback(
-    async (record: MatriculaLocal) => {
-      await localStore.guardar(record);
-      await cargar();
-    },
-    [cargar],
-  );
+  const actualizarMut = useMutation({
+    mutationFn: ({
+      localId,
+      changes,
+    }: {
+      localId: string;
+      changes: Partial<MatriculaLocal>;
+    }) => localStore.actualizar(localId, changes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
 
-  const actualizar = useCallback(
-    async (localId: string, changes: Partial<MatriculaLocal>) => {
-      await localStore.actualizar(localId, changes);
-      await cargar();
-    },
-    [cargar],
-  );
+  const eliminarMut = useMutation({
+    mutationFn: (localId: string) => localStore.eliminar(localId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
 
-  const eliminar = useCallback(
-    async (localId: string) => {
-      await localStore.eliminar(localId);
-      await cargar();
-    },
-    [cargar],
-  );
-
-  const marcarSubida = useCallback(
-    async (localId: string) => {
-      await localStore.marcarSubida(localId);
-      await cargar();
-    },
-    [cargar],
-  );
+  const marcarSubidaMut = useMutation({
+    mutationFn: (localId: string) => localStore.marcarSubida(localId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
 
   return {
-    matriculas,
-    isLoading,
-    refetch: cargar,
-    guardar,
-    actualizar,
-    eliminar,
-    marcarSubida,
+    matriculas: query.data ?? [],
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    refetch: query.refetch,
+    guardar: guardarMut.mutateAsync,
+    actualizar: async (localId: string, changes: Partial<MatriculaLocal>) => {
+      await actualizarMut.mutateAsync({ localId, changes });
+    },
+    eliminar: eliminarMut.mutateAsync,
+    marcarSubida: marcarSubidaMut.mutateAsync,
   };
 }
