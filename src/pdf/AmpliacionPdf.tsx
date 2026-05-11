@@ -1,7 +1,8 @@
 import React from 'react';
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer';
-import logoCpm from '../assets/pdf/logo_cpm.png';
-import logoJccm from '../assets/pdf/logo_jccm.png';
+import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
+const logoCpm = LOGO_CPM_B64;
+const logoJccm = LOGO_JCCM_B64;
 
 export interface AmpliacionAsignatura {
   nombre: string;

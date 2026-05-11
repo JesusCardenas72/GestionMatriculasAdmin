@@ -35,7 +35,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: path.join(process.env.APP_ROOT, "PergaminoIcon.ico"),
+    icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

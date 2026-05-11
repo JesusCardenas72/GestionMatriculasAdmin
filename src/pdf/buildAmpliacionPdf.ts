@@ -8,7 +8,7 @@ export type { AmpliacionPdfProps, AmpliacionAsignatura } from './AmpliacionPdf';
 export async function buildAmpliacionPdfBytes(
   props: AmpliacionPdfProps,
 ): Promise<Uint8Array> {
-  const blob = await pdf(React.createElement(AmpliacionPdf, props)).toBlob();
+  const blob = await pdf(React.createElement(AmpliacionPdf, props) as unknown as Parameters<typeof pdf>[0]).toBlob();
   return new Uint8Array(await blob.arrayBuffer());
 }
 

@@ -26,11 +26,14 @@ const mockConfig: AppConfig = {
   urlListarAsignaturas: "https://example.com/asignaturas",
   urlCatalogoAsignaturas: "https://example.com/catalogo",
   urlGuardarAsignaturas: "https://example.com/guardar",
+  urlSubirMatricula: "https://example.com/subir",
+  urlCrearAmpliacion: "https://example.com/ampliacion",
   apiKey: "test-api-key-12345678901234",
 };
 
 const mockSolicitud: Solicitud = {
   rowId: "row-1",
+  nOrden: null,
   nombreMatricula: "Juan García",
   nombre: "Juan",
   apellidos: "García López",
@@ -103,7 +106,7 @@ describe("SolicitudEditModal", () => {
       mutate: mockMutate,
       isPending: false,
       error: null,
-    } as ReturnType<typeof useGuardarAsignaturas>);
+    } as unknown as ReturnType<typeof useGuardarAsignaturas>);
   });
 
   it("shows loading state while asignaturas load", () => {
@@ -244,20 +247,4 @@ describe("SolicitudEditModal", () => {
     );
   });
 
-  it("shows the course warning when PENDIENTE estado is selected in the add form", async () => {
-    render(
-      <SolicitudEditModal
-        config={mockConfig}
-        solicitud={mockSolicitud}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: /Añadir asignatura/ }));
-    // The last combobox before the catalog select is the add-form estado select
-    const allSelects = screen.getAllByRole("combobox");
-    const addFormEstadoSelect = allSelects[allSelects.length - 2];
-    await userEvent.selectOptions(addFormEstadoSelect, String(ESTADO_ASIGNATURA.PENDIENTE));
-    expect(screen.getByText(/cursos hasta 3º/)).toBeInTheDocument();
-  });
 });

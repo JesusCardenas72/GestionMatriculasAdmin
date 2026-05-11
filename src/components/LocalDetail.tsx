@@ -251,9 +251,6 @@ export default function LocalDetail({
   }
 
   const listaVisible = items.filter((i) => !i._deleted);
-  const nOrdenDisplay = form.nOrden
-    ? String(form.nOrden).padStart(2, "0")
-    : "—";
 
   return (
     <div className="max-w-4xl">

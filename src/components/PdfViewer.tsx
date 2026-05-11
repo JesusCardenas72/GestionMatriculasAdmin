@@ -59,7 +59,7 @@ export default function PdfViewer({
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const ctx = canvas.getContext("2d")!;
-        await p.render({ canvasContext: ctx, viewport, canvas }).promise;
+        await p.render({ canvasContext: ctx, viewport }).promise;
         images.push(canvas.toDataURL("image/png"));
       }
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>${

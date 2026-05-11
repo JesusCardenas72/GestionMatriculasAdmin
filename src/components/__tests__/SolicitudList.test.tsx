@@ -7,6 +7,7 @@ import type { Solicitud } from "../../api/types";
 function makeSolicitud(overrides: Partial<Solicitud> = {}): Solicitud {
   return {
     rowId: "row-1",
+    nOrden: null,
     nombreMatricula: "Juan García",
     nombre: "Juan",
     apellidos: "García López",
