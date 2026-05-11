@@ -10,3 +10,13 @@ release
 !.vscode/tasks.json
 .env
 .env.*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Claude / agent metadata
+.claude/
+
+# Temp / reference files
+reference.png
+Gestión de Matrículas - Offline.html
