@@ -1,8 +1,18 @@
 /**
- * Calcula el curso escolar a partir de una fecha.
+ * Calcula el curso escolar al que pertenece una fecha.
  *
- * La convención usada es: año de la fecha / año de la fecha + 1
- * Ejemplo: 11/06/2026 → "26/27"
+ * El corte se produce en junio: a partir del 1 de junio se considera que ya
+ * estamos matriculando para el curso siguiente (junio-julio es el periodo de
+ * matriculación abierta del próximo curso).
+ *
+ * - mes >= 6 (jun…dic) → "YY/YY+1"
+ * - mes <  6 (ene…may) → "YY-1/YY"
+ *
+ * Ejemplos:
+ * - 2025-09-15 → "25/26"
+ * - 2026-02-15 → "25/26"
+ * - 2026-06-01 → "26/27"
+ * - 2026-05-31 → "25/26"
  *
  * @param fecha - Fecha ISO, string legible o Date.
  * @returns El curso escolar en formato "YY/YY+1", o null si la fecha no es válida.
@@ -14,10 +24,11 @@ export function calcularCursoEscolar(fecha: string | Date | null | undefined): s
   if (isNaN(d.getTime())) return null;
 
   const year = d.getFullYear();
-  const shortYear = year % 100;
-  const nextShortYear = (shortYear + 1) % 100;
+  const month = d.getMonth() + 1; // 1..12
 
-  // Formatea con dos dígitos (ej: 26/27, 99/00)
-  const fmt = (n: number) => n.toString().padStart(2, "0");
-  return `${fmt(shortYear)}/${fmt(nextShortYear)}`;
+  const startYear = month >= 6 ? year : year - 1;
+  const fmt = (n: number) => ((n % 100) + 100) % 100; // soporta años negativos defensivamente
+  const pad = (n: number) => n.toString().padStart(2, "0");
+
+  return `${pad(fmt(startYear))}/${pad(fmt(startYear + 1))}`;
 }
