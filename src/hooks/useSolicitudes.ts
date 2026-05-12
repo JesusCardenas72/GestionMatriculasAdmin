@@ -22,16 +22,17 @@ import type {
 } from "../api/types";
 
 const keys = {
-  listado: (estado: EstadoTramite) => ["solicitudes", estado] as const,
+  listado: (estado: EstadoTramite, cursoEscolar?: string) =>
+    ["solicitudes", estado, cursoEscolar ?? ""] as const,
   pdf: (rowId: string) => ["pdf", rowId] as const,
   asignaturas: (matriculaId: string) => ["asignaturas", matriculaId] as const,
   catalogo: (ensenanza: string, especialidad: string) => ["catalogo", ensenanza, especialidad] as const,
 };
 
-export function useSolicitudes(cfg: AppConfig, estado: EstadoTramite) {
+export function useSolicitudes(cfg: AppConfig, estado: EstadoTramite, cursoEscolar?: string) {
   return useQuery<ListarSolicitudesResponse>({
-    queryKey: keys.listado(estado),
-    queryFn: () => listarSolicitudes(cfg, estado),
+    queryKey: keys.listado(estado, cursoEscolar),
+    queryFn: () => listarSolicitudes(cfg, estado, cursoEscolar),
     retry: false,
   });
 }

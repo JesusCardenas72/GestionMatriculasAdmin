@@ -43,6 +43,7 @@ interface DataverseSolicitud {
   cpmmr_fechainscripcion?: string | null;
   createdon?: string | null;
   cr955_docfaltante?: string | null;
+  cr955_cursoescolar?: string | null;
 }
 
 function mapSolicitud(r: DataverseSolicitud): Solicitud {
@@ -62,7 +63,7 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
     cp: r.cpmmr_cp,
     fechaInscripcion: r.cpmmr_fechainscripcion ?? "",
     createdon: r.createdon ?? r.cpmmr_fechainscripcion ?? new Date().toISOString(),
-    cursoEscolar: calcularCursoEscolar(r.createdon ?? r.cpmmr_fechainscripcion),
+    cursoEscolar: r.cr955_cursoescolar ?? calcularCursoEscolar(r.createdon ?? r.cpmmr_fechainscripcion),
     ensenanzaCurso: r.cpmmr_ensenanzaycurso ?? "",
     especialidad: r.cpmmr_especialidad,
     formaPago: r.cpmmr_formadepago ?? null,
@@ -78,11 +79,12 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
 export async function listarSolicitudes(
   cfg: AppConfig,
   estado: EstadoTramite,
+  cursoEscolar?: string,
 ): Promise<ListarSolicitudesResponse> {
   const res = await postFlow<{ solicitudes: DataverseSolicitud[]; total: number }>(
     cfg.urlListar,
     cfg.apiKey,
-    { estado },
+    { estado, cursoEscolar },
     "AdminListarSolicitudes",
   );
   return {

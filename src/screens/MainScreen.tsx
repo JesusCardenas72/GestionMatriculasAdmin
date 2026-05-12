@@ -32,9 +32,9 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   const { curso, tipo, readOnly } = useCursoContext();
 
   const qc = useQueryClient();
-  const q1 = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION);
-  const q2 = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION);
-  const q3 = useSolicitudes(config, ESTADO.TRAMITADO);
+  const q1 = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
+  const q2 = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION, curso);
+  const q3 = useSolicitudes(config, ESTADO.TRAMITADO, curso);
   const { matriculas: localMatriculas } = useLocalMatriculas(curso);
 
   const queryByEstado = {
