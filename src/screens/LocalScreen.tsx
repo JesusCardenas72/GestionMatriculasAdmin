@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import type { AppConfig } from "../../electron/config-store";
 import {
   ESTADO,
-  ESTADO_ASIGNATURA_LABEL,
   type AsignaturaMatriculada,
   type MatriculaLocal,
   type Solicitud,
