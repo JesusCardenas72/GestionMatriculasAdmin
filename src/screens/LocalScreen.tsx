@@ -11,6 +11,7 @@ import {
 import { crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, subirMatriculaEditada } from "../api/solicitudes";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
+import { useCursoContext } from "../contexts/CursoContextProvider";
 import LocalList from "../components/LocalList";
 import LocalDetail from "../components/LocalDetail";
 import AmpliacionWizard from "../components/AmpliacionWizard";
@@ -81,7 +82,8 @@ function toIsoDate(s: string | null | undefined): string | null {
 
 export default function LocalScreen({ config }: Props) {
   const qc = useQueryClient();
-  const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas();
+  const { curso } = useCursoContext();
+  const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas(curso);
   const tramitadasQuery = useSolicitudes(config, ESTADO.TRAMITADO);
   const [selected, setSelected] = useState<MatriculaLocal | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);

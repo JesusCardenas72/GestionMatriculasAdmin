@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppConfig } from "./config-store";
+import type { CursoConocido } from "./cursos-store";
 import type { ConfigInforme, MatriculaLocal } from "../src/api/types";
 
 const adminAPI = {
@@ -36,6 +37,28 @@ const adminAPI = {
       ipcRenderer.invoke("local:eliminar", localId),
     marcarSubida: (localId: string): Promise<void> =>
       ipcRenderer.invoke("local:marcarSubida", localId),
+  },
+  cursos: {
+    listarConocidos: (): Promise<CursoConocido[]> =>
+      ipcRenderer.invoke("cursos:listarConocidos"),
+    listar: (curso: string): Promise<MatriculaLocal[]> =>
+      ipcRenderer.invoke("cursos:listar", curso),
+    guardar: (curso: string, record: MatriculaLocal): Promise<void> =>
+      ipcRenderer.invoke("cursos:guardar", curso, record),
+    actualizar: (
+      curso: string,
+      localId: string,
+      changes: Partial<MatriculaLocal>,
+    ): Promise<MatriculaLocal | null> =>
+      ipcRenderer.invoke("cursos:actualizar", curso, localId, changes),
+    eliminar: (curso: string, localId: string): Promise<void> =>
+      ipcRenderer.invoke("cursos:eliminar", curso, localId),
+    marcarSubida: (curso: string, localId: string): Promise<void> =>
+      ipcRenderer.invoke("cursos:marcarSubida", curso, localId),
+    archivar: (curso: string): Promise<void> =>
+      ipcRenderer.invoke("cursos:archivar", curso),
+    migrarLegacy: (): Promise<{ migrado: boolean; cursos: string[] }> =>
+      ipcRenderer.invoke("cursos:migrarLegacy"),
   },
   presets: {
     listar: (): Promise<ConfigInforme[]> =>

@@ -1,20 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { localStore } from "../api/localStore";
+import { cursosStore } from "../api/cursosStore";
+import { CURSOS_KEY } from "./useCursosConocidos";
 import type { MatriculaLocal } from "../api/types";
 
-const KEY = ["localMatriculas"] as const;
+function key(curso: string) {
+  return ["localMatriculas", curso] as const;
+}
 
-export function useLocalMatriculas() {
+export function useLocalMatriculas(curso: string) {
   const qc = useQueryClient();
 
   const query = useQuery({
-    queryKey: KEY,
-    queryFn: () => localStore.listar(),
+    queryKey: key(curso),
+    queryFn: () => cursosStore.listar(curso),
+    enabled: !!curso,
   });
 
+  const invalidar = () => {
+    qc.invalidateQueries({ queryKey: key(curso) });
+    qc.invalidateQueries({ queryKey: CURSOS_KEY });
+  };
+
   const guardarMut = useMutation({
-    mutationFn: (record: MatriculaLocal) => localStore.guardar(record),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    mutationFn: (record: MatriculaLocal) => cursosStore.guardar(curso, record),
+    onSuccess: invalidar,
   });
 
   const actualizarMut = useMutation({
@@ -24,18 +33,18 @@ export function useLocalMatriculas() {
     }: {
       localId: string;
       changes: Partial<MatriculaLocal>;
-    }) => localStore.actualizar(localId, changes),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    }) => cursosStore.actualizar(curso, localId, changes),
+    onSuccess: invalidar,
   });
 
   const eliminarMut = useMutation({
-    mutationFn: (localId: string) => localStore.eliminar(localId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    mutationFn: (localId: string) => cursosStore.eliminar(curso, localId),
+    onSuccess: invalidar,
   });
 
   const marcarSubidaMut = useMutation({
-    mutationFn: (localId: string) => localStore.marcarSubida(localId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    mutationFn: (localId: string) => cursosStore.marcarSubida(curso, localId),
+    onSuccess: invalidar,
   });
 
   return {

@@ -21,6 +21,16 @@ import {
   presetsGuardar,
   presetsEliminar,
 } from "./presets-store";
+import {
+  cursosListarConocidos,
+  cursosListar,
+  cursosGuardar,
+  cursosActualizar,
+  cursosEliminar,
+  cursosMarcarSubida,
+  cursosArchivar,
+  cursosMigrarLegacy,
+} from "./cursos-store";
 import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -91,6 +101,25 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("local:eliminar", (_e, localId: string) => localEliminar(localId));
   ipcMain.handle("local:marcarSubida", (_e, localId: string) => localMarcarSubida(localId));
+
+  ipcMain.handle("cursos:listarConocidos", () => cursosListarConocidos());
+  ipcMain.handle("cursos:listar", (_e, curso: string) => cursosListar(curso));
+  ipcMain.handle("cursos:guardar", (_e, curso: string, record: MatriculaLocal) =>
+    cursosGuardar(curso, record),
+  );
+  ipcMain.handle(
+    "cursos:actualizar",
+    (_e, curso: string, localId: string, changes: Partial<MatriculaLocal>) =>
+      cursosActualizar(curso, localId, changes),
+  );
+  ipcMain.handle("cursos:eliminar", (_e, curso: string, localId: string) =>
+    cursosEliminar(curso, localId),
+  );
+  ipcMain.handle("cursos:marcarSubida", (_e, curso: string, localId: string) =>
+    cursosMarcarSubida(curso, localId),
+  );
+  ipcMain.handle("cursos:archivar", (_e, curso: string) => cursosArchivar(curso));
+  ipcMain.handle("cursos:migrarLegacy", () => cursosMigrarLegacy());
 
   ipcMain.handle("presets:listar", () => presetsListar());
   ipcMain.handle("presets:guardar", (_e, preset: ConfigInforme) => presetsGuardar(preset));
@@ -192,6 +221,7 @@ function registerIpcHandlers() {
 
 app.whenReady().then(() => {
   registerIpcHandlers();
+  cursosMigrarLegacy();
   createWindow();
 });
 
