@@ -222,7 +222,7 @@ export default function SolicitudList({
         {error && (
           <div
             className="p-4 m-3 rounded-xl flex items-start gap-2 text-sm"
-            style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}
+            style={{ background: "var(--tc-danger-bg)", border: "1px solid var(--tc-danger-border)", color: "var(--tc-danger-ink)" }}
           >
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>{error.message}</span>
@@ -261,17 +261,30 @@ export default function SolicitudList({
                   }}
                 >
                   {/* Número editorial */}
-                  <div
-                    className="font-display shrink-0 text-center leading-none tabular-nums"
-                    style={{
-                      fontSize: 40,
-                      letterSpacing: -2,
-                      width: 48,
-                      color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
-                      opacity: isSelected ? 1 : 0.5,
-                    }}
-                  >
-                    {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
+                  <div className="shrink-0 flex flex-col items-center" style={{ width: 48 }}>
+                    <div
+                      className="font-display text-center leading-none tabular-nums"
+                      style={{
+                        fontSize: 40,
+                        letterSpacing: -2,
+                        color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
+                        opacity: isSelected ? 1 : 0.5,
+                      }}
+                    >
+                      {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
+                    </div>
+                    <div
+                      className="text-center font-bold uppercase"
+                      style={{
+                        fontSize: 9,
+                        letterSpacing: 0.5,
+                        marginTop: 2,
+                        color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
+                        opacity: isSelected ? 1 : 0.5,
+                      }}
+                    >
+                      {s.cursoEscolar ?? "—"}
+                    </div>
                   </div>
 
                   <div className="flex-1 min-w-0">

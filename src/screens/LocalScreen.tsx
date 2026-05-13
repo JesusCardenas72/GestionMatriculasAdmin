@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AppConfig } from "../../electron/config-store";
 import {
   ESTADO,
+  ESTADO_ASIGNATURA_LABEL,
   type AsignaturaMatriculada,
   type MatriculaLocal,
   type Solicitud,
@@ -17,6 +18,7 @@ import AmpliacionWizard from "../components/AmpliacionWizard";
 import { buildHtmlMatricula } from "../utils/pdfMatricula";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
+import { calcularCursoEscolar } from "../utils/cursoEscolar";
 
 interface Props {
   config: AppConfig;
@@ -114,11 +116,10 @@ export default function LocalScreen({ config }: Props) {
           matriculaId: solicitud.rowId,
         });
         const record = solicitudALocal(solicitud, asigs);
-        await window.adminAPI.local.guardar(record);
+        await guardar(record);
       }),
     ).finally(() => {
       setIsSyncing(false);
-      void qc.invalidateQueries({ queryKey: ["localMatriculas"] });
     });
   }, [isLoading, tramitadasQuery.data, matriculas, config, qc]);
 
@@ -303,6 +304,7 @@ export default function LocalScreen({ config }: Props) {
           autorizacionImagen: selected.autorizacionImagen,
           disponibilidadManana: selected.disponibilidadManana,
           horaSalida: selected.horaSalida,
+          cursoEscolar: selected.cursoEscolar ?? calcularCursoEscolar(new Date().toISOString()) ?? "",
           asignaturas: selected.asignaturas.map((a) => ({
             codigo: a.codigo,
             nombre: a.nombre,
@@ -375,6 +377,7 @@ export default function LocalScreen({ config }: Props) {
             autorizacionImagen: m.autorizacionImagen,
             disponibilidadManana: m.disponibilidadManana,
             horaSalida: m.horaSalida,
+            cursoEscolar: m.cursoEscolar ?? calcularCursoEscolar(new Date().toISOString()) ?? "",
             asignaturas: m.asignaturas.map((a) => ({
               codigo: a.codigo,
               nombre: a.nombre,

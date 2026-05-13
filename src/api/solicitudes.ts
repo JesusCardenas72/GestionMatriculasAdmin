@@ -40,7 +40,7 @@ interface DataverseSolicitud {
   cpmmr_disponibilidadmanana: boolean | null;
   cpmmr_horasalida: string | null;
   cpmmr_estado: EstadoTramite;
-  cpmmr_fechainscripcion?: string | null;
+  cpmmr_fechadeinscripcion?: string | null;
   createdon?: string | null;
   cr955_docfaltante?: string | null;
   cr955_cursoescolar?: string | null;
@@ -61,9 +61,9 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
     localidad: r.cpmmr_localidad,
     provincia: r.cpmmr_provincia,
     cp: r.cpmmr_cp,
-    fechaInscripcion: r.cpmmr_fechainscripcion ?? "",
-    createdon: r.createdon ?? r.cpmmr_fechainscripcion ?? new Date().toISOString(),
-    cursoEscolar: r.cr955_cursoescolar ?? calcularCursoEscolar(r.createdon ?? r.cpmmr_fechainscripcion),
+    fechaInscripcion: r.cpmmr_fechadeinscripcion ?? "",
+    createdon: r.createdon ?? r.cpmmr_fechadeinscripcion ?? new Date().toISOString(),
+    cursoEscolar: r.cr955_cursoescolar || calcularCursoEscolar(r.createdon ?? r.cpmmr_fechadeinscripcion) || null,
     ensenanzaCurso: r.cpmmr_ensenanzaycurso ?? "",
     especialidad: r.cpmmr_especialidad,
     formaPago: r.cpmmr_formadepago ?? null,

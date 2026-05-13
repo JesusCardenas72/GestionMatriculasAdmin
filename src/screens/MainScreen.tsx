@@ -91,7 +91,10 @@ export default function MainScreen({ config, onEditConfig }: Props) {
         <button
           onClick={onEditConfig}
           title="Configuración"
-          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+          className="p-2 rounded-lg transition-colors"
+          style={{ color: 'var(--tc-ink-mute)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--tc-primary-tint)'; e.currentTarget.style.color = 'var(--tc-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tc-ink-mute)'; }}
         >
           <Settings className="w-5 h-5" />
         </button>

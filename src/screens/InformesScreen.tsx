@@ -459,7 +459,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
   // ── Clases reutilizables ──────────────────────────────────────────────────
 
   const selectCls =
-    'text-xs border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#3525cd]/30';
+    'text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 border-[var(--tc-border)] bg-[var(--tc-surface)] text-[var(--tc-ink)] focus:ring-[var(--tc-primary-border)]';
   const iconBtnCls = 'p-0.5 rounded transition-colors';
 
   const isSavedPreset = presets.some(p => p.id === informe.id);
@@ -540,7 +540,10 @@ export default function InformesScreen({ config: _cfg }: Props) {
           <>
             <button
               onClick={handleActualizarPreset}
-              className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-[#3525cd] text-white rounded-lg hover:bg-[#2a1db5] transition-colors"
+              className="flex items-center gap-1 text-xs px-2.5 py-1.5 text-white rounded-lg transition-colors"
+              style={{ background: 'var(--tc-primary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--tc-primary-dark)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--tc-primary)'; }}
             >
               <Save className="w-3 h-3" /> Actualizar
             </button>
@@ -986,8 +989,8 @@ export default function InformesScreen({ config: _cfg }: Props) {
                       className={
                         'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
                         (previewOrientacion === 'portrait'
-                          ? 'bg-white text-[#3525cd] shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700')
+                          ? 'bg-[var(--tc-surface)] text-[var(--tc-primary)] shadow-sm'
+                          : 'text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]')
                       }
                     >
                       Vertical
@@ -997,8 +1000,8 @@ export default function InformesScreen({ config: _cfg }: Props) {
                       className={
                         'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
                         (previewOrientacion === 'landscape'
-                          ? 'bg-white text-[#3525cd] shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700')
+                          ? 'bg-[var(--tc-surface)] text-[var(--tc-primary)] shadow-sm'
+                          : 'text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]')
                       }
                     >
                       Horizontal

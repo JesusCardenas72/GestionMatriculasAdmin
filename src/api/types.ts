@@ -176,6 +176,7 @@ export interface CrearAmpliacionInput {
   autorizacionImagen: boolean;
   disponibilidadManana: boolean;
   horaSalida: string | null;
+  cursoEscolar: string;
   asignaturas: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
   pdfBase64: string | null;
 }

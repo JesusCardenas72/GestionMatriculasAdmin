@@ -55,28 +55,40 @@ export default function TramitarEmailModal({
       });
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-6 overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center p-6 overflow-y-auto"
+      style={{ background: "var(--tc-surface-overlay)" }}
+    >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full flex flex-col"
-        style={{ maxWidth: 1040, maxHeight: "calc(100vh - 48px)" }}
+        className="rounded-2xl shadow-2xl w-full flex flex-col"
+        style={{ maxWidth: 1040, maxHeight: "calc(100vh - 48px)", background: "var(--tc-surface)", border: "1px solid var(--tc-border)" }}
       >
         {/* Cabecera */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+        <div
+          className="flex items-center justify-between px-6 py-4 shrink-0"
+          style={{ borderBottom: "1px solid var(--tc-border)" }}
+        >
           <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${esDocumentacion ? "bg-amber-100" : "bg-emerald-100"}`}>
-              <Mail className={`w-5 h-5 ${esDocumentacion ? "text-amber-600" : "text-emerald-600"}`} />
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: esDocumentacion ? "var(--tc-warn-bg)" : "var(--tc-success-bg)" }}
+            >
+              <Mail className="w-5 h-5" style={{ color: esDocumentacion ? "var(--tc-warn-ink)" : "var(--tc-success-ink)" }} />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-slate-800">Vista previa del email</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-base font-semibold" style={{ color: "var(--tc-ink)" }}>Vista previa del email</h2>
+              <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
                 Revisa y edita el mensaje antes de enviarlo a{" "}
-                <span className="font-medium text-slate-700">{solicitud.email}</span>
+                <span className="font-medium" style={{ color: "var(--tc-ink-soft)" }}>{solicitud.email}</span>
               </p>
             </div>
           </div>
           <button
             onClick={onCancel}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100"
+            className="p-1.5 rounded-md transition-colors"
+            style={{ color: "var(--tc-ink-mute)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; e.currentTarget.style.color = "var(--tc-ink-soft)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--tc-ink-mute)"; }}
           >
             <X className="w-5 h-5" />
           </button>
@@ -85,12 +97,15 @@ export default function TramitarEmailModal({
         {/* Cuerpo — columnas */}
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Panel izquierdo: Observaciones */}
-          <div className="w-72 shrink-0 border-r border-slate-200 flex flex-col p-5 gap-4 overflow-y-auto">
+          <div
+            className="w-72 shrink-0 flex flex-col p-5 gap-4 overflow-y-auto"
+            style={{ borderRight: "1px solid var(--tc-border)" }}
+          >
             <div className="flex-1">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--tc-ink-soft)" }}>
                 {esDocumentacion ? "Documentación requerida" : "Observaciones"}
               </label>
-              <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+              <p className="text-xs mb-3 leading-relaxed" style={{ color: "var(--tc-ink-mute)" }}>
                 {esDocumentacion
                   ? "Indica al alumno qué documentación o aclaraciones necesitas. Este texto aparecerá en el email."
                   : "Este texto aparecerá en el cuerpo del email enviado al alumno. Puedes editarlo antes de confirmar."}
@@ -99,32 +114,33 @@ export default function TramitarEmailModal({
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
                 rows={14}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 resize-none text-slate-700 leading-relaxed ${
-                  esDocumentacion
-                    ? "border-amber-300 focus:ring-amber-500"
-                    : "border-slate-300 focus:ring-emerald-500"
-                }`}
+                className="w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 resize-none leading-relaxed"
+                style={{
+                  borderColor: esDocumentacion ? "var(--tc-warn-border)" : "var(--tc-border)",
+                  background: "var(--tc-bg-panel)",
+                  color: "var(--tc-ink)",
+                }}
                 placeholder={esDocumentacion ? "Describe qué documentación falta o qué aclaraciones necesitas..." : "Añade observaciones para el alumno (opcional)..."}
               />
             </div>
 
             {esDocumentacion ? (
-              <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
-                <p className="text-xs font-bold text-amber-800 mb-1.5 flex items-center gap-1.5">
-                  <span className="w-4 h-4 bg-amber-500 text-white rounded-full inline-flex items-center justify-center text-[10px] font-bold">!</span>
+              <div className="rounded-xl p-4" style={{ background: "var(--tc-warn-bg)", border: "1px solid var(--tc-warn-border)" }}>
+                <p className="text-xs font-bold mb-1.5 flex items-center gap-1.5" style={{ color: "var(--tc-warn-ink)" }}>
+                  <span className="w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px] font-bold text-white" style={{ background: "var(--tc-warn-ink)" }}>!</span>
                   Estado → Pendiente de validación
                 </p>
-                <p className="text-xs text-amber-700 leading-relaxed">
+                <p className="text-xs leading-relaxed" style={{ color: "var(--tc-warn-ink)" }}>
                   La solicitud pasará a <strong>Pendiente de validación</strong> y se enviará este email al alumno.
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4">
-                <p className="text-xs font-bold text-emerald-800 mb-1.5 flex items-center gap-1.5">
-                  <span className="w-4 h-4 bg-emerald-500 text-white rounded-full inline-flex items-center justify-center text-[10px] font-bold">✓</span>
+              <div className="rounded-xl p-4" style={{ background: "var(--tc-success-bg)", border: "1px solid var(--tc-success-border)" }}>
+                <p className="text-xs font-bold mb-1.5 flex items-center gap-1.5" style={{ color: "var(--tc-success-ink)" }}>
+                  <span className="w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px] font-bold text-white" style={{ background: "var(--tc-success-ink)" }}>✓</span>
                   Estado → Tramitado
                 </p>
-                <p className="text-xs text-emerald-700 leading-relaxed">
+                <p className="text-xs leading-relaxed" style={{ color: "var(--tc-success-ink)" }}>
                   La solicitud pasará a <strong>Tramitado</strong> y se enviará este email de
                   notificación al alumno.
                 </p>
@@ -133,37 +149,40 @@ export default function TramitarEmailModal({
           </div>
 
           {/* Panel derecho: Preview del email */}
-          <div className="flex-1 overflow-auto bg-slate-100 p-4">
-            <p className="text-xs text-slate-400 text-center mb-3 font-medium uppercase tracking-wide">
+          <div className="flex-1 overflow-auto p-4" style={{ background: "var(--tc-bg-panel)" }}>
+            <p className="text-xs text-center mb-3 font-medium uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>
               Vista previa del email
             </p>
             <iframe
               srcDoc={emailHtml}
               title="Vista previa del email"
-              className="w-full rounded-xl border border-slate-200 shadow bg-white"
-              style={{ minHeight: 620 }}
+              className="w-full rounded-xl shadow bg-white"
+              style={{ minHeight: 620, border: "1px solid var(--tc-border)" }}
               sandbox="allow-same-origin"
             />
           </div>
         </div>
 
         {/* Pie */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 shrink-0 bg-slate-50 rounded-b-2xl">
+        <div
+          className="flex items-center justify-end gap-3 px-6 py-4 shrink-0 rounded-b-2xl"
+          style={{ borderTop: "1px solid var(--tc-border)", background: "var(--tc-bg-panel)" }}
+        >
           <button
             onClick={onCancel}
             disabled={loading}
-            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg disabled:opacity-50"
+            className="px-4 py-2 text-sm rounded-lg disabled:opacity-50"
+            style={{ color: "var(--tc-ink-soft)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             Cancelar
           </button>
           <button
             onClick={() => onConfirm(observaciones, emailHtml)}
             disabled={loading || (esDocumentacion && !observaciones.trim())}
-            className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm ${
-              esDocumentacion
-                ? "bg-amber-500 hover:bg-amber-600"
-                : "bg-emerald-600 hover:bg-emerald-700"
-            }`}
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm"
+            style={{ background: esDocumentacion ? "var(--tc-warn-ink)" : "var(--tc-success-ink)" }}
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />

@@ -12,6 +12,10 @@ import {
   Loader2,
   DownloadCloud,
   UploadCloud,
+  Moon,
+  Sun,
+  ChevronDown,
+  Link2,
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { listarSolicitudes } from "../api/solicitudes";
@@ -84,6 +88,17 @@ export default function ConfigScreen({
   });
 
   const [test, setTest] = useState<TestState>({ status: "idle" });
+  const [urlsOpen, setUrlsOpen] = useState(!initial);
+  const [theme, setTheme] = useState<'light' | 'dark'>(
+    () => (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'light'
+  );
+
+  function toggleTheme() {
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+  }
 
   async function onSubmit(values: FormValues) {
     await onSave(values);
@@ -117,177 +132,275 @@ export default function ConfigScreen({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: "var(--tc-bg)" }}>
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="max-w-2xl w-full p-8 bg-white rounded-xl shadow"
+        className="max-w-2xl w-full p-8 rounded-xl shadow"
+        style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)" }}
       >
         <div className="flex items-center gap-3">
-          <GraduationCap className="w-10 h-10 text-indigo-600" />
+          <GraduationCap className="w-10 h-10" style={{ color: "var(--tc-primary)" }} />
           <div>
-            <h1 className="text-2xl font-semibold text-slate-800">
-              Configuración inicial
+            <h1 className="text-2xl font-semibold" style={{ color: "var(--tc-ink)" }}>
+              Configuración
             </h1>
-            <p className="text-sm text-slate-500">
-              Introduce las URLs de los 10 flows y la api-key. Se guardarán
-              cifradas en tu equipo.
+            <p className="text-sm" style={{ color: "var(--tc-ink-mute)" }}>
+              Ajustes de la aplicación
             </p>
           </div>
         </div>
 
-        <div className="mt-6 space-y-4">
-          <Field
-            label="AdminListarSolicitudes"
-            error={errors.urlListar?.message}
-            {...register("urlListar")}
-          />
-          <Field
-            label="AdminObtenerPDF"
-            error={errors.urlObtenerPdf?.message}
-            {...register("urlObtenerPdf")}
-          />
-          <Field
-            label="AdminActualizarSolicitud"
-            error={errors.urlActualizar?.message}
-            {...register("urlActualizar")}
-          />
-          <Field
-            label="AdminEditarSolicitud"
-            error={errors.urlEditar?.message}
-            {...register("urlEditar")}
-          />
-          <Field
-            label="AdminBorrarSolicitud"
-            error={errors.urlBorrar?.message}
-            {...register("urlBorrar")}
-          />
-          <Field
-            label="AdminListarAsignaturasSolicitud"
-            error={errors.urlListarAsignaturas?.message}
-            {...register("urlListarAsignaturas")}
-          />
-          <Field
-            label="AdminCatalogoAsignaturas"
-            error={errors.urlCatalogoAsignaturas?.message}
-            {...register("urlCatalogoAsignaturas")}
-          />
-          <Field
-            label="AdminGuardarAsignaturas"
-            error={errors.urlGuardarAsignaturas?.message}
-            {...register("urlGuardarAsignaturas")}
-          />
-          <Field
-            label="AdminSubirMatriculaEditada"
-            error={errors.urlSubirMatricula?.message}
-            {...register("urlSubirMatricula")}
-          />
-          <Field
-            label="AdminCrearAmpliacion"
-            error={errors.urlCrearAmpliacion?.message}
-            {...register("urlCrearAmpliacion")}
-          />
-          <Field
-            label="AdminEnviarEmailAmpliacion"
-            error={errors.urlEnviarEmailAmpliacion?.message}
-            {...register("urlEnviarEmailAmpliacion")}
-          />
-          <Field
-            label="API Key"
-            type="password"
-            error={errors.apiKey?.message}
-            {...register("apiKey")}
-          />
+        {/* ── Apariencia ── */}
+        <div
+          className="mt-6 p-4 rounded-xl flex items-center justify-between"
+          style={{ background: "var(--tc-bg-panel)", border: "1px solid var(--tc-border-soft)" }}
+        >
+          <div className="flex items-center gap-3">
+            {theme === 'dark'
+              ? <Moon className="w-5 h-5" style={{ color: "var(--tc-primary)" }} />
+              : <Sun className="w-5 h-5" style={{ color: "var(--tc-primary)" }} />
+            }
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>Apariencia</p>
+              <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
+                {theme === 'dark' ? 'Modo oscuro activado' : 'Modo claro activado'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+            style={{ background: theme === 'dark' ? "var(--tc-primary)" : "var(--tc-border)" }}
+            role="switch"
+            aria-checked={theme === 'dark'}
+          >
+            <span
+              className="pointer-events-none inline-block h-5 w-5 rounded-full shadow-lg transition-transform duration-200"
+              style={{
+                background: "var(--tc-surface)",
+                transform: theme === 'dark' ? 'translateX(20px)' : 'translateX(0px)',
+              }}
+            />
+          </button>
         </div>
 
-        {test.status !== "idle" && (
-          <div className="mt-4 p-3 rounded-lg border text-sm">
-            {test.status === "testing" && (
-              <div className="flex items-center gap-2 text-slate-600">
-                <Loader2 className="w-4 h-4 animate-spin" /> Probando conexión...
+        {/* ── Conexión (acordeón) ── */}
+        <div
+          className="mt-4 rounded-xl overflow-hidden"
+          style={{ border: "1px solid var(--tc-border)" }}
+        >
+          {/* Cabecera del acordeón */}
+          <button
+            type="button"
+            onClick={() => setUrlsOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3.5 transition-colors text-left"
+            style={{ background: "var(--tc-bg-panel)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
+          >
+            <div className="flex items-center gap-3">
+              <Link2 className="w-4 h-4" style={{ color: "var(--tc-primary)" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>Conexión a Power Automate</p>
+                <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
+                  {initial ? "URLs y API Key configuradas" : "Introduce las URLs de los flows y la API Key"}
+                </p>
               </div>
-            )}
-            {test.status === "ok" && (
-              <div className="flex items-center gap-2 text-emerald-700">
-                <CheckCircle2 className="w-4 h-4" />
-                Conexión OK — {test.total} solicitudes pendientes de tramitación.
-              </div>
-            )}
-            {test.status === "error" && (
-              <div className="flex items-start gap-2 text-red-600">
-                <AlertCircle className="w-4 h-4 mt-0.5" />
-                <span className="break-all">{test.message}</span>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+            <ChevronDown
+              className="w-4 h-4 transition-transform duration-200 shrink-0"
+              style={{ color: "var(--tc-ink-mute)", transform: urlsOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+            />
+          </button>
 
-        <div className="mt-6 flex flex-wrap gap-2">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" /> Guardar configuración
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const path = await window.adminAPI.config.export();
-                if (path) alert(`Configuración exportada a:\n${path}`);
-              } catch (e) {
-                alert(`Error exportando configuración: ${(e as Error).message}`);
-              }
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
-          >
-            <DownloadCloud className="w-4 h-4" /> Exportar
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const imported = await window.adminAPI.config.import();
-                if (imported) {
-                  await onSave(imported);
-                  alert("Configuración importada correctamente.");
-                }
-              } catch (e) {
-                alert(`Error importando configuración: ${(e as Error).message}`);
-              }
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
-          >
-            <UploadCloud className="w-4 h-4" /> Importar
-          </button>
-          <button
-            type="button"
-            onClick={probarConexion}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
-          >
-            <Plug className="w-4 h-4" /> Probar conexión
-          </button>
-          {onCancel && (
+          {/* Contenido expandible */}
+          {urlsOpen && (
+            <div
+              className="px-4 pb-4 pt-4 space-y-4"
+              style={{ borderTop: "1px solid var(--tc-border-soft)" }}
+            >
+              <Field
+                label="AdminListarSolicitudes"
+                error={errors.urlListar?.message}
+                {...register("urlListar")}
+              />
+              <Field
+                label="AdminObtenerPDF"
+                error={errors.urlObtenerPdf?.message}
+                {...register("urlObtenerPdf")}
+              />
+              <Field
+                label="AdminActualizarSolicitud"
+                error={errors.urlActualizar?.message}
+                {...register("urlActualizar")}
+              />
+              <Field
+                label="AdminEditarSolicitud"
+                error={errors.urlEditar?.message}
+                {...register("urlEditar")}
+              />
+              <Field
+                label="AdminBorrarSolicitud"
+                error={errors.urlBorrar?.message}
+                {...register("urlBorrar")}
+              />
+              <Field
+                label="AdminListarAsignaturasSolicitud"
+                error={errors.urlListarAsignaturas?.message}
+                {...register("urlListarAsignaturas")}
+              />
+              <Field
+                label="AdminCatalogoAsignaturas"
+                error={errors.urlCatalogoAsignaturas?.message}
+                {...register("urlCatalogoAsignaturas")}
+              />
+              <Field
+                label="AdminGuardarAsignaturas"
+                error={errors.urlGuardarAsignaturas?.message}
+                {...register("urlGuardarAsignaturas")}
+              />
+              <Field
+                label="AdminSubirMatriculaEditada"
+                error={errors.urlSubirMatricula?.message}
+                {...register("urlSubirMatricula")}
+              />
+              <Field
+                label="AdminCrearAmpliacion"
+                error={errors.urlCrearAmpliacion?.message}
+                {...register("urlCrearAmpliacion")}
+              />
+              <Field
+                label="AdminEnviarEmailAmpliacion"
+                error={errors.urlEnviarEmailAmpliacion?.message}
+                {...register("urlEnviarEmailAmpliacion")}
+              />
+              <Field
+                label="API Key"
+                type="password"
+                error={errors.apiKey?.message}
+                {...register("apiKey")}
+              />
+
+              {/* Resultado del test */}
+              {test.status !== "idle" && (
+                <div
+                  className="p-3 rounded-lg text-sm"
+                  style={{ border: "1px solid var(--tc-border)", background: "var(--tc-bg)" }}
+                >
+                  {test.status === "testing" && (
+                    <div className="flex items-center gap-2" style={{ color: "var(--tc-ink-soft)" }}>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Probando conexión...
+                    </div>
+                  )}
+                  {test.status === "ok" && (
+                    <div className="flex items-center gap-2" style={{ color: "var(--tc-success-ink)" }}>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Conexión OK — {test.total} solicitudes pendientes de tramitación.
+                    </div>
+                  )}
+                  {test.status === "error" && (
+                    <div className="flex items-start gap-2" style={{ color: "var(--tc-danger-ink)" }}>
+                      <AlertCircle className="w-4 h-4 mt-0.5" />
+                      <span className="break-all">{test.message}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Acciones de conexión */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-white text-sm font-medium disabled:opacity-50"
+                  style={{ background: "var(--tc-primary)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-primary-dark)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-primary)"; }}
+                >
+                  <Save className="w-4 h-4" /> Guardar
+                </button>
+                <button
+                  type="button"
+                  onClick={probarConexion}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium"
+                  style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
+                >
+                  <Plug className="w-4 h-4" /> Probar conexión
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const path = await window.adminAPI.config.export();
+                      if (path) alert(`Configuración exportada a:\n${path}`);
+                    } catch (e) {
+                      alert(`Error exportando configuración: ${(e as Error).message}`);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium"
+                  style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
+                >
+                  <DownloadCloud className="w-4 h-4" /> Exportar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const imported = await window.adminAPI.config.import();
+                      if (imported) {
+                        await onSave(imported);
+                        alert("Configuración importada correctamente.");
+                      }
+                    } catch (e) {
+                      alert(`Error importando configuración: ${(e as Error).message}`);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium"
+                  style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
+                >
+                  <UploadCloud className="w-4 h-4" /> Importar
+                </button>
+                {initial && onClear && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("¿Borrar la configuración guardada?")) void onClear();
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium ml-auto"
+                    style={{ color: "var(--tc-danger-ink)" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-danger-bg)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <Trash2 className="w-4 h-4" /> Borrar configuración
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Cancelar — fuera del acordeón */}
+        {onCancel && (
+          <div className="mt-4 flex justify-end">
             <button
               type="button"
               onClick={onCancel}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-slate-600 text-sm font-medium hover:bg-slate-100"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium"
+              style={{ color: "var(--tc-ink-soft)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
-              Cancelar
+              Salir
             </button>
-          )}
-          {initial && onClear && (
-            <button
-              type="button"
-              onClick={() => {
-                if (confirm("¿Borrar la configuración guardada?")) void onClear();
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-red-600 text-sm font-medium hover:bg-red-50 ml-auto"
-            >
-              <Trash2 className="w-4 h-4" /> Borrar configuración
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -301,13 +414,19 @@ interface FieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
 function Field({ label, error, ...rest }: FieldProps) {
   return (
     <label className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium" style={{ color: "var(--tc-ink-soft)" }}>{label}</span>
       <input
         {...rest}
-        className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="mt-1 w-full px-3 py-2 rounded-md text-sm font-mono focus:outline-none focus:ring-2"
+        style={{
+          border: `1px solid ${error ? "var(--tc-danger-border)" : "var(--tc-border)"}`,
+          background: "var(--tc-bg-panel)",
+          color: "var(--tc-ink)",
+          outline: "none",
+        }}
       />
       {error && (
-        <span className="mt-1 block text-xs text-red-600">{error}</span>
+        <span className="mt-1 block text-xs" style={{ color: "var(--tc-danger-ink)" }}>{error}</span>
       )}
     </label>
   );

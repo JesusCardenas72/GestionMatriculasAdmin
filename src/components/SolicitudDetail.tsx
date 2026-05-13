@@ -63,9 +63,9 @@ const ASIG_COLORS: Record<
     selectBorder: "var(--tc-violet-border)",
   },
   [ESTADO_ASIGNATURA.CONVALIDADA]: {
-    rowBg: "#e8f5e9", rowBorder: "#a5d6a7",
-    badgeBg: "#e8f5e9", badgeBorder: "#a5d6a7", badgeInk: "#2e7d32",
-    selectBorder: "#a5d6a7",
+    rowBg: "var(--tc-success-bg)", rowBorder: "var(--tc-success-border)",
+    badgeBg: "var(--tc-success-bg)", badgeBorder: "var(--tc-success-border)", badgeInk: "var(--tc-success-ink)",
+    selectBorder: "var(--tc-success-border)",
   },
   [ESTADO_ASIGNATURA.SIMULTANEADA]: {
     rowBg: "var(--tc-warn-bg)", rowBorder: "var(--tc-warn-border)",
@@ -92,7 +92,7 @@ const ESTADO_ICON: Record<EstadoAsignatura, ReactNode> = {
     </svg>
   ),
   [ESTADO_ASIGNATURA.CONVALIDADA]: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tc-success-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 6 9 17l-5-5"/>
     </svg>
   ),
@@ -111,7 +111,7 @@ const ESTADO_ICON: Record<EstadoAsignatura, ReactNode> = {
 const ESTADO_INK: Record<EstadoAsignatura, string> = {
   [ESTADO_ASIGNATURA.MATRICULADA]: "var(--tc-info-ink)",
   [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: "var(--tc-violet-ink)",
-  [ESTADO_ASIGNATURA.CONVALIDADA]: "#2e7d32",
+  [ESTADO_ASIGNATURA.CONVALIDADA]: "var(--tc-success-ink)",
   [ESTADO_ASIGNATURA.SIMULTANEADA]: "var(--tc-warn-ink)",
   [ESTADO_ASIGNATURA.PENDIENTE]: "var(--tc-primary)",
 };
@@ -333,19 +333,31 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
       }}
     >
       {/* Número enorme */}
-      <div
-        className="font-display shrink-0 leading-none tabular-nums"
-        style={{
-          fontSize: 80,
-          lineHeight: 0.85,
-          fontWeight: 400,
-          letterSpacing: -4,
-          color: "var(--tc-primary)",
-          width: 96,
-          textAlign: "center",
-        }}
-      >
-        {nOrdenDisplay}
+      <div className="shrink-0 flex flex-col items-center" style={{ width: 96 }}>
+        <div
+          className="font-display leading-none tabular-nums"
+          style={{
+            fontSize: 80,
+            lineHeight: 0.85,
+            fontWeight: 400,
+            letterSpacing: -4,
+            color: "var(--tc-primary)",
+            textAlign: "center",
+          }}
+        >
+          {nOrdenDisplay}
+        </div>
+        <div
+          className="text-center font-bold uppercase"
+          style={{
+            fontSize: 10,
+            letterSpacing: 0.5,
+            marginTop: 4,
+            color: "var(--tc-primary)",
+          }}
+        >
+          {solicitud.cursoEscolar ?? "—"}
+        </div>
       </div>
 
       <div className="flex-1 min-w-0 pt-1">
@@ -389,7 +401,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
         disabled={mutation.isPending || borrarMutation.isPending}
         className="px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
         style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2"; (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c"; }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)"; }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-soft)"; }}
       >
         <Trash2 className="w-3.5 h-3.5" />
@@ -902,7 +914,7 @@ function AsignaturaGroup({
                   onClick={() => onEliminar?.(item.rowId)}
                   className="p-1 rounded-md transition-colors"
                   style={{ color: "var(--tc-ink-mute)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2"; }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)"; (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-mute)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
                   title="Eliminar asignatura"
                 >
@@ -929,7 +941,7 @@ function EstadoBadge({ estado }: { estado: Solicitud["estado"] }) {
     },
     [ESTADO.TRAMITADO]: {
       label: "Tramitado",
-      bg: "#e8f5e9", border: "#a5d6a7", ink: "#2e7d32",
+      bg: "var(--tc-success-bg)", border: "var(--tc-success-border)", ink: "var(--tc-success-ink)",
     },
   } as const;
   const s = map[estado];

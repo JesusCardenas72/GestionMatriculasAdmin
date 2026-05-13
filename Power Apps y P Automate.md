@@ -672,7 +672,7 @@ AdminListarSolicitudes
 "inputs": {
 "parameters": {
 "entityName": "cpmmr_matriculas",
-"$select": "cpmmr_matriculaid,cpmmr_nombrematricula,cpmmr_nombre,cpmmr_apellidos,cpmmr_dni,cpmmr_email,cpmmr_telefono,cpmmr_fechanacimiento,cpmmr_domicilio,cpmmr_localidad,cpmmr_provincia,cpmmr_cp,cpmmr_fechadeinscripcion,cpmmr_ensenanzaycurso,cpmmr_especialidad,cpmmr_formadepago,cpmmr_reducciontasas,cpmmr_autorizacionimagen,cpmmr_disponibilidadmanana,cpmmr_horasalida,cpmmr_estado,cr955_docfaltante",
+"$select": "cpmmr_matriculaid,cpmmr_nombrematricula,cpmmr_nombre,cpmmr_apellidos,cpmmr_dni,cpmmr_email,cpmmr_telefono,cpmmr_fechanacimiento,cpmmr_domicilio,cpmmr_localidad,cpmmr_provincia,cpmmr_cp,cpmmr_fechadeinscripcion,cpmmr_ensenanzaycurso,cpmmr_especialidad,cpmmr_formadepago,cpmmr_reducciontasas,cpmmr_autorizacionimagen,cpmmr_disponibilidadmanana,cpmmr_horasalida,cpmmr_estado,cr955_docfaltante,cr955_norden,cr955_cursoescolar,createdon",
           "$filter": "@if(equals(coalesce(triggerBody()?['estado'], ''), ''), 'cpmmr_matriculaid ne null', concat('cpmmr_estado eq ', triggerBody()?['estado']))",
 "$orderby": "cpmmr_fechadeinscripcion desc"
 },
@@ -2019,6 +2019,8 @@ Crea un registro nuevo completo en cpmmr_matriculas (ampliación), sube el PDF y
 "autorizacionImagen": { "type": "boolean" },
 "disponibilidadManana": { "type": "boolean" },
 "horaSalida": { "type": "string" },
+"nOrden": { "type": "string" },
+"cursoEscolar": { "type": "string" },
 "asignaturas": {
 "type": "array",
 "items": {
@@ -2027,7 +2029,12 @@ Crea un registro nuevo completo en cpmmr_matriculas (ampliación), sube el PDF y
 "codigo": { "type": "integer" },
 "nombre": { "type": "string" },
 "estado": { "type": "integer" }
-}
+},
+"required": [
+"codigo",
+"nombre",
+"estado"
+]
 }
 },
 "pdfBase64": { "type": "string" }
@@ -2066,6 +2073,8 @@ Si la clave es correcta, ejecutar los pasos 3, 4, 5 y 6. Si no: Response 401.
 "item/cpmmr_autorizacionimagen": "@triggerBody()?['autorizacionImagen']",
 "item/cpmmr_disponibilidadmanana": "@triggerBody()?['disponibilidadManana']",
 "item/cpmmr_horasalida": "@triggerBody()?['horaSalida']",
+"item/cr955_norden": "@triggerBody()?['nOrden']",
+"item/cr955_cursoescolar": "@triggerBody()?['cursoEscolar']",
 "item/cpmmr_estado": 856530002
 },
 "host": {

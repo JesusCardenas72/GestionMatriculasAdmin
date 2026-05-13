@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useConfig } from "./hooks/useConfig";
 import ConfigScreen from "./screens/ConfigScreen";
@@ -7,6 +7,12 @@ import MainScreen from "./screens/MainScreen";
 export default function App() {
   const { state, save, clear } = useConfig();
   const [editing, setEditing] = useState(false);
+
+  // Aplica el tema guardado tan pronto como la app carga
+  useEffect(() => {
+    const saved = localStorage.getItem('theme') ?? 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+  }, []);
 
   if (state.status === "loading") {
     return (
