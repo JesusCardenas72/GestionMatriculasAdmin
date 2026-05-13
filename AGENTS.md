@@ -35,6 +35,8 @@
 - `electron/preload.ts` exposes `window.adminAPI` via `contextBridge`. All main-to-renderer communication goes through this object.
 - `electron/config-store.ts` reads/writes the admin config (flow URLs + API key) using Electron `safeStorage` (OS-level encryption). Do not store secrets in plain files or env vars.
 - `electron/local-store.ts` and `presets-store.ts` handle local JSON persistence for offline data and inform presets.
+- `electron/curso-context-store.ts` persists the selected school year (`cursoSeleccionado`) across app restarts (main-process file, not localStorage).
+- `electron/cursos-store.ts` handles per-course JSON files (`matriculas-YY-YY.json`) and supports **backup export** (`cursosExportarBackup`).
 
 ## API & backend
 - Backend is **Power Automate HTTP flows** (no Azure / Entra ID access).
@@ -42,6 +44,7 @@
 - Dataverse table logical name: `cpmmr_matricula`.
 - **Field prefix trap:** the “observaciones / doc faltante” field is `cr955_docfaltante` in Dataverse, **not** `cpmmr_docfaltante`. The estado field is `cpmmr_estado`.
 - Estado option values: `856530000` (Pendiente de tramitación), `856530001` (Pendiente de validación), `856530002` (Tramitado).
+- **Multi-curso flows:** `AdminListarSolicitudes` accepts an optional `cursoEscolar` filter. A new optional flow `AdminBorrarCurso` (configured via `urlBorrarCurso`) deletes all Dataverse rows for a given `cursoEscolar` during year-end rollover.
 
 ## Important files
 - `PLAN-GestionMatriculasAdmin.md` — full architecture, flow contracts, and implementation phases.

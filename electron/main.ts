@@ -29,8 +29,11 @@ import {
   cursosEliminar,
   cursosMarcarSubida,
   cursosArchivar,
+  cursosExportarBackup,
+  cursosImportar,
   cursosMigrarLegacy,
 } from "./cursos-store";
+import { loadCursoContext, saveCursoContext } from "./curso-context-store";
 import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -119,7 +122,34 @@ function registerIpcHandlers() {
     cursosMarcarSubida(curso, localId),
   );
   ipcMain.handle("cursos:archivar", (_e, curso: string) => cursosArchivar(curso));
+  ipcMain.handle("cursos:exportarBackup", async () => {
+    const res = await dialog.showOpenDialog({
+      title: "Seleccionar carpeta para el backup",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (res.canceled || !res.filePaths || res.filePaths.length === 0) {
+      return null;
+    }
+    return cursosExportarBackup(res.filePaths[0]);
+  });
+  ipcMain.handle("cursos:importar", async () => {
+    const res = await dialog.showOpenDialog({
+      title: "Importar datos de curso escolar",
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (res.canceled || !res.filePaths || res.filePaths.length === 0) {
+      return null;
+    }
+    const resultados = res.filePaths.map((fp) => cursosImportar(fp));
+    return resultados;
+  });
   ipcMain.handle("cursos:migrarLegacy", () => cursosMigrarLegacy());
+
+  ipcMain.handle("cursoContext:load", () => loadCursoContext());
+  ipcMain.handle("cursoContext:save", (_e, data: { cursoSeleccionado: string }) =>
+    saveCursoContext(data),
+  );
 
   ipcMain.handle("presets:listar", () => presetsListar());
   ipcMain.handle("presets:guardar", (_e, preset: ConfigInforme) => presetsGuardar(preset));

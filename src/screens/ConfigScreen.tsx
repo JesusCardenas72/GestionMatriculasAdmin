@@ -16,11 +16,17 @@ import {
   Sun,
   ChevronDown,
   Link2,
+  Download,
+  Archive,
+  Upload,
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
-import { listarSolicitudes } from "../api/solicitudes";
+import { listarSolicitudes, borrarCursoDataverse } from "../api/solicitudes";
 import { ESTADO } from "../api/types";
 import { FlowError } from "../api/client";
+import { useCursoContext } from "../contexts/CursoContextProvider";
+import { useCursosConocidos } from "../hooks/useCursosConocidos";
+import { siguienteCurso } from "../utils/cursoContext";
 
 const urlHttps = z
   .string()
@@ -89,6 +95,7 @@ export default function ConfigScreen({
 
   const [test, setTest] = useState<TestState>({ status: "idle" });
   const [urlsOpen, setUrlsOpen] = useState(!initial);
+  const [cursosOpen, setCursosOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(
     () => (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'light'
   );
@@ -386,6 +393,44 @@ export default function ConfigScreen({
           )}
         </div>
 
+        {/* ── Cursos Escolares (acordeón) ── */}
+        <div
+          className="mt-4 rounded-xl overflow-hidden"
+          style={{ border: "1px solid var(--tc-border)" }}
+        >
+          <button
+            type="button"
+            onClick={() => setCursosOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3.5 transition-colors text-left"
+            style={{ background: "var(--tc-bg-panel)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
+          >
+            <div className="flex items-center gap-3">
+              <GraduationCap className="w-4 h-4" style={{ color: "var(--tc-primary)" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>Cursos Escolares</p>
+                <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
+                  Gestión de cursos y backups
+                </p>
+              </div>
+            </div>
+            <ChevronDown
+              className="w-4 h-4 transition-transform duration-200 shrink-0"
+              style={{ color: "var(--tc-ink-mute)", transform: cursosOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+            />
+          </button>
+
+          {cursosOpen && (
+            <div
+              className="px-4 pb-4 pt-4"
+              style={{ borderTop: "1px solid var(--tc-border-soft)" }}
+            >
+              <CursosEscolaresSection config={initial} />
+            </div>
+          )}
+        </div>
+
         {/* Cancelar — fuera del acordeón */}
         {onCancel && (
           <div className="mt-4 flex justify-end">
@@ -402,6 +447,136 @@ export default function ConfigScreen({
           </div>
         )}
       </form>
+    </div>
+  );
+}
+
+function CursosEscolaresSection({ config }: { config: AppConfig | null }) {
+  const { curso: cursoActivo, setCurso, tipo } = useCursoContext();
+  const { refetch } = useCursosConocidos();
+  const [cerrando, setCerrando] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const [importando, setImportando] = useState(false);
+
+  const handleExportar = async () => {
+    setExportando(true);
+    try {
+      const resultado = await window.adminAPI.cursos.exportarBackup();
+      if (resultado && resultado.length > 0) {
+        const lista = resultado.map((r) => r.fileName).join("\n");
+        alert(`Backup exportado correctamente:\n${lista}`);
+      } else if (resultado === null) {
+        // usuario canceló
+      } else {
+        alert("No había cursos para exportar.");
+      }
+    } catch (e) {
+      alert(`Error al exportar: ${(e as Error).message}`);
+    } finally {
+      setExportando(false);
+    }
+  };
+
+    const handleImportar = async () => {
+    setImportando(true);
+    try {
+      const resultado = await window.adminAPI.cursos.importar();
+      if (resultado === null) {
+        // usuario canceló
+        return;
+      }
+      const resumen = resultado
+        .map((r) => `${r.curso}: ${r.importados} importados, ${r.omitidos} omitidos`)
+        .join("\n");
+      alert(`Importación completada:\n${resumen}`);
+      await refetch();
+    } catch (e) {
+      alert(`Error al importar: ${(e as Error).message}`);
+    } finally {
+      setImportando(false);
+    }
+  };
+
+    const handleCerrarCurso = async () => {
+    if (!config?.urlBorrarCurso) {
+      alert(
+        "No está configurada la URL del flow AdminBorrarCurso.\n\n" +
+          "Añádela en el apartado 'Conexión a Power Automate' para poder cerrar cursos.",
+      );
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `¿Estás seguro de cerrar el curso ${cursoActivo}?\n\n` +
+          "Se realizarán estas acciones:\n" +
+          "1. Archivar localmente el curso.\n" +
+          "2. BORRAR todas las matrículas de este curso en Dataverse.\n" +
+          "3. Cambiar al siguiente curso escolar.",
+      )
+    ) {
+      return;
+    }
+
+    setCerrando(true);
+    try {
+      await window.adminAPI.cursos.archivar(cursoActivo);
+      await borrarCursoDataverse(config, cursoActivo);
+      const nuevo = siguienteCurso(cursoActivo);
+      setCurso(nuevo);
+      await refetch();
+      alert(`Curso ${cursoActivo} cerrado. Ahora estás en ${nuevo}.`);
+    } catch (e) {
+      alert(`Error al cerrar el curso: ${(e as Error).message}`);
+    } finally {
+      setCerrando(false);
+    }
+  };
+
+  const puedeCerrar = tipo !== "historico";
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={handleExportar}
+        disabled={exportando}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+        style={{ background: "var(--tc-bg)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
+      >
+        <Download className="w-4 h-4" />
+        {exportando ? "Exportando…" : "Exportar backup de todos los cursos"}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleImportar}
+        disabled={importando}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+        style={{ background: "var(--tc-bg)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
+      >
+        <Upload className="w-4 h-4" />
+        {importando ? "Importando…" : "Importar datos JSON"}
+      </button>
+
+      {puedeCerrar && (
+        <button
+          type="button"
+          onClick={handleCerrarCurso}
+          disabled={cerrando}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium text-red-700 disabled:opacity-50"
+          style={{ background: "var(--tc-danger-bg)", border: "1px solid var(--tc-danger-border)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-danger-bg-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-danger-bg)"; }}
+        >
+          <Archive className="w-4 h-4" />
+          {cerrando ? "Cerrando curso…" : `Cerrar curso ${cursoActivo} e iniciar nuevo`}
+        </button>
+      )}
     </div>
   );
 }

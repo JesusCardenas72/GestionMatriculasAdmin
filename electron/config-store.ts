@@ -8,6 +8,7 @@ export interface AppConfig {
   urlActualizar: string;
   urlEditar: string;
   urlBorrar: string;
+  urlBorrarCurso?: string;
   urlListarAsignaturas: string;
   urlCatalogoAsignaturas: string;
   urlGuardarAsignaturas: string;

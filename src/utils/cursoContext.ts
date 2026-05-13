@@ -117,3 +117,11 @@ function formatCurso(startYear: number): string {
   const pad = (n: number) => (((n % 100) + 100) % 100).toString().padStart(2, "0");
   return `${pad(startYear)}/${pad(startYear + 1)}`;
 }
+
+/**
+ * Dado un curso "YY/YY+1", devuelve el siguiente "YY+1/YY+2".
+ */
+export function siguienteCurso(curso: string): string {
+  const startYear = cursoStartYear(curso);
+  return formatCurso(startYear + 1);
+}

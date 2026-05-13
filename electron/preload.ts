@@ -57,8 +57,18 @@ const adminAPI = {
       ipcRenderer.invoke("cursos:marcarSubida", curso, localId),
     archivar: (curso: string): Promise<void> =>
       ipcRenderer.invoke("cursos:archivar", curso),
+    exportarBackup: (): Promise<{ curso: string; fileName: string }[] | null> =>
+      ipcRenderer.invoke("cursos:exportarBackup"),
+    importar: (): Promise<{ curso: string; importados: number; omitidos: number }[] | null> =>
+      ipcRenderer.invoke("cursos:importar"),
     migrarLegacy: (): Promise<{ migrado: boolean; cursos: string[] }> =>
       ipcRenderer.invoke("cursos:migrarLegacy"),
+  },
+  cursoContext: {
+    load: (): Promise<{ cursoSeleccionado: string } | null> =>
+      ipcRenderer.invoke("cursoContext:load"),
+    save: (data: { cursoSeleccionado: string }): Promise<void> =>
+      ipcRenderer.invoke("cursoContext:save", data),
   },
   presets: {
     listar: (): Promise<ConfigInforme[]> =>

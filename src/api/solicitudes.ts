@@ -121,6 +121,21 @@ export function borrarSolicitud(
   return postFlow<{ ok: boolean }>(cfg.urlBorrar, cfg.apiKey, input, "AdminBorrarSolicitud");
 }
 
+export function borrarCursoDataverse(
+  cfg: AppConfig,
+  cursoEscolar: string,
+): Promise<{ ok: boolean; eliminadas?: number }> {
+  if (!cfg.urlBorrarCurso) {
+    return Promise.reject(new Error("No está configurada la URL para borrar un curso completo"));
+  }
+  return postFlow<{ ok: boolean; eliminadas?: number }>(
+    cfg.urlBorrarCurso,
+    cfg.apiKey,
+    { cursoEscolar },
+    "AdminBorrarCurso",
+  );
+}
+
 // ── Asignaturas matriculadas ──────────────────────────────────────────────────
 
 interface DataverseAsignaturaMatriculada {

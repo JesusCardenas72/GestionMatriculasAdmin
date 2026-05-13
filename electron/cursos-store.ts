@@ -161,6 +161,92 @@ export function cursosArchivar(curso: string): void {
   }
 }
 
+// ── Exportar backup ───────────────────────────────────────────────────────────
+
+export function cursosExportarBackup(destDir: string): { curso: string; fileName: string }[] {
+  const index = readIndex();
+  const exported: { curso: string; fileName: string }[] = [];
+  const today = new Date().toISOString().split("T")[0];
+
+  for (const entry of index) {
+    const src = cursosFilePath(entry.curso);
+    if (!fs.existsSync(src)) continue;
+    const safeName = cursoFileName(entry.curso).replace(".json", "");
+    const fileName = `${safeName}_backup_${today}.json`;
+    const dest = path.join(destDir, fileName);
+    fs.copyFileSync(src, dest);
+    exported.push({ curso: entry.curso, fileName });
+  }
+
+  return exported;
+}
+
+// ── Importar desde JSON ───────────────────────────────────────────────────────
+
+const IMPORT_FILENAME_REGEX = /matriculas-(\d{2})-(\d{2})/;
+
+function extraerCursoDeNombre(fileName: string): string | null {
+  const m = IMPORT_FILENAME_REGEX.exec(fileName);
+  if (!m) return null;
+  return `${m[1]}/${m[2]}`;
+}
+
+export function cursosImportar(
+  filePath: string,
+): { curso: string; importados: number; omitidos: number } {
+  const fileName = path.basename(filePath);
+  let raw: MatriculaLocal[] = [];
+
+  try {
+    const content = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    raw = Array.isArray(content) ? content : [content];
+  } catch {
+    throw new Error(`No se pudo leer o parsear el archivo: ${fileName}`);
+  }
+
+  // Determinar curso escolar
+  let curso = extraerCursoDeNombre(fileName);
+  if (!curso) {
+    const primerCurso = raw.find((r) => r.cursoEscolar)?.cursoEscolar;
+    if (primerCurso) curso = primerCurso;
+  }
+  if (!curso) {
+    throw new Error(
+      "No se pudo determinar el curso escolar. El nombre del archivo debe incluir 'matriculas-YY-YY'.",
+    );
+  }
+
+  const existentes = readCurso(curso);
+  const existentesIds = new Set(existentes.map((r) => r.localId));
+  const existentesRowIds = new Set(
+    existentes.filter((r) => r.rowId).map((r) => r.rowId!),
+  );
+
+  const nuevos: MatriculaLocal[] = [];
+  let omitidos = 0;
+
+  for (const r of raw) {
+    // Normalizar cursoEscolar
+    const record = { ...r, cursoEscolar: r.cursoEscolar ?? curso };
+
+    // Evitar duplicados por localId o rowId
+    if (existentesIds.has(record.localId) || (record.rowId && existentesRowIds.has(record.rowId))) {
+      omitidos++;
+      continue;
+    }
+
+    nuevos.push(record);
+    existentesIds.add(record.localId);
+    if (record.rowId) existentesRowIds.add(record.rowId);
+  }
+
+  if (nuevos.length > 0) {
+    writeCurso(curso, [...existentes, ...nuevos]);
+  }
+
+  return { curso, importados: nuevos.length, omitidos };
+}
+
 // ── Migración one-shot desde el archivo legacy ────────────────────────────────
 
 export function cursosMigrarLegacy(): { migrado: boolean; cursos: string[] } {
