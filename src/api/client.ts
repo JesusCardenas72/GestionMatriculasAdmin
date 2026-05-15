@@ -14,10 +14,13 @@ export async function postFlow<TResponse>(
   apiKey: string,
   body: unknown,
   name?: string,
+  timeoutMs = 30000,
 ): Promise<TResponse> {
   const flowLabel = name ?? url.match(/\/workflows\/([^/]+)\//)?.[1]?.slice(0, 8) ?? url.slice(-20);
   const bodyStr = JSON.stringify(body ?? {});
   let res: Response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     res = await fetch(url, {
       method: "POST",
@@ -26,12 +29,21 @@ export async function postFlow<TResponse>(
         "x-api-key": apiKey,
       },
       body: bodyStr,
+      signal: controller.signal,
     });
   } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new FlowError(
+        `[${flowLabel}] Tiempo de espera agotado (${timeoutMs}ms). El flow no respondio a tiempo.`,
+        408,
+      );
+    }
     throw new FlowError(
       `[${flowLabel}] No se pudo conectar con el flow: ${(e as Error).message}`,
       0,
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const text = await res.text();

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppConfig } from "../../electron/config-store";
+import { FlowError } from "../api/client";
 import {
   actualizarSolicitud,
   borrarSolicitud,
@@ -43,7 +44,14 @@ export function usePdf(cfg: AppConfig, rowId: string | null) {
     queryFn: () => obtenerPDF(cfg, rowId!),
     enabled: !!rowId,
     staleTime: 5 * 60_000,
-    retry: false,
+    retry: (failureCount, error) => {
+      if (failureCount >= 2) return false;
+      if (error instanceof FlowError) {
+        return error.status === 502 || error.status === 408 || error.status === 0;
+      }
+      return false;
+    },
+    retryDelay: 2000,
   });
 }
 

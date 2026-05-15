@@ -1,6 +1,6 @@
 import type { AppConfig } from "../../electron/config-store";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
-import { postFlow } from "./client";
+import { FlowError, postFlow } from "./client";
 import type {
   ActualizarSolicitudInput,
   AsignaturaCatalogo,
@@ -96,11 +96,28 @@ export async function listarSolicitudes(
   };
 }
 
-export function obtenerPDF(
+export async function obtenerPDF(
   cfg: AppConfig,
   rowId: string,
 ): Promise<ObtenerPDFResponse> {
-  return postFlow<ObtenerPDFResponse>(cfg.urlObtenerPdf, cfg.apiKey, { rowId }, "AdminObtenerPDF");
+  try {
+    return await postFlow<ObtenerPDFResponse>(
+      cfg.urlObtenerPdf,
+      cfg.apiKey,
+      { rowId },
+      "AdminObtenerPDF",
+      60000,
+    );
+  } catch (e) {
+    if (
+      e instanceof FlowError &&
+      ((e.body ?? "").includes("No file attachment found") ||
+        (e.body ?? "").includes("No file attachment"))
+    ) {
+      return { fileName: "", mimeType: "", contentBase64: "" };
+    }
+    throw e;
+  }
 }
 
 export function actualizarSolicitud(
