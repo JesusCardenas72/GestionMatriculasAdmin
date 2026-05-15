@@ -78,13 +78,16 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
 
 export async function listarSolicitudes(
   cfg: AppConfig,
-  estado: EstadoTramite,
+  estado?: EstadoTramite,
   cursoEscolar?: string,
 ): Promise<ListarSolicitudesResponse> {
+  const body: Record<string, unknown> = {};
+  if (estado !== undefined) body.estado = estado;
+  if (cursoEscolar !== undefined) body.cursoEscolar = cursoEscolar;
   const res = await postFlow<{ solicitudes: DataverseSolicitud[]; total: number }>(
     cfg.urlListar,
     cfg.apiKey,
-    { estado, cursoEscolar },
+    body,
     "AdminListarSolicitudes",
   );
   return {
@@ -134,6 +137,21 @@ export function borrarCursoDataverse(
     { cursoEscolar },
     "AdminBorrarCurso",
   );
+}
+
+export async function listarCursosEscolaresDataverse(cfg: AppConfig): Promise<string[]> {
+  const res = await postFlow<{ solicitudes: DataverseSolicitud[]; total: number }>(
+    cfg.urlListar,
+    cfg.apiKey,
+    {},
+    "AdminListarSolicitudes",
+  );
+  const cursos = new Set<string>();
+  for (const s of res.solicitudes ?? []) {
+    const ce = s.cr955_cursoescolar || calcularCursoEscolar(s.createdon ?? s.cpmmr_fechadeinscripcion);
+    if (ce) cursos.add(ce);
+  }
+  return Array.from(cursos).sort((a, b) => b.localeCompare(a));
 }
 
 // ── Asignaturas matriculadas ──────────────────────────────────────────────────

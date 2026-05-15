@@ -21,7 +21,7 @@ import {
   Upload,
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
-import { listarSolicitudes, borrarCursoDataverse } from "../api/solicitudes";
+import { listarSolicitudes, borrarSolicitud } from "../api/solicitudes";
 import { ESTADO } from "../api/types";
 import { FlowError } from "../api/client";
 import { useCursoContext } from "../contexts/CursoContextProvider";
@@ -40,6 +40,7 @@ const schema = z.object({
   urlActualizar: urlHttps,
   urlEditar: urlHttps,
   urlBorrar: urlHttps,
+  urlBorrarCurso: z.union([urlHttps, z.literal("")]),
   urlListarAsignaturas: urlHttps,
   urlCatalogoAsignaturas: urlHttps,
   urlGuardarAsignaturas: urlHttps,
@@ -83,6 +84,7 @@ export default function ConfigScreen({
       urlActualizar: "",
       urlEditar: "",
       urlBorrar: "",
+      urlBorrarCurso: "",
       urlListarAsignaturas: "",
       urlCatalogoAsignaturas: "",
       urlGuardarAsignaturas: "",
@@ -96,6 +98,7 @@ export default function ConfigScreen({
   const [test, setTest] = useState<TestState>({ status: "idle" });
   const [urlsOpen, setUrlsOpen] = useState(!initial);
   const [cursosOpen, setCursosOpen] = useState(false);
+  const [borrarOpen, setBorrarOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(
     () => (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'light'
   );
@@ -251,6 +254,11 @@ export default function ConfigScreen({
                 label="AdminBorrarSolicitud"
                 error={errors.urlBorrar?.message}
                 {...register("urlBorrar")}
+              />
+              <Field
+                label="AdminBorrarCurso (opcional)"
+                error={errors.urlBorrarCurso?.message}
+                {...register("urlBorrarCurso")}
               />
               <Field
                 label="AdminListarAsignaturasSolicitud"
@@ -431,6 +439,44 @@ export default function ConfigScreen({
           )}
         </div>
 
+        {/* ── Borrar cursos de Dataverse (acordeón) ── */}
+        <div
+          className="mt-4 rounded-xl overflow-hidden"
+          style={{ border: "1px solid var(--tc-border)" }}
+        >
+          <button
+            type="button"
+            onClick={() => setBorrarOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3.5 transition-colors text-left"
+            style={{ background: "var(--tc-bg-panel)" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
+          >
+            <div className="flex items-center gap-3">
+              <Trash2 className="w-4 h-4" style={{ color: "var(--tc-danger-ink)" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>Borrar cursos de Dataverse</p>
+                <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
+                  Eliminar matrículas directamente de Dataverse
+                </p>
+              </div>
+            </div>
+            <ChevronDown
+              className="w-4 h-4 transition-transform duration-200 shrink-0"
+              style={{ color: "var(--tc-ink-mute)", transform: borrarOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+            />
+          </button>
+
+          {borrarOpen && (
+            <div
+              className="px-4 pb-4 pt-4"
+              style={{ borderTop: "1px solid var(--tc-border-soft)" }}
+            >
+              <BorrarCursosSection config={initial} />
+            </div>
+          )}
+        </div>
+
         {/* Cancelar — fuera del acordeón */}
         {onCancel && (
           <div className="mt-4 flex justify-end">
@@ -521,7 +567,10 @@ function CursosEscolaresSection({ config }: { config: AppConfig | null }) {
     setCerrando(true);
     try {
       await window.adminAPI.cursos.archivar(cursoActivo);
-      await borrarCursoDataverse(config, cursoActivo);
+      const listado = await listarSolicitudes(config, undefined, cursoActivo);
+      for (const s of listado.solicitudes) {
+        await borrarSolicitud(config, { rowId: s.rowId });
+      }
       const nuevo = siguienteCurso(cursoActivo);
       setCurso(nuevo);
       await refetch();
@@ -576,6 +625,190 @@ function CursosEscolaresSection({ config }: { config: AppConfig | null }) {
           <Archive className="w-4 h-4" />
           {cerrando ? "Cerrando curso…" : `Cerrar curso ${cursoActivo} e iniciar nuevo`}
         </button>
+      )}
+    </div>
+  );
+}
+
+function BorrarCursosSection({ config }: { config: AppConfig | null }) {
+  const [cursos, setCursos] = useState<Map<string, string[]>>(new Map());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [eliminandoCurso, setEliminandoCurso] = useState<string | null>(null);
+  const [borrandoTodos, setBorrandoTodos] = useState(false);
+
+  async function cargarCursos() {
+    if (!config) {
+      setError("No hay configuración guardada.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await listarSolicitudes(config);
+      const mapa = new Map<string, string[]>();
+      for (const s of res.solicitudes) {
+        const curso = s.cursoEscolar ?? "Sin curso";
+        const lista = mapa.get(curso) ?? [];
+        lista.push(s.rowId);
+        mapa.set(curso, lista);
+      }
+      setCursos(mapa);
+      if (mapa.size === 0) {
+        setError("No se encontraron matrículas en Dataverse.");
+      }
+    } catch (e) {
+      const msg = e instanceof FlowError ? e.message : (e as Error).message;
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function borrarIds(ids: string[]) {
+    const errores: string[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        await borrarSolicitud(config!, { rowId: ids[i]! });
+      } catch (e) {
+        errores.push(`${ids[i]}: ${(e as Error).message}`);
+      }
+    }
+    return errores;
+  }
+
+  async function handleBorrar(curso: string) {
+    if (!config?.urlBorrar) {
+      alert("No está configurada la URL del flow AdminBorrarSolicitud.");
+      return;
+    }
+    const ids = cursos.get(curso) ?? [];
+    if (
+      !window.confirm(
+        `¿Estás seguro de que quieres BORRAR ${ids.length} matrícula(s) del curso ${curso} en Dataverse?\n\n` +
+          "Esta acción no se puede deshacer.",
+      )
+    ) {
+      return;
+    }
+    setEliminandoCurso(curso);
+    try {
+      const errores = await borrarIds(ids);
+      if (errores.length > 0) {
+        alert(`Algunas matrículas no se pudieron borrar:\n\n${errores.slice(0, 5).join("\n")}${errores.length > 5 ? "\n…" : ""}`);
+      } else {
+        alert(`Curso ${curso} eliminado de Dataverse (${ids.length} matrícula(s)).`);
+      }
+      setCursos((prev) => {
+        const next = new Map(prev);
+        next.delete(curso);
+        return next;
+      });
+    } catch (e) {
+      alert(`Error al borrar el curso: ${(e as Error).message}`);
+    } finally {
+      setEliminandoCurso(null);
+    }
+  }
+
+  async function handleBorrarTodos() {
+    if (!config?.urlBorrar) {
+      alert("No está configurada la URL del flow AdminBorrarSolicitud.");
+      return;
+    }
+    const total = Array.from(cursos.values()).reduce((sum, ids) => sum + ids.length, 0);
+    if (
+      !window.confirm(
+        `¿Estás seguro de que quieres BORRAR TODAS las matrículas de Dataverse?\n\n` +
+          `Total: ${total} matrícula(s) en ${cursos.size} curso(s).\n\n` +
+          "Esta acción no se puede deshacer.",
+      )
+    ) {
+      return;
+    }
+    setBorrandoTodos(true);
+    const errores: string[] = [];
+    for (const [curso, ids] of cursos) {
+      setEliminandoCurso(curso);
+      const errs = await borrarIds(ids);
+      errores.push(...errs);
+    }
+    setEliminandoCurso(null);
+    setBorrandoTodos(false);
+    setCursos(new Map());
+    if (errores.length > 0) {
+      alert(`Algunas matrículas no se pudieron borrar:\n\n${errores.slice(0, 5).join("\n")}${errores.length > 5 ? "\n…" : ""}`);
+    } else {
+      alert("Todas las matrículas han sido eliminadas de Dataverse.");
+    }
+  }
+
+  const cursosArray = Array.from(cursos.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={cargarCursos}
+        disabled={loading || borrandoTodos}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+        style={{ background: "var(--tc-bg)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
+      >
+        <Loader2 className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+        {loading ? "Cargando…" : "Buscar matrículas en Dataverse"}
+      </button>
+
+      {error && (
+        <div className="text-sm" style={{ color: "var(--tc-danger-ink)" }}>
+          {error}
+        </div>
+      )}
+
+      {cursosArray.length > 0 && (
+        <>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleBorrarTodos}
+              disabled={borrandoTodos}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+              style={{ background: "var(--tc-danger-bg)", color: "var(--tc-danger-ink)", border: "1px solid var(--tc-danger-border)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-danger-bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-danger-bg)"; }}
+            >
+              <Trash2 className="w-4 h-4" />
+              {borrandoTodos ? "Borrando todo…" : "Borrar todas las matrículas"}
+            </button>
+          </div>
+
+          <ul className="space-y-2">
+            {cursosArray.map(([curso, ids]) => (
+              <li
+                key={curso}
+                className="flex items-center justify-between px-3 py-2 rounded-md"
+                style={{ background: "var(--tc-bg)", border: "1px solid var(--tc-border-soft)" }}
+              >
+                <span className="text-sm font-medium" style={{ color: "var(--tc-ink)" }}>
+                  Curso {curso} <span className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>({ids.length})</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleBorrar(curso)}
+                  disabled={eliminandoCurso === curso || borrandoTodos}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium disabled:opacity-50"
+                  style={{ background: "var(--tc-danger-bg)", color: "var(--tc-danger-ink)", border: "1px solid var(--tc-danger-border)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-danger-bg-hover)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-danger-bg)"; }}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {eliminandoCurso === curso ? "Borrando…" : "Borrar"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
