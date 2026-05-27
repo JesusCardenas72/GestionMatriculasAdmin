@@ -23,6 +23,8 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.53.0",
     "react-pdf": "^9.2.1",
+    "react-resizable-panels": "^4.11.2",
+    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {

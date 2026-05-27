@@ -78,6 +78,14 @@ const adminAPI = {
     eliminar: (id: string): Promise<void> =>
       ipcRenderer.invoke("presets:eliminar", id),
   },
+  informe: {
+    exportar: (payload: {
+      contenidoBase64: string;
+      nombreArchivo: string;
+      extension: "csv" | "xlsx";
+    }): Promise<string | null> =>
+      ipcRenderer.invoke("informe:exportar", payload),
+  },
 };
 
 contextBridge.exposeInMainWorld("adminAPI", adminAPI);

@@ -33,6 +33,7 @@ export interface Solicitud {
   estado: EstadoTramite;
   docFaltante: string | null;
   ampliada?: boolean;
+  repetidor: boolean;
 }
 
 export interface ListarSolicitudesResponse {
@@ -73,6 +74,7 @@ export interface EditarSolicitudInput {
   autorizacionImagen: boolean;
   disponibilidadManana: boolean;
   horaSalida: string | null;
+  repetidor: boolean;
 }
 
 export interface BorrarSolicitudInput {
@@ -154,6 +156,7 @@ export interface SubirMatriculaInput {
   autorizacionImagen: boolean;
   disponibilidadManana: boolean;
   horaSalida: string | null;
+  repetidor: boolean;
   asignaturasActualizadas: { rowId: string; estado: EstadoAsignatura; observaciones: string }[];
   asignaturasNuevas: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
 }
@@ -176,6 +179,7 @@ export interface CrearAmpliacionInput {
   autorizacionImagen: boolean;
   disponibilidadManana: boolean;
   horaSalida: string | null;
+  repetidor: boolean;
   cursoEscolar: string;
   asignaturas: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
   pdfBase64: string | null;
@@ -219,6 +223,7 @@ export interface ConfigInforme {
   camposVisibles: CampoKey[];
   filtros: FiltroInforme[];
   orden: OrdenInforme[];
+  agruparPor?: CampoKey | null;
 }
 
 // ── Matrículas locales (store JSON) ──────────────────────────────────────────
@@ -262,6 +267,7 @@ export interface MatriculaLocal {
   disponibilidadManana: boolean;
   horaSalida: string | null;
   docFaltante: string | null;
+  repetidor: boolean;
 
   asignaturas: AsignaturaLocal[];
 

@@ -1,6 +1,8 @@
 import type { Solicitud } from '../api/types';
 import type { CampoMeta } from '../data/informesConfig';
 import { ESTADO_TRAMITE_LABELS } from '../data/informesConfig';
+import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
+import type { CampoKey } from '../api/types';
 
 function esc(s: string | null | undefined): string {
   if (s === null || s === undefined) return '';
@@ -37,24 +39,53 @@ export interface InformeParams {
   rows: Solicitud[];
   orientacion?: 'portrait' | 'landscape';
   zoom?: number;
+  agruparPor?: CampoKey | null;
+  agruparPorMeta?: CampoMeta | null;
 }
 
-export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacion = 'landscape', zoom = 1 }: InformeParams): string {
+export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacion = 'landscape', zoom = 1, agruparPor, agruparPorMeta }: InformeParams): string {
   const hoy = new Date().toLocaleDateString('es-ES', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
 
   const headers = campos.map(c => `<th>${esc(c.label)}</th>`).join('');
 
-  const bodyRows = rows.map(s => {
+  function buildDataRow(s: Solicitud, cls: string): string {
     const cells = campos.map(c => {
       const val = formatValor(s, c);
-      let cls = '';
-      if (c.tipo === 'booleano') cls = val === 'Sí' ? ' class="si"' : ' class="no"';
-      return `<td${cls}>${esc(val)}</td>`;
+      let tdCls = '';
+      if (c.tipo === 'booleano') tdCls = val === 'Sí' ? ' class="si"' : ' class="no"';
+      return `<td${tdCls}>${esc(val)}</td>`;
     }).join('');
-    return `<tr>${cells}</tr>`;
-  }).join('');
+    return `<tr${cls}>${cells}</tr>`;
+  }
+
+  let bodyRows: string;
+  if (agruparPor && agruparPorMeta) {
+    const groupedSections: string[] = [];
+    let lastGroupVal: string | null = null;
+    let groupRowIdx = 0;
+    for (const s of rows) {
+      const groupVal = formatValor(s, agruparPorMeta);
+      if (groupVal !== lastGroupVal) {
+        // Count rows in this group
+        const count = rows.filter(r => formatValor(r, agruparPorMeta) === groupVal).length;
+        groupedSections.push(
+          `<tr class="group-header"><td colspan="${campos.length}">` +
+          `<span class="group-label">${esc(groupVal)}</span>` +
+          `<span class="group-count">${count} registro${count !== 1 ? 's' : ''}</span>` +
+          `</td></tr>`
+        );
+        lastGroupVal = groupVal;
+        groupRowIdx = 0;
+      }
+      groupedSections.push(buildDataRow(s, groupRowIdx % 2 === 1 ? ' class="alt"' : ''));
+      groupRowIdx++;
+    }
+    bodyRows = groupedSections.join('');
+  } else {
+    bodyRows = rows.map((s, i) => buildDataRow(s, i % 2 === 1 ? ' class="alt"' : '')).join('');
+  }
 
   const metaParts = [
     filtrosDesc ? esc(filtrosDesc) : '',
@@ -85,17 +116,51 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacio
     font-size: 8pt; font-weight: bold; white-space: nowrap;
   }
   td { padding: 3px 8px; border-bottom: 1px solid #e2e8f0; font-size: 8pt; vertical-align: top; }
-  tr:nth-child(even) td { background: #f8f8ff; }
+  tr.alt td { background: #f8f8ff; }
   tr:last-child td { border-bottom: none; }
   .si { color: #15803d; font-weight: 600; }
   .no { color: #b91c1c; }
   .footer { margin-top: 14px; font-size: 7pt; color: #94a3b8; text-align: right; }
+  .group-header td {
+    background: #1a1560;
+    color: #fff;
+    font-weight: bold;
+    font-size: 8.5pt;
+    padding: 7px 10px;
+    border-top: 3px solid #3525cd;
+    border-bottom: none;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .group-label { margin-right: 12px; }
+  .group-count {
+    font-size: 7pt;
+    font-weight: normal;
+    opacity: 0.65;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 2px solid #3525cd;
+  }
+  .header img { height: 48px; width: auto; object-fit: contain; }
+  .header-center { flex: 1; text-align: center; }
 </style>
 </head>
 <body>
 <div class="page-wrapper">
-<h1>${esc(nombre)}</h1>
-<div class="meta">${metaParts}</div>
+<div class="header">
+  <img src="${LOGO_JCCM_B64}" alt="Junta de Castilla-La Mancha">
+  <div class="header-center">
+    <h1>${esc(nombre)}</h1>
+    <div class="meta">${metaParts}</div>
+  </div>
+  <img src="${LOGO_CPM_B64}" alt="Conservatorio Profesional de Música Marcos Redondo">
+</div>
 <table>
   <thead><tr>${headers}</tr></thead>
   <tbody>${bodyRows}</tbody>

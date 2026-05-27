@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  Download,
+  FileSpreadsheet,
   FileText,
   Filter,
   GripVertical,
@@ -15,6 +17,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import type { AppConfig } from '../../electron/config-store';
 import type {
   CampoKey,
@@ -24,6 +27,8 @@ import type {
   Solicitud,
 } from '../api/types';
 import { ESTADO } from '../api/types';
+import { useCursoContext } from '../contexts/CursoContextProvider';
+import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
 import {
   CAMPO_MAP,
   CAMPOS_META,
@@ -149,20 +154,14 @@ function localToSolicitud(r: MatriculaLocal): Solicitud {
     estado: ESTADO.PENDIENTE_TRAMITACION,
     docFaltante: r.docFaltante,
     ampliada: r.ampliada,
+    repetidor: r.repetidor,
   };
 }
 
 export default function InformesScreen({ config: _cfg }: Props) {
-  const [allSolicitudes, setAllSolicitudes] = useState<Solicitud[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setIsLoading(true);
-    window.adminAPI.local.listar()
-      .then(records => setAllSolicitudes(records.map(localToSolicitud)))
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, []);
+  const { curso } = useCursoContext();
+  const { matriculas, isLoading } = useLocalMatriculas(curso);
+  const allSolicitudes = useMemo(() => matriculas.map(localToSolicitud), [matriculas]);
 
   const selectOptions = useMemo((): Map<CampoKey, string[]> => {
     const map = new Map<CampoKey, string[]>();
@@ -191,6 +190,9 @@ export default function InformesScreen({ config: _cfg }: Props) {
   const [showAddField, setShowAddField] = useState(false);
   const addFieldBtnRef = useRef<HTMLButtonElement>(null);
   const addFieldDropRef = useRef<HTMLDivElement>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const exportBtnRef = useRef<HTMLButtonElement>(null);
 
   // Column DnD state
   const [colDrag, setColDrag] = useState<ColDragState | null>(null);
@@ -217,6 +219,20 @@ export default function InformesScreen({ config: _cfg }: Props) {
     return () => document.removeEventListener('mousedown', onOutside);
   }, [showAddField]);
 
+  // Close export menu when clicking outside
+  useEffect(() => {
+    if (!showExportMenu) return;
+    function onOutside(e: MouseEvent) {
+      if (
+        exportBtnRef.current?.contains(e.target as Node) ||
+        exportMenuRef.current?.contains(e.target as Node)
+      ) return;
+      setShowExportMenu(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [showExportMenu]);
+
   // ── Derivados ─────────────────────────────────────────────────────────────
 
   const camposVisibles = informe.camposVisibles
@@ -229,8 +245,14 @@ export default function InformesScreen({ config: _cfg }: Props) {
 
   const resultados = useMemo(() => {
     const filtered = aplicarFiltros(allSolicitudes, informe.filtros);
-    return aplicarOrden(filtered, informe.orden);
-  }, [allSolicitudes, informe.filtros, informe.orden]);
+    const orden = informe.agruparPor
+      ? [
+          { id: '__group__', campo: informe.agruparPor, direccion: 'asc' as const },
+          ...informe.orden.filter(o => o.campo !== informe.agruparPor),
+        ]
+      : informe.orden;
+    return aplicarOrden(filtered, orden);
+  }, [allSolicitudes, informe.filtros, informe.orden, informe.agruparPor]);
 
   // Display columns during drag (with placeholder inserted at drop position)
   const displayColItems = useMemo(() => {
@@ -438,8 +460,96 @@ export default function InformesScreen({ config: _cfg }: Props) {
       rows: resultados,
       orientacion: previewOrientacion,
       zoom: previewZoom,
+      agruparPor: informe.agruparPor,
+      agruparPorMeta: informe.agruparPor ? CAMPO_MAP.get(informe.agruparPor) : null,
     });
   }, [showPreview, previewOrientacion, previewZoom, informe.nombre, informe.filtros, camposVisibles, resultados]);
+
+  // ── Exportar ──────────────────────────────────────────────────────────────
+
+  function buildExportRows(): (string | number | boolean | null)[][] {
+    const header = camposVisibles.map(c => c.label);
+    const groupCampo = informe.agruparPor ? CAMPO_MAP.get(informe.agruparPor) : null;
+    const dataRows = resultados.map(s =>
+      camposVisibles.map(c => {
+        const val = s[c.key as keyof Solicitud];
+        if (val === null || val === undefined) return '';
+        if (c.tipo === 'booleano') return val ? 'Sí' : 'No';
+        if (c.tipo === 'estado') return ESTADO_TRAMITE_LABELS[val as number] ?? String(val);
+        if (c.tipo === 'fecha') {
+          const str = String(val);
+          if (!str) return '';
+          const [y, m, d] = str.split('T')[0].split('-');
+          return `${d}/${m}/${y}`;
+        }
+        return val;
+      }),
+    );
+    if (groupCampo) {
+      const rows: (string | number | boolean | null)[][] = [header];
+      let lastGroupVal: string | null = null;
+      resultados.forEach((s, i) => {
+        const groupVal = formatCelda(s, groupCampo);
+        if (groupVal !== lastGroupVal) {
+          rows.push([groupVal, ...Array(camposVisibles.length - 1).fill('')]);
+          lastGroupVal = groupVal;
+        }
+        rows.push(dataRows[i]);
+      });
+      return rows;
+    }
+    return [header, ...dataRows];
+  }
+
+  async function handleExportarCSV() {
+    setShowExportMenu(false);
+    const rows = buildExportRows();
+    const csv = rows
+      .map(row =>
+        row
+          .map(cell => {
+            const s = cell === null || cell === undefined ? '' : String(cell);
+            return s.includes(',') || s.includes('"') || s.includes('\n')
+              ? `"${s.replace(/"/g, '""')}"`
+              : s;
+          })
+          .join(','),
+      )
+      .join('\r\n');
+    // UTF-8 BOM para que Excel lo abra bien
+    const bom = '\uFEFF';
+    const content = bom + csv;
+    const bytes = new TextEncoder().encode(content);
+    const base64 = btoa(String.fromCharCode(...bytes));
+    await window.adminAPI.informe.exportar({
+      contenidoBase64: base64,
+      nombreArchivo: informe.nombre,
+      extension: 'csv',
+    });
+  }
+
+  async function handleExportarExcel() {
+    setShowExportMenu(false);
+    const rows = buildExportRows();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Ancho de columnas automático
+    const colWidths = camposVisibles.map(c => ({ wch: Math.max(c.label.length, 12) }));
+    ws['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Informe');
+    const buf: ArrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const base64 = btoa(binary);
+    await window.adminAPI.informe.exportar({
+      contenidoBase64: base64,
+      nombreArchivo: informe.nombre,
+      extension: 'xlsx',
+    });
+  }
 
   function handleAbrirVistaPrevia() {
     setPreviewOrientacion('landscape');
@@ -471,31 +581,87 @@ export default function InformesScreen({ config: _cfg }: Props) {
     <div className="flex-1 flex flex-col overflow-hidden px-6 py-5 gap-0">
 
       {/* ── Cabecera de sección ────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between mb-4 shrink-0">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center shadow-sm">
             <FileText className="w-4.5 h-4.5 text-amber-600" />
           </div>
-          <div>
-            <h2 className="text-[15px] font-bold text-[#1b1b24] leading-tight">Informes</h2>
-            <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">
-              {camposVisibles.length === 0
-                ? 'Configura los campos del informe'
-                : `${camposVisibles.length} campo${camposVisibles.length !== 1 ? 's' : ''}${
-                    informe.filtros.length > 0
-                      ? ` · ${informe.filtros.length} filtro${informe.filtros.length !== 1 ? 's' : ''} activo${informe.filtros.length !== 1 ? 's' : ''}`
-                      : ''
-                  }`}
-            </p>
-          </div>
+          <h2 className="text-[15px] font-bold text-[#1b1b24] leading-tight">Informes</h2>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {!isLoading && camposVisibles.length > 0 && (
-            <div className="text-right">
-              <div className="text-2xl font-bold text-[#1b1b24] tabular-nums leading-none">{resultados.length}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">registro{resultados.length !== 1 ? 's' : ''}</div>
+            <div className="flex items-center gap-2 text-[15px] text-slate-500">
+              <span>
+                <span className="font-semibold text-[#1b1b24] tabular-nums">{resultados.length}</span>
+                {' '}registro{resultados.length !== 1 ? 's' : ''}
+              </span>
+              <span className="text-slate-300">·</span>
+              <span>
+                <span className="font-semibold text-[#1b1b24]">{camposVisibles.length}</span>
+                {' '}campo{camposVisibles.length !== 1 ? 's' : ''}
+              </span>
+              {informe.filtros.length > 0 && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span>
+                    <span className="font-semibold text-amber-600">{informe.filtros.length}</span>
+                    {' '}filtro{informe.filtros.length !== 1 ? 's' : ''} activo{informe.filtros.length !== 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+              {informe.agruparPor && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span>
+                    agrupado por{' '}
+                    <span className="font-semibold text-[#1a1560]">{CAMPO_MAP.get(informe.agruparPor)?.label}</span>
+                  </span>
+                </>
+              )}
             </div>
           )}
+          {/* Exportar dropdown */}
+          <div className="relative">
+            <button
+              ref={exportBtnRef}
+              onClick={() => setShowExportMenu(v => !v)}
+              disabled={isLoading || camposVisibles.length === 0 || resultados.length === 0}
+              className={
+                'flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border transition-colors shadow-sm disabled:opacity-40 ' +
+                (showExportMenu
+                  ? 'bg-[var(--tc-primary)] text-white border-[var(--tc-primary)]'
+                  : 'bg-white text-[var(--tc-primary)] border-[var(--tc-primary-border)] hover:bg-[var(--tc-primary-tint)]')
+              }
+            >
+              <Download className="w-3.5 h-3.5" />
+              Exportar
+              <ChevronDown className={`w-3 h-3 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showExportMenu && (
+              <div
+                ref={exportMenuRef}
+                className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[160px]"
+              >
+                <button
+                  onClick={handleExportarCSV}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                >
+                  <FileText className="w-4 h-4 shrink-0 text-slate-400" />
+                  <span>CSV <span className="text-slate-400 text-xs">(.csv)</span></span>
+                </button>
+                <div className="h-px bg-slate-100 mx-3" />
+                <button
+                  onClick={handleExportarExcel}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-400" />
+                  <span>Excel <span className="text-slate-400 text-xs">(.xlsx)</span></span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleAbrirVistaPrevia}
             disabled={printing || isLoading || camposVisibles.length === 0 || resultados.length === 0}
@@ -567,6 +733,28 @@ export default function InformesScreen({ config: _cfg }: Props) {
         </button>
 
         <div className="flex-1 min-w-2" />
+
+        {/* Agrupar por */}
+        {camposVisibles.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-400 whitespace-nowrap">Agrupar por</span>
+            <select
+              value={informe.agruparPor ?? ''}
+              onChange={e =>
+                setInforme(prev => ({
+                  ...prev,
+                  agruparPor: (e.target.value as CampoKey) || null,
+                }))
+              }
+              className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+            >
+              <option value="">— Ninguno —</option>
+              {camposVisibles.map(c => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Filtros toggle */}
         <button
@@ -897,38 +1085,68 @@ export default function InformesScreen({ config: _cfg }: Props) {
                       No hay registros con los filtros aplicados
                     </td>
                   </tr>
-                ) : (
-                  resultados.map((s, i) => (
-                    <tr
-                      key={s.rowId}
-                      className={
-                        'border-b border-slate-100 hover:bg-amber-50/30 transition-colors ' +
-                        (i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
-                      }
-                    >
-                      {camposVisibles.map(c => {
-                        const val    = formatCelda(s, c);
-                        const isTrue  = c.tipo === 'booleano' && val === 'Sí';
-                        const isFalse = c.tipo === 'booleano' && val === 'No';
-                        return (
-                          <td
-                            key={c.key}
-                            className={
-                              'px-3 py-2 text-sm ' +
-                              (isTrue  ? 'text-emerald-700 font-medium' :
-                               isFalse ? 'text-rose-600'                 :
-                                         'text-slate-700')
-                            }
-                          >
-                            {val}
-                          </td>
+                ) : (() => {
+                  const groupCampo = informe.agruparPor ? CAMPO_MAP.get(informe.agruparPor) : null;
+                  let lastGroupVal: string | null = null;
+                  let groupRowIdx = 0;
+                  return resultados.flatMap((s, i) => {
+                    const rows: React.ReactNode[] = [];
+                    if (groupCampo) {
+                      const groupVal = formatCelda(s, groupCampo);
+                      if (groupVal !== lastGroupVal) {
+                        const count = resultados.filter(r => formatCelda(r, groupCampo) === groupVal).length;
+                        lastGroupVal = groupVal;
+                        groupRowIdx = 0;
+                        rows.push(
+                          <tr key={`group-${i}`} className="bg-[#1a1560] select-none">
+                            <td
+                              colSpan={camposVisibles.length + 1}
+                              className="px-4 py-2.5"
+                            >
+                              <span className="text-white font-bold text-[13px] tracking-wide uppercase">
+                                {groupVal}
+                              </span>
+                              <span className="ml-3 text-white/50 text-[11px] font-normal normal-case tracking-normal">
+                                {count} registro{count !== 1 ? 's' : ''}
+                              </span>
+                            </td>
+                          </tr>
                         );
-                      })}
-                      {/* Celda vacía para columna del botón + */}
-                      <td className="px-2" />
-                    </tr>
-                  ))
-                )}
+                      }
+                    }
+                    const parity = groupCampo ? groupRowIdx++ : i;
+                    rows.push(
+                      <tr
+                        key={s.rowId}
+                        className={
+                          'border-b border-slate-100 hover:bg-amber-50/30 transition-colors ' +
+                          (parity % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
+                        }
+                      >
+                        {camposVisibles.map(c => {
+                          const val     = formatCelda(s, c);
+                          const isTrue  = c.tipo === 'booleano' && val === 'Sí';
+                          const isFalse = c.tipo === 'booleano' && val === 'No';
+                          return (
+                            <td
+                              key={c.key}
+                              className={
+                                'px-3 py-2 text-sm ' +
+                                (isTrue  ? 'text-emerald-700 font-medium' :
+                                 isFalse ? 'text-rose-600'                 :
+                                           'text-slate-700')
+                              }
+                            >
+                              {val}
+                            </td>
+                          );
+                        })}
+                        <td className="px-2" />
+                      </tr>
+                    );
+                    return rows;
+                  });
+                })()}
               </tbody>
             </table>
           )}

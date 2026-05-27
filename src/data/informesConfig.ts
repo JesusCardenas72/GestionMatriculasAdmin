@@ -32,6 +32,7 @@ export const CAMPOS_META: CampoMeta[] = [
   { key: 'estado',               label: 'Estado',              tipo: 'estado'   },
   { key: 'docFaltante',          label: 'Doc. Faltante',       tipo: 'texto'    },
   { key: 'ampliada',             label: 'Matrícula ampliada',  tipo: 'booleano' },
+  { key: 'repetidor',            label: 'Repetidor',           tipo: 'booleano' },
 ];
 
 export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
@@ -91,6 +92,7 @@ export const INFORME_VACIO: ConfigInforme = {
   camposVisibles: ['apellidos', 'nombre', 'ensenanzaCurso', 'email'],
   filtros: [],
   orden: [],
+  agruparPor: null,
 };
 
 export const INFORMES_PREDEFINIDOS: ConfigInforme[] = [

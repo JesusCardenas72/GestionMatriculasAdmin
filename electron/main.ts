@@ -156,6 +156,27 @@ function registerIpcHandlers() {
   ipcMain.handle("presets:eliminar", (_e, id: string) => presetsEliminar(id));
 
   ipcMain.handle(
+    "informe:exportar",
+    async (_e, payload: { contenidoBase64: string; nombreArchivo: string; extension: "csv" | "xlsx" }): Promise<string | null> => {
+      const { contenidoBase64, nombreArchivo, extension } = payload;
+      const filters =
+        extension === "xlsx"
+          ? [{ name: "Excel", extensions: ["xlsx"] }]
+          : [{ name: "CSV", extensions: ["csv"] }];
+      const safe = nombreArchivo.replace(/[\\/:*?"<>|]/g, "_");
+      const res = await dialog.showSaveDialog({
+        title: "Exportar informe",
+        defaultPath: `${safe}.${extension}`,
+        filters,
+      });
+      if (res.canceled || !res.filePath) return null;
+      const buf = Buffer.from(contenidoBase64, "base64");
+      fs.writeFileSync(res.filePath, buf);
+      return res.filePath;
+    },
+  );
+
+  ipcMain.handle(
     "pdf:generarPdfBase64",
     async (
       _e,
