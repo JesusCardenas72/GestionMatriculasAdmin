@@ -60,7 +60,7 @@ export default function ResizableColumns({
           {left}
         </Panel>
         <Separator className="group relative w-3 mx-0.5 flex items-center justify-center cursor-col-resize">
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-row gap-0.5">
             <div className="w-0.5 h-4 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
             <div className="w-0.5 h-4 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
           </div>

@@ -42,7 +42,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { ChevronDown, Cloud, Download, FileText, Loader2, Plus, Trash2, TrendingUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Cloud, Download, FileText, Loader2, MoreHorizontal, Plus, Trash2, TrendingUp } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -97,7 +97,7 @@ function initForm(m: MatriculaLocal): FormData {
     dni: m.dni,
     email: m.email,
     telefono: m.telefono ?? "",
-    fechaNacimiento: m.fechaNacimiento ?? "",
+    fechaNacimiento: m.fechaNacimiento ? m.fechaNacimiento.split("T")[0] : "",
     domicilio: m.domicilio ?? "",
     localidad: m.localidad ?? "",
     provincia: m.provincia ?? "",
@@ -127,6 +127,8 @@ export default function LocalDetail({
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmAmpliacion, setConfirmAmpliacion] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [allOpen, setAllOpen] = useState(true);
   const [form, setForm] = useState<FormData>(() => initForm(m));
   const [items, setItems] = useState<AsignaturaEdit[]>(() => m.asignaturas.map((a) => ({ ...a })));
   const [showAdd, setShowAdd] = useState(false);
@@ -265,7 +267,7 @@ export default function LocalDetail({
         {/* ── Cabecera editorial ───────────────────────────────────────────── */}
         <div
           style={{
-            padding: "24px 28px 20px",
+            padding: "22px 28px 18px",
             borderBottom: "1px solid var(--tc-border-soft)",
             background: "linear-gradient(180deg, var(--tc-bg-panel) 0%, transparent 100%)",
             display: "flex",
@@ -281,7 +283,7 @@ export default function LocalDetail({
               onChange={(e) => setField("nOrden", e.target.value)}
               onBlur={() => saveForm()}
               placeholder="—"
-              className="font-display w-full text-center bg-transparent border-none outline-none focus:ring-0"
+              className="font-display w-full text-center bg-transparent border-none outline-none focus:ring-0 leading-none tabular-nums"
               style={{
                 fontSize: 80,
                 lineHeight: 0.85,
@@ -291,14 +293,28 @@ export default function LocalDetail({
                 MozAppearance: "textfield",
               }}
             />
-            <p className="text-[10px] text-[var(--tc-ink-mute)] uppercase tracking-widest mt-2">
-              Nº Orden
-            </p>
+            <div
+              className="text-center font-bold uppercase"
+              style={{
+                fontSize: 10,
+                letterSpacing: 0.5,
+                marginTop: 4,
+                color: "var(--tc-primary)",
+              }}
+            >
+              {m.cursoEscolar ?? "—"}
+            </div>
           </div>
 
           <div className="flex-1 min-w-0 pt-1">
-            {/* Eyebrow — estado */}
+            {/* Eyebrow */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span
+                className="text-[10.5px] font-bold uppercase tracking-widest"
+                style={{ color: "var(--tc-ink-mute)" }}
+              >
+                Matrícula Nº {m.nOrden ?? "—"}
+              </span>
               {m.anulacion && (
                 <span
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
@@ -332,6 +348,11 @@ export default function LocalDetail({
                   Pendiente de subir
                 </span>
               )}
+              {m.repetidor && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">
+                  REPETIDOR
+                </span>
+              )}
             </div>
 
             {/* Nombre editable */}
@@ -341,29 +362,192 @@ export default function LocalDetail({
                 onChange={(e) => setField("nombre", e.target.value)}
                 onBlur={() => saveForm()}
                 placeholder="Nombre"
-                className="font-display min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none"
-                style={{ fontSize: 24, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
+                className="font-display min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none leading-tight truncate"
+                style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
               />
               <input
                 value={form.apellidos}
                 onChange={(e) => setField("apellidos", e.target.value)}
                 onBlur={() => saveForm()}
                 placeholder="Apellidos"
-                className="font-display flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none"
-                style={{ fontSize: 24, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
+                className="font-display flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none leading-tight truncate"
+                style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
               />
             </div>
 
             {/* Meta */}
-            <p className="text-sm" style={{ color: "var(--tc-ink-soft)" }}>
-              {[m.ensenanzaCurso, m.especialidad].filter(Boolean).join(" · ")}
-            </p>
+            <div className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--tc-ink-soft)" }}>
+              <span className="font-bold uppercase tracking-wide text-[10.5px]">Curso</span>
+              <span
+                className="px-2 py-0.5 rounded font-bold text-xs"
+                style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)" }}
+              >
+                {m.ensenanzaCurso ?? "—"}
+              </span>
+              <span style={{ color: "var(--tc-border)" }}>|</span>
+              <span className="font-bold uppercase tracking-wide text-[10.5px]">Esp.</span>
+              <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{m.especialidad ?? "—"}</span>
+            </div>
+          </div>
+
+          {/* Acciones rápidas: menú + borrar */}
+          <div className="shrink-0 flex items-start gap-2 pt-1">
+            {/* Menú tres puntos */}
+            <div
+              className="relative"
+              onMouseEnter={() => setMenuOpen(true)}
+              onMouseLeave={() => setMenuOpen(false)}
+            >
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="p-2 rounded-lg transition-colors"
+                style={{
+                  border: "1px solid var(--tc-border)",
+                  color: "var(--tc-ink-soft)",
+                  background: "var(--tc-card)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)";
+                }}
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 top-full w-52" style={{ zIndex: 50 }}>
+                  <div className="h-1" />
+                  <div
+                    className="rounded-xl border overflow-hidden"
+                    style={{
+                      background: "var(--tc-card)",
+                      borderColor: "var(--tc-border)",
+                      boxShadow: "0 10px 30px -8px rgba(45,36,29,0.18)",
+                    }}
+                  >
+                    {m.ampliacion && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onGenerarPdf();
+                          setMenuOpen(false);
+                        }}
+                        disabled={isSaving}
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-ink)" }}
+                      >
+                        <FileText className="w-4 h-4 shrink-0" />
+                        {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
+                      </button>
+                    )}
+                    {m.ampliacion && m._pdfBase64 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPdfPreview(true);
+                          setMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-ink)" }}
+                      >
+                        <Download className="w-4 h-4 shrink-0" />
+                        Descargar PDF
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSubirNube();
+                        setMenuOpen(false);
+                      }}
+                      disabled={isSaving || !m._pendienteSubida}
+                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 hover:bg-[var(--tc-bg-panel)]"
+                      style={{ color: "var(--tc-ink)" }}
+                    >
+                      <Cloud className="w-4 h-4 shrink-0" />
+                      Subir a la Nube
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Borrar */}
+            {confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600 font-medium">¿Borrar definitivamente?</span>
+                <button
+                  type="button"
+                  onClick={onBorrar}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Sí, borrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={isSaving}
+                  className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
+                  style={{ color: "var(--tc-ink-soft)" }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={isSaving}
+                title="Borrar matrícula del almacén local"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-40"
+                style={{
+                  borderColor: "var(--tc-border)",
+                  color: "var(--tc-ink-soft)",
+                  background: "var(--tc-card)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-danger-border)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-soft)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-border)";
+                }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Borrar
+              </button>
+            )}
           </div>
         </div>
 
         <div className="p-6 space-y-2">
+          <div className="flex justify-end mb-1">
+            <button
+              type="button"
+              onClick={() => setAllOpen((v) => !v)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors"
+              style={{
+                color: "var(--tc-ink-soft)",
+                background: "var(--tc-bg-panel)",
+                border: "1px solid var(--tc-border-soft)",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+            >
+              {allOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {allOpen ? "Contraer todo" : "Expandir todo"}
+            </button>
+          </div>
           {/* Datos Personales */}
-          <AccordionBlock title="Datos Personales">
+          <AccordionBlock title="Datos Personales" forceOpen={allOpen}>
             <div className="grid grid-cols-2 gap-x-8 gap-y-3">
               <EditField
                 label="D.N.I. / N.I.E."
@@ -420,7 +604,7 @@ export default function LocalDetail({
           </AccordionBlock>
 
           {/* Datos de Matrícula */}
-          <AccordionBlock title="Datos de Matrícula">
+          <AccordionBlock title="Datos de Matrícula" forceOpen={allOpen}>
             <div className="grid grid-cols-2 gap-x-8 gap-y-3">
               <EditField
                 label="Enseñanza y Curso"
@@ -500,7 +684,7 @@ export default function LocalDetail({
           </AccordionBlock>
 
           {/* Asignaturas */}
-          <AccordionBlock title={`Asignaturas (${listaVisible.length})`}>
+          <AccordionBlock title={`Asignaturas (${listaVisible.length})`} forceOpen={allOpen}>
             <div className="space-y-3">
               {listaVisible.length === 0 && !showAdd && (
                 <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Sin asignaturas</p>
@@ -636,7 +820,7 @@ export default function LocalDetail({
           </AccordionBlock>
 
           {/* Forma de Pago */}
-          <AccordionBlock title="Forma de Pago">
+          <AccordionBlock title="Forma de Pago" forceOpen={allOpen}>
             <div className="grid grid-cols-2 gap-x-8 gap-y-3">
               <SelectField
                 label="Modalidad"
@@ -656,7 +840,7 @@ export default function LocalDetail({
           </AccordionBlock>
 
           {/* Observaciones */}
-          <AccordionBlock title="Observaciones" defaultOpen={false}>
+          <AccordionBlock title="Observaciones" defaultOpen={false} forceOpen={allOpen}>
             <textarea
               value={form.docFaltante}
               onChange={(e) => setField("docFaltante", e.target.value)}
@@ -673,7 +857,7 @@ export default function LocalDetail({
           </AccordionBlock>
 
           {/* Gestión Local */}
-          <AccordionBlock title="Gestión Local" defaultOpen={false}>
+          <AccordionBlock title="Gestión Local" defaultOpen={false} forceOpen={allOpen}>
             <div className="space-y-4">
               {m.ampliacion && (
                 <div className="flex items-center justify-between">
@@ -858,18 +1042,21 @@ export default function LocalDetail({
 function AccordionBlock({
   title,
   defaultOpen = true,
+  forceOpen,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
+  forceOpen?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = forceOpen !== undefined ? forceOpen : internalOpen;
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--tc-border)" }}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setInternalOpen(!internalOpen)}
         className="w-full flex items-center justify-between px-4 py-3 transition-colors text-left"
         style={{ background: open ? "var(--tc-bg-panel)" : "var(--tc-bg-panel)" }}
         onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg)")}

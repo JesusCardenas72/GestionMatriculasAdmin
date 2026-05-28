@@ -63,6 +63,7 @@ interface Props {
   onSave: (cfg: AppConfig) => Promise<void>;
   onClear?: () => Promise<void>;
   onCancel?: () => void;
+  asModal?: boolean;
 }
 
 export default function ConfigScreen({
@@ -70,6 +71,7 @@ export default function ConfigScreen({
   onSave,
   onClear,
   onCancel,
+  asModal,
 }: Props) {
   const {
     register,
@@ -141,13 +143,12 @@ export default function ConfigScreen({
     }
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: "var(--tc-bg)" }}>
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="max-w-2xl w-full p-8 rounded-xl shadow"
-        style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)" }}
-      >
+  const form = (
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="max-w-2xl w-full p-8 rounded-xl shadow"
+      style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)" }}
+    >
         <div className="flex items-center gap-3">
           <GraduationCap className="w-10 h-10" style={{ color: "var(--tc-primary)" }} />
           <div>
@@ -493,6 +494,13 @@ export default function ConfigScreen({
           </div>
         )}
       </form>
+  );
+
+  if (asModal) return form;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: "var(--tc-bg)" }}>
+      {form}
     </div>
   );
 }

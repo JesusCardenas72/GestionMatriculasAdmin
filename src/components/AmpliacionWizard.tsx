@@ -173,6 +173,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       disponibilidadManana: m.disponibilidadManana,
       horaSalida: m.horaSalida,
       docFaltante: null,
+      repetidor: m.repetidor,
       asignaturas: asignaturasSeleccionadas.map(
         (a): AsignaturaLocal => ({
           localId: crypto.randomUUID(),

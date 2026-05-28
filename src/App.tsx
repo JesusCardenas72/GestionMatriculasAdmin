@@ -8,7 +8,6 @@ export default function App() {
   const { state, save, clear } = useConfig();
   const [editing, setEditing] = useState(false);
 
-  // Aplica el tema guardado tan pronto como la app carga
   useEffect(() => {
     const saved = localStorage.getItem('theme') ?? 'light';
     document.documentElement.setAttribute('data-theme', saved);
@@ -36,24 +35,41 @@ export default function App() {
     );
   }
 
-  if (state.status === "missing" || editing) {
+  if (state.status === "missing") {
     return (
       <ConfigScreen
-        initial={state.status === "ready" ? state.config : null}
+        initial={null}
         onSave={async (cfg) => {
           await save(cfg);
-          setEditing(false);
         }}
-        onClear={async () => {
-          await clear();
-          setEditing(false);
-        }}
-        onCancel={state.status === "ready" ? () => setEditing(false) : undefined}
       />
     );
   }
 
   return (
-    <MainScreen config={state.config} onEditConfig={() => setEditing(true)} />
+    <>
+      <MainScreen config={state.config} onEditConfig={() => setEditing(true)} />
+      {editing && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto flex items-start justify-center p-6"
+          style={{ backdropFilter: "blur(6px)", background: "rgba(0,0,0,0.35)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditing(false); }}
+        >
+          <ConfigScreen
+            asModal
+            initial={state.config}
+            onSave={async (cfg) => {
+              await save(cfg);
+              setEditing(false);
+            }}
+            onClear={async () => {
+              await clear();
+              setEditing(false);
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
+      )}
+    </>
   );
 }

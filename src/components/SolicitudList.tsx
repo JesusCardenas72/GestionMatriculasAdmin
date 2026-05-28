@@ -40,6 +40,7 @@ export default function SolicitudList({
   const [filterEnsenanza, setFilterEnsenanza] = useState("");
   const [filterEspecialidad, setFilterEspecialidad] = useState("");
   const [sort, setSort] = useState<SortState>({ field: null, dir: "desc" });
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const { ensenanzas, especialidades } = useMemo(() => {
     const base = data ?? [];
@@ -213,7 +214,7 @@ export default function SolicitudList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" style={{ overflowX: "clip", overflowClipMargin: 20 }}>
         {isLoading && (
           <div className="p-6 flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando solicitudes...
@@ -242,80 +243,84 @@ export default function SolicitudList({
         <ul className="px-2 pb-2">
           {filtered.map((s) => {
             const isSelected = s.rowId === selectedId;
+            const isHovered = hoveredId === s.rowId;
+            const active = isSelected || isHovered;
             return (
-              <li key={s.rowId} className="mb-0.5">
+              <li
+                key={s.rowId}
+                className="mb-px relative"
+                style={{ zIndex: active ? 2 : 0 }}
+                onMouseEnter={() => setHoveredId(s.rowId)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
                 <button
                   onClick={() => onSelect(s)}
-                  className="w-full text-left cursor-pointer flex items-center gap-3.5 border-none"
+                  className="w-full text-left cursor-pointer border-none"
                   style={{
-                    padding: "14px 16px",
+                    padding: active ? "8px 14px" : "3px 14px",
                     borderRadius: 12,
-                    background: isSelected ? "var(--tc-primary-tint)" : "transparent",
-                    boxShadow: isSelected ? "inset 3px 0 0 var(--tc-primary)" : "none",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    background: isSelected ? "var(--tc-primary-tint)" : isHovered ? "var(--tc-bg-panel)" : "transparent",
+                    boxShadow: isSelected
+                      ? "inset 3px 0 0 var(--tc-primary)"
+                      : isHovered
+                        ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
+                        : "none",
+                    transform: isHovered ? "translateY(-2px)" : "translateY(0)",
+                    transformOrigin: "center center",
+                    transition: "padding 0.25s cubic-bezier(0.33,1,0.68,1), transform 0.25s cubic-bezier(0.33,1,0.68,1), box-shadow 0.25s ease, background 0.2s ease",
                   }}
                 >
-                  {/* Número editorial */}
-                  <div className="shrink-0 flex flex-col items-center" style={{ width: 48 }}>
-                    <div
-                      className="font-display text-center leading-none tabular-nums"
-                      style={{
-                        fontSize: 40,
-                        letterSpacing: -2,
-                        color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
-                        opacity: isSelected ? 1 : 0.5,
-                      }}
-                    >
-                      {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
-                    </div>
-                    <div
-                      className="text-center font-bold uppercase"
-                      style={{
-                        fontSize: 9,
-                        letterSpacing: 0.5,
-                        marginTop: 2,
-                        color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
-                        opacity: isSelected ? 1 : 0.5,
-                      }}
-                    >
-                      {s.cursoEscolar ?? "—"}
+                  {/* Compact strip — visible when collapsed */}
+                  <div style={{ display: "grid", gridTemplateRows: active ? "0fr" : "1fr", transition: "grid-template-rows 0.25s cubic-bezier(0.33,1,0.68,1)" }}>
+                    <div style={{ minHeight: 0, overflow: "hidden" }}>
+                      <div className="flex items-center gap-1.5 min-w-0" style={{ height: 22 }}>
+                        <span className="shrink-0 tabular-nums font-bold" style={{ fontSize: 11, letterSpacing: -0.5, minWidth: 18, color: "var(--tc-ink-mute)" }}>
+                          {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
+                        </span>
+                        <span className="flex-1 min-w-0 truncate" style={{ fontSize: 12, fontWeight: 600, color: "var(--tc-ink)" }}>
+                          {s.nombre} {s.apellidos}
+                        </span>
+                        {s.repetidor && (
+                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-red-100 text-red-600">REP</span>
+                        )}
+                        {s.ensenanzaCurso && (
+                          <span className="shrink-0 text-[10px]" style={{ color: "var(--tc-ink-mute)" }}>
+                            {s.ensenanzaCurso}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="text-[13px] truncate mb-1"
-                      style={{
-                        fontWeight: 700,
-                        letterSpacing: -0.1,
-                        color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink)",
-                      }}
-                    >
-                      {s.nombre} {s.apellidos}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="rounded-md font-bold"
-                        style={{
-                          padding: "2px 8px",
-                          fontSize: 11,
-                          background: "var(--tc-card)",
-                          color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)",
-                          letterSpacing: 0.2,
-                        }}
-                      >
-                        {s.ensenanzaCurso ?? ""}
-                      </span>
-                      {s.especialidad && (
-                        <span className="text-xs truncate" style={{ color: "var(--tc-ink-mute)" }}>
-                          {s.especialidad}
-                        </span>
-                      )}
+                  {/* Full content — visible when expanded */}
+                  <div style={{ display: "grid", gridTemplateRows: active ? "1fr" : "0fr", transition: "grid-template-rows 0.25s cubic-bezier(0.33,1,0.68,1)" }}>
+                    <div style={{ minHeight: 0, overflow: "hidden" }}>
+                      <div className="flex items-center gap-3.5">
+                        <div className="shrink-0 flex flex-col items-center" style={{ width: 48 }}>
+                          <div className="font-display text-center leading-none tabular-nums" style={{ fontSize: 40, letterSpacing: -2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
+                            {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
+                          </div>
+                          <div className="text-center font-bold uppercase" style={{ fontSize: 9, letterSpacing: 0.5, marginTop: 2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
+                            {s.cursoEscolar ?? "—"}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] truncate mb-1" style={{ fontWeight: 700, letterSpacing: -0.1, color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink)" }}>
+                            {s.nombre} {s.apellidos}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="rounded-md font-bold" style={{ padding: "2px 8px", fontSize: 11, background: "var(--tc-card)", color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)", letterSpacing: 0.2 }}>
+                              {s.ensenanzaCurso ?? ""}
+                            </span>
+                            {s.especialidad && (
+                              <span className="text-xs truncate" style={{ color: "var(--tc-ink-mute)" }}>{s.especialidad}</span>
+                            )}
+                            {s.repetidor && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REPETIDOR</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </button>

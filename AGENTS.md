@@ -42,7 +42,7 @@
 - Backend is **Power Automate HTTP flows** (no Azure / Entra ID access).
 - Every request must include header `x-api-key`. The API key is entered once in the app config screen and stored encrypted.
 - Dataverse table logical name: `cpmmr_matricula`.
-- **Field prefix trap:** the “observaciones / doc faltante” field is `cr955_docfaltante` in Dataverse, **not** `cpmmr_docfaltante`. The estado field is `cpmmr_estado`.
+- **Field prefix trap:** the "observaciones / doc faltante" field is `cr955_docfaltante` in Dataverse, **not** `cpmmr_docfaltante`. The estado field is `cpmmr_estado`.
 - Estado option values: `856530000` (Pendiente de tramitación), `856530001` (Pendiente de validación), `856530002` (Tramitado).
 - **Multi-curso flows:** `AdminListarSolicitudes` accepts an optional `cursoEscolar` filter. A new optional flow `AdminBorrarCurso` (configured via `urlBorrarCurso`) deletes all Dataverse rows for a given `cursoEscolar` during year-end rollover.
 
@@ -51,8 +51,14 @@
 - `electron-builder.json` — NSIS installer config; output dir is `release/`.
 - `vitest.config.ts` — test environment `jsdom`, globals enabled, setup file `src/test/setup.ts`.
 
+## UI architecture
+- Two-column resizable layout (`src/components/ResizableColumns.tsx`) wraps `react-resizable-panels` v4. Used by `MainScreen.tsx` (estado tabs, default 320px left) and `LocalScreen.tsx` (default 380px left). Layout persists in `localStorage`.
+- `AccordionBlock` and `AsignaturaGroup` in `SolicitudDetail.tsx` / `LocalDetail.tsx` accept a `forceOpen` prop for the "Contraer/Expandir todo" toggle.
+- List cards use `scale(1.04)` + elevated `z-index` on hover for an expand-over-neighbors effect. `LocalList.tsx` `StackedCardRow` swaps card z-order based on which card is selected.
+
 ## Gotchas
 - Do not add `nodeIntegration: true` or disable `contextIsolation`. The app relies on `contextIsolation` + preload bridge.
 - `vite-plugin-electron` handles HMR for the main process in dev; restarting the dev server is usually enough.
 - Tailwind CSS v4 is used via `@tailwindcss/vite`; there is no `tailwind.config.js`.
 - The app shows a config screen on first run (or when config is missing). Without valid flow URLs + API key, no backend calls can succeed.
+- **`react-resizable-panels` v4 API** (not v2): exports are `Group`, `Panel`, `Separator` (not `PanelGroup`/`PanelResizeHandle`). Sizes accept strings like `"320px"`, `"1fr"`, `"50%"`. Use `useGroupRef()` + `setLayout()` or `usePanelRef()` + `resize()` for imperative control. Use `useDefaultLayout({ id, storage })` for persistence. Layout type is `{ [panelId]: number }` — only numeric values, not strings.

@@ -9,6 +9,7 @@ import { useCursoContext } from "../contexts/CursoContextProvider";
 import TabBar, { type ActiveTab } from "../components/TabBar";
 import SolicitudList from "../components/SolicitudList";
 import SolicitudDetail from "../components/SolicitudDetail";
+import ResizableColumns from "../components/ResizableColumns";
 import CursoSwitcherModal from "../components/CursoSwitcherModal";
 import LocalScreen from "./LocalScreen";
 import InformesScreen from "./InformesScreen";
@@ -111,32 +112,39 @@ export default function MainScreen({ config, onEditConfig }: Props) {
       ) : active === "informes" ? (
         <InformesScreen config={config} />
       ) : (
-        <div className="flex-1 grid grid-cols-[320px_1fr] overflow-hidden p-6 gap-4">
-          <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
-            <SolicitudList
-              data={current!.data?.solicitudes}
-              isLoading={current!.isLoading}
-              isFetching={current!.isFetching}
-              error={current!.error as Error | null}
-              selectedId={selected?.rowId ?? null}
-              onSelect={setSelected}
-              onRefresh={() => qc.invalidateQueries({ queryKey: ["solicitudes", active] })}
-            />
-          </div>
-          <div className={selected && !isTramitado ? "overflow-hidden" : "overflow-y-auto p-6"}>
-            {selected ? (
-              <SolicitudDetail
-                config={config}
-                solicitud={selected}
-                onDone={() => setSelected(null)}
+        <ResizableColumns
+          id="solicitudes"
+          defaultLeftSize="320px"
+          className="flex-1 overflow-hidden p-6"
+          left={
+            <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
+              <SolicitudList
+                data={current!.data?.solicitudes}
+                isLoading={current!.isLoading}
+                isFetching={current!.isFetching}
+                error={current!.error as Error | null}
+                selectedId={selected?.rowId ?? null}
+                onSelect={setSelected}
+                onRefresh={() => qc.invalidateQueries({ queryKey: ["solicitudes", active] })}
               />
-            ) : (
-              <div className="h-full flex items-center justify-center text-[var(--tc-ink-mute)] text-sm">
-                Selecciona una solicitud del listado
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
+          }
+          right={
+            <div className={selected && !isTramitado ? "h-full overflow-hidden" : "h-full overflow-y-auto p-6"}>
+              {selected ? (
+                <SolicitudDetail
+                  config={config}
+                  solicitud={selected}
+                  onDone={() => setSelected(null)}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-[var(--tc-ink-mute)] text-sm">
+                  Selecciona una solicitud del listado
+                </div>
+              )}
+            </div>
+          }
+        />
       )}
 
       <CursoSwitcherModal

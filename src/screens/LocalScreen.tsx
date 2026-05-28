@@ -14,6 +14,7 @@ import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import LocalList from "../components/LocalList";
 import LocalDetail from "../components/LocalDetail";
+import ResizableColumns from "../components/ResizableColumns";
 import AmpliacionWizard from "../components/AmpliacionWizard";
 import { buildHtmlMatricula } from "../utils/pdfMatricula";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
@@ -56,6 +57,7 @@ function solicitudALocal(
     disponibilidadManana: s.disponibilidadManana,
     horaSalida: s.horaSalida,
     docFaltante: s.docFaltante,
+    repetidor: s.repetidor,
     asignaturas: asignaturas.map((a) => ({
       localId: crypto.randomUUID(),
       rowId: a.rowId,
@@ -277,6 +279,7 @@ export default function LocalScreen({ config }: Props) {
           autorizacionImagen: selected.autorizacionImagen,
           disponibilidadManana: selected.disponibilidadManana,
           horaSalida: selected.horaSalida,
+          repetidor: selected.repetidor,
           asignaturasActualizadas: selected.asignaturas
             .filter((a) => a.rowId !== null)
             .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
@@ -304,6 +307,7 @@ export default function LocalScreen({ config }: Props) {
           autorizacionImagen: selected.autorizacionImagen,
           disponibilidadManana: selected.disponibilidadManana,
           horaSalida: selected.horaSalida,
+          repetidor: selected.repetidor,
           cursoEscolar: selected.cursoEscolar ?? calcularCursoEscolar(new Date().toISOString()) ?? "",
           asignaturas: selected.asignaturas.map((a) => ({
             codigo: a.codigo,
@@ -350,6 +354,7 @@ export default function LocalScreen({ config }: Props) {
             autorizacionImagen: m.autorizacionImagen,
             disponibilidadManana: m.disponibilidadManana,
             horaSalida: m.horaSalida,
+            repetidor: m.repetidor,
             asignaturasActualizadas: m.asignaturas
               .filter((a) => a.rowId !== null)
               .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
@@ -377,6 +382,7 @@ export default function LocalScreen({ config }: Props) {
             autorizacionImagen: m.autorizacionImagen,
             disponibilidadManana: m.disponibilidadManana,
             horaSalida: m.horaSalida,
+            repetidor: m.repetidor,
             cursoEscolar: m.cursoEscolar ?? calcularCursoEscolar(new Date().toISOString()) ?? "",
             asignaturas: m.asignaturas.map((a) => ({
               codigo: a.codigo,
@@ -409,85 +415,94 @@ export default function LocalScreen({ config }: Props) {
     : false;
 
   return (
-    <div className="flex-1 grid grid-cols-[380px_1fr] overflow-hidden px-6 py-5 gap-4">
-      <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
-        <LocalList
-          data={matriculas}
-          isLoading={isLoading || isFetching}
-          isSyncing={isSyncing}
-          selectedId={selected?.localId ?? null}
-          onSelect={setSelected}
-          onRefresh={() => {
-            void refetch();
-            void tramitadasQuery.refetch();
-          }}
-        />
-        {pendingUploads > 0 && (
-          <div className="p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
-            <button
-              onClick={() => void handleSubirNubeTodo()}
-              disabled={isSubiendoTodo || isSaving}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm"
-            >
-              {isSubiendoTodo ? (
-                <>
-                  <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  Subiendo…
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
-                  </svg>
-                  Subir todo a la nube ({pendingUploads})
-                </>
-              )}
-            </button>
-            {subirTodoError && (
-              <p className="text-xs text-red-500 text-center">{subirTodoError}</p>
+    <>
+      <ResizableColumns
+        id="local"
+        defaultLeftSize="380px"
+        className="flex-1 overflow-hidden px-6 py-5"
+        left={
+          <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
+            <LocalList
+              data={matriculas}
+              isLoading={isLoading || isFetching}
+              isSyncing={isSyncing}
+              selectedId={selected?.localId ?? null}
+              onSelect={setSelected}
+              onRefresh={() => {
+                void refetch();
+                void tramitadasQuery.refetch();
+              }}
+            />
+            {pendingUploads > 0 && (
+              <div className="p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
+                <button
+                  onClick={() => void handleSubirNubeTodo()}
+                  disabled={isSubiendoTodo || isSaving}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm"
+                >
+                  {isSubiendoTodo ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Subiendo…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
+                      </svg>
+                      Subir todo a la nube ({pendingUploads})
+                    </>
+                  )}
+                </button>
+                {subirTodoError && (
+                  <p className="text-xs text-red-500 text-center">{subirTodoError}</p>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
-      <div className="overflow-y-auto pb-6 px-4">
-        {selected ? (
-          <LocalDetail
-            matricula={selected}
-            isSaving={isSaving}
-            subirError={subirError}
-            yaTieneAmpliacion={yaTieneAmpliacion}
-            onSave={(changes) => void handleSaveEdit(changes)}
-            onAmpliacion={() => {
-              if (yaTieneAmpliacion) return;
-              setShowAmpliacion(true);
-            }}
-            onSubirNube={() => void handleSubirNube()}
-            onGenerarPdf={() => void handleGenerarPdf()}
-            onBorrar={() => void handleBorrar()}
-          />
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-[var(--tc-primary-tint)] border border-[var(--tc-primary-border)] flex items-center justify-center mb-1">
-              <svg className="w-6 h-6 text-[var(--tc-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M3 9h18M9 21V9" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium text-[var(--tc-ink-soft)]">Selecciona una matrícula</p>
-            {pendingUploads > 0 ? (
-              <p className="text-xs text-[var(--tc-warn-ink)] font-medium">
-                {pendingUploads} matrícula{pendingUploads > 1 ? "s" : ""} pendiente{pendingUploads > 1 ? "s" : ""} de subir
-              </p>
+        }
+        right={
+          <div className="h-full overflow-y-auto pb-6 px-4">
+            {selected ? (
+              <LocalDetail
+                matricula={selected}
+                isSaving={isSaving}
+                subirError={subirError}
+                yaTieneAmpliacion={yaTieneAmpliacion}
+                onSave={(changes) => void handleSaveEdit(changes)}
+                onAmpliacion={() => {
+                  if (yaTieneAmpliacion) return;
+                  setShowAmpliacion(true);
+                }}
+                onSubirNube={() => void handleSubirNube()}
+                onGenerarPdf={() => void handleGenerarPdf()}
+                onBorrar={() => void handleBorrar()}
+              />
             ) : (
-              <p className="text-xs text-[var(--tc-ink-mute)]">Elige un registro del listado para ver sus detalles</p>
+              <div className="h-full flex flex-col items-center justify-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-[var(--tc-primary-tint)] border border-[var(--tc-primary-border)] flex items-center justify-center mb-1">
+                  <svg className="w-6 h-6 text-[var(--tc-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M3 9h18M9 21V9" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-[var(--tc-ink-soft)]">Selecciona una matrícula</p>
+                {pendingUploads > 0 ? (
+                  <p className="text-xs text-[var(--tc-warn-ink)] font-medium">
+                    {pendingUploads} matrícula{pendingUploads > 1 ? "s" : ""} pendiente{pendingUploads > 1 ? "s" : ""} de subir
+                  </p>
+                ) : (
+                  <p className="text-xs text-[var(--tc-ink-mute)]">Elige un registro del listado para ver sus detalles</p>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        }
+      />
       {showAmpliacion && selected && (
         <AmpliacionWizard
           matricula={selected}
@@ -496,6 +511,6 @@ export default function LocalScreen({ config }: Props) {
           onCrear={(nueva, emailHtml, pdfProps) => void handleCrearAmpliacion(nueva, emailHtml, pdfProps)}
         />
       )}
-    </div>
+    </>
   );
 }

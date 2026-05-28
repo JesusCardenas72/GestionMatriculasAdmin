@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   Loader2,
   Plus,
   Trash2,
@@ -129,6 +130,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
   const [docFaltante, setDocFaltante] = useState(solicitud.docFaltante ?? "");
   const [pending, setPending] = useState<PendingAction>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [allOpen, setAllOpen] = useState(true);
 
   const [asigItems, setAsigItems] = useState<AsignaturaLocal[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -370,6 +372,11 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
             Solicitud Nº {solicitud.nOrden ?? "—"}
           </span>
           <EstadoBadge estado={solicitud.estado} />
+          {solicitud.repetidor && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">
+              REPETIDOR
+            </span>
+          )}
         </div>
 
         {/* Nombre */}
@@ -425,7 +432,25 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
           {DetailHeader}
 
           <div className="p-6 space-y-2">
-            <AccordionBlock title="Datos Personales">
+            <div className="flex justify-end mb-1">
+              <button
+                type="button"
+                onClick={() => setAllOpen((v) => !v)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors"
+                style={{
+                  color: "var(--tc-ink-soft)",
+                  background: "var(--tc-bg-panel)",
+                  border: "1px solid var(--tc-border-soft)",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+              >
+                {allOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                {allOpen ? "Contraer todo" : "Expandir todo"}
+              </button>
+            </div>
+
+            <AccordionBlock title="Datos Personales" forceOpen={allOpen}>
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <DataField label="Nombre y apellidos" value={`${solicitud.nombre} ${solicitud.apellidos}`} />
                 <DataField label="D.N.I. / N.I.E." value={solicitud.dni} />
@@ -441,7 +466,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
               </div>
             </AccordionBlock>
 
-            <AccordionBlock title="Datos de Matrícula">
+            <AccordionBlock title="Datos de Matrícula" forceOpen={allOpen}>
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <DataField label="Tipo de enseñanza" value={ensenanza} />
                 <DataField label="Curso" value={cursoActual ? `${cursoActual}º` : null} />
@@ -452,7 +477,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
               </div>
             </AccordionBlock>
 
-            <AccordionBlock title="Asignaturas">
+            <AccordionBlock title="Asignaturas" forceOpen={allOpen}>
               {asignaturasQuery.isLoading && (
                 <div className="flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
                   <Loader2 className="w-4 h-4 animate-spin" /> Cargando asignaturas...
@@ -460,19 +485,19 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
               )}
               <div className="space-y-4">
                 {gruposAsig.map(({ estado, items }) => (
-                  <AsignaturaGroup key={estado} estado={estado} items={items} readOnly />
+                  <AsignaturaGroup key={estado} estado={estado} items={items} readOnly forceOpen={allOpen} />
                 ))}
               </div>
             </AccordionBlock>
 
-            <AccordionBlock title="Forma de Pago">
+            <AccordionBlock title="Forma de Pago" forceOpen={allOpen}>
               <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <DataField label="Modalidad" value={solicitud.formaPago} />
                 <DataField label="Reducción de tasas" value={solicitud.reduccionTasas} />
               </div>
             </AccordionBlock>
 
-            <AccordionBlock title="Solicitud en PDF" defaultOpen={false}>
+            <AccordionBlock title="Solicitud en PDF" defaultOpen={false} forceOpen={allOpen}>
               {pdfQuery.isLoading && (
                 <div className="flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
                   <Loader2 className="w-4 h-4 animate-spin" /> Descargando PDF...
@@ -524,21 +549,38 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
       {DetailHeader}
 
       {/* Cuerpo: dos columnas */}
-      <div className="flex-1 min-h-0 flex gap-5 p-6 overflow-hidden">
+      <div className="flex-1 min-h-0 flex gap-5 p-6 overflow-hidden items-start">
 
         {/* Columna izquierda: asignaturas + notas */}
-        <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0" style={{ minWidth: 0 }}>
+        <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0 h-full" style={{ minWidth: 0 }}>
 
           {/* Título sección asignaturas */}
           <div className="flex items-center justify-between">
             <h3 className="font-display text-[17px] font-normal" style={{ color: "var(--tc-ink)", letterSpacing: -0.3 }}>
               Asignaturas matriculadas
             </h3>
-            {asigSaved && (
-              <span className="text-xs flex items-center gap-1" style={{ color: "var(--tc-primary)" }}>
-                <CheckCircle2 className="w-3 h-3" /> Guardado
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {asigSaved && (
+                <span className="text-xs flex items-center gap-1" style={{ color: "var(--tc-primary)" }}>
+                  <CheckCircle2 className="w-3 h-3" /> Guardado
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setAllOpen((v) => !v)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors"
+                style={{
+                  color: "var(--tc-ink-soft)",
+                  background: "var(--tc-bg-panel)",
+                  border: "1px solid var(--tc-border-soft)",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+              >
+                {allOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                {allOpen ? "Contraer todo" : "Expandir todo"}
+              </button>
+            </div>
           </div>
 
           {asignaturasQuery.isLoading && (
@@ -561,6 +603,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
                 key={estado}
                 estado={estado}
                 items={items}
+                forceOpen={allOpen}
                 onCambiarEstado={cambiarEstadoAsig}
                 onEliminar={eliminarAsig}
               />
@@ -691,7 +734,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
         </div>
 
         {/* Columna derecha: PDF */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden min-h-0">
+        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-hidden h-full">
           <div className="flex items-center gap-2 pb-1 shrink-0">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tc-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
@@ -828,16 +871,19 @@ function AsignaturaGroup({
   estado,
   items,
   readOnly = false,
+  forceOpen,
   onCambiarEstado,
   onEliminar,
 }: {
   estado: EstadoAsignatura;
   items: AsignaturaMatriculada[];
   readOnly?: boolean;
+  forceOpen?: boolean;
   onCambiarEstado?: (rowId: string, nuevoEstado: EstadoAsignatura) => void;
   onEliminar?: (rowId: string) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [internalOpen, setInternalOpen] = useState(true);
+  const open = forceOpen !== undefined ? forceOpen : internalOpen;
   const colors = ASIG_COLORS[estado];
   const ink = ESTADO_INK[estado];
   const icon = ESTADO_ICON[estado];
@@ -847,7 +893,7 @@ function AsignaturaGroup({
       {/* Section header */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setInternalOpen((v) => !v)}
         className="flex items-center gap-2 w-full mb-2 group"
       >
         {icon}
@@ -959,18 +1005,21 @@ function EstadoBadge({ estado }: { estado: Solicitud["estado"] }) {
 function AccordionBlock({
   title,
   defaultOpen = true,
+  forceOpen,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
+  forceOpen?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = forceOpen !== undefined ? forceOpen : internalOpen;
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--tc-border)" }}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setInternalOpen(!internalOpen)}
         className="w-full flex items-center justify-between px-4 py-3 transition-colors text-left"
         style={{ background: "var(--tc-bg-panel)" }}
         onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg)")}

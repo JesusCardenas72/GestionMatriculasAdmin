@@ -31,6 +31,7 @@ function makeSolicitud(overrides: Partial<Solicitud> = {}): Solicitud {
     horaSalida: null,
     estado: ESTADO.PENDIENTE_TRAMITACION,
     docFaltante: null,
+    repetidor: false,
     ...overrides,
   };
 }

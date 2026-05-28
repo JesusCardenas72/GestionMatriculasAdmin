@@ -57,6 +57,7 @@ const mockSolicitud: Solicitud = {
   horaSalida: null,
   estado: ESTADO.PENDIENTE_TRAMITACION,
   docFaltante: null,
+  repetidor: false,
 };
 
 const mockAsignaturas: AsignaturaMatriculada[] = [

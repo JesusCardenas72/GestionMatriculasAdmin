@@ -70,26 +70,28 @@ function groupPairs(data: MatriculaLocal[]): GroupedItem[] {
 
 function renderCardContent(m: MatriculaLocal, selected: boolean) {
   return (
-    <>
+    <div className="flex items-center gap-3 w-full min-w-0">
+      {/* Número de orden */}
       <div
         className="font-display shrink-0 text-center leading-none tabular-nums"
         style={{
           fontSize: 40,
           letterSpacing: -2,
-          width: 48,
+          width: 44,
           color: selected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
           opacity: selected ? 1 : 0.5,
         }}
       >
-        {m.nOrden != null
-          ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0")
-          : "\u2014"}
+        {m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0") : "—"}
       </div>
+
+      {/* Contenido: máx 2 líneas */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+        {/* Línea 1: nombre + badges + pendiente */}
+        <div className="flex items-center gap-1 min-w-0 mb-0.5">
           <span
             className={
-              "text-[13px] " +
+              "flex-1 min-w-0 truncate text-[13px] " +
               (m.anulacion
                 ? "line-through text-[var(--tc-ink-mute)]"
                 : selected
@@ -101,53 +103,36 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
             {m.nombre} {m.apellidos}
           </span>
           {m.anulacion && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
-              Anulada
-            </span>
+            <span className="shrink-0 px-1.5 py-px rounded-full text-[10px] font-semibold bg-red-100 text-red-600">Anulada</span>
           )}
           {m.ampliacion && (
-            <span
-              className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-              style={{
-                background: "var(--tc-violet-bg)",
-                color: "var(--tc-violet-ink)",
-              }}
-            >
-              Ampliación
+            <span className="shrink-0 px-1.5 py-px rounded-full text-[10px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>
+              Amp.
+            </span>
+          )}
+          {m.repetidor && (
+            <span className="shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REP</span>
+          )}
+          {m._pendienteSubida && (
+            <span title="Pendiente de subir" className="shrink-0 flex items-center gap-0.5 text-[10px] font-medium" style={{ color: "var(--tc-warn-ink)" }}>
+              <Upload className="w-3 h-3" />
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        {/* Línea 2: enseñanza + especialidad */}
+        <div className="flex items-center gap-1.5 min-w-0">
           <span
-            className="rounded-md font-bold"
-            style={{
-              padding: "2px 8px",
-              fontSize: 11,
-              background: "var(--tc-card)",
-              color: selected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)",
-              letterSpacing: 0.2,
-            }}
+            className="shrink-0 rounded-md font-bold"
+            style={{ padding: "2px 8px", fontSize: 11, background: "var(--tc-card)", color: selected ? "var(--tc-primary-dark)" : "var(--tc-ink-soft)", letterSpacing: 0.2 }}
           >
             {m.ensenanzaCurso}
           </span>
           {m.especialidad && (
-            <span className="text-xs text-[var(--tc-ink-mute)] truncate">
-              {m.especialidad}
-            </span>
+            <span className="text-xs text-[var(--tc-ink-mute)] truncate">{m.especialidad}</span>
           )}
         </div>
       </div>
-      {m._pendienteSubida && (
-        <span
-          title="Pendiente de subir a la nube"
-          className="flex items-center gap-0.5 text-[10px] font-medium shrink-0"
-          style={{ color: "var(--tc-warn-ink)" }}
-        >
-          <Upload className="w-3 h-3" />
-          Pendiente
-        </span>
-      )}
-    </>
+    </div>
   );
 }
 
@@ -166,7 +151,9 @@ function StackedCardRow({
 }: StackedCardRowProps) {
   const [hovered, setHovered] = useState(false);
   const ampRef = useRef<HTMLButtonElement>(null);
+  const origRef = useRef<HTMLButtonElement>(null);
   const [ampHeight, setAmpHeight] = useState(72);
+  const [origHeight, setOrigHeight] = useState(72);
   const OFFSET = 10;
   const GAP = 2;
 
@@ -175,12 +162,18 @@ function StackedCardRow({
       const h = ampRef.current.offsetHeight;
       if (h > 0) setAmpHeight(h);
     }
+    if (origRef.current) {
+      const h = origRef.current.offsetHeight;
+      if (h > 0) setOrigHeight(h);
+    }
   }, []);
 
   const ampSelected = ampliacion.localId === selectedId;
   const origSelected = original.localId === selectedId;
-  const collapsedH = ampHeight + OFFSET;
-  const expandedH = ampHeight * 2 + GAP;
+  const anySelected = ampSelected || origSelected;
+  const topH = origSelected ? origHeight : ampHeight;
+  const collapsedH = topH + OFFSET;
+  const expandedH = ampHeight + origHeight + GAP;
 
   return (
     <li
@@ -188,69 +181,107 @@ function StackedCardRow({
       style={{
         height: hovered ? expandedH : collapsedH,
         transition: "height 0.35s cubic-bezier(0.33, 1, 0.68, 1)",
-        overflow: "hidden",
+        overflow: "visible",
+        zIndex: hovered || anySelected ? 10 : 0,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <button
-        ref={ampRef}
-        onClick={() => onSelect(ampliacion)}
-        className={
-          "w-full text-left cursor-pointer flex items-center gap-3.5 border-none " +
-          (ampSelected ? "" : "hover:bg-[var(--tc-bg-panel)]") +
-          (ampliacion.anulacion ? " opacity-50" : "")
-        }
+      <div
         style={{
-          position: "relative",
-          zIndex: 2,
-          padding: "14px 16px",
-          borderRadius: 12,
-          background:
-            hovered && !ampSelected
-              ? "transparent"
-              : ampSelected
+          overflow: "hidden",
+          height: hovered ? expandedH : collapsedH,
+          transition: "height 0.35s cubic-bezier(0.33, 1, 0.68, 1)",
+        }}
+      >
+        {/* Ampliación */}
+        <button
+          ref={ampRef}
+          onClick={() => onSelect(ampliacion)}
+          className={
+            "w-full text-left cursor-pointer border-none " +
+            (ampliacion.anulacion ? " opacity-50" : "")
+          }
+          style={{
+            position: origSelected ? "absolute" : "relative",
+            top: origSelected
+              ? (hovered ? origHeight + GAP : 0)
+              : undefined,
+            left: origSelected ? 0 : undefined,
+            right: origSelected ? 0 : undefined,
+            zIndex: origSelected ? 1 : 2,
+            padding: "8px 14px",
+            borderRadius: 12,
+            background:
+              ampSelected
                 ? "var(--tc-primary-tint)"
-                : "var(--tc-card)",
-          boxShadow: ampSelected
-            ? "inset 3px 0 0 var(--tc-primary)"
-            : "none",
-          transition: "background 0.3s ease",
-        }}
-      >
-        {renderCardContent(ampliacion, ampSelected)}
-      </button>
-      <button
-        onClick={() => onSelect(original)}
-        className={
-          "w-full text-left cursor-pointer flex items-center gap-3.5 border-none " +
-          (origSelected || hovered
-            ? "hover:bg-[var(--tc-bg-panel)]"
-            : "") +
-          (original.anulacion ? " opacity-50" : "")
-        }
-        style={{
-          position: "absolute",
-          top: hovered ? ampHeight + GAP : 0,
-          left: 0,
-          right: 0,
-          zIndex: 1,
-          padding: "14px 16px",
-          borderRadius: 12,
-          background: origSelected
-            ? "var(--tc-primary-tint)"
-            : "transparent",
-          boxShadow: origSelected
-            ? "inset 3px 0 0 var(--tc-primary)"
-            : "none",
-          transform: hovered ? "none" : `translateY(${OFFSET}px)`,
-          opacity: hovered ? 1 : 0.85,
-          transition:
-            "top 0.35s cubic-bezier(0.33, 1, 0.68, 1), transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.35s ease",
-        }}
-      >
-        {renderCardContent(original, origSelected)}
-      </button>
+                : hovered
+                  ? "var(--tc-bg-panel)"
+                  : origSelected
+                    ? "transparent"
+                    : "var(--tc-card)",
+            boxShadow: ampSelected
+              ? "inset 3px 0 0 var(--tc-primary)"
+              : hovered
+                ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
+                : "none",
+            transform: hovered
+              ? "translateY(-2px)"
+              : origSelected
+                ? `translateY(${OFFSET}px)`
+                : "translateY(0)",
+            opacity: origSelected && !hovered ? 0.85 : 1,
+            transition:
+              "top 0.35s cubic-bezier(0.33, 1, 0.68, 1), transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.35s ease, box-shadow 0.25s ease, background 0.2s ease",
+            transformOrigin: "center center",
+          }}
+        >
+          {renderCardContent(ampliacion, ampSelected)}
+        </button>
+
+        {/* Original */}
+        <button
+          ref={origRef}
+          onClick={() => onSelect(original)}
+          className={
+            "w-full text-left cursor-pointer border-none " +
+            (original.anulacion ? " opacity-50" : "")
+          }
+          style={{
+            position: origSelected ? "relative" : "absolute",
+            top: !origSelected
+              ? (hovered ? ampHeight + GAP : 0)
+              : undefined,
+            left: !origSelected ? 0 : undefined,
+            right: !origSelected ? 0 : undefined,
+            zIndex: origSelected ? 2 : 1,
+            padding: "8px 14px",
+            borderRadius: 12,
+            background:
+              origSelected
+                ? "var(--tc-primary-tint)"
+                : hovered
+                  ? "var(--tc-bg-panel)"
+                  : "transparent",
+            boxShadow: origSelected
+              ? "inset 3px 0 0 var(--tc-primary)"
+              : hovered
+                ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
+                : "none",
+            transform: hovered
+              ? "translateY(-2px)"
+              : !origSelected
+                ? `translateY(${OFFSET}px)`
+                : "translateY(0)",
+            opacity: !origSelected && !hovered ? 0.85 : 1,
+            transition:
+              "top 0.35s cubic-bezier(0.33, 1, 0.68, 1), transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.35s ease, box-shadow 0.25s ease, background 0.2s ease",
+            transformOrigin: "center center",
+          }}
+        >
+          {renderCardContent(original, origSelected)}
+        </button>
+      </div>
     </li>
   );
 }
@@ -279,6 +310,7 @@ export default function LocalList({
     field: null,
     dir: "desc",
   });
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const { ensenanzas, especialidades } = useMemo(() => {
     const ensenanzas = [...new Set(data.map((m) => m.ensenanzaCurso).filter(Boolean))].sort();
@@ -457,7 +489,7 @@ export default function LocalList({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" style={{ overflowX: "clip", overflowClipMargin: 20 }}>
         {isLoading && (
           <div className="p-6 flex items-center gap-2 text-[var(--tc-ink-soft)] text-sm">
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando...
@@ -486,25 +518,66 @@ export default function LocalList({
             }
             const m = item.matricula;
             const isSelected = m.localId === selectedId;
+            const isHovered = hoveredId === m.localId;
+            const active = isSelected || isHovered;
             return (
-              <li key={m.localId} className="mb-0.5">
+              <li
+                key={m.localId}
+                className="mb-px relative"
+                style={{ zIndex: active ? 10 : 0 }}
+                onMouseEnter={() => setHoveredId(m.localId)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
                 <button
                   onClick={() => onSelect(m)}
-                  className={
-                    "w-full text-left cursor-pointer flex items-center gap-3.5 border-none " +
-                    (isSelected
-                      ? ""
-                      : "hover:bg-[var(--tc-bg-panel)]") +
-                    (m.anulacion ? " opacity-50" : "")
-                  }
+                  className={"w-full text-left cursor-pointer border-none" + (m.anulacion ? " opacity-50" : "")}
                   style={{
-                    padding: "14px 16px",
+                    padding: active ? "8px 14px" : "3px 14px",
                     borderRadius: 12,
-                    background: isSelected ? "var(--tc-primary-tint)" : "transparent",
-                    boxShadow: isSelected ? "inset 3px 0 0 var(--tc-primary)" : "none",
+                    background: isSelected ? "var(--tc-primary-tint)" : isHovered ? "var(--tc-bg-panel)" : "transparent",
+                    boxShadow: isSelected
+                      ? "inset 3px 0 0 var(--tc-primary)"
+                      : isHovered
+                        ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
+                        : "none",
+                    transform: isHovered ? "translateY(-2px)" : "translateY(0)",
+                    transformOrigin: "center center",
+                    transition: "padding 0.25s cubic-bezier(0.33,1,0.68,1), transform 0.25s cubic-bezier(0.33,1,0.68,1), box-shadow 0.25s ease, background 0.2s ease",
                   }}
                 >
-                  {renderCardContent(m, isSelected)}
+                  {/* Compact strip — visible when collapsed */}
+                  <div style={{ display: "grid", gridTemplateRows: active ? "0fr" : "1fr", transition: "grid-template-rows 0.25s cubic-bezier(0.33,1,0.68,1)" }}>
+                    <div style={{ minHeight: 0, overflow: "hidden" }}>
+                      <div className="flex items-center gap-1.5 min-w-0" style={{ height: 22 }}>
+                        <span className="shrink-0 tabular-nums font-bold" style={{ fontSize: 11, letterSpacing: -0.5, minWidth: 18, color: "var(--tc-ink-mute)" }}>
+                          {m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0") : "—"}
+                        </span>
+                        <span className={"flex-1 min-w-0 truncate text-[12px] font-semibold " + (m.anulacion ? "line-through text-[var(--tc-ink-mute)]" : "text-[var(--tc-ink)]")}>
+                          {m.nombre} {m.apellidos}
+                        </span>
+                        {m.anulacion && (
+                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold bg-red-100 text-red-600">Anul.</span>
+                        )}
+                        {m.ampliacion && (
+                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>Amp.</span>
+                        )}
+                        {m.repetidor && (
+                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-red-100 text-red-600">REP</span>
+                        )}
+                        {m._pendienteSubida && <Upload className="w-3 h-3 shrink-0 text-[var(--tc-warn-ink)]" />}
+                        {m.ensenanzaCurso && (
+                          <span className="shrink-0 text-[10px] text-[var(--tc-ink-mute)]">{m.ensenanzaCurso}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Full content — visible when expanded */}
+                  <div style={{ display: "grid", gridTemplateRows: active ? "1fr" : "0fr", transition: "grid-template-rows 0.25s cubic-bezier(0.33,1,0.68,1)" }}>
+                    <div style={{ minHeight: 0, overflow: "hidden" }}>
+                      {renderCardContent(m, isSelected)}
+                    </div>
+                  </div>
                 </button>
               </li>
             );
