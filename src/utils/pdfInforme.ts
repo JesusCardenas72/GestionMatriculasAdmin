@@ -1,6 +1,6 @@
-import type { Solicitud } from '../api/types';
+import type { FilaInforme } from '../api/types';
 import type { CampoMeta } from '../data/informesConfig';
-import { ESTADO_TRAMITE_LABELS } from '../data/informesConfig';
+import { ESTADO_ASIGNATURA_LABELS, ESTADO_TRAMITE_LABELS } from '../data/informesConfig';
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import type { CampoKey } from '../api/types';
 
@@ -23,12 +23,13 @@ function formatFecha(iso: string | null): string {
   }
 }
 
-function formatValor(s: Solicitud, campo: CampoMeta): string {
-  const val = s[campo.key as keyof Solicitud];
+function formatValor(s: FilaInforme, campo: CampoMeta): string {
+  const val = s[campo.key as keyof FilaInforme];
   if (val === null || val === undefined) return '—';
   if (campo.tipo === 'booleano') return val ? 'Sí' : 'No';
   if (campo.tipo === 'fecha')    return formatFecha(String(val));
   if (campo.tipo === 'estado')   return ESTADO_TRAMITE_LABELS[val as number] ?? String(val);
+  if (campo.tipo === 'estado_asignatura') return ESTADO_ASIGNATURA_LABELS[val as number] ?? String(val);
   return String(val) || '—';
 }
 
@@ -36,7 +37,7 @@ export interface InformeParams {
   nombre: string;
   filtrosDesc: string;
   campos: CampoMeta[];
-  rows: Solicitud[];
+  rows: FilaInforme[];
   orientacion?: 'portrait' | 'landscape';
   zoom?: number;
   agruparPor?: CampoKey | null;
@@ -50,7 +51,7 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacio
 
   const headers = campos.map(c => `<th>${esc(c.label)}</th>`).join('');
 
-  function buildDataRow(s: Solicitud, cls: string): string {
+  function buildDataRow(s: FilaInforme, cls: string): string {
     const cells = campos.map(c => {
       const val = formatValor(s, c);
       let tdCls = '';

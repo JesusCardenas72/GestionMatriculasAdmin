@@ -187,7 +187,17 @@ export interface CrearAmpliacionInput {
 
 // ── Informes ──────────────────────────────────────────────────────────────────
 
-export type CampoKey = keyof Omit<Solicitud, 'rowId' | 'nombreMatricula'>;
+export type CampoKeyAlumno = keyof Omit<Solicitud, 'rowId' | 'nombreMatricula'>;
+export type CampoKeyAsignatura = 'asigNombre' | 'asigCodigo' | 'asigEstado' | 'asigHorario';
+export type CampoKey = CampoKeyAlumno | CampoKeyAsignatura;
+
+/** Fila de informe: alumno + (opcionalmente) campos de la asignatura matriculada en modo asignatura */
+export interface FilaInforme extends Solicitud {
+  asigNombre?: string;
+  asigCodigo?: number | null;
+  asigEstado?: EstadoAsignatura;
+  asigHorario?: string | null;
+}
 
 export type OperadorFiltro =
   | 'igual'
@@ -224,6 +234,8 @@ export interface ConfigInforme {
   filtros: FiltroInforme[];
   orden: OrdenInforme[];
   agruparPor?: CampoKey | null;
+  /** 'alumno' (una fila por alumno, por defecto) o 'asignatura' (una fila por alumno × asignatura) */
+  modo?: 'alumno' | 'asignatura';
 }
 
 // ── Matrículas locales (store JSON) ──────────────────────────────────────────

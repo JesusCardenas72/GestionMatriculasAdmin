@@ -22,9 +22,9 @@ import type { AppConfig } from '../../electron/config-store';
 import type {
   CampoKey,
   ConfigInforme,
+  FilaInforme,
   FiltroInforme,
   MatriculaLocal,
-  Solicitud,
 } from '../api/types';
 import { ESTADO } from '../api/types';
 import { useCursoContext } from '../contexts/CursoContextProvider';
@@ -32,8 +32,11 @@ import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
 import {
   CAMPO_MAP,
   CAMPOS_META,
+  ESTADO_ASIGNATURA_LABELS,
   ESTADO_TRAMITE_LABELS,
   INFORME_VACIO,
+  INFORMES_PREDEFINIDOS,
+  camposDeModo,
   getOperadores,
   type CampoMeta,
 } from '../data/informesConfig';
@@ -52,7 +55,7 @@ interface ColDragState {
 }
 
 const SELECT_DATA_CAMPOS = new Set<CampoKey>(
-  CAMPOS_META.filter(c => c.valorType === 'select_data').map(c => c.key),
+  [...CAMPO_MAP.values()].filter(c => c.valorType === 'select_data').map(c => c.key),
 );
 
 function deepClone<T>(obj: T): T {
@@ -69,20 +72,21 @@ function formatFecha(iso: string | null): string {
   }
 }
 
-function formatCelda(s: Solicitud, campo: CampoMeta): string {
-  const val = s[campo.key as keyof Solicitud];
+function formatCelda(s: FilaInforme, campo: CampoMeta): string {
+  const val = s[campo.key as keyof FilaInforme];
   if (val === null || val === undefined) return '—';
   if (campo.tipo === 'booleano') return val ? 'Sí' : 'No';
   if (campo.tipo === 'fecha')    return formatFecha(String(val));
   if (campo.tipo === 'estado')   return ESTADO_TRAMITE_LABELS[val as number] ?? String(val);
+  if (campo.tipo === 'estado_asignatura') return ESTADO_ASIGNATURA_LABELS[val as number] ?? String(val);
   return String(val) || '—';
 }
 
-function aplicarFiltros(solicitudes: Solicitud[], filtros: FiltroInforme[]): Solicitud[] {
+function aplicarFiltros(solicitudes: FilaInforme[], filtros: FiltroInforme[]): FilaInforme[] {
   if (filtros.length === 0) return solicitudes;
   return solicitudes.filter(s =>
     filtros.every(f => {
-      const val = s[f.campo as keyof Solicitud];
+      const val = s[f.campo as keyof FilaInforme];
       switch (f.operador) {
         case 'igual':    return f.valor === '' || String(val ?? '').toLowerCase() === f.valor.toLowerCase();
         case 'contiene': return f.valor === '' || String(val ?? '').toLowerCase().includes(f.valor.toLowerCase());
@@ -101,12 +105,12 @@ function aplicarFiltros(solicitudes: Solicitud[], filtros: FiltroInforme[]): Sol
   );
 }
 
-function aplicarOrden(solicitudes: Solicitud[], orden: { id: string; campo: CampoKey; direccion: 'asc' | 'desc' }[]): Solicitud[] {
+function aplicarOrden(solicitudes: FilaInforme[], orden: { id: string; campo: CampoKey; direccion: 'asc' | 'desc' }[]): FilaInforme[] {
   if (orden.length === 0) return solicitudes;
   return [...solicitudes].sort((a, b) => {
     for (const o of orden) {
-      const va = String(a[o.campo as keyof Solicitud] ?? '');
-      const vb = String(b[o.campo as keyof Solicitud] ?? '');
+      const va = String(a[o.campo as keyof FilaInforme] ?? '');
+      const vb = String(b[o.campo as keyof FilaInforme] ?? '');
       const cmp = va.localeCompare(vb, 'es', { sensitivity: 'base' });
       if (cmp !== 0) return o.direccion === 'asc' ? cmp : -cmp;
     }
@@ -126,7 +130,7 @@ function describeFiltros(filtros: FiltroInforme[]): string {
     .join('; ');
 }
 
-function localToSolicitud(r: MatriculaLocal): Solicitud {
+function localToSolicitud(r: MatriculaLocal): FilaInforme {
   return {
     rowId: r.localId,
     nOrden: r.nOrden,
@@ -158,25 +162,54 @@ function localToSolicitud(r: MatriculaLocal): Solicitud {
   };
 }
 
+/**
+ * Expande las matrículas a una fila por cada par (alumno × asignatura).
+ * Cada fila conserva todos los campos del alumno y añade los de la asignatura.
+ * Las matrículas sin asignaturas no generan filas en este modo.
+ */
+function expandirPorAsignatura(matriculas: MatriculaLocal[]): FilaInforme[] {
+  const filas: FilaInforme[] = [];
+  for (const m of matriculas) {
+    const base = localToSolicitud(m);
+    for (const a of m.asignaturas) {
+      filas.push({
+        ...base,
+        rowId: `${m.localId}|${a.localId}`,
+        asigNombre: a.nombre,
+        asigCodigo: a.codigo,
+        asigEstado: a.estado,
+        asigHorario: a.horario,
+      });
+    }
+  }
+  return filas;
+}
+
 export default function InformesScreen({ config: _cfg }: Props) {
   const { curso } = useCursoContext();
   const { matriculas, isLoading } = useLocalMatriculas(curso);
-  const allSolicitudes = useMemo(() => matriculas.map(localToSolicitud), [matriculas]);
+
+  const [informe, setInforme] = useState<ConfigInforme>(() => deepClone(INFORME_VACIO));
+
+  const allRows = useMemo(
+    () => informe.modo === 'asignatura'
+      ? expandirPorAsignatura(matriculas)
+      : matriculas.map(localToSolicitud),
+    [matriculas, informe.modo],
+  );
 
   const selectOptions = useMemo((): Map<CampoKey, string[]> => {
     const map = new Map<CampoKey, string[]>();
     for (const key of SELECT_DATA_CAMPOS) {
       const set = new Set<string>();
-      for (const s of allSolicitudes) {
-        const v = s[key as keyof Solicitud];
+      for (const s of allRows) {
+        const v = s[key as keyof FilaInforme];
         if (v !== null && v !== undefined && String(v).trim() !== '') set.add(String(v));
       }
       map.set(key, [...set].sort((a, b) => a.localeCompare(b, 'es')));
     }
     return map;
-  }, [allSolicitudes]);
-
-  const [informe, setInforme] = useState<ConfigInforme>(() => deepClone(INFORME_VACIO));
+  }, [allRows]);
   const [printing, setPrinting] = useState(false);
   const [presets, setPresets] = useState<ConfigInforme[]>([]);
 
@@ -239,12 +272,12 @@ export default function InformesScreen({ config: _cfg }: Props) {
     .map(k => CAMPO_MAP.get(k))
     .filter(Boolean) as CampoMeta[];
 
-  const camposDisponibles = CAMPOS_META.filter(
+  const camposDisponibles = camposDeModo(informe.modo).filter(
     c => !informe.camposVisibles.includes(c.key),
   );
 
   const resultados = useMemo(() => {
-    const filtered = aplicarFiltros(allSolicitudes, informe.filtros);
+    const filtered = aplicarFiltros(allRows, informe.filtros);
     const orden = informe.agruparPor
       ? [
           { id: '__group__', campo: informe.agruparPor, direccion: 'asc' as const },
@@ -252,7 +285,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
         ]
       : informe.orden;
     return aplicarOrden(filtered, orden);
-  }, [allSolicitudes, informe.filtros, informe.orden, informe.agruparPor]);
+  }, [allRows, informe.filtros, informe.orden, informe.agruparPor]);
 
   // Display columns during drag (with placeholder inserted at drop position)
   const displayColItems = useMemo(() => {
@@ -281,9 +314,24 @@ export default function InformesScreen({ config: _cfg }: Props) {
     if (id === 'personalizado') {
       setInforme(deepClone(INFORME_VACIO));
     } else {
-      const preset = presets.find(p => p.id === id);
-      if (preset) setInforme(deepClone(preset));
+      const preset =
+        INFORMES_PREDEFINIDOS.find(p => p.id === id) ?? presets.find(p => p.id === id);
+      if (preset) setInforme({ modo: 'alumno', ...deepClone(preset) });
     }
+  }
+
+  // Cambia entre modo "alumno" y "asignatura", depurando los campos/filtros/orden no válidos
+  function cambiarModo(modo: ConfigInforme['modo']) {
+    if (informe.modo === modo) return;
+    const validos = new Set(camposDeModo(modo).map(c => c.key));
+    setInforme(prev => ({
+      ...prev,
+      modo,
+      camposVisibles: prev.camposVisibles.filter(k => validos.has(k)),
+      filtros: prev.filtros.filter(f => validos.has(f.campo)),
+      orden: prev.orden.filter(o => validos.has(o.campo)),
+      agruparPor: prev.agruparPor && validos.has(prev.agruparPor) ? prev.agruparPor : null,
+    }));
   }
 
   async function handleGuardarNuevoPreset() {
@@ -472,10 +520,11 @@ export default function InformesScreen({ config: _cfg }: Props) {
     const groupCampo = informe.agruparPor ? CAMPO_MAP.get(informe.agruparPor) : null;
     const dataRows = resultados.map(s =>
       camposVisibles.map(c => {
-        const val = s[c.key as keyof Solicitud];
+        const val = s[c.key as keyof FilaInforme];
         if (val === null || val === undefined) return '';
         if (c.tipo === 'booleano') return val ? 'Sí' : 'No';
         if (c.tipo === 'estado') return ESTADO_TRAMITE_LABELS[val as number] ?? String(val);
+        if (c.tipo === 'estado_asignatura') return ESTADO_ASIGNATURA_LABELS[val as number] ?? String(val);
         if (c.tipo === 'fecha') {
           const str = String(val);
           if (!str) return '';
@@ -573,7 +622,8 @@ export default function InformesScreen({ config: _cfg }: Props) {
   const iconBtnCls = 'p-0.5 rounded transition-colors';
 
   const isSavedPreset = presets.some(p => p.id === informe.id);
-  const currentSelectId = isSavedPreset ? informe.id : 'personalizado';
+  const isPredefinido = INFORMES_PREDEFINIDOS.some(p => p.id === informe.id);
+  const currentSelectId = isSavedPreset || isPredefinido ? informe.id : 'personalizado';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -683,6 +733,11 @@ export default function InformesScreen({ config: _cfg }: Props) {
           className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
         >
           <option value="personalizado">— Personalizado —</option>
+          <optgroup label="Predefinidos">
+            {INFORMES_PREDEFINIDOS.map(p => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+          </optgroup>
           {presets.length > 0 && (
             <optgroup label="Mis presets">
               {presets.map(p => (
@@ -691,6 +746,32 @@ export default function InformesScreen({ config: _cfg }: Props) {
             </optgroup>
           )}
         </select>
+
+        {/* Conmutador de modo: por alumno / por asignatura */}
+        <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+          <button
+            onClick={() => cambiarModo('alumno')}
+            className={
+              'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
+              (informe.modo !== 'asignatura'
+                ? 'bg-white text-amber-700 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700')
+            }
+          >
+            Por alumno
+          </button>
+          <button
+            onClick={() => cambiarModo('asignatura')}
+            className={
+              'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
+              (informe.modo === 'asignatura'
+                ? 'bg-white text-amber-700 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700')
+            }
+          >
+            Por asignatura
+          </button>
+        </div>
 
         {/* Nombre editable */}
         <input
@@ -813,7 +894,7 @@ export default function InformesScreen({ config: _cfg }: Props) {
                           onChange={e => updateFiltro(filtro.id, { campo: e.target.value as CampoKey })}
                           className={selectCls + ' flex-1'}
                         >
-                          {CAMPOS_META.map(c => (
+                          {camposDeModo(informe.modo).map(c => (
                             <option key={c.key} value={c.key}>{c.label}</option>
                           ))}
                         </select>
@@ -846,6 +927,17 @@ export default function InformesScreen({ config: _cfg }: Props) {
                           >
                             <option value="">— Seleccionar —</option>
                             {Object.entries(ESTADO_TRAMITE_LABELS).map(([k, v]) => (
+                              <option key={k} value={k}>{v}</option>
+                            ))}
+                          </select>
+                        ) : meta.tipo === 'estado_asignatura' ? (
+                          <select
+                            value={filtro.valor}
+                            onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
+                            className={selectCls + ' w-full'}
+                          >
+                            <option value="">— Seleccionar —</option>
+                            {Object.entries(ESTADO_ASIGNATURA_LABELS).map(([k, v]) => (
                               <option key={k} value={k}>{v}</option>
                             ))}
                           </select>
