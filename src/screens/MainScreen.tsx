@@ -11,6 +11,7 @@ import SolicitudList from "../components/SolicitudList";
 import SolicitudDetail from "../components/SolicitudDetail";
 import ResizableColumns from "../components/ResizableColumns";
 import CursoSwitcherModal from "../components/CursoSwitcherModal";
+import GlobalSearch from "../components/GlobalSearch";
 import LocalScreen from "./LocalScreen";
 import InformesScreen from "./InformesScreen";
 
@@ -82,6 +83,17 @@ export default function MainScreen({ config, onEditConfig }: Props) {
             {curso}
             <ChevronDown className="w-3 h-3" />
           </button>
+          <GlobalSearch
+            pools={[
+              { estado: ESTADO.PENDIENTE_TRAMITACION, data: q1.data?.solicitudes },
+              { estado: ESTADO.PENDIENTE_VALIDACION, data: q2.data?.solicitudes },
+              { estado: ESTADO.TRAMITADO, data: q3.data?.solicitudes },
+            ]}
+            onSelect={(estado, s) => {
+              setActive(estado);
+              setSelected(s);
+            }}
+          />
         </div>
         <TabBar
           active={active}
