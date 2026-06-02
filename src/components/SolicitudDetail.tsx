@@ -134,6 +134,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
 
   const [asigItems, setAsigItems] = useState<AsignaturaLocal[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [addAsignaturaId, setAddAsignaturaId] = useState("");
   const [addEstado, setAddEstado] = useState<EstadoAsignatura>(ESTADO_ASIGNATURA.MATRICULADA);
   const [asigSaved, setAsigSaved] = useState(false);
@@ -287,6 +288,32 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
         },
       },
     );
+  }
+
+  async function handleImprimirPdf() {
+    setIsGeneratingPdf(true);
+    try {
+      const { solicitudToPdfProps } = await import("../pdf/buildMatriculaPdf");
+      const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+      const asigs = (asigItems ?? []).filter((i) => !i.deleted).map((i) => ({
+        rowId: i.rowId,
+        nombre: i.nombre,
+        estado: i.estado,
+        asignaturaId: i.asignaturaId,
+        observaciones: i.observaciones,
+      }));
+      const props = solicitudToPdfProps(solicitud, asigs);
+      const html = buildMatriculaPdfHtml(props);
+      const result = await window.adminAPI.pdf.generarBase64(html);
+      if (!result.success || !result.base64) {
+        console.error("Error generando PDF de solicitud:", result.error);
+        return;
+      }
+      const filename = `matricula_${solicitud.apellidos}_${solicitud.nombre}.pdf`.replace(/\s+/g, "_");
+      await window.adminAPI.pdf.openForPrint(result.base64, filename);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   }
 
   const runAction = () => {
@@ -524,7 +551,25 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
             </div>
           )}
 
-          <div className="px-6 py-4" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+          <div className="px-6 py-4 flex items-center gap-3" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+            <button
+              type="button"
+              onClick={() => void handleImprimirPdf()}
+              disabled={isGeneratingPdf || asignaturasQuery.isLoading}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+              style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+            >
+              {isGeneratingPdf ? (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
+                </svg>
+              )}
+              Imprimir PDF
+            </button>
             <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>Solicitud tramitada. Sin acciones disponibles.</p>
           </div>
         </div>
@@ -794,6 +839,24 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
         className="px-6 py-4 flex items-center justify-end gap-3 shrink-0"
         style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
       >
+        <button
+          type="button"
+          onClick={() => void handleImprimirPdf()}
+          disabled={isGeneratingPdf || asignaturasQuery.isLoading}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors mr-auto"
+          style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+        >
+          {isGeneratingPdf ? (
+            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
+            </svg>
+          )}
+          Imprimir PDF
+        </button>
         {(mutation.error || borrarMutation.error) && (
           <span className="text-xs text-red-600 mr-auto flex items-center gap-1">
             <AlertCircle className="w-3.5 h-3.5" />

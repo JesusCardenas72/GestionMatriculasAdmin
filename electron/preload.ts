@@ -22,6 +22,11 @@ const adminAPI = {
       html: string,
     ): Promise<{ success: boolean; base64?: string; error?: string }> =>
       ipcRenderer.invoke("pdf:generarPdfBase64", { html }),
+    openForPrint: (
+      base64: string,
+      fileName: string,
+    ): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke("pdf:openForPrint", { base64, fileName }),
   },
   local: {
     listar: (): Promise<MatriculaLocal[]> =>
