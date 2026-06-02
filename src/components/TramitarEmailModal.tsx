@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Mail, X } from "lucide-react";
+import { Loader2, Mail, MailOff, X } from "lucide-react";
 import type { Solicitud } from "../api/types";
 import type { AsignaturaEmail } from "../utils/emailTemplate";
 import { buildTramitadoEmailHtml, buildDocumentacionEmailHtml } from "../utils/emailTemplate";
@@ -14,6 +14,7 @@ interface Props {
   observacionesIniciales: string;
   loading: boolean;
   onConfirm: (observaciones: string, emailHtml: string) => void;
+  onConfirmSinEmail?: (observaciones: string) => void;
   onCancel: () => void;
 }
 
@@ -25,6 +26,7 @@ export default function TramitarEmailModal({
   observacionesIniciales,
   loading,
   onConfirm,
+  onConfirmSinEmail,
   onCancel,
 }: Props) {
   const [observaciones, setObservaciones] = useState(observacionesIniciales);
@@ -112,8 +114,9 @@ export default function TramitarEmailModal({
               </p>
               <textarea
                 value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
+                onChange={(e) => setObservaciones(e.target.value.slice(0, 500))}
                 rows={14}
+                maxLength={500}
                 className="w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 resize-none leading-relaxed"
                 style={{
                   borderColor: esDocumentacion ? "var(--tc-warn-border)" : "var(--tc-border)",
@@ -122,6 +125,12 @@ export default function TramitarEmailModal({
                 }}
                 placeholder={esDocumentacion ? "Describe qué documentación falta o qué aclaraciones necesitas..." : "Añade observaciones para el alumno (opcional)..."}
               />
+              <div
+                className="text-[11px] mt-1 text-right tabular-nums"
+                style={{ color: observaciones.length >= 500 ? "var(--tc-warn-ink)" : "var(--tc-ink-mute)" }}
+              >
+                {observaciones.length} / 500
+              </div>
             </div>
 
             {esDocumentacion ? (
@@ -178,6 +187,21 @@ export default function TramitarEmailModal({
           >
             Cancelar
           </button>
+          {esDocumentacion && onConfirmSinEmail && (
+            <button
+              onClick={() => onConfirmSinEmail(observaciones)}
+              disabled={loading || !observaciones.trim()}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm rounded-lg disabled:opacity-50 font-semibold"
+              style={{
+                border: "1.5px solid var(--tc-warn-border)",
+                color: "var(--tc-warn-ink)",
+                background: "var(--tc-card)",
+              }}
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MailOff className="w-4 h-4" />}
+              Cambiar estado sin enviar email
+            </button>
+          )}
           <button
             onClick={() => onConfirm(observaciones, emailHtml)}
             disabled={loading || (esDocumentacion && !observaciones.trim())}
