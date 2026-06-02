@@ -1,10 +1,10 @@
-import { ESTADO } from '../api/types';
+import { ESTADO, ESTADO_ASIGNATURA } from '../api/types';
 import type { CampoKey, ConfigInforme, OperadorFiltro } from '../api/types';
 
 export interface CampoMeta {
   key: CampoKey;
   label: string;
-  tipo: 'texto' | 'booleano' | 'fecha' | 'numero' | 'estado';
+  tipo: 'texto' | 'booleano' | 'fecha' | 'numero' | 'estado' | 'estado_asignatura';
   /** El valor del filtro se elige de una lista derivada de los datos cargados */
   valorType?: 'select_data';
 }
@@ -35,9 +35,22 @@ export const CAMPOS_META: CampoMeta[] = [
   { key: 'repetidor',            label: 'Repetidor',           tipo: 'booleano' },
 ];
 
+// Campos específicos del modo "por asignatura" (una fila por alumno × asignatura)
+export const CAMPOS_ASIGNATURA: CampoMeta[] = [
+  { key: 'asigNombre',  label: 'Asignatura',         tipo: 'texto',            valorType: 'select_data' },
+  { key: 'asigCodigo',  label: 'Código',             tipo: 'numero'   },
+  { key: 'asigEstado',  label: 'Estado asignatura',  tipo: 'estado_asignatura' },
+  { key: 'asigHorario', label: 'Horario',            tipo: 'texto'    },
+];
+
 export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
-  CAMPOS_META.map(c => [c.key, c]),
+  [...CAMPOS_META, ...CAMPOS_ASIGNATURA].map(c => [c.key, c]),
 );
+
+/** Campos disponibles según el modo del informe. En modo asignatura se ofrecen también los del alumno. */
+export function camposDeModo(modo: ConfigInforme['modo']): CampoMeta[] {
+  return modo === 'asignatura' ? [...CAMPOS_ASIGNATURA, ...CAMPOS_META] : CAMPOS_META;
+}
 
 // ── Operadores por tipo ────────────────────────────────────────────────────────
 
@@ -84,6 +97,14 @@ export const ESTADO_TRAMITE_LABELS: Record<number, string> = {
   [ESTADO.TRAMITADO]:             'Tramitado',
 };
 
+export const ESTADO_ASIGNATURA_LABELS: Record<number, string> = {
+  [ESTADO_ASIGNATURA.MATRICULADA]:             'Matriculada',
+  [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: 'Solicitud de Convalidación',
+  [ESTADO_ASIGNATURA.CONVALIDADA]:             'Convalidada',
+  [ESTADO_ASIGNATURA.SIMULTANEADA]:            'Simultaneada',
+  [ESTADO_ASIGNATURA.PENDIENTE]:               'Pendiente',
+};
+
 // ── Configuraciones de informe ────────────────────────────────────────────────
 
 export const INFORME_VACIO: ConfigInforme = {
@@ -93,6 +114,7 @@ export const INFORME_VACIO: ConfigInforme = {
   filtros: [],
   orden: [],
   agruparPor: null,
+  modo: 'alumno',
 };
 
 export const INFORMES_PREDEFINIDOS: ConfigInforme[] = [
@@ -101,6 +123,7 @@ export const INFORMES_PREDEFINIDOS: ConfigInforme[] = [
     nombre: 'Listado por especialidad',
     descripcion: 'Alumnos de una especialidad, ordenados por enseñanza, curso y apellidos',
     predefinido: true,
+    modo: 'alumno',
     camposVisibles: [
       'apellidos',
       'nombre',
@@ -118,5 +141,46 @@ export const INFORMES_PREDEFINIDOS: ConfigInforme[] = [
       { id: 'o1', campo: 'ensenanzaCurso', direccion: 'asc' },
       { id: 'o2', campo: 'apellidos',      direccion: 'asc' },
     ],
+  },
+  {
+    id: 'alumnos-por-asignatura-matriculadas',
+    nombre: 'Alumnos por asignatura (matriculadas)',
+    descripcion: 'Una sección por asignatura con los alumnos matriculados en ella',
+    predefinido: true,
+    modo: 'asignatura',
+    camposVisibles: ['apellidos', 'nombre', 'asigEstado', 'email', 'telefono'],
+    filtros: [
+      { id: 'f1', campo: 'asigEstado', operador: 'igual', valor: String(ESTADO_ASIGNATURA.MATRICULADA) },
+    ],
+    orden: [
+      { id: 'o1', campo: 'apellidos', direccion: 'asc' },
+    ],
+    agruparPor: 'asigNombre',
+  },
+  {
+    id: 'alumnos-por-asignatura-todas',
+    nombre: 'Alumnos por asignatura (todos los estados)',
+    descripcion: 'Una sección por asignatura con todos los alumnos, sea cual sea el estado',
+    predefinido: true,
+    modo: 'asignatura',
+    camposVisibles: ['apellidos', 'nombre', 'asigEstado', 'email', 'telefono'],
+    filtros: [],
+    orden: [
+      { id: 'o1', campo: 'apellidos', direccion: 'asc' },
+    ],
+    agruparPor: 'asigNombre',
+  },
+  {
+    id: 'asignaturas-por-alumno',
+    nombre: 'Asignaturas por alumno',
+    descripcion: 'Una sección por alumno con las asignaturas en las que está matriculado',
+    predefinido: true,
+    modo: 'asignatura',
+    camposVisibles: ['asigNombre', 'asigEstado', 'asigCodigo', 'especialidad'],
+    filtros: [],
+    orden: [
+      { id: 'o1', campo: 'asigNombre', direccion: 'asc' },
+    ],
+    agruparPor: 'apellidos',
   },
 ];
