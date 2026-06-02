@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Mail, MailOff, X } from "lucide-react";
+import { Loader2, Mail, MailX, X } from "lucide-react";
 import type { Solicitud } from "../api/types";
 import type { AsignaturaEmail } from "../utils/emailTemplate";
 import { buildTramitadoEmailHtml, buildDocumentacionEmailHtml } from "../utils/emailTemplate";
@@ -198,7 +198,7 @@ export default function TramitarEmailModal({
                 background: "var(--tc-card)",
               }}
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MailOff className="w-4 h-4" />}
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MailX className="w-4 h-4" />}
               Cambiar estado sin enviar email
             </button>
           )}
