@@ -318,6 +318,13 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
     );
   }
 
+  function handleConfirmPedirSinEmail(docFaltanteText: string) {
+    mutation.mutate(
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, enviarEmail: false },
+      { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
+    );
+  }
+
   const nOrdenDisplay = solicitud.nOrden != null
     ? String(solicitud.nOrden).padStart(2, "0")
     : "—";
@@ -716,8 +723,9 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
             </div>
             <textarea
               value={docFaltante}
-              onChange={(e) => setDocFaltante(e.target.value)}
+              onChange={(e) => setDocFaltante(e.target.value.slice(0, 500))}
               rows={3}
+              maxLength={500}
               className="w-full text-sm bg-transparent resize-none border-none focus:outline-none placeholder:italic"
               placeholder="Escribe aquí las observaciones o documentación faltante..."
               style={{
@@ -850,6 +858,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
         observacionesIniciales={docFaltante.trim()}
         loading={mutation.isPending}
         onConfirm={pending === "pedir" ? handleConfirmPedir : handleConfirmTramitar}
+        onConfirmSinEmail={pending === "pedir" ? handleConfirmPedirSinEmail : undefined}
         onCancel={() => setPending(null)}
       />
       <ConfirmDialog
