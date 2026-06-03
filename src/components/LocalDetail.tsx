@@ -428,22 +428,20 @@ export default function LocalDetail({
                       boxShadow: "0 10px 30px -8px rgba(45,36,29,0.18)",
                     }}
                   >
-                    {m.ampliacion && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onGenerarPdf();
-                          setMenuOpen(false);
-                        }}
-                        disabled={isSaving}
-                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 hover:bg-[var(--tc-bg-panel)]"
-                        style={{ color: "var(--tc-ink)" }}
-                      >
-                        <FileText className="w-4 h-4 shrink-0" />
-                        {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
-                      </button>
-                    )}
-                    {m.ampliacion && m._pdfBase64 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onGenerarPdf();
+                        setMenuOpen(false);
+                      }}
+                      disabled={isSaving}
+                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 hover:bg-[var(--tc-bg-panel)]"
+                      style={{ color: "var(--tc-ink)" }}
+                    >
+                      <FileText className="w-4 h-4 shrink-0" />
+                      {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
+                    </button>
+                    {m._pdfBase64 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -859,24 +857,24 @@ export default function LocalDetail({
           {/* Gestión Local */}
           <AccordionBlock title="Gestión Local" defaultOpen={false} forceOpen={allOpen}>
             <div className="space-y-4">
-              {m.ampliacion && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: "var(--tc-ink)" }}>PDF de ampliación</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>
-                      {m._pdfBase64 ? "PDF generado y listo para subir" : "Genera el documento oficial de ampliación"}
-                    </p>
-                  </div>
-                  {m._pdfBase64 && (
-                    <span
-                      className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                      style={{ background: "var(--tc-primary-tint)", color: "var(--tc-primary)" }}
-                    >
-                      PDF listo
-                    </span>
-                  )}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium" style={{ color: "var(--tc-ink)" }}>
+                    {m.ampliacion ? "PDF de ampliación" : "PDF de matrícula"}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>
+                    {m._pdfBase64 ? "PDF generado y listo para subir" : "Genera el documento oficial de matrícula"}
+                  </p>
                 </div>
-              )}
+                {m._pdfBase64 && (
+                  <span
+                    className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                    style={{ background: "var(--tc-primary-tint)", color: "var(--tc-primary)" }}
+                  >
+                    PDF listo
+                  </span>
+                )}
+              </div>
 
               <div
                 className="pt-3 border-t grid grid-cols-2 gap-x-8 gap-y-2 text-xs"
@@ -931,28 +929,24 @@ export default function LocalDetail({
               Ampliación ya creada
             </span>
           )}
-          {m.ampliacion && (
-            <>
-              <button
-                onClick={onGenerarPdf}
-                disabled={isSaving}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: "var(--tc-violet-ink)" }}
-              >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
-              </button>
-              {m._pdfBase64 && (
-                <button
-                  onClick={() => setShowPdfPreview(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                  style={{ background: "var(--tc-ink-soft)" }}
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar PDF
-                </button>
-              )}
-            </>
+          <button
+            onClick={onGenerarPdf}
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: "var(--tc-violet-ink)" }}
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+            {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
+          </button>
+          {m._pdfBase64 && (
+            <button
+              onClick={() => setShowPdfPreview(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+              style={{ background: "var(--tc-ink-soft)" }}
+            >
+              <Download className="w-4 h-4" />
+              Descargar PDF
+            </button>
           )}
           <button
             onClick={onSubirNube}

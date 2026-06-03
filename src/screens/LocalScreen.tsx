@@ -16,7 +16,6 @@ import LocalList from "../components/LocalList";
 import LocalDetail from "../components/LocalDetail";
 import ResizableColumns from "../components/ResizableColumns";
 import AmpliacionWizard from "../components/AmpliacionWizard";
-import { buildHtmlMatricula } from "../utils/pdfMatricula";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
@@ -180,16 +179,16 @@ export default function LocalScreen({ config }: Props) {
         const base64 = uint8ToBase64(bytes);
         await actualizar(selected.localId, { _pdfBase64: base64, _pendienteSubida: true });
       } else {
-        const html = buildHtmlMatricula(selected);
+        const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
+        const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+        const props = matriculaLocalToPdfProps(selected);
+        const html = buildMatriculaPdfHtml(props);
         const result = await window.adminAPI.pdf.generarBase64(html);
-        if (result.success && result.base64) {
-          await actualizar(selected.localId, {
-            _pdfBase64: result.base64,
-            _pendienteSubida: true,
-          });
-        } else {
-          console.error("Error generando PDF:", result.error);
+        if (!result.success || !result.base64) {
+          console.error("Error generando PDF de matrícula:", result.error);
+          return;
         }
+        await actualizar(selected.localId, { _pdfBase64: result.base64, _pendienteSubida: true });
       }
     } finally {
       setIsSaving(false);

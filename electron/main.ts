@@ -268,6 +268,56 @@ function registerIpcHandlers() {
       });
     },
   );
+
+  ipcMain.handle(
+    "pdf:openForPrint",
+    async (
+      _e,
+      payload: { base64: string; fileName: string },
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const buf = Buffer.from(payload.base64, "base64");
+        const safe = (payload.fileName || "documento.pdf").replace(
+          /[\\/:*?"<>|]/g,
+          "_",
+        );
+        const tmpPath = path.join(
+          app.getPath("temp"),
+          `print_${Date.now()}_${safe}`,
+        );
+        fs.writeFileSync(tmpPath, buf);
+
+        const viewWin = new BrowserWindow({
+          width: 900,
+          height: 1000,
+          title: payload.fileName || "Imprimir PDF",
+          autoHideMenuBar: true,
+          icon: path.join(
+            process.env.APP_ROOT || __dirname,
+            "PergaminoIcon.ico",
+          ),
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            plugins: true,
+          },
+        });
+
+        viewWin.on("closed", () => {
+          try {
+            fs.unlinkSync(tmpPath);
+          } catch {
+            /* empty */
+          }
+        });
+
+        await viewWin.loadFile(tmpPath);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+    },
+  );
 }
 
 app.whenReady().then(() => {

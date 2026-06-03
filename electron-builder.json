@@ -11,7 +11,7 @@
   ],
   "win": {
     "target": "nsis",
-    "icon": "PergaminoIcon.ico"
+    "icon": "PergaminoIcon256.ico"
   },
   "nsis": {
     "oneClick": false,

@@ -34,7 +34,8 @@ export default function PdfViewer({
   const file = useMemo(() => ({ data }), [data]);
 
   const handleDownload = () => {
-    const blob = new Blob([data as BlobPart], { type: mimeType });
+    const fresh = base64ToUint8Array(contentBase64);
+    const blob = new Blob([fresh as BlobPart], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -47,31 +48,10 @@ export default function PdfViewer({
   const handlePrint = async () => {
     setPrinting(true);
     try {
-      const fresh = base64ToUint8Array(contentBase64);
-      const pdf = await pdfjs.getDocument({ data: fresh }).promise;
-      const images: string[] = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const p = await pdf.getPage(i);
-        const viewport = p.getViewport({ scale: 2 });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext("2d")!;
-        await p.render({ canvasContext: ctx, viewport }).promise;
-        images.push(canvas.toDataURL("image/png"));
-      }
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${
-        fileName || "solicitud"
-      }</title><style>
-        @page { margin: 0; }
-        html,body { margin:0; padding:0; }
-        .page { page-break-after: always; }
-        .page:last-child { page-break-after: auto; }
-        .page img { width:100%; height:100vh; object-fit:contain; display:block; }
-      </style></head><body>${images
-        .map((src) => `<div class="page"><img src="${src}"/></div>`)
-        .join("")}</body></html>`;
-      await window.adminAPI.pdf.printHtml(html);
+      await window.adminAPI.pdf.openForPrint(
+        contentBase64,
+        fileName || "solicitud.pdf",
+      );
     } finally {
       setPrinting(false);
     }
