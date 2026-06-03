@@ -1047,7 +1047,7 @@ function AsignaturaGroup({
   );
 }
 
-function EstadoBadge({ estado }: { estado: Solicitud["estado"] }) {
+export function EstadoBadge({ estado }: { estado: Solicitud["estado"] }) {
   const map = {
     [ESTADO.PENDIENTE_TRAMITACION]: {
       label: "Pendiente de tramitación",

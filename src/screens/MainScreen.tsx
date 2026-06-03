@@ -99,6 +99,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           active={active}
           counts={counts}
           pendingUploads={pendingUploads}
+          localCount={localMatriculas.length}
           onChange={handleTabChange}
         />
         <button

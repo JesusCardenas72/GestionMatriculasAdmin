@@ -5,6 +5,7 @@ import {
   ESTADO,
   ESTADO_ASIGNATURA_LABEL,
   type AsignaturaMatriculada,
+  type EstadoTramite,
   type MatriculaLocal,
   type Solicitud,
 } from "../api/types";
@@ -86,7 +87,11 @@ export default function LocalScreen({ config }: Props) {
   const qc = useQueryClient();
   const { curso } = useCursoContext();
   const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas(curso);
-  const tramitadasQuery = useSolicitudes(config, ESTADO.TRAMITADO);
+  const eliminarRef = useRef(eliminar);
+  eliminarRef.current = eliminar;
+  const pendienteTramitacionQuery = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
+  const pendienteValidacionQuery = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION, curso);
+  const tramitadasQuery = useSolicitudes(config, ESTADO.TRAMITADO, curso);
   const [selected, setSelected] = useState<MatriculaLocal | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const isSyncingRef = useRef(false);
@@ -97,32 +102,78 @@ export default function LocalScreen({ config }: Props) {
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
 
-  // Auto-sincronización: descarga tramitadas de Dataverse que no estén en local
+  // Auto-sincronización: descarga matrículas telemáticas de Dataverse que no estén en local
+  // (estados: Pendiente de tramitación, Pendiente de validación y Tramitado)
   useEffect(() => {
-    if (isLoading || !tramitadasQuery.data || isSyncingRef.current) return;
+    if (
+      isLoading ||
+      !pendienteTramitacionQuery.data ||
+      !pendienteValidacionQuery.data ||
+      !tramitadasQuery.data ||
+      isSyncingRef.current
+    )
+      return;
 
     const localRowIds = new Set(
       matriculas.map((m) => m.rowId).filter((id): id is string => id !== null),
     );
-    const nuevas = tramitadasQuery.data.solicitudes.filter(
-      (s) => !localRowIds.has(s.rowId),
-    );
-    if (nuevas.length === 0) return;
+    const remotas = [
+      ...pendienteTramitacionQuery.data.solicitudes,
+      ...pendienteValidacionQuery.data.solicitudes,
+      ...tramitadasQuery.data.solicitudes,
+    ];
+    const remoteRowIds = new Set(remotas.map((s) => s.rowId));
+    const vistos = new Set<string>();
+    const nuevas = remotas.filter((s) => {
+      if (localRowIds.has(s.rowId)) return false;
+      if (vistos.has(s.rowId)) return false;
+      vistos.add(s.rowId);
+      return true;
+    });
+
+    // Detecta duplicados y huérfanos: registros locales con rowId que ya no está en
+    // ninguna de las 3 listas remotas o cuyo rowId ya quedó representado por otro localId.
+    const conservados = new Set<string>();
+    const obsoletos: string[] = [];
+    for (const m of matriculas) {
+      if (m._pendienteSubida) continue; // tiene cambios sin sincronizar, no tocar
+      if (m.rowId === null) continue; // creación local en curso (ampliación no subida)
+      if (!remoteRowIds.has(m.rowId)) {
+        obsoletos.push(m.localId);
+        continue;
+      }
+      if (conservados.has(m.rowId)) {
+        obsoletos.push(m.localId); // duplicado del mismo rowId
+        continue;
+      }
+      conservados.add(m.rowId);
+    }
+
+    if (nuevas.length === 0 && obsoletos.length === 0) return;
 
     setIsSyncing(true);
 
-    Promise.allSettled(
-      nuevas.map(async (solicitud) => {
+    Promise.allSettled([
+      ...obsoletos.map((localId) => eliminarRef.current(localId)),
+      ...nuevas.map(async (solicitud) => {
         const asigs = await listarAsignaturasSolicitud(config, {
           matriculaId: solicitud.rowId,
         });
         const record = solicitudALocal(solicitud, asigs);
         await guardar(record);
       }),
-    ).finally(() => {
+    ]).finally(() => {
       setIsSyncing(false);
     });
-  }, [isLoading, tramitadasQuery.data, matriculas, config, qc]);
+  }, [
+    isLoading,
+    pendienteTramitacionQuery.data,
+    pendienteValidacionQuery.data,
+    tramitadasQuery.data,
+    matriculas,
+    config,
+    qc,
+  ]);
 
   // Mantiene el panel derecho actualizado si el registro seleccionado cambia en la lista
   useEffect(() => {
@@ -404,6 +455,19 @@ export default function LocalScreen({ config }: Props) {
 
   const pendingUploads = matriculas.filter((m) => m._pendienteSubida).length;
 
+  const estadoPorRowId = new Map<string, EstadoTramite>();
+  for (const s of pendienteTramitacionQuery.data?.solicitudes ?? []) {
+    estadoPorRowId.set(s.rowId, ESTADO.PENDIENTE_TRAMITACION);
+  }
+  for (const s of pendienteValidacionQuery.data?.solicitudes ?? []) {
+    estadoPorRowId.set(s.rowId, ESTADO.PENDIENTE_VALIDACION);
+  }
+  for (const s of tramitadasQuery.data?.solicitudes ?? []) {
+    estadoPorRowId.set(s.rowId, ESTADO.TRAMITADO);
+  }
+  const estadoSeleccionado: EstadoTramite | null =
+    selected?.rowId ? estadoPorRowId.get(selected.rowId) ?? null : null;
+
   const yaTieneAmpliacion = selected
     ? matriculas.some(
         (m) =>
@@ -429,6 +493,8 @@ export default function LocalScreen({ config }: Props) {
               onSelect={setSelected}
               onRefresh={() => {
                 void refetch();
+                void pendienteTramitacionQuery.refetch();
+                void pendienteValidacionQuery.refetch();
                 void tramitadasQuery.refetch();
               }}
             />
@@ -469,6 +535,7 @@ export default function LocalScreen({ config }: Props) {
             {selected ? (
               <LocalDetail
                 matricula={selected}
+                estado={estadoSeleccionado}
                 isSaving={isSaving}
                 subirError={subirError}
                 yaTieneAmpliacion={yaTieneAmpliacion}

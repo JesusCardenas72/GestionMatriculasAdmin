@@ -22,12 +22,13 @@ interface Props {
   active: ActiveTab;
   counts: Record<EstadoTramite, number | undefined>;
   pendingUploads?: number;
+  localCount?: number;
   onChange: (tab: ActiveTab) => void;
 }
 
 const spring = { type: "spring", stiffness: 400, damping: 35 } as const;
 
-export default function TabBar({ active, counts, pendingUploads, onChange }: Props) {
+export default function TabBar({ active, counts, pendingUploads, localCount, onChange }: Props) {
   return (
     <LayoutGroup>
       <div className="flex items-center gap-3">
@@ -95,6 +96,18 @@ export default function TabBar({ active, counts, pendingUploads, onChange }: Pro
             <span className="relative z-10 flex items-center gap-1.5">
               <HardDrive className="w-3.5 h-3.5 shrink-0" />
               <span className={active === "local" ? "font-semibold" : ""}>Local</span>
+              {localCount !== undefined && localCount > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
+                  style={
+                    active === "local"
+                      ? { background: "var(--tc-primary)", color: "#fff" }
+                      : { background: "var(--tc-card)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }
+                  }
+                >
+                  {localCount}
+                </span>
+              )}
               {pendingUploads !== undefined && pendingUploads > 0 && (
                 <span
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"

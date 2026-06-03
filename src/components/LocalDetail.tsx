@@ -48,9 +48,11 @@ import {
   ESTADO_ASIGNATURA_LABEL,
   type AsignaturaLocal,
   type EstadoAsignatura,
+  type EstadoTramite,
   type MatriculaLocal,
 } from "../api/types";
 import { ensenanzaDesdeCode, getCatalogoLocal } from "../data/catalogoLocal";
+import { EstadoBadge } from "./SolicitudDetail";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
 
@@ -79,6 +81,7 @@ interface FormData {
 
 interface Props {
   matricula: MatriculaLocal;
+  estado?: EstadoTramite | null;
   isSaving: boolean;
   subirError?: string | null;
   yaTieneAmpliacion: boolean;
@@ -116,6 +119,7 @@ function initForm(m: MatriculaLocal): FormData {
 
 export default function LocalDetail({
   matricula: m,
+  estado,
   isSaving,
   subirError,
   yaTieneAmpliacion,
@@ -315,6 +319,7 @@ export default function LocalDetail({
               >
                 Matrícula Nº {m.nOrden ?? "—"}
               </span>
+              {estado != null && <EstadoBadge estado={estado} />}
               {m.anulacion && (
                 <span
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
