@@ -30,12 +30,17 @@ export default function PdfViewer({
   const [page, setPage] = useState(1);
   const [scale, setScale] = useState(1);
 
-  const data = useMemo(() => base64ToUint8Array(contentBase64), [contentBase64]);
-  const file = useMemo(() => ({ data }), [data]);
+  // pdf.js transfiere (y vacía) el ArrayBuffer que recibe, por lo que NO se
+  // puede reutilizar para descargar. Le pasamos una copia nueva al visor y
+  // reconstruimos los bytes desde el base64 al descargar.
+  const file = useMemo(
+    () => ({ data: base64ToUint8Array(contentBase64) }),
+    [contentBase64],
+  );
 
   const handleDownload = () => {
-    const fresh = base64ToUint8Array(contentBase64);
-    const blob = new Blob([fresh as BlobPart], { type: mimeType });
+    const data = base64ToUint8Array(contentBase64);
+    const blob = new Blob([data as BlobPart], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
