@@ -189,7 +189,8 @@ export interface CrearAmpliacionInput {
 
 export type CampoKeyAlumno = keyof Omit<Solicitud, 'rowId' | 'nombreMatricula'>;
 export type CampoKeyAsignatura = 'asigNombre' | 'asigCodigo' | 'asigEstado' | 'asigHorario';
-export type CampoKey = CampoKeyAlumno | CampoKeyAsignatura;
+export type CampoKeyCalculado = 'nombreCompleto';
+export type CampoKey = CampoKeyAlumno | CampoKeyAsignatura | CampoKeyCalculado;
 
 /** Fila de informe: alumno + (opcionalmente) campos de la asignatura matriculada en modo asignatura */
 export interface FilaInforme extends Solicitud {
@@ -197,6 +198,8 @@ export interface FilaInforme extends Solicitud {
   asigCodigo?: number | null;
   asigEstado?: EstadoAsignatura;
   asigHorario?: string | null;
+  /** Campo calculado: "Apellidos, Nombre" */
+  nombreCompleto?: string;
 }
 
 export type OperadorFiltro =

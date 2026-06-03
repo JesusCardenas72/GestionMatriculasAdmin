@@ -22,13 +22,16 @@ import type { AppConfig } from '../../electron/config-store';
 import type {
   CampoKey,
   ConfigInforme,
+  EstadoTramite,
   FilaInforme,
   FiltroInforme,
   MatriculaLocal,
+  Solicitud,
 } from '../api/types';
 import { ESTADO } from '../api/types';
 import { useCursoContext } from '../contexts/CursoContextProvider';
 import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
+import { useSolicitudes } from '../hooks/useSolicitudes';
 import {
   CAMPO_MAP,
   CAMPOS_META,
@@ -111,7 +114,7 @@ function aplicarOrden(solicitudes: FilaInforme[], orden: { id: string; campo: Ca
     for (const o of orden) {
       const va = String(a[o.campo as keyof FilaInforme] ?? '');
       const vb = String(b[o.campo as keyof FilaInforme] ?? '');
-      const cmp = va.localeCompare(vb, 'es', { sensitivity: 'base' });
+      const cmp = va.localeCompare(vb, 'es', { sensitivity: 'base', numeric: true });
       if (cmp !== 0) return o.direccion === 'asc' ? cmp : -cmp;
     }
     return 0;
@@ -130,13 +133,21 @@ function describeFiltros(filtros: FiltroInforme[]): string {
     .join('; ');
 }
 
-function localToSolicitud(r: MatriculaLocal): FilaInforme {
+function buildNombreCompleto(apellidos: string, nombre: string): string {
+  const a = (apellidos ?? '').trim();
+  const n = (nombre ?? '').trim();
+  if (a && n) return `${a}, ${n}`;
+  return a || n || '';
+}
+
+function localToSolicitud(r: MatriculaLocal, estado: EstadoTramite): FilaInforme {
   return {
     rowId: r.localId,
     nOrden: r.nOrden,
     nombreMatricula: r.nombreMatricula,
     nombre: r.nombre,
     apellidos: r.apellidos,
+    nombreCompleto: buildNombreCompleto(r.apellidos, r.nombre),
     dni: r.dni,
     email: r.email,
     telefono: r.telefono,
@@ -155,22 +166,62 @@ function localToSolicitud(r: MatriculaLocal): FilaInforme {
     autorizacionImagen: r.autorizacionImagen,
     disponibilidadManana: r.disponibilidadManana,
     horaSalida: r.horaSalida,
-    estado: ESTADO.PENDIENTE_TRAMITACION,
+    estado,
     docFaltante: r.docFaltante,
     ampliada: r.ampliada,
     repetidor: r.repetidor,
   };
 }
 
+function solicitudToFila(s: Solicitud): FilaInforme {
+  return { ...s, nombreCompleto: buildNombreCompleto(s.apellidos, s.nombre) };
+}
+
 /**
- * Expande las matrículas a una fila por cada par (alumno × asignatura).
- * Cada fila conserva todos los campos del alumno y añade los de la asignatura.
- * Las matrículas sin asignaturas no generan filas en este modo.
+ * Construye la lista de filas en modo alumno combinando solicitudes remotas
+ * (cualquier estado) con datos locales cuando los haya (mismo origenRowId).
+ * Las matrículas locales sin solicitud remota se incluyen al final con su
+ * estado conocido (TRAMITADO por defecto).
  */
-function expandirPorAsignatura(matriculas: MatriculaLocal[]): FilaInforme[] {
+function buildFilasAlumno(
+  solicitudes: Solicitud[],
+  matriculas: MatriculaLocal[],
+): FilaInforme[] {
+  const localByOrigen = new Map<string, MatriculaLocal>();
+  for (const m of matriculas) localByOrigen.set(m.origenRowId, m);
+
+  const filas: FilaInforme[] = [];
+  const usados = new Set<string>();
+  for (const s of solicitudes) {
+    const local = localByOrigen.get(s.rowId);
+    if (local) {
+      usados.add(local.localId);
+      filas.push(localToSolicitud(local, s.estado));
+    } else {
+      filas.push(solicitudToFila(s));
+    }
+  }
+  for (const m of matriculas) {
+    if (!usados.has(m.localId)) filas.push(localToSolicitud(m, ESTADO.TRAMITADO));
+  }
+  return filas;
+}
+
+/**
+ * Expande a una fila por (alumno × asignatura). Solo aparecen alumnos con
+ * datos locales (las solicitudes remotas no tienen asignaturas cargadas).
+ */
+function buildFilasAsignatura(
+  solicitudes: Solicitud[],
+  matriculas: MatriculaLocal[],
+): FilaInforme[] {
+  const estadoByOrigen = new Map<string, EstadoTramite>();
+  for (const s of solicitudes) estadoByOrigen.set(s.rowId, s.estado);
+
   const filas: FilaInforme[] = [];
   for (const m of matriculas) {
-    const base = localToSolicitud(m);
+    const estado = estadoByOrigen.get(m.origenRowId) ?? ESTADO.TRAMITADO;
+    const base = localToSolicitud(m, estado);
     for (const a of m.asignaturas) {
       filas.push({
         ...base,
@@ -185,17 +236,32 @@ function expandirPorAsignatura(matriculas: MatriculaLocal[]): FilaInforme[] {
   return filas;
 }
 
-export default function InformesScreen({ config: _cfg }: Props) {
+export default function InformesScreen({ config }: Props) {
   const { curso } = useCursoContext();
-  const { matriculas, isLoading } = useLocalMatriculas(curso);
+  const { matriculas, isLoading: loadingLocal } = useLocalMatriculas(curso);
+  const q1 = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
+  const q2 = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION, curso);
+  const q3 = useSolicitudes(config, ESTADO.TRAMITADO, curso);
+
+  const isLoading =
+    loadingLocal || q1.isLoading || q2.isLoading || q3.isLoading;
 
   const [informe, setInforme] = useState<ConfigInforme>(() => deepClone(INFORME_VACIO));
 
+  const solicitudesRemotas = useMemo(
+    () => [
+      ...(q1.data?.solicitudes ?? []),
+      ...(q2.data?.solicitudes ?? []),
+      ...(q3.data?.solicitudes ?? []),
+    ],
+    [q1.data, q2.data, q3.data],
+  );
+
   const allRows = useMemo(
     () => informe.modo === 'asignatura'
-      ? expandirPorAsignatura(matriculas)
-      : matriculas.map(localToSolicitud),
-    [matriculas, informe.modo],
+      ? buildFilasAsignatura(solicitudesRemotas, matriculas)
+      : buildFilasAlumno(solicitudesRemotas, matriculas),
+    [solicitudesRemotas, matriculas, informe.modo],
   );
 
   const selectOptions = useMemo((): Map<CampoKey, string[]> => {
@@ -324,14 +390,20 @@ export default function InformesScreen({ config: _cfg }: Props) {
   function cambiarModo(modo: ConfigInforme['modo']) {
     if (informe.modo === modo) return;
     const validos = new Set(camposDeModo(modo).map(c => c.key));
-    setInforme(prev => ({
-      ...prev,
-      modo,
-      camposVisibles: prev.camposVisibles.filter(k => validos.has(k)),
-      filtros: prev.filtros.filter(f => validos.has(f.campo)),
-      orden: prev.orden.filter(o => validos.has(o.campo)),
-      agruparPor: prev.agruparPor && validos.has(prev.agruparPor) ? prev.agruparPor : null,
-    }));
+    setInforme(prev => {
+      let camposVisibles = prev.camposVisibles.filter(k => validos.has(k));
+      if (modo === 'asignatura' && !camposVisibles.includes('asigEstado')) {
+        camposVisibles = [...camposVisibles, 'asigEstado'];
+      }
+      return {
+        ...prev,
+        modo,
+        camposVisibles,
+        filtros: prev.filtros.filter(f => validos.has(f.campo)),
+        orden: prev.orden.filter(o => validos.has(o.campo)),
+        agruparPor: prev.agruparPor && validos.has(prev.agruparPor) ? prev.agruparPor : null,
+      };
+    });
   }
 
   async function handleGuardarNuevoPreset() {

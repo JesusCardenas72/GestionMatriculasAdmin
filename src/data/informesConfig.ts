@@ -13,6 +13,7 @@ export const CAMPOS_META: CampoMeta[] = [
   { key: 'nOrden',               label: 'N.º Orden',          tipo: 'numero'   },
   { key: 'apellidos',            label: 'Apellidos',           tipo: 'texto'    },
   { key: 'nombre',               label: 'Nombre',              tipo: 'texto'    },
+  { key: 'nombreCompleto',       label: 'Nombre Completo',     tipo: 'texto'    },
   { key: 'dni',                  label: 'DNI/NIE',             tipo: 'texto'    },
   { key: 'email',                label: 'Email',               tipo: 'texto'    },
   { key: 'telefono',             label: 'Teléfono',            tipo: 'texto'    },
