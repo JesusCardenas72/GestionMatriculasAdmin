@@ -92,10 +92,14 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
         ${cursoShort ? `<div style="font-size:8px; color:#F97316; margin-top:1px;">Curso ${esc(cursoShort)}</div>` : ""}`;
   }
 
-  const enviado = `Enviado: ${submitTimestamp.toLocaleDateString("es-ES")} ${submitTimestamp.toLocaleTimeString(
-    "es-ES",
-    { hour: "2-digit", minute: "2-digit" },
-  )}`;
+  const fechaEnvioValida =
+    submitTimestamp instanceof Date && !isNaN(submitTimestamp.getTime());
+  const enviado = fechaEnvioValida
+    ? `Enviado: ${submitTimestamp.toLocaleDateString("es-ES")} ${submitTimestamp.toLocaleTimeString(
+        "es-ES",
+        { hour: "2-digit", minute: "2-digit" },
+      )}`
+    : "Impresión Forzada";
 
   // ── Menores ──
   const menoresHtml =
@@ -275,13 +279,19 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
   const convAsigs = formData.convalidacionAsignaturas ?? [];
   type Tipo = "matriculada" | "perfil" | "pendiente";
   type SubjectRow = { group: 1 | 2 | 3; key: string; code: string; name: string; tipo: Tipo };
+  const esQuintoOSexto = formData.curso.includes("5") || formData.curso.includes("6");
   const subjectRows: SubjectRow[] = [];
   if (!allPendingFromLastCourse) {
     for (const m of asignaturasCursoActual) {
       if (convAsigs.includes(m.MATERIA)) continue;
-      const isPerfil = PROFILE_SPECIFIC_SUBJECTS.some((ps) =>
+      let isPerfil = PROFILE_SPECIFIC_SUBJECTS.some((ps) =>
         m.DESCRIPCION.toLowerCase().includes(ps.toLowerCase()),
       );
+      // Coro solo cuenta como asignatura de Perfil (malva) en 5º o 6º curso;
+      // en el resto de cursos aparece como Matriculada (color azul normal).
+      if (m.DESCRIPCION.toLowerCase().includes("coro") && !esQuintoOSexto) {
+        isPerfil = false;
+      }
       subjectRows.push({
         group: isPerfil ? 2 : 1,
         key: m.MATERIA || m.DESCRIPCION,
@@ -393,8 +403,14 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
     background: #fff;
   }
   .page {
-    width: 210mm;
-    min-height: 297mm;
+    /* El diseño está medido en "puntos" (heredado de @react-pdf). Al renderizar
+       como HTML, 1px = 0.75pt, por lo que todo saldría a 3/4 de su tamaño. Para
+       compensar, escalamos el contenido x4/3 con zoom y reducimos el tamaño de la
+       página en la misma proporción (210/1.3333 = 157.5mm, 297/1.3333 = 222.75mm)
+       para que el resultado final llene exactamente un A4. */
+    width: 157.5mm;
+    min-height: 222.75mm;
+    zoom: 1.3333;
     background: #F5F5F5;
     padding: 20px;
     font-size: 9px;

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, protocol } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +37,23 @@ import { loadCursoContext, saveCursoContext } from "./curso-context-store";
 import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Al pulsar el icono de impresora del visor PDF nativo de Chromium, abrir
+// directamente la ventana del driver del sistema en lugar de la vista previa
+// de impresión propia de Chromium.
+app.commandLine.appendSwitch("disable-print-preview");
+
+// Esquema propio para servir PDFs descargados al visor nativo embebido en un
+// <iframe>. El plugin PDF de Chromium no se activa con blob: en subframes, y un
+// file:// queda bloqueado por la CSP/seguridad en desarrollo. Servir los bytes
+// desde memoria por `localpdf://` sí activa el visor con miniaturas y toolbar.
+const pdfBlobs = new Map<string, Buffer>();
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "localpdf",
+    privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true },
+  },
+]);
 
 process.env.APP_ROOT = path.join(__dirname, "..");
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
@@ -270,6 +287,19 @@ function registerIpcHandlers() {
   );
 
   ipcMain.handle(
+    "pdf:registerBlob",
+    (_e, payload: { base64: string }): { id: string; url: string } => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      pdfBlobs.set(id, Buffer.from(payload.base64, "base64"));
+      return { id, url: `localpdf://pdf/${id}` };
+    },
+  );
+
+  ipcMain.handle("pdf:unregisterBlob", (_e, payload: { id: string }): void => {
+    pdfBlobs.delete(payload.id);
+  });
+
+  ipcMain.handle(
     "pdf:openForPrint",
     async (
       _e,
@@ -321,6 +351,15 @@ function registerIpcHandlers() {
 }
 
 app.whenReady().then(() => {
+  protocol.handle("localpdf", (request) => {
+    const id = new URL(request.url).pathname.replace(/^\/+/, "");
+    const buf = pdfBlobs.get(id);
+    if (!buf) return new Response("Not found", { status: 404 });
+    return new Response(new Uint8Array(buf), {
+      status: 200,
+      headers: { "content-type": "application/pdf" },
+    });
+  });
   registerIpcHandlers();
   cursosMigrarLegacy();
   createWindow();

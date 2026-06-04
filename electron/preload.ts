@@ -27,6 +27,10 @@ const adminAPI = {
       fileName: string,
     ): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke("pdf:openForPrint", { base64, fileName }),
+    registerBlob: (base64: string): Promise<{ id: string; url: string }> =>
+      ipcRenderer.invoke("pdf:registerBlob", { base64 }),
+    unregisterBlob: (id: string): Promise<void> =>
+      ipcRenderer.invoke("pdf:unregisterBlob", { id }),
   },
   local: {
     listar: (): Promise<MatriculaLocal[]> =>
