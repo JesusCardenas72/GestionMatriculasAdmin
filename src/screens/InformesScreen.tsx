@@ -9,6 +9,7 @@ import {
   FileText,
   Filter,
   GripVertical,
+  Maximize2,
   Plus,
   Printer,
   Save,
@@ -34,6 +35,7 @@ import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
 import { useSolicitudes } from '../hooks/useSolicitudes';
 import {
   CAMPO_MAP,
+  CAMPOS_ASIGNATURA,
   CAMPOS_META,
   ESTADO_ASIGNATURA_LABELS,
   ESTADO_TRAMITE_LABELS,
@@ -292,6 +294,9 @@ export default function InformesScreen({ config }: Props) {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const exportBtnRef = useRef<HTMLButtonElement>(null);
+  const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const presetMenuRef = useRef<HTMLDivElement>(null);
+  const presetBtnRef = useRef<HTMLButtonElement>(null);
 
   // Column DnD state
   const [colDrag, setColDrag] = useState<ColDragState | null>(null);
@@ -299,6 +304,12 @@ export default function InformesScreen({ config }: Props) {
   const [dropInsertIdx, setDropInsertIdx] = useState(0);
   const dropInsertIdxRef = useRef(0);
   const thRefsMap = useRef<Map<CampoKey, HTMLTableCellElement>>(new Map());
+  const justDraggedRef = useRef(false);
+
+  // Column resize state — durante el resize se renderiza con un ancho local
+  // y sólo se persiste en informe.anchoColumnas al soltar (evita re-renderizar
+  // todas las filas en cada mousemove).
+  const [resizing, setResizing] = useState<{ key: CampoKey; width: number } | null>(null);
 
   useEffect(() => {
     window.adminAPI.presets.listar().then(setPresets);
@@ -332,6 +343,20 @@ export default function InformesScreen({ config }: Props) {
     return () => document.removeEventListener('mousedown', onOutside);
   }, [showExportMenu]);
 
+  // Close preset menu when clicking outside
+  useEffect(() => {
+    if (!showPresetMenu) return;
+    function onOutside(e: MouseEvent) {
+      if (
+        presetBtnRef.current?.contains(e.target as Node) ||
+        presetMenuRef.current?.contains(e.target as Node)
+      ) return;
+      setShowPresetMenu(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [showPresetMenu]);
+
   // ── Derivados ─────────────────────────────────────────────────────────────
 
   const camposVisibles = informe.camposVisibles
@@ -341,6 +366,23 @@ export default function InformesScreen({ config }: Props) {
   const camposDisponibles = camposDeModo(informe.modo).filter(
     c => !informe.camposVisibles.includes(c.key),
   );
+
+  // Para el desplegable "+": separamos en dos grupos (matrícula y asignatura)
+  // y los ordenamos alfabéticamente por etiqueta dentro de cada grupo.
+  const asignaturaKeys = useMemo(
+    () => new Set(CAMPOS_ASIGNATURA.map(c => c.key)),
+    [],
+  );
+  const sortByLabel = (a: CampoMeta, b: CampoMeta) =>
+    a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
+  const camposDispMatricula = camposDisponibles
+    .filter(c => !asignaturaKeys.has(c.key))
+    .slice()
+    .sort(sortByLabel);
+  const camposDispAsignatura = camposDisponibles
+    .filter(c => asignaturaKeys.has(c.key))
+    .slice()
+    .sort(sortByLabel);
 
   const resultados = useMemo(() => {
     const filtered = aplicarFiltros(allRows, informe.filtros);
@@ -395,6 +437,9 @@ export default function InformesScreen({ config }: Props) {
       if (modo === 'asignatura' && !camposVisibles.includes('asigEstado')) {
         camposVisibles = [...camposVisibles, 'asigEstado'];
       }
+      const anchoColumnas = Object.fromEntries(
+        Object.entries(prev.anchoColumnas ?? {}).filter(([k]) => validos.has(k as CampoKey)),
+      );
       return {
         ...prev,
         modo,
@@ -402,6 +447,7 @@ export default function InformesScreen({ config }: Props) {
         filtros: prev.filtros.filter(f => validos.has(f.campo)),
         orden: prev.orden.filter(o => validos.has(o.campo)),
         agruparPor: prev.agruparPor && validos.has(prev.agruparPor) ? prev.agruparPor : null,
+        anchoColumnas,
       };
     });
   }
@@ -435,11 +481,16 @@ export default function InformesScreen({ config }: Props) {
   }
 
   function removeCampo(key: CampoKey) {
-    setInforme(prev => ({
-      ...prev,
-      camposVisibles: prev.camposVisibles.filter(k => k !== key),
-      orden: prev.orden.filter(o => o.campo !== key),
-    }));
+    setInforme(prev => {
+      const nextAnchos = { ...(prev.anchoColumnas ?? {}) };
+      delete nextAnchos[key];
+      return {
+        ...prev,
+        camposVisibles: prev.camposVisibles.filter(k => k !== key),
+        orden: prev.orden.filter(o => o.campo !== key),
+        anchoColumnas: nextAnchos,
+      };
+    });
   }
 
   function addCampoInline(key: CampoKey) {
@@ -484,6 +535,7 @@ export default function InformesScreen({ config }: Props) {
   // ── Ordenar por clic en cabecera (estilo Excel) ───────────────────────────
 
   function handleClickSort(campo: CampoKey) {
+    if (justDraggedRef.current) return;
     const existing = informe.orden.find(o => o.campo === campo);
     if (!existing) {
       setInforme(prev => ({
@@ -505,16 +557,49 @@ export default function InformesScreen({ config }: Props) {
 
   // ── Column DnD ────────────────────────────────────────────────────────────
 
-  function handleGripMouseDown(e: React.MouseEvent, colIdx: number) {
-    e.preventDefault();
-    const key = camposVisibles[colIdx].key;
-    const th = thRefsMap.current.get(key);
-    if (!th) return;
-    const rect = th.getBoundingClientRect();
-    setColDrag({ colIdx, width: rect.width, height: rect.height, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top });
-    setGhostPos({ x: e.clientX, y: e.clientY });
-    dropInsertIdxRef.current = colIdx;
-    setDropInsertIdx(colIdx);
+  // Mousedown sobre cualquier parte del título de la columna. Sólo se promueve
+  // a "drag" cuando el cursor se desplaza más allá de un umbral; antes de eso
+  // se comporta como un click normal (que dispara el ordenado).
+  function handleColumnMouseDown(e: React.MouseEvent, colIdx: number) {
+    if (e.button !== 0) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const DRAG_THRESHOLD = 4;
+
+    function onMove(ev: MouseEvent) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+      cleanup();
+      const key = camposVisibles[colIdx].key;
+      const th = thRefsMap.current.get(key);
+      if (!th) return;
+      const rect = th.getBoundingClientRect();
+      setColDrag({
+        colIdx,
+        width: rect.width,
+        height: rect.height,
+        offsetX: ev.clientX - rect.left,
+        offsetY: ev.clientY - rect.top,
+      });
+      setGhostPos({ x: ev.clientX, y: ev.clientY });
+      dropInsertIdxRef.current = colIdx;
+      setDropInsertIdx(colIdx);
+      justDraggedRef.current = true;
+      // Se resetea tras el ciclo actual para que el click posterior pueda
+      // detectar el flag y abortar el sort.
+      setTimeout(() => { justDraggedRef.current = false; }, 0);
+    }
+
+    function onUp() {
+      cleanup();
+    }
+
+    function cleanup() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   }
 
   useEffect(() => {
@@ -568,6 +653,62 @@ export default function InformesScreen({ config }: Props) {
       document.body.style.userSelect = '';
     };
   }, [colDrag]);
+
+  // ── Column resize ─────────────────────────────────────────────────────────
+
+  function handleColumnResizeStart(e: React.MouseEvent, key: CampoKey) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const th = thRefsMap.current.get(key);
+    if (!th) return;
+    const startWidth = th.getBoundingClientRect().width;
+    const startX = e.clientX;
+    let currentWidth = startWidth;
+    setResizing({ key, width: startWidth });
+
+    function onMove(ev: MouseEvent) {
+      currentWidth = Math.max(50, startWidth + (ev.clientX - startX));
+      setResizing({ key, width: currentWidth });
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setInforme(prev => ({
+        ...prev,
+        anchoColumnas: { ...(prev.anchoColumnas ?? {}), [key]: Math.round(currentWidth) },
+      }));
+      setResizing(null);
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // Aplica cursor + bloqueo de selección durante el resize a nivel de document.
+  useEffect(() => {
+    if (!resizing) return;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [resizing]);
+
+  function handleAutoAjustarColumnas() {
+    setInforme(prev => ({ ...prev, anchoColumnas: {} }));
+  }
+
+  // Devuelve el ancho a aplicar al <th> (en px) o undefined si va en automático.
+  function getAnchoColumna(key: CampoKey): number | undefined {
+    if (resizing?.key === key) return resizing.width;
+    return informe.anchoColumnas?.[key];
+  }
+
+  const tieneAnchosManuales =
+    Object.keys(informe.anchoColumnas ?? {}).length > 0;
 
   // ── Imprimir ──────────────────────────────────────────────────────────────
 
@@ -854,36 +995,63 @@ export default function InformesScreen({ config }: Props) {
           className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30 w-44"
         />
 
-        {/* Actualizar + Eliminar preset */}
-        {isSavedPreset && (
-          <>
+        {/* Acciones de preset */}
+        {isSavedPreset ? (
+          <div className="relative">
             <button
-              onClick={handleActualizarPreset}
+              ref={presetBtnRef}
+              onClick={() => setShowPresetMenu(v => !v)}
               className="flex items-center gap-1 text-xs px-2.5 py-1.5 text-white rounded-lg transition-colors"
               style={{ background: 'var(--tc-primary)' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--tc-primary-dark)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--tc-primary)'; }}
             >
-              <Save className="w-3 h-3" /> Actualizar
+              <Save className="w-3 h-3" />
+              Preset
+              <ChevronDown className={`w-3 h-3 transition-transform ${showPresetMenu ? 'rotate-180' : ''}`} />
             </button>
-            <button
-              onClick={handleEliminarPreset}
-              className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-            >
-              <Trash2 className="w-3 h-3" /> Eliminar
-            </button>
-          </>
-        )}
 
-        {/* Guardar como preset */}
-        <button
-          onClick={handleGuardarNuevoPreset}
-          disabled={!informe.nombre.trim()}
-          className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Save className="w-3.5 h-3.5" />
-          {isSavedPreset ? 'Guardar como nuevo...' : 'Guardar preset...'}
-        </button>
+            {showPresetMenu && (
+              <div
+                ref={presetMenuRef}
+                className="absolute left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[200px]"
+              >
+                <button
+                  onClick={() => { setShowPresetMenu(false); handleActualizarPreset(); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                >
+                  <Save className="w-4 h-4 shrink-0 text-slate-400" />
+                  <span>Actualizar</span>
+                </button>
+                <button
+                  onClick={() => { setShowPresetMenu(false); handleGuardarNuevoPreset(); }}
+                  disabled={!informe.nombre.trim()}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-700"
+                >
+                  <Plus className="w-4 h-4 shrink-0 text-slate-400" />
+                  <span>Guardar como nuevo...</span>
+                </button>
+                <div className="h-px bg-slate-100 mx-3" />
+                <button
+                  onClick={() => { setShowPresetMenu(false); handleEliminarPreset(); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>Eliminar</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={handleGuardarNuevoPreset}
+            disabled={!informe.nombre.trim()}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Save className="w-3.5 h-3.5" />
+            Guardar preset...
+          </button>
+        )}
 
         <div className="flex-1 min-w-2" />
 
@@ -907,6 +1075,18 @@ export default function InformesScreen({ config }: Props) {
               ))}
             </select>
           </div>
+        )}
+
+        {/* Auto-ajustar columnas (sólo si hay anchos manuales) */}
+        {tieneAnchosManuales && (
+          <button
+            onClick={handleAutoAjustarColumnas}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border bg-amber-50 border-amber-300/60 text-amber-700 hover:bg-amber-100 transition-colors"
+            title="Restablece los anchos al cálculo automático"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            Auto-ajustar
+          </button>
         )}
 
         {/* Filtros toggle */}
@@ -1091,15 +1271,41 @@ export default function InformesScreen({ config }: Props) {
                       ref={addFieldDropRef}
                       className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 py-1 min-w-44 max-h-64 overflow-y-auto"
                     >
-                      {camposDisponibles.map(c => (
-                        <button
-                          key={c.key}
-                          onClick={() => addCampoInline(c.key)}
-                          className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                        >
-                          {c.label}
-                        </button>
-                      ))}
+                      {camposDispMatricula.length > 0 && (
+                        <>
+                          <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
+                            Matrícula
+                          </div>
+                          {camposDispMatricula.map(c => (
+                            <button
+                              key={c.key}
+                              onClick={() => addCampoInline(c.key)}
+                              className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                            >
+                              {c.label}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {camposDispAsignatura.length > 0 && (
+                        <>
+                          {camposDispMatricula.length > 0 && (
+                            <div className="h-px bg-slate-100 my-1" />
+                          )}
+                          <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
+                            Asignaturas matriculadas
+                          </div>
+                          {camposDispAsignatura.map(c => (
+                            <button
+                              key={c.key}
+                              onClick={() => addCampoInline(c.key)}
+                              className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                            >
+                              {c.label}
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1119,7 +1325,10 @@ export default function InformesScreen({ config }: Props) {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            transition={{ duration: 0.12 }}
+                            transition={{
+                              layout: { type: 'spring', stiffness: 260, damping: 32, mass: 0.9 },
+                              opacity: { duration: 0.18 },
+                            }}
                             style={{ width: colDrag!.width, padding: 0, verticalAlign: 'middle' }}
                           >
                             <div
@@ -1139,19 +1348,26 @@ export default function InformesScreen({ config }: Props) {
                         <motion.th
                           key={c.key}
                           layout="position"
+                          transition={{ type: 'spring', stiffness: 260, damping: 32, mass: 0.9 }}
                           ref={el => {
                             if (el) thRefsMap.current.set(c.key, el as HTMLTableCellElement);
                             else thRefsMap.current.delete(c.key);
+                          }}
+                          style={{
+                            position: 'relative',
+                            width: getAnchoColumna(c.key),
                           }}
                           className={
                             'group px-2 py-0 text-left whitespace-nowrap select-none transition-opacity duration-150 ' +
                             (isDragging ? 'opacity-0 ' : 'opacity-100 ')
                           }
                         >
-                          <div className="flex items-center gap-0.5 py-2">
+                          <div
+                            className="flex items-center gap-0.5 py-2 cursor-grab"
+                            onMouseDown={e => handleColumnMouseDown(e, item.originalIdx)}
+                          >
                             <span
-                              onMouseDown={e => handleGripMouseDown(e, item.originalIdx)}
-                              className="cursor-grab text-amber-300 hover:text-amber-500 transition-colors shrink-0 opacity-30 group-hover:opacity-100 pr-0.5"
+                              className="text-amber-600 hover:text-amber-800 transition-colors shrink-0 opacity-60 group-hover:opacity-100 pr-0.5"
                               title="Arrastrar para reordenar"
                             >
                               <GripVertical className="w-3 h-3" />
@@ -1182,18 +1398,32 @@ export default function InformesScreen({ config }: Props) {
                                   )}
                                 </span>
                               ) : (
-                                <ChevronsUpDown className="w-3 h-3 opacity-0 group-hover/sort:opacity-30 transition-opacity" />
+                                <ChevronsUpDown className="w-3 h-3 opacity-60 group-hover/sort:opacity-100 transition-opacity" />
                               )}
                             </button>
 
                             <button
                               onClick={() => removeCampo(c.key)}
-                              className="ml-0.5 p-0.5 rounded hover:bg-red-100 hover:text-red-500 transition-colors text-amber-200"
+                              onMouseDown={e => e.stopPropagation()}
+                              className="ml-0.5 p-0.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
                               title="Eliminar columna"
                             >
                               <X className="w-3 h-3" />
                             </button>
                           </div>
+
+                          {/* Resize handle */}
+                          <div
+                            onMouseDown={e => handleColumnResizeStart(e, c.key)}
+                            className={
+                              'absolute top-0 bottom-0 w-1.5 cursor-col-resize transition-colors ' +
+                              (resizing?.key === c.key
+                                ? 'bg-amber-500/70'
+                                : 'hover:bg-amber-400/50')
+                            }
+                            style={{ right: -3 }}
+                            title="Arrastrar para cambiar el ancho"
+                          />
                         </motion.th>
                       );
                     })}
@@ -1222,15 +1452,41 @@ export default function InformesScreen({ config }: Props) {
                             ref={addFieldDropRef}
                             className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-30 py-1 min-w-44 max-h-64 overflow-y-auto"
                           >
-                            {camposDisponibles.map(c => (
-                              <button
-                                key={c.key}
-                                onClick={() => addCampoInline(c.key)}
-                                className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                              >
-                                {c.label}
-                              </button>
-                            ))}
+                            {camposDispMatricula.length > 0 && (
+                              <>
+                                <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
+                                  Matrícula
+                                </div>
+                                {camposDispMatricula.map(c => (
+                                  <button
+                                    key={c.key}
+                                    onClick={() => addCampoInline(c.key)}
+                                    className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                  >
+                                    {c.label}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                            {camposDispAsignatura.length > 0 && (
+                              <>
+                                {camposDispMatricula.length > 0 && (
+                                  <div className="h-px bg-slate-100 my-1" />
+                                )}
+                                <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
+                                  Asignaturas matriculadas
+                                </div>
+                                {camposDispAsignatura.map(c => (
+                                  <button
+                                    key={c.key}
+                                    onClick={() => addCampoInline(c.key)}
+                                    className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                  >
+                                    {c.label}
+                                  </button>
+                                ))}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>

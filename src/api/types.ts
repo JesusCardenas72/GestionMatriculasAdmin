@@ -239,6 +239,8 @@ export interface ConfigInforme {
   agruparPor?: CampoKey | null;
   /** 'alumno' (una fila por alumno, por defecto) o 'asignatura' (una fila por alumno × asignatura) */
   modo?: 'alumno' | 'asignatura';
+  /** Anchos manuales por columna en píxeles. Si no se indica, se calcula automáticamente. */
+  anchoColumnas?: Partial<Record<CampoKey, number>>;
 }
 
 // ── Matrículas locales (store JSON) ──────────────────────────────────────────
