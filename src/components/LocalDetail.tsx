@@ -51,7 +51,7 @@ import {
   type EstadoTramite,
   type MatriculaLocal,
 } from "../api/types";
-import { ensenanzaDesdeCode, getCatalogoLocal } from "../data/catalogoLocal";
+import { ensenanzaDesdeCode, getCatalogoLocal, getCatalogoParaCurso } from "../data/catalogoLocal";
 import { EstadoBadge } from "./SolicitudDetail";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
@@ -163,13 +163,19 @@ export default function LocalDetail({
   const cursoActual = parseInt(cursoNum, 10) || 0;
   const especialidad = form.especialidad;
 
+  const esRepetidorSuelta =
+    m.repetidor &&
+    (m.ensenanzaCurso === "EP6" || m.ensenanzaCurso === "EE4") &&
+    items.some((i) => !i._deleted && i.nombre.includes(`(${cursoActual}º)`));
+
   const catalogoFiltrado = useMemo(() => {
     if (!especialidad) return [];
     const yaAgregados = new Set(items.filter((i) => !i._deleted).map((i) => i.codigo));
-    return getCatalogoLocal(especialidad, cursoActual, ensenanza).filter(
-      (a) => !yaAgregados.has(a.codigo),
-    );
-  }, [especialidad, cursoActual, ensenanza, items]);
+    const catalogo = esRepetidorSuelta
+      ? getCatalogoParaCurso(especialidad, cursoActual, ensenanza)
+      : getCatalogoLocal(especialidad, cursoActual, ensenanza);
+    return catalogo.filter((a) => !yaAgregados.has(a.codigo));
+  }, [especialidad, cursoActual, ensenanza, items, esRepetidorSuelta]);
 
   function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -256,7 +262,12 @@ export default function LocalDetail({
     setShowAdd(false);
   }
 
-  const listaVisible = items.filter((i) => !i._deleted);
+  const listaVisible = items.filter(
+    (i) => !i._deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+  );
+
+  const nOrdenDigits = form.nOrden ? form.nOrden.length : 0;
+  const nOrdenColWidth = nOrdenDigits <= 2 ? 96 : nOrdenDigits === 3 ? 128 : 164;
 
   return (
     <div className="max-w-4xl">
@@ -280,7 +291,7 @@ export default function LocalDetail({
           }}
         >
           {/* Número enorme editable */}
-          <div className="shrink-0 flex flex-col items-center" style={{ width: 96 }}>
+          <div className="shrink-0 flex flex-col items-center" style={{ width: nOrdenColWidth }}>
             <input
               type="number"
               value={form.nOrden}

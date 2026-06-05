@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Search,
   Upload,
+  X,
 } from "lucide-react";
 import type { MatriculaLocal } from "../api/types";
 
@@ -411,8 +412,17 @@ export default function LocalList({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar alumno..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-[var(--tc-bg)] border border-[var(--tc-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tc-primary-border)] placeholder:text-[var(--tc-ink-mute)]"
+              className="w-full pl-9 pr-8 py-2 text-xs bg-[var(--tc-bg)] border border-[var(--tc-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tc-primary-border)] placeholder:text-[var(--tc-ink-mute)]"
             />
+            {q && (
+              <button
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--tc-primary-tint)]"
+                title="Limpiar búsqueda"
+              >
+                <X className="w-3.5 h-3.5" style={{ color: "var(--tc-ink-mute)" }} />
+              </button>
+            )}
           </div>
         </div>
 

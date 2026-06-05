@@ -10,7 +10,7 @@ import {
 } from "../hooks/useSolicitudes";
 import { actualizarSolicitud } from "../api/solicitudes";
 import { FlowError } from "../api/client";
-import { getCatalogoLocal, ensenanzaDesdeCode } from "../data/catalogoLocal";
+import { getCatalogoLocal, getCatalogoParaCurso, ensenanzaDesdeCode } from "../data/catalogoLocal";
 
 interface Props {
   config: AppConfig;
@@ -57,11 +57,19 @@ export default function SolicitudEditModal({ config, solicitud, onClose, onSaved
 
   const lista = useMemo(() => items ?? [], [items]);
 
+  const esRepetidorSuelta =
+    solicitud.repetidor &&
+    (solicitud.ensenanzaCurso === "EP6" || solicitud.ensenanzaCurso === "EE4") &&
+    lista.some((i) => !i.deleted && i.nombre.includes(`(${cursoActual}º)`));
+
   const catalogoFiltrado = useMemo(() => {
     if (!especialidad) return [];
     const yaAgregados = new Set(lista.filter((i) => !i.deleted).map((i) => i.asignaturaId));
-    return getCatalogoLocal(especialidad, cursoActual, ensenanza).filter((a) => !yaAgregados.has(a.rowId));
-  }, [especialidad, ensenanza, cursoActual, lista]);
+    const catalogo = esRepetidorSuelta
+      ? getCatalogoParaCurso(especialidad, cursoActual, ensenanza)
+      : getCatalogoLocal(especialidad, cursoActual, ensenanza);
+    return catalogo.filter((a) => !yaAgregados.has(a.rowId));
+  }, [especialidad, ensenanza, cursoActual, lista, esRepetidorSuelta]);
 
   function cambiarEstado(rowId: string, nuevoEstado: EstadoAsignatura) {
     setItems((prev) =>
@@ -168,7 +176,9 @@ export default function SolicitudEditModal({ config, solicitud, onClose, onSaved
     );
   }
 
-  const listaVisible = lista.filter((i) => !i.deleted);
+  const listaVisible = lista.filter(
+    (i) => !i.deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">

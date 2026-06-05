@@ -24,7 +24,7 @@ import {
   useGuardarAsignaturas,
   usePdf,
 } from "../hooks/useSolicitudes";
-import { getCatalogoLocal, ensenanzaDesdeCode } from "../data/catalogoLocal";
+import { getCatalogoLocal, getCatalogoParaCurso, ensenanzaDesdeCode } from "../data/catalogoLocal";
 import { actualizarSolicitud } from "../api/solicitudes";
 import { FlowError } from "../api/client";
 import PdfViewer from "./PdfViewer";
@@ -169,23 +169,35 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asignaturasQuery.data]);
 
+  const esRepetidorSuelta =
+    solicitud.repetidor &&
+    (solicitud.ensenanzaCurso === "EP6" || solicitud.ensenanzaCurso === "EE4") &&
+    (asigItems ?? []).some((i) => !i.deleted && i.nombre.includes(`(${cursoActual}º)`));
+
   const gruposAsig = useMemo(() => {
-    const visibles = (asigItems ?? []).filter((i) => !i.deleted);
+    const visibles = (asigItems ?? []).filter(
+      (i) => !i.deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+    );
     return ORDEN_ESTADOS
       .map((estado) => ({ estado, items: visibles.filter((i) => i.estado === estado) }))
       .filter((g) => g.items.length > 0);
-  }, [asigItems]);
+  }, [asigItems, esRepetidorSuelta, cursoActual]);
 
   const listaAsigVisible = useMemo(
-    () => (asigItems ?? []).filter((i) => !i.deleted),
-    [asigItems],
+    () => (asigItems ?? []).filter(
+      (i) => !i.deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+    ),
+    [asigItems, esRepetidorSuelta, cursoActual],
   );
 
   const catalogoFiltradoAsig = useMemo(() => {
     if (!especialidad) return [];
     const yaAgregados = new Set(listaAsigVisible.map((i) => i.asignaturaId));
-    return getCatalogoLocal(especialidad, cursoActual, ensenanza).filter((a) => !yaAgregados.has(a.rowId));
-  }, [especialidad, ensenanza, cursoActual, listaAsigVisible]);
+    const catalogo = esRepetidorSuelta
+      ? getCatalogoParaCurso(especialidad, cursoActual, ensenanza)
+      : getCatalogoLocal(especialidad, cursoActual, ensenanza);
+    return catalogo.filter((a) => !yaAgregados.has(a.rowId));
+  }, [especialidad, ensenanza, cursoActual, listaAsigVisible, esRepetidorSuelta]);
 
   const hayChangiosAsig = useMemo(() => {
     if (!asigItems || !asignaturasQuery.data) return false;
@@ -356,6 +368,9 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
     ? String(solicitud.nOrden).padStart(2, "0")
     : "—";
 
+  const nOrdenDigits = solicitud.nOrden != null ? String(solicitud.nOrden).length : 0;
+  const nOrdenColWidth = nOrdenDigits <= 2 ? 96 : nOrdenDigits === 3 ? 128 : 164;
+
   // ── Header compartido ────────────────────────────────────────────────────
   const DetailHeader = (
     <div
@@ -369,7 +384,7 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
       }}
     >
       {/* Número enorme */}
-      <div className="shrink-0 flex flex-col items-center" style={{ width: 96 }}>
+      <div className="shrink-0 flex flex-col items-center" style={{ width: nOrdenColWidth }}>
         <div
           className="font-display leading-none tabular-nums"
           style={{

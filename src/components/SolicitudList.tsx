@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Loader2, RefreshCw, Search, AlertCircle, Inbox, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, RefreshCw, Search, AlertCircle, Inbox, ChevronUp, ChevronDown, X } from "lucide-react";
 import type { Solicitud } from "../api/types";
 
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
@@ -120,13 +120,22 @@ export default function SolicitudList({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar alumno..."
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tc-primary-border)] placeholder:text-[var(--tc-ink-mute)]"
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tc-primary-border)] placeholder:text-[var(--tc-ink-mute)]"
               style={{
                 background: "var(--tc-bg)",
                 border: "1px solid var(--tc-border)",
                 color: "var(--tc-ink)",
               }}
             />
+            {q && (
+              <button
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--tc-primary-tint)]"
+                title="Limpiar búsqueda"
+              >
+                <X className="w-3.5 h-3.5" style={{ color: "var(--tc-ink-mute)" }} />
+              </button>
+            )}
           </div>
           <button
             onClick={onRefresh}
