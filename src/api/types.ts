@@ -291,6 +291,7 @@ export interface MatriculaLocal {
   anulacion: boolean;
   ampliacion: boolean;
   ampliada: boolean;
+  textoFormateado?: boolean;
 
   _pendienteSubida: boolean;
   _guardadoEn: string;

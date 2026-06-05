@@ -20,6 +20,7 @@ import AmpliacionWizard from "../components/AmpliacionWizard";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
+import { formatearMatriculaLocal } from "../utils/formatText";
 
 interface Props {
   config: AppConfig;
@@ -30,7 +31,7 @@ function solicitudALocal(
   asignaturas: AsignaturaMatriculada[],
 ): MatriculaLocal {
   const now = new Date().toISOString();
-  return {
+  return formatearMatriculaLocal({
     localId: crypto.randomUUID(),
     rowId: s.rowId,
     origenRowId: s.rowId,
@@ -75,7 +76,7 @@ function solicitudALocal(
     _guardadoEn: now,
     _modificadoEn: now,
     _pdfBase64: null,
-  };
+  });
 }
 
 function toIsoDate(s: string | null | undefined): string | null {
