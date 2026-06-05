@@ -20,7 +20,15 @@ import {
   presetsListar,
   presetsGuardar,
   presetsEliminar,
+  predefinidosOcultosListar,
+  predefinidoOcultar,
+  predefinidoMostrar,
 } from "./presets-store";
+import {
+  profesoresGuardados,
+  leerProfesoresDeCsv,
+  setProfesoresCsvPath,
+} from "./horarios-store";
 import {
   cursosListarConocidos,
   cursosListar,
@@ -171,6 +179,27 @@ function registerIpcHandlers() {
   ipcMain.handle("presets:listar", () => presetsListar());
   ipcMain.handle("presets:guardar", (_e, preset: ConfigInforme) => presetsGuardar(preset));
   ipcMain.handle("presets:eliminar", (_e, id: string) => presetsEliminar(id));
+  ipcMain.handle("presets:ocultosListar", () => predefinidosOcultosListar());
+  ipcMain.handle("presets:ocultarPredefinido", (_e, id: string) => predefinidoOcultar(id));
+  ipcMain.handle("presets:mostrarPredefinido", (_e, id: string) => predefinidoMostrar(id));
+
+  // ── Horarios: lista de profesores desde CSV ──────────────────────────────
+  ipcMain.handle("horarios:profesoresGuardados", () => profesoresGuardados());
+  ipcMain.handle(
+    "horarios:seleccionarProfesoresCsv",
+    async (): Promise<{ path: string; profesores: string[] } | null> => {
+      const res = await dialog.showOpenDialog({
+        title: "Selecciona el CSV de profesorado",
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+        properties: ["openFile"],
+      });
+      if (res.canceled || res.filePaths.length === 0) return null;
+      const csvPath = res.filePaths[0];
+      const profesores = leerProfesoresDeCsv(csvPath);
+      setProfesoresCsvPath(csvPath);
+      return { path: csvPath, profesores };
+    },
+  );
 
   ipcMain.handle(
     "informe:exportar",

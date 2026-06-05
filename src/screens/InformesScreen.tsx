@@ -10,9 +10,12 @@ import {
   Filter,
   GripVertical,
   Maximize2,
+  MoreVertical,
   Plus,
   Printer,
+  RotateCcw,
   Save,
+  Star,
   Trash2,
   X,
   ZoomIn,
@@ -46,6 +49,7 @@ import {
   type CampoMeta,
 } from '../data/informesConfig';
 import { buildHtmlInforme } from '../utils/pdfInforme';
+import { generarExcelHorarios } from '../utils/excelHorarios';
 
 interface Props {
   config: AppConfig;
@@ -280,6 +284,7 @@ export default function InformesScreen({ config }: Props) {
   }, [allRows]);
   const [printing, setPrinting] = useState(false);
   const [presets, setPresets] = useState<ConfigInforme[]>([]);
+  const [ocultos, setOcultos] = useState<string[]>([]);
 
   // Vista previa PDF
   const [showPreview, setShowPreview] = useState(false);
@@ -313,6 +318,7 @@ export default function InformesScreen({ config }: Props) {
 
   useEffect(() => {
     window.adminAPI.presets.listar().then(setPresets);
+    window.adminAPI.presets.ocultosListar().then(setOcultos);
   }, []);
 
   // Close add-field dropdown when clicking outside
@@ -478,6 +484,34 @@ export default function InformesScreen({ config }: Props) {
     const lista = await window.adminAPI.presets.listar();
     setPresets(lista);
     setInforme(deepClone(INFORME_VACIO));
+  }
+
+  /** Marca/desmarca un preset guardado como "predeterminado" (grupo Predefinidos). */
+  async function handleTogglePredeterminado(predefinido: boolean) {
+    setShowPresetMenu(false);
+    const actualizado = { ...deepClone(informe), predefinido };
+    await window.adminAPI.presets.guardar(actualizado);
+    const lista = await window.adminAPI.presets.listar();
+    setPresets(lista);
+    setInforme(actualizado);
+  }
+
+  /** "Borra" un predefinido de fábrica ocultándolo (se puede restaurar). */
+  async function handleOcultarPredefinido() {
+    setShowPresetMenu(false);
+    await window.adminAPI.presets.ocultarPredefinido(informe.id);
+    const lista = await window.adminAPI.presets.ocultosListar();
+    setOcultos(lista);
+    setInforme(deepClone(INFORME_VACIO));
+  }
+
+  /** Restaura todos los predefinidos de fábrica ocultados. */
+  async function handleRestaurarPredefinidos() {
+    for (const id of ocultos) {
+      await window.adminAPI.presets.mostrarPredefinido(id);
+    }
+    const lista = await window.adminAPI.presets.ocultosListar();
+    setOcultos(lista);
   }
 
   function removeCampo(key: CampoKey) {
@@ -813,6 +847,40 @@ export default function InformesScreen({ config }: Props) {
     });
   }
 
+  async function handleExportarHorarios() {
+    setShowExportMenu(false);
+    // 0. El informe debe estar "Por asignaturas" (no "Por alumno")
+    if (informe.modo !== 'asignatura') {
+      window.alert(
+        'Para generar el Excel de horarios, el informe debe estar "Por asignaturas".\n' +
+          'Cambia el modo del informe a "Por asignaturas" e inténtalo de nuevo.',
+      );
+      return;
+    }
+    // 1. Conseguir la lista de profesores (CSV memorizado; si no hay, pedirlo)
+    let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+    if (profesores.length === 0) {
+      const sel = await window.adminAPI.horarios.seleccionarProfesoresCsv();
+      if (!sel) return; // el usuario canceló
+      profesores = sel.profesores;
+    }
+    // 2. Generar el Excel con las columnas del informe cargado
+    const base64 = await generarExcelHorarios(resultados, camposVisibles, profesores);
+    await window.adminAPI.informe.exportar({
+      contenidoBase64: base64,
+      nombreArchivo: `${informe.nombre} - Horarios`,
+      extension: 'xlsx',
+    });
+  }
+
+  async function handleCargarProfesores() {
+    setShowExportMenu(false);
+    const sel = await window.adminAPI.horarios.seleccionarProfesoresCsv();
+    if (sel) {
+      window.alert(`Lista de profesores actualizada: ${sel.profesores.length} profesores cargados del CSV.`);
+    }
+  }
+
   function handleAbrirVistaPrevia() {
     setPreviewOrientacion('landscape');
     setPreviewZoom(1);
@@ -835,8 +903,19 @@ export default function InformesScreen({ config }: Props) {
   const iconBtnCls = 'p-0.5 rounded transition-colors';
 
   const isSavedPreset = presets.some(p => p.id === informe.id);
-  const isPredefinido = INFORMES_PREDEFINIDOS.some(p => p.id === informe.id);
-  const currentSelectId = isSavedPreset || isPredefinido ? informe.id : 'personalizado';
+  // Predefinido de fábrica (en código) que NO esté oculto
+  const isPredefinidoFabrica =
+    INFORMES_PREDEFINIDOS.some(p => p.id === informe.id) && !ocultos.includes(informe.id);
+  const currentSelectId = isSavedPreset || isPredefinidoFabrica ? informe.id : 'personalizado';
+
+  // Si este preset guardado está marcado como predeterminado
+  const presetActual = presets.find(p => p.id === informe.id);
+  const esPredeterminadoUsuario = !!presetActual?.predefinido;
+
+  // Grupos del selector
+  const predefinidosFabricaVisibles = INFORMES_PREDEFINIDOS.filter(p => !ocultos.includes(p.id));
+  const presetsPredeterminados = presets.filter(p => p.predefinido);
+  const misPresets = presets.filter(p => !p.predefinido);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -883,29 +962,32 @@ export default function InformesScreen({ config }: Props) {
               )}
             </div>
           )}
-          {/* Exportar dropdown */}
+          {/* Menú de acciones (tres puntos verticales) */}
           <div className="relative">
             <button
               ref={exportBtnRef}
               onClick={() => setShowExportMenu(v => !v)}
               disabled={isLoading || camposVisibles.length === 0 || resultados.length === 0}
+              title="Acciones"
+              aria-label="Acciones"
               className={
-                'flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border transition-colors shadow-sm disabled:opacity-40 ' +
+                'flex items-center justify-center w-9 h-9 rounded-xl border transition-colors shadow-sm disabled:opacity-40 ' +
                 (showExportMenu
                   ? 'bg-[var(--tc-primary)] text-white border-[var(--tc-primary)]'
                   : 'bg-white text-[var(--tc-primary)] border-[var(--tc-primary-border)] hover:bg-[var(--tc-primary-tint)]')
               }
             >
-              <Download className="w-3.5 h-3.5" />
-              Exportar
-              <ChevronDown className={`w-3 h-3 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+              <MoreVertical className="w-4 h-4" />
             </button>
 
             {showExportMenu && (
               <div
                 ref={exportMenuRef}
-                className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[160px]"
+                className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[210px] py-1"
               >
+                <div className="px-4 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Exportar
+                </div>
                 <button
                   onClick={handleExportarCSV}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
@@ -913,7 +995,6 @@ export default function InformesScreen({ config }: Props) {
                   <FileText className="w-4 h-4 shrink-0 text-slate-400" />
                   <span>CSV <span className="text-slate-400 text-xs">(.csv)</span></span>
                 </button>
-                <div className="h-px bg-slate-100 mx-3" />
                 <button
                   onClick={handleExportarExcel}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
@@ -921,18 +1002,34 @@ export default function InformesScreen({ config }: Props) {
                   <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-400" />
                   <span>Excel <span className="text-slate-400 text-xs">(.xlsx)</span></span>
                 </button>
+                <button
+                  onClick={handleExportarHorarios}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-500" />
+                  <span>Para horarios <span className="text-slate-400 text-xs">(desplegables)</span></span>
+                </button>
+                <button
+                  onClick={handleCargarProfesores}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-slate-500 hover:bg-slate-50 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                  <span>Cargar profesores (CSV)…</span>
+                </button>
+
+                <div className="h-px bg-slate-100 my-1" />
+
+                <button
+                  onClick={() => { setShowExportMenu(false); handleAbrirVistaPrevia(); }}
+                  disabled={printing}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-40 transition-colors"
+                >
+                  <Printer className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>{printing ? 'Generando…' : 'Imprimir PDF'}</span>
+                </button>
               </div>
             )}
           </div>
-
-          <button
-            onClick={handleAbrirVistaPrevia}
-            disabled={printing || isLoading || camposVisibles.length === 0 || resultados.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 disabled:opacity-40 transition-colors shadow-sm"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            {printing ? 'Generando…' : 'Imprimir PDF'}
-          </button>
         </div>
       </div>
 
@@ -946,14 +1043,19 @@ export default function InformesScreen({ config }: Props) {
           className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
         >
           <option value="personalizado">— Personalizado —</option>
-          <optgroup label="Predefinidos">
-            {INFORMES_PREDEFINIDOS.map(p => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
-          </optgroup>
-          {presets.length > 0 && (
+          {(predefinidosFabricaVisibles.length > 0 || presetsPredeterminados.length > 0) && (
+            <optgroup label="Predefinidos">
+              {predefinidosFabricaVisibles.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+              {presetsPredeterminados.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </optgroup>
+          )}
+          {misPresets.length > 0 && (
             <optgroup label="Mis presets">
-              {presets.map(p => (
+              {misPresets.map(p => (
                 <option key={p.id} value={p.id}>{p.nombre}</option>
               ))}
             </optgroup>
@@ -996,7 +1098,7 @@ export default function InformesScreen({ config }: Props) {
         />
 
         {/* Acciones de preset */}
-        {isSavedPreset ? (
+        {isSavedPreset || isPredefinidoFabrica ? (
           <div className="relative">
             <button
               ref={presetBtnRef}
@@ -1014,15 +1116,18 @@ export default function InformesScreen({ config }: Props) {
             {showPresetMenu && (
               <div
                 ref={presetMenuRef}
-                className="absolute left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[200px]"
+                className="absolute left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[230px]"
               >
-                <button
-                  onClick={() => { setShowPresetMenu(false); handleActualizarPreset(); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
-                >
-                  <Save className="w-4 h-4 shrink-0 text-slate-400" />
-                  <span>Actualizar</span>
-                </button>
+                {/* Actualizar: solo para presets guardados (no para los de fábrica) */}
+                {isSavedPreset && (
+                  <button
+                    onClick={() => { setShowPresetMenu(false); handleActualizarPreset(); }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                  >
+                    <Save className="w-4 h-4 shrink-0 text-slate-400" />
+                    <span>Actualizar</span>
+                  </button>
+                )}
                 <button
                   onClick={() => { setShowPresetMenu(false); handleGuardarNuevoPreset(); }}
                   disabled={!informe.nombre.trim()}
@@ -1031,13 +1136,42 @@ export default function InformesScreen({ config }: Props) {
                   <Plus className="w-4 h-4 shrink-0 text-slate-400" />
                   <span>Guardar como nuevo...</span>
                 </button>
+
+                {/* Marcar / quitar predeterminado: solo para presets guardados */}
+                {isSavedPreset && (
+                  <>
+                    <div className="h-px bg-slate-100 mx-3" />
+                    {esPredeterminadoUsuario ? (
+                      <button
+                        onClick={() => handleTogglePredeterminado(false)}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                      >
+                        <Star className="w-4 h-4 shrink-0 text-amber-500 fill-amber-400" />
+                        <span>Quitar de predeterminados</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleTogglePredeterminado(true)}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                      >
+                        <Star className="w-4 h-4 shrink-0 text-slate-400" />
+                        <span>Guardar como predeterminado</span>
+                      </button>
+                    )}
+                  </>
+                )}
+
                 <div className="h-px bg-slate-100 mx-3" />
                 <button
-                  onClick={() => { setShowPresetMenu(false); handleEliminarPreset(); }}
+                  onClick={() => {
+                    setShowPresetMenu(false);
+                    if (isSavedPreset) handleEliminarPreset();
+                    else handleOcultarPredefinido();
+                  }}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
                 >
                   <Trash2 className="w-4 h-4 shrink-0 text-red-400" />
-                  <span>Eliminar</span>
+                  <span>{isSavedPreset ? 'Eliminar' : 'Eliminar de predefinidos'}</span>
                 </button>
               </div>
             )}
@@ -1050,6 +1184,18 @@ export default function InformesScreen({ config }: Props) {
           >
             <Save className="w-3.5 h-3.5" />
             Guardar preset...
+          </button>
+        )}
+
+        {/* Restaurar predefinidos de fábrica ocultados */}
+        {ocultos.length > 0 && (
+          <button
+            onClick={handleRestaurarPredefinidos}
+            title="Restaurar los predefinidos de fábrica que has eliminado"
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Restaurar predefinidos ({ocultos.length})
           </button>
         )}
 

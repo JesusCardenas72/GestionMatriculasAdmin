@@ -86,6 +86,12 @@ const adminAPI = {
       ipcRenderer.invoke("presets:guardar", preset),
     eliminar: (id: string): Promise<void> =>
       ipcRenderer.invoke("presets:eliminar", id),
+    ocultosListar: (): Promise<string[]> =>
+      ipcRenderer.invoke("presets:ocultosListar"),
+    ocultarPredefinido: (id: string): Promise<void> =>
+      ipcRenderer.invoke("presets:ocultarPredefinido", id),
+    mostrarPredefinido: (id: string): Promise<void> =>
+      ipcRenderer.invoke("presets:mostrarPredefinido", id),
   },
   informe: {
     exportar: (payload: {
@@ -94,6 +100,12 @@ const adminAPI = {
       extension: "csv" | "xlsx";
     }): Promise<string | null> =>
       ipcRenderer.invoke("informe:exportar", payload),
+  },
+  horarios: {
+    profesoresGuardados: (): Promise<{ path: string | null; profesores: string[] }> =>
+      ipcRenderer.invoke("horarios:profesoresGuardados"),
+    seleccionarProfesoresCsv: (): Promise<{ path: string; profesores: string[] } | null> =>
+      ipcRenderer.invoke("horarios:seleccionarProfesoresCsv"),
   },
 };
 

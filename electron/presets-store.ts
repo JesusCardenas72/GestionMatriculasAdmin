@@ -39,3 +39,36 @@ export function presetsGuardar(preset: ConfigInforme): void {
 export function presetsEliminar(id: string): void {
   writeAll(readAll().filter((r) => r.id !== id));
 }
+
+// ── Predefinidos de fábrica ocultos (los que el usuario "borra") ───────────
+function hiddenPath(): string {
+  return path.join(app.getPath("userData"), "informes-predefinidos-ocultos.json");
+}
+
+function readHidden(): string[] {
+  const file = hiddenPath();
+  if (!fs.existsSync(file)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf-8")) as string[];
+  } catch {
+    return [];
+  }
+}
+
+function writeHidden(ids: string[]): void {
+  fs.writeFileSync(hiddenPath(), JSON.stringify(ids, null, 2), "utf-8");
+}
+
+export function predefinidosOcultosListar(): string[] {
+  return readHidden();
+}
+
+export function predefinidoOcultar(id: string): void {
+  const set = new Set(readHidden());
+  set.add(id);
+  writeHidden([...set]);
+}
+
+export function predefinidoMostrar(id: string): void {
+  writeHidden(readHidden().filter((x) => x !== id));
+}
