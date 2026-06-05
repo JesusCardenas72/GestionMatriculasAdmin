@@ -14,6 +14,7 @@ import type { MatriculaLocal } from "../api/types";
 
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
+type RepetidorFilter = "all" | "repetidor" | "noRepetidor";
 
 const SORT_BUTTONS: { field: SortField; label: string }[] = [
   { field: "nombre", label: "Nombre" },
@@ -307,6 +308,7 @@ export default function LocalList({
   const [q, setQ] = useState("");
   const [filterEnsenanza, setFilterEnsenanza] = useState("");
   const [filterEspecialidad, setFilterEspecialidad] = useState("");
+  const [filterRepetidor, setFilterRepetidor] = useState<RepetidorFilter>("all");
   const [sort, setSort] = useState<{ field: SortField | null; dir: SortDir }>({
     field: null,
     dir: "desc",
@@ -331,6 +333,8 @@ export default function LocalList({
     const result = data.filter((m) => {
       if (filterEnsenanza && m.ensenanzaCurso !== filterEnsenanza) return false;
       if (filterEspecialidad && m.especialidad !== filterEspecialidad) return false;
+      if (filterRepetidor === "repetidor" && !m.repetidor) return false;
+      if (filterRepetidor === "noRepetidor" && m.repetidor) return false;
       if (needle && !`${m.nombre} ${m.apellidos} ${m.dni}`.toLowerCase().includes(needle))
         return false;
       return true;
@@ -354,7 +358,7 @@ export default function LocalList({
           return sign * ((a.nOrden ?? Infinity) - (b.nOrden ?? Infinity));
       }
     });
-  }, [data, q, filterEnsenanza, filterEspecialidad, sort]);
+  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, sort]);
 
   function handleEnsenanzaChange(val: string) {
     setFilterEnsenanza(val);
@@ -369,7 +373,15 @@ export default function LocalList({
     });
   }
 
-  const hasFilters = filterEnsenanza || filterEspecialidad;
+  function handleRepetidorClick() {
+    setFilterRepetidor((prev) => {
+      if (prev === "all") return "repetidor";
+      if (prev === "repetidor") return "noRepetidor";
+      return "all";
+    });
+  }
+
+  const hasFilters = filterEnsenanza || filterEspecialidad || filterRepetidor !== "all";
 
   const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
@@ -463,7 +475,7 @@ export default function LocalList({
 
         {hasFilters && (
           <button
-            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); }}
+            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); setFilterRepetidor("all"); }}
             className="self-start text-xs text-[var(--tc-primary)] font-medium hover:underline"
           >
             Limpiar filtros
@@ -490,6 +502,20 @@ export default function LocalList({
               </button>
             );
           })}
+          <button
+            onClick={handleRepetidorClick}
+            title="Filtrar por repetidor"
+            className={
+              "flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
+              (filterRepetidor !== "all"
+                ? "bg-[var(--tc-card)] shadow-sm text-[var(--tc-primary)]"
+                : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            {filterRepetidor === "repetidor" && "Rep. Sí"}
+            {filterRepetidor === "noRepetidor" && "Rep. No"}
+            {filterRepetidor === "all" && "Rep."}
+          </button>
         </div>
 
         {isSyncing && (

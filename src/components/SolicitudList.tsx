@@ -4,6 +4,7 @@ import type { Solicitud } from "../api/types";
 
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
+type RepetidorFilter = "all" | "repetidor" | "noRepetidor";
 
 interface SortState {
   field: SortField | null;
@@ -39,6 +40,7 @@ export default function SolicitudList({
   const [q, setQ] = useState("");
   const [filterEnsenanza, setFilterEnsenanza] = useState("");
   const [filterEspecialidad, setFilterEspecialidad] = useState("");
+  const [filterRepetidor, setFilterRepetidor] = useState<RepetidorFilter>("all");
   const [sort, setSort] = useState<SortState>({ field: null, dir: "desc" });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -63,6 +65,8 @@ export default function SolicitudList({
     const result = base.filter((s) => {
       if (filterEnsenanza && s.ensenanzaCurso !== filterEnsenanza) return false;
       if (filterEspecialidad && s.especialidad !== filterEspecialidad) return false;
+      if (filterRepetidor === "repetidor" && !s.repetidor) return false;
+      if (filterRepetidor === "noRepetidor" && s.repetidor) return false;
       if (needle && !`${s.nombre} ${s.apellidos} ${s.dni}`.toLowerCase().includes(needle))
         return false;
       return true;
@@ -86,7 +90,7 @@ export default function SolicitudList({
           return sign * ((a.nOrden ?? Infinity) - (b.nOrden ?? Infinity));
       }
     });
-  }, [data, q, filterEnsenanza, filterEspecialidad, sort]);
+  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, sort]);
 
   function handleEnsenanzaChange(val: string) {
     setFilterEnsenanza(val);
@@ -101,7 +105,15 @@ export default function SolicitudList({
     });
   }
 
-  const hasFilters = filterEnsenanza || filterEspecialidad;
+  function handleRepetidorClick() {
+    setFilterRepetidor((prev) => {
+      if (prev === "all") return "repetidor";
+      if (prev === "repetidor") return "noRepetidor";
+      return "all";
+    });
+  }
+
+  const hasFilters = filterEnsenanza || filterEspecialidad || filterRepetidor !== "all";
 
   return (
     <div className="flex flex-col h-full">
@@ -188,7 +200,7 @@ export default function SolicitudList({
 
         {hasFilters && (
           <button
-            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); }}
+            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); setFilterRepetidor("all"); }}
             className="self-start text-xs font-medium hover:underline"
             style={{ color: "var(--tc-primary)" }}
           >
@@ -220,6 +232,20 @@ export default function SolicitudList({
               </button>
             );
           })}
+          <button
+            onClick={handleRepetidorClick}
+            title="Filtrar por repetidor"
+            className="flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all"
+            style={
+              filterRepetidor !== "all"
+                ? { background: "var(--tc-card)", boxShadow: "0 1px 2px rgba(0,0,0,0.08)", color: "var(--tc-primary)" }
+                : { color: "var(--tc-ink-mute)" }
+            }
+          >
+            {filterRepetidor === "repetidor" && "Rep. Sí"}
+            {filterRepetidor === "noRepetidor" && "Rep. No"}
+            {filterRepetidor === "all" && "Rep."}
+          </button>
         </div>
       </div>
 
