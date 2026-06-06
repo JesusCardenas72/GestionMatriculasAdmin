@@ -13,6 +13,7 @@ import { crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, sub
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
+import { useAppMode } from "../contexts/AppModeProvider";
 import LocalList from "../components/LocalList";
 import LocalDetail from "../components/LocalDetail";
 import ResizableColumns from "../components/ResizableColumns";
@@ -87,6 +88,7 @@ function toIsoDate(s: string | null | undefined): string | null {
 export default function LocalScreen({ config }: Props) {
   const qc = useQueryClient();
   const { curso } = useCursoContext();
+  const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas(curso);
   const eliminarRef = useRef(eliminar);
   eliminarRef.current = eliminar;
@@ -502,9 +504,11 @@ export default function LocalScreen({ config }: Props) {
             {pendingUploads > 0 && (
               <div className="p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
                 <button
-                  onClick={() => void handleSubirNubeTodo()}
-                  disabled={isSubiendoTodo || isSaving}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm"
+                  onClick={() => !isSoloLectura && void handleSubirNubeTodo()}
+                  disabled={isSubiendoTodo || isSaving || isSoloLectura}
+                  title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm disabled:cursor-not-allowed"
+                  style={{ background: isSoloLectura ? "var(--tc-border)" : undefined }}
                 >
                   {isSubiendoTodo ? (
                     <>
@@ -540,14 +544,15 @@ export default function LocalScreen({ config }: Props) {
                 isSaving={isSaving}
                 subirError={subirError}
                 yaTieneAmpliacion={yaTieneAmpliacion}
+                readOnly={isSoloLectura}
                 onSave={(changes) => void handleSaveEdit(changes)}
                 onAmpliacion={() => {
-                  if (yaTieneAmpliacion) return;
+                  if (isSoloLectura || yaTieneAmpliacion) return;
                   setShowAmpliacion(true);
                 }}
-                onSubirNube={() => void handleSubirNube()}
+                onSubirNube={() => { if (!isSoloLectura) void handleSubirNube(); }}
                 onGenerarPdf={() => void handleGenerarPdf()}
-                onBorrar={() => void handleBorrar()}
+                onBorrar={() => { if (!isSoloLectura) void handleBorrar(); }}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center gap-3">
@@ -570,7 +575,7 @@ export default function LocalScreen({ config }: Props) {
           </div>
         }
       />
-      {showAmpliacion && selected && (
+      {showAmpliacion && selected && !isSoloLectura && (
         <AmpliacionWizard
           matricula={selected}
           isSaving={isSaving}

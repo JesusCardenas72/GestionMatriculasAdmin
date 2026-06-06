@@ -3,10 +3,14 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { useConfig } from "./hooks/useConfig";
 import { useCursosConocidos } from "./hooks/useCursosConocidos";
 import { useMigracionTextoLocal } from "./hooks/useMigracionTextoLocal";
+import { useAppMode } from "./contexts/AppModeProvider";
 import ConfigScreen from "./screens/ConfigScreen";
+import LaunchGate from "./screens/LaunchGate";
 import MainScreen from "./screens/MainScreen";
+import AdminSecretPanel from "./components/AdminSecretPanel";
 
 export default function App() {
+  const { modo } = useAppMode();
   const { state, save, clear } = useConfig();
   const [editing, setEditing] = useState(false);
   const { cursos } = useCursosConocidos();
@@ -16,6 +20,15 @@ export default function App() {
     const saved = localStorage.getItem('theme') ?? 'light';
     document.documentElement.setAttribute('data-theme', saved);
   }, []);
+
+  if (!modo) {
+    return (
+      <>
+        <LaunchGate />
+        <AdminSecretPanel />
+      </>
+    );
+  }
 
   if (state.status === "loading") {
     return (
@@ -41,17 +54,21 @@ export default function App() {
 
   if (state.status === "missing") {
     return (
-      <ConfigScreen
-        initial={null}
-        onSave={async (cfg) => {
-          await save(cfg);
-        }}
-      />
+      <>
+        <AdminSecretPanel />
+        <ConfigScreen
+          initial={null}
+          onSave={async (cfg) => {
+            await save(cfg);
+          }}
+        />
+      </>
     );
   }
 
   return (
     <>
+      <AdminSecretPanel />
       <MainScreen config={state.config} onEditConfig={() => setEditing(true)} />
       {editing && (
         <div

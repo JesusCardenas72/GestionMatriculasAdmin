@@ -49,7 +49,7 @@ import {
   type CampoMeta,
 } from '../data/informesConfig';
 import { buildHtmlInforme } from '../utils/pdfInforme';
-import { generarExcelHorarios } from '../utils/excelHorarios';
+import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 
 interface Props {
   config: AppConfig;
@@ -302,6 +302,13 @@ export default function InformesScreen({ config }: Props) {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const presetMenuRef = useRef<HTMLDivElement>(null);
   const presetBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Configuración del Excel de horarios (modal)
+  const [showHorariosConfig, setShowHorariosConfig] = useState(false);
+  const [horariosGenerando, setHorariosGenerando] = useState(false);
+  const [hCongelar, setHCongelar] = useState(true);
+  const [hCongelarHasta, setHCongelarHasta] = useState<string | null>(null);
+  const [hInsertarTras, setHInsertarTras] = useState<string | null>(null);
 
   // Column DnD state
   const [colDrag, setColDrag] = useState<ColDragState | null>(null);
@@ -847,7 +854,8 @@ export default function InformesScreen({ config }: Props) {
     });
   }
 
-  async function handleExportarHorarios() {
+  // Abre el modal de configuración del Excel de horarios con valores por defecto.
+  function handleExportarHorarios() {
     setShowExportMenu(false);
     // 0. El informe debe estar "Por asignaturas" (no "Por alumno")
     if (informe.modo !== 'asignatura') {
@@ -857,20 +865,55 @@ export default function InformesScreen({ config }: Props) {
       );
       return;
     }
-    // 1. Conseguir la lista de profesores (CSV memorizado; si no hay, pedirlo)
-    let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
-    if (profesores.length === 0) {
-      const sel = await window.adminAPI.horarios.seleccionarProfesoresCsv();
-      if (!sel) return; // el usuario canceló
-      profesores = sel.profesores;
+    // Valores por defecto (equivalentes al comportamiento anterior):
+    //  · Columnas fijas hasta "Especialidad" (o la primera columna si no existe).
+    //  · Columnas de horario insertadas antes de las dos últimas (email/teléfono).
+    const claves = camposVisibles.map(c => c.key);
+    const congelarDef = claves.includes('especialidad')
+      ? 'especialidad'
+      : (claves[0] ?? null);
+    const insertarDef =
+      camposVisibles.length >= 3
+        ? camposVisibles[camposVisibles.length - 3].key
+        : (claves[claves.length - 1] ?? null);
+    setHCongelar(true);
+    setHCongelarHasta(congelarDef);
+    setHInsertarTras(insertarDef);
+    setShowHorariosConfig(true);
+  }
+
+  // Genera y exporta el Excel de horarios con la configuración elegida en el modal.
+  async function handleGenerarHorarios() {
+    setHorariosGenerando(true);
+    try {
+      // 1. Conseguir la lista de profesores (CSV memorizado; si no hay, pedirlo)
+      let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+      if (profesores.length === 0) {
+        const sel = await window.adminAPI.horarios.seleccionarProfesoresCsv();
+        if (!sel) return; // el usuario canceló
+        profesores = sel.profesores;
+      }
+      // 2. Generar el Excel con las columnas del informe y las opciones elegidas
+      const opciones: OpcionesHorario = {
+        congelar: hCongelar,
+        congelarHasta: hCongelar ? hCongelarHasta : null,
+        insertarTras: hInsertarTras,
+      };
+      const base64 = await generarExcelHorarios(
+        resultados,
+        camposVisibles,
+        profesores,
+        opciones,
+      );
+      await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: `${informe.nombre} - Horarios`,
+        extension: 'xlsx',
+      });
+      setShowHorariosConfig(false);
+    } finally {
+      setHorariosGenerando(false);
     }
-    // 2. Generar el Excel con las columnas del informe cargado
-    const base64 = await generarExcelHorarios(resultados, camposVisibles, profesores);
-    await window.adminAPI.informe.exportar({
-      contenidoBase64: base64,
-      nombreArchivo: `${informe.nombre} - Horarios`,
-      extension: 'xlsx',
-    });
   }
 
   async function handleCargarProfesores() {
@@ -1007,7 +1050,7 @@ export default function InformesScreen({ config }: Props) {
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
                 >
                   <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-500" />
-                  <span>Para horarios <span className="text-slate-400 text-xs">(desplegables)</span></span>
+                  <span>Generar Excel Horarios</span>
                 </button>
                 <button
                   onClick={handleCargarProfesores}
@@ -1737,6 +1780,131 @@ export default function InformesScreen({ config }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── Modal Configuración Excel Horarios ─────────────────────────────── */}
+      <AnimatePresence>
+        {showHorariosConfig && (
+          <motion.div
+            key="horarios-config-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => !horariosGenerando && setShowHorariosConfig(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileSpreadsheet className="w-5 h-5 shrink-0 text-emerald-500" />
+                  <h3 className="text-sm font-bold text-[#1b1b24]">Generar Excel de Horarios</h3>
+                </div>
+                <button
+                  onClick={() => setShowHorariosConfig(false)}
+                  disabled={horariosGenerando}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 disabled:opacity-40 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 py-4 space-y-5">
+                {/* Sección 1 — Columnas fijas */}
+                <div>
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={hCongelar}
+                      onChange={e => setHCongelar(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm font-semibold text-[#1b1b24]">
+                      Dejar columnas fijas al desplazar
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-slate-400 mt-1 ml-6 pl-0.5">
+                    Las columnas fijas se mantienen visibles a la izquierda aunque te desplaces
+                    horizontalmente por la hoja.
+                  </p>
+                  <div className="mt-2.5 ml-6 pl-0.5">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      Última columna que queda fija (incluida):
+                    </label>
+                    <select
+                      value={hCongelarHasta ?? ''}
+                      onChange={e => setHCongelarHasta(e.target.value || null)}
+                      disabled={!hCongelar}
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white disabled:bg-slate-50 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    >
+                      {camposVisibles.map(c => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="h-px bg-slate-100" />
+
+                {/* Sección 2 — Posición de las columnas de horario */}
+                <div>
+                  <span className="text-sm font-semibold text-[#1b1b24]">
+                    Dónde insertar las columnas de horario
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Las columnas donde los profesores rellenarán los datos de las clases
+                    (Profesor, Aula, Grupo, Día, Entrada, Salida…) se insertarán en el punto que elijas.
+                  </p>
+                  <div className="mt-2.5">
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      Insertar las columnas de horario:
+                    </label>
+                    <select
+                      value={hInsertarTras ?? '__inicio__'}
+                      onChange={e =>
+                        setHInsertarTras(e.target.value === '__inicio__' ? null : e.target.value)
+                      }
+                      className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    >
+                      <option value="__inicio__">Al principio (antes de todas las columnas)</option>
+                      {camposVisibles.map(c => (
+                        <option key={c.key} value={c.key}>Después de: {c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/60">
+                <button
+                  onClick={() => setShowHorariosConfig(false)}
+                  disabled={horariosGenerando}
+                  className="px-3.5 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleGenerarHorarios}
+                  disabled={horariosGenerando}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors shadow-sm"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  {horariosGenerando ? 'Generando…' : 'Generar Excel'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Modal Vista Previa PDF ─────────────────────────────────────────── */}
       <AnimatePresence>

@@ -30,6 +30,7 @@ import { FlowError } from "../api/client";
 import PdfViewer from "./PdfViewer";
 import ConfirmDialog from "./ConfirmDialog";
 import TramitarEmailModal from "./TramitarEmailModal";
+import { useAppMode } from "../contexts/AppModeProvider";
 
 interface Props {
   config: AppConfig;
@@ -128,6 +129,7 @@ function parseEnsenanzaCurso(ensenanzaCurso: string): { cursoActual: number; esp
 }
 
 export default function SolicitudDetail({ config, solicitud, onDone, onConvalidacionDetected }: Props) {
+  const { isSoloLectura } = useAppMode();
   const [docFaltante, setDocFaltante] = useState(solicitud.docFaltante ?? "");
   const [pending, setPending] = useState<PendingAction>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -464,11 +466,12 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
 
       {/* Borrar */}
       <button
-        onClick={() => setPending("borrar")}
-        disabled={mutation.isPending || borrarMutation.isPending}
-        className="px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+        onClick={() => !isSoloLectura && setPending("borrar")}
+        disabled={mutation.isPending || borrarMutation.isPending || isSoloLectura}
+        title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+        className="px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)"; }}
+        onMouseEnter={(e) => { if (!isSoloLectura) { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)"; } }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-soft)"; }}
       >
         <Trash2 className="w-3.5 h-3.5" />
@@ -681,6 +684,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
                 key={estado}
                 estado={estado}
                 items={items}
+                readOnly={isSoloLectura}
                 forceOpen={allOpen}
                 onCambiarEstado={cambiarEstadoAsig}
                 onEliminar={eliminarAsig}
@@ -689,7 +693,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
           </div>
 
           {/* Añadir asignatura */}
-          {showAdd ? (
+          {showAdd && !isSoloLectura ? (
             <div
               className="p-3 rounded-xl space-y-3"
               style={{ background: "var(--tc-primary-tint)", border: "1.5px dashed var(--tc-primary-border)" }}
@@ -742,8 +746,9 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
           ) : (
             <button
               onClick={() => setShowAdd(true)}
-              disabled={asignaturasQuery.isLoading}
-              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold disabled:opacity-40 transition-colors"
+              disabled={asignaturasQuery.isLoading || isSoloLectura}
+              title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               style={{
                 border: "1.5px dashed var(--tc-primary-border)",
                 background: "var(--tc-primary-tint)",
@@ -754,7 +759,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             </button>
           )}
 
-          {hayChangiosAsig && (
+          {hayChangiosAsig && !isSoloLectura && (
             <div className="flex items-center gap-3">
               <button
                 onClick={handleGuardarAsig}
@@ -892,9 +897,10 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         {isP1 && (
           <>
             <button
-              onClick={() => setPending("pedir")}
-              disabled={mutation.isPending}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+              onClick={() => !isSoloLectura && setPending("pedir")}
+              disabled={mutation.isPending || isSoloLectura}
+              title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 border: "1.5px solid var(--tc-warn-border)",
                 color: "var(--tc-warn-ink)",
@@ -907,12 +913,16 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               Pedir documentación
             </button>
             <button
-              onClick={() => setPending("aprobar")}
-              disabled={mutation.isPending}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+              onClick={() => !isSoloLectura && setPending("aprobar")}
+              disabled={mutation.isPending || isSoloLectura}
+              title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                background: "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
-                boxShadow: "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+                background: isSoloLectura
+                  ? "var(--tc-border)"
+                  : "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
+                boxShadow: isSoloLectura ? "none" : "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+                color: isSoloLectura ? "var(--tc-ink-mute)" : "white",
               }}
             >
               {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -925,12 +935,16 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         )}
         {isP2 && (
           <button
-            onClick={() => setPending("tramitar")}
-            disabled={mutation.isPending}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+            onClick={() => !isSoloLectura && setPending("tramitar")}
+            disabled={mutation.isPending || isSoloLectura}
+            title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              background: "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
-              boxShadow: "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+              background: isSoloLectura
+                ? "var(--tc-border)"
+                : "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
+              boxShadow: isSoloLectura ? "none" : "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+              color: isSoloLectura ? "var(--tc-ink-mute)" : "white",
             }}
           >
             {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}

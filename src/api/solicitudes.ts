@@ -1,4 +1,5 @@
 import type { AppConfig } from "../../electron/config-store";
+import { assertEscribible } from "../config/modeGuard";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { FlowError, postFlow } from "./client";
 import type {
@@ -126,6 +127,7 @@ export function actualizarSolicitud(
   cfg: AppConfig,
   input: ActualizarSolicitudInput,
 ): Promise<{ ok: boolean }> {
+  assertEscribible("ActualizarSolicitud");
   return postFlow<{ ok: boolean }>(cfg.urlActualizar, cfg.apiKey, input, "AdminActualizarSolicitud");
 }
 
@@ -133,6 +135,7 @@ export function editarSolicitud(
   cfg: AppConfig,
   input: EditarSolicitudInput,
 ): Promise<{ ok: boolean }> {
+  assertEscribible("EditarSolicitud");
   return postFlow<{ ok: boolean }>(cfg.urlEditar, cfg.apiKey, input, "AdminEditarSolicitud");
 }
 
@@ -140,6 +143,7 @@ export function borrarSolicitud(
   cfg: AppConfig,
   input: BorrarSolicitudInput,
 ): Promise<{ ok: boolean }> {
+  assertEscribible("BorrarSolicitud");
   return postFlow<{ ok: boolean }>(cfg.urlBorrar, cfg.apiKey, input, "AdminBorrarSolicitud");
 }
 
@@ -147,6 +151,7 @@ export function borrarCursoDataverse(
   cfg: AppConfig,
   cursoEscolar: string,
 ): Promise<{ ok: boolean; eliminadas?: number }> {
+  assertEscribible("BorrarCursoDataverse");
   if (!cfg.urlBorrarCurso) {
     return Promise.reject(new Error("No está configurada la URL para borrar un curso completo"));
   }
@@ -239,6 +244,7 @@ export function guardarAsignaturas(
   cfg: AppConfig,
   input: GuardarAsignaturasInput,
 ): Promise<{ ok: boolean }> {
+  assertEscribible("GuardarAsignaturas");
   return postFlow<{ ok: boolean }>(cfg.urlGuardarAsignaturas, cfg.apiKey, input, "AdminGuardarAsignaturas");
 }
 
@@ -248,6 +254,7 @@ export function subirMatriculaEditada(
   cfg: AppConfig,
   input: SubirMatriculaInput,
 ): Promise<{ ok: boolean }> {
+  assertEscribible("SubirMatriculaEditada");
   return postFlow<{ ok: boolean }>(cfg.urlSubirMatricula, cfg.apiKey, input, "AdminSubirMatriculaEditada");
 }
 
@@ -255,6 +262,7 @@ export function crearAmpliacion(
   cfg: AppConfig,
   input: CrearAmpliacionInput,
 ): Promise<{ rowId: string }> {
+  assertEscribible("CrearAmpliacion");
   return postFlow<{ rowId: string }>(cfg.urlCrearAmpliacion, cfg.apiKey, input, "AdminCrearAmpliacion");
 }
 
@@ -262,5 +270,6 @@ export function enviarEmailAmpliacion(
   cfg: AppConfig,
   input: { email: string; nombre: string; apellidos: string; emailHtml: string; pdfBase64?: string },
 ): Promise<{ ok: boolean }> {
+  assertEscribible("EnviarEmailAmpliacion");
   return postFlow<{ ok: boolean }>(cfg.urlEnviarEmailAmpliacion!, cfg.apiKey, input, "AdminEnviarEmailAmpliacion");
 }

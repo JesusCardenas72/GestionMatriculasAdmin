@@ -16,6 +16,8 @@ export interface AppConfig {
   urlCrearAmpliacion: string;
   urlEnviarEmailAmpliacion?: string;
   apiKey: string;
+  /** Clave de acceso al modo Administrador (opcional; si falta se usa la por defecto). */
+  adminPassword?: string;
 }
 
 function configPath(): string {

@@ -1,1 +1,1 @@
-{"root":["./vite.config.ts","./electron/config-store.ts","./electron/curso-context-store.ts","./electron/cursos-store.ts","./electron/local-store.ts","./electron/main.ts","./electron/preload.ts","./electron/presets-store.ts"],"version":"5.9.3"}
+{"root":["./vite.config.ts","./electron/config-store.ts","./electron/curso-context-store.ts","./electron/cursos-store.ts","./electron/horarios-store.ts","./electron/local-store.ts","./electron/main.ts","./electron/preload.ts","./electron/presets-store.ts"],"version":"5.9.3"}

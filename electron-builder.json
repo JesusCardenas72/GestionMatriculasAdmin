@@ -10,8 +10,14 @@
     "PergaminoIcon.ico"
   ],
   "win": {
-    "target": "nsis",
+    "target": [
+      "portable",
+      "dir"
+    ],
     "icon": "PergaminoIcon256.ico"
+  },
+  "portable": {
+    "artifactName": "GestionMatriculas-Portable.exe"
   },
   "nsis": {
     "oneClick": false,

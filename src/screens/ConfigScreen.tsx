@@ -25,6 +25,7 @@ import { listarSolicitudes, borrarSolicitud } from "../api/solicitudes";
 import { ESTADO } from "../api/types";
 import { FlowError } from "../api/client";
 import { useCursoContext } from "../contexts/CursoContextProvider";
+import { useAppMode } from "../contexts/AppModeProvider";
 import { useCursosConocidos } from "../hooks/useCursosConocidos";
 import { siguienteCurso } from "../utils/cursoContext";
 
@@ -97,6 +98,7 @@ export default function ConfigScreen({
     },
   });
 
+  const { isSoloLectura } = useAppMode();
   const [test, setTest] = useState<TestState>({ status: "idle" });
   const [urlsOpen, setUrlsOpen] = useState(!initial);
   const [cursosOpen, setCursosOpen] = useState(false);
@@ -196,15 +198,30 @@ export default function ConfigScreen({
           </button>
         </div>
 
+        {/* Aviso Solo Lectura */}
+        {isSoloLectura && (
+          <div
+            className="mt-6 p-3 rounded-xl text-sm flex items-center gap-2"
+            style={{ background: "var(--tc-warn-bg)", border: "1px solid var(--tc-warn-border)", color: "var(--tc-warn-ink)" }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            En modo Solo Lectura solo está disponible la configuración de Apariencia.
+          </div>
+        )}
+
         {/* ── Conexión (acordeón) ── */}
         <div
           className="mt-4 rounded-xl overflow-hidden"
-          style={{ border: "1px solid var(--tc-border)" }}
+          style={{ border: "1px solid var(--tc-border)", opacity: isSoloLectura ? 0.45 : 1 }}
         >
           {/* Cabecera del acordeón */}
           <button
             type="button"
-            onClick={() => setUrlsOpen((v) => !v)}
+            onClick={() => !isSoloLectura && setUrlsOpen((v) => !v)}
+            disabled={isSoloLectura}
+            title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
             className="w-full flex items-center justify-between px-4 py-3.5 transition-colors text-left"
             style={{ background: "var(--tc-bg-panel)" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
@@ -405,11 +422,13 @@ export default function ConfigScreen({
         {/* ── Cursos Escolares (acordeón) ── */}
         <div
           className="mt-4 rounded-xl overflow-hidden"
-          style={{ border: "1px solid var(--tc-border)" }}
+          style={{ border: "1px solid var(--tc-border)", opacity: isSoloLectura ? 0.45 : 1 }}
         >
           <button
             type="button"
-            onClick={() => setCursosOpen((v) => !v)}
+            onClick={() => !isSoloLectura && setCursosOpen((v) => !v)}
+            disabled={isSoloLectura}
+            title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
             className="w-full flex items-center justify-between px-4 py-3.5 transition-colors text-left"
             style={{ background: "var(--tc-bg-panel)" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}
@@ -443,11 +462,13 @@ export default function ConfigScreen({
         {/* ── Borrar cursos de Dataverse (acordeón) ── */}
         <div
           className="mt-4 rounded-xl overflow-hidden"
-          style={{ border: "1px solid var(--tc-border)" }}
+          style={{ border: "1px solid var(--tc-border)", opacity: isSoloLectura ? 0.45 : 1 }}
         >
           <button
             type="button"
-            onClick={() => setBorrarOpen((v) => !v)}
+            onClick={() => !isSoloLectura && setBorrarOpen((v) => !v)}
+            disabled={isSoloLectura}
+            title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
             className="w-full flex items-center justify-between px-4 py-3.5 transition-colors text-left"
             style={{ background: "var(--tc-bg-panel)" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-bg)"; }}

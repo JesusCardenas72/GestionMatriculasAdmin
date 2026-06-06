@@ -31,6 +31,42 @@ export function calcularCuantiaAmpliacion(
   return total.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
+export interface CuantiaDetalle {
+  total: number;
+  totalLabel: string;
+  primerPagoLabel: string;
+  segundoPagoLabel: string;
+  esExento: boolean;
+}
+
+function formatEuros(n: number): string {
+  return (
+    n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
+  );
+}
+
+/** Desglose de tasas: importe total y pagos fraccionados (60% / 40%). */
+export function calcularCuantiaDetalle(
+  ensenanzaCurso: string,
+  reduccionTasas: string | null,
+): CuantiaDetalle | null {
+  const match = ensenanzaCurso.match(/^([A-Z]{2})(\d+)/);
+  if (!match) return null;
+  const nivel = parseInt(match[2], 10);
+  const ensKey = ensenanzaCurso.startsWith("EP") ? "profesional" : "elemental";
+  const tasaCurso = TASAS_ACADEMICAS[ensKey][nivel] ?? 0;
+  if (tasaCurso === 0) return null;
+  const { multiplicador, esExento } = resolverReduccion(reduccionTasas);
+  const total = esExento ? 0 : Math.round(tasaCurso * multiplicador) + SERVICIOS_GENERALES;
+  return {
+    total,
+    totalLabel: formatEuros(total),
+    primerPagoLabel: formatEuros(Math.round(total * 0.6 * 100) / 100),
+    segundoPagoLabel: formatEuros(Math.round(total * 0.4 * 100) / 100),
+    esExento,
+  };
+}
+
 /** Devuelve el curso anterior (cursoActual) a partir del ensenanzaCurso de la ampliación. */
 export function cursoActualDesdeAmpliacion(ensenanzaCurso: string): string {
   const match = ensenanzaCurso.match(/^([A-Z]{2})(\d+)/);

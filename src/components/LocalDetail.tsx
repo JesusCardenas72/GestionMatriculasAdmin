@@ -85,6 +85,8 @@ interface Props {
   isSaving: boolean;
   subirError?: string | null;
   yaTieneAmpliacion: boolean;
+  /** Modo Solo Lectura: bloquea Borrar, Crear Ampliación y Subir a la Nube. */
+  readOnly?: boolean;
   onSave: (changes: Partial<MatriculaLocal>) => void;
   onAmpliacion: () => void;
   onSubirNube: () => void;
@@ -123,6 +125,7 @@ export default function LocalDetail({
   isSaving,
   subirError,
   yaTieneAmpliacion,
+  readOnly = false,
   onSave,
   onAmpliacion,
   onSubirNube,
@@ -473,12 +476,10 @@ export default function LocalDetail({
                     )}
                     <button
                       type="button"
-                      onClick={() => {
-                        onSubirNube();
-                        setMenuOpen(false);
-                      }}
-                      disabled={isSaving || !m._pendienteSubida}
-                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 hover:bg-[var(--tc-bg-panel)]"
+                      onClick={() => { if (!readOnly) { onSubirNube(); setMenuOpen(false); } }}
+                      disabled={isSaving || !m._pendienteSubida || readOnly}
+                      title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
+                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
                       style={{ color: "var(--tc-ink)" }}
                     >
                       <Cloud className="w-4 h-4 shrink-0" />
@@ -490,7 +491,7 @@ export default function LocalDetail({
             </div>
 
             {/* Borrar */}
-            {confirmDelete ? (
+            {confirmDelete && !readOnly ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-red-600 font-medium">¿Borrar definitivamente?</span>
                 <button
@@ -515,19 +516,21 @@ export default function LocalDetail({
             ) : (
               <button
                 type="button"
-                onClick={() => setConfirmDelete(true)}
-                disabled={isSaving}
-                title="Borrar matrícula del almacén local"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-40"
+                onClick={() => !readOnly && setConfirmDelete(true)}
+                disabled={isSaving || readOnly}
+                title={readOnly ? "No disponible en modo Solo Lectura" : "Borrar matrícula del almacén local"}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   borderColor: "var(--tc-border)",
                   color: "var(--tc-ink-soft)",
                   background: "var(--tc-card)",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)";
-                  (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-danger-border)";
+                  if (!readOnly) {
+                    (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-danger-border)";
+                  }
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-soft)";
@@ -922,10 +925,11 @@ export default function LocalDetail({
         >
           {!m.ampliacion && !m.anulacion && !yaTieneAmpliacion && (
             <button
-              onClick={onAmpliacion}
-              disabled={isSaving}
+              onClick={() => !readOnly && onAmpliacion()}
+              disabled={isSaving || readOnly}
+              title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "var(--tc-violet-ink)" }}
+              style={{ background: readOnly ? "var(--tc-border)" : "var(--tc-violet-ink)", color: readOnly ? "var(--tc-ink-mute)" : "white" }}
             >
               <TrendingUp className="w-4 h-4" />
               Crear Ampliación
@@ -965,8 +969,9 @@ export default function LocalDetail({
             </button>
           )}
           <button
-            onClick={onSubirNube}
-            disabled={isSaving || !m._pendienteSubida}
+            onClick={() => !readOnly && onSubirNube()}
+            disabled={isSaving || !m._pendienteSubida || readOnly}
+            title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
@@ -978,7 +983,7 @@ export default function LocalDetail({
 
           {/* Borrar — separado */}
           <div className="ml-auto flex items-center gap-2">
-            {confirmDelete ? (
+            {confirmDelete && !readOnly ? (
               <>
                 <span className="text-xs text-red-600 font-medium">¿Borrar definitivamente?</span>
                 <button
@@ -1000,10 +1005,10 @@ export default function LocalDetail({
               </>
             ) : (
               <button
-                onClick={() => setConfirmDelete(true)}
-                disabled={isSaving}
-                title="Borrar matrícula del almacén local"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                onClick={() => !readOnly && setConfirmDelete(true)}
+                disabled={isSaving || readOnly}
+                title={readOnly ? "No disponible en modo Solo Lectura" : "Borrar matrícula del almacén local"}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-4 h-4" />
                 Borrar

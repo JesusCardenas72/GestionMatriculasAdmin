@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
+import { useAppMode } from "../contexts/AppModeProvider";
 import TabBar, { type ActiveTab } from "../components/TabBar";
 import SolicitudList from "../components/SolicitudList";
 import SolicitudDetail from "../components/SolicitudDetail";
@@ -33,6 +34,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   const [convalidacionMap, setConvalidacionMap] = useState<Map<string, boolean>>(new Map());
 
   const { curso, tipo, readOnly } = useCursoContext();
+  const { isSoloLectura, salir } = useAppMode();
 
   const qc = useQueryClient();
   const q1 = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
@@ -103,16 +105,40 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           localCount={localMatriculas.length}
           onChange={handleTabChange}
         />
-        <button
-          onClick={onEditConfig}
-          title="Configuración"
-          className="p-2 rounded-lg transition-colors"
-          style={{ color: 'var(--tc-ink-mute)' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--tc-primary-tint)'; e.currentTarget.style.color = 'var(--tc-primary)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tc-ink-mute)'; }}
-        >
-          <Settings className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+            title={isSoloLectura ? "Acceso de consulta sin permisos de edición" : "Acceso completo de administrador"}
+            style={
+              isSoloLectura
+                ? { background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }
+                : { background: "var(--tc-primary-tint)", color: "var(--tc-primary)", border: "1px solid var(--tc-border)" }
+            }
+          >
+            {isSoloLectura ? <Eye className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+            {isSoloLectura ? "Solo Lectura" : "Administrador"}
+          </span>
+          <button
+            onClick={salir}
+            title="Cambiar modo"
+            className="p-2 rounded-lg transition-colors"
+            style={{ color: 'var(--tc-ink-mute)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--tc-primary-tint)'; e.currentTarget.style.color = 'var(--tc-primary)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tc-ink-mute)'; }}
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onEditConfig}
+            title="Configuración"
+            className="p-2 rounded-lg transition-colors"
+            style={{ color: 'var(--tc-ink-mute)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--tc-primary-tint)'; e.currentTarget.style.color = 'var(--tc-primary)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tc-ink-mute)'; }}
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
       </header>
 
       {readOnly && (
