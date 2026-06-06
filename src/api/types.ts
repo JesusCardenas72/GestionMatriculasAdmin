@@ -34,6 +34,7 @@ export interface Solicitud {
   docFaltante: string | null;
   ampliada?: boolean;
   repetidor: boolean;
+  tieneConvalidacion?: boolean;
 }
 
 export interface ListarSolicitudesResponse {

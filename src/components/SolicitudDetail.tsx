@@ -35,6 +35,7 @@ interface Props {
   config: AppConfig;
   solicitud: Solicitud;
   onDone: () => void;
+  onConvalidacionDetected?: (rowId: string, tiene: boolean) => void;
 }
 
 type PendingAction = "pedir" | "aprobar" | "tramitar" | "borrar" | null;
@@ -126,7 +127,7 @@ function parseEnsenanzaCurso(ensenanzaCurso: string): { cursoActual: number; esp
   };
 }
 
-export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
+export default function SolicitudDetail({ config, solicitud, onDone, onConvalidacionDetected }: Props) {
   const [docFaltante, setDocFaltante] = useState(solicitud.docFaltante ?? "");
   const [pending, setPending] = useState<PendingAction>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -168,6 +169,16 @@ export default function SolicitudDetail({ config, solicitud, onDone }: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asignaturasQuery.data]);
+
+  useEffect(() => {
+    if (asignaturasQuery.data && onConvalidacionDetected) {
+      const tiene = asignaturasQuery.data.some(
+        (a) => a.estado === ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION,
+      );
+      onConvalidacionDetected(solicitud.rowId, tiene);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asignaturasQuery.data, solicitud.rowId]);
 
   const esRepetidorSuelta =
     solicitud.repetidor &&

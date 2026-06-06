@@ -30,6 +30,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   const [active, setActive] = useState<ActiveTab>(ESTADO.PENDIENTE_TRAMITACION);
   const [selected, setSelected] = useState<Solicitud | null>(null);
   const [cursoModalOpen, setCursoModalOpen] = useState(false);
+  const [convalidacionMap, setConvalidacionMap] = useState<Map<string, boolean>>(new Map());
 
   const { curso, tipo, readOnly } = useCursoContext();
 
@@ -132,7 +133,11 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           left={
             <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
               <SolicitudList
-                data={current!.data?.solicitudes}
+                data={current!.data?.solicitudes?.map((s) =>
+                  convalidacionMap.has(s.rowId)
+                    ? { ...s, tieneConvalidacion: convalidacionMap.get(s.rowId) }
+                    : s,
+                )}
                 isLoading={current!.isLoading}
                 isFetching={current!.isFetching}
                 error={current!.error as Error | null}
@@ -149,6 +154,13 @@ export default function MainScreen({ config, onEditConfig }: Props) {
                   config={config}
                   solicitud={selected}
                   onDone={() => setSelected(null)}
+                  onConvalidacionDetected={(rowId, tiene) =>
+                    setConvalidacionMap((prev) => {
+                      const next = new Map(prev);
+                      next.set(rowId, tiene);
+                      return next;
+                    })
+                  }
                 />
               ) : (
                 <div className="h-full flex items-center justify-center text-[var(--tc-ink-mute)] text-sm">

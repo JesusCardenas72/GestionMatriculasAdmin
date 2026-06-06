@@ -318,6 +318,9 @@ export default function SolicitudList({
                         {s.repetidor && (
                           <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-red-100 text-red-600">REP</span>
                         )}
+                        {s.tieneConvalidacion && (
+                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-violet-100 text-violet-600">CONV</span>
+                        )}
                         {s.ensenanzaCurso && (
                           <span className="shrink-0 text-[10px]" style={{ color: "var(--tc-ink-mute)" }}>
                             {s.ensenanzaCurso}
@@ -352,6 +355,9 @@ export default function SolicitudList({
                             )}
                             {s.repetidor && (
                               <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REPETIDOR</span>
+                            )}
+                            {s.tieneConvalidacion && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-600 border border-violet-200">CONVALIDACIÓN</span>
                             )}
                           </div>
                         </div>
