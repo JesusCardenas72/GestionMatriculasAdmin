@@ -1,9 +1,9 @@
 import { LayoutGroup, motion } from "framer-motion";
-import { CheckCircle, Clock, Eye, FileText, HardDrive } from "lucide-react";
+import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive } from "lucide-react";
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
-export type ActiveTab = EstadoTramite | "local" | "informes";
+export type ActiveTab = EstadoTramite | "local" | "informes" | "horarios";
 
 export interface TabDef {
   estado: EstadoTramite;
@@ -142,6 +142,31 @@ export default function TabBar({ active, counts, pendingUploads, localCount, onC
             <span className="relative z-10 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 shrink-0" />
               <span className={active === "informes" ? "font-semibold" : ""}>Informes</span>
+            </span>
+          </motion.button>
+
+          {/* Horarios */}
+          <motion.button
+            layout
+            onClick={() => onChange("horarios")}
+            className={
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+              (active === "horarios" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            {active === "horarios" && (
+              <motion.span
+                layoutId="tab-pill"
+                className="absolute inset-0 rounded-full bg-[var(--tc-card)] shadow-sm"
+                transition={spring}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-1.5">
+              <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+              <span className="flex flex-col items-start leading-none gap-0.5">
+                <span className={active === "horarios" ? "font-semibold" : ""}>Horarios</span>
+                <span className="text-[9px] font-normal opacity-50">(experimental)</span>
+              </span>
             </span>
           </motion.button>
         </div>

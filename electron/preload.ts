@@ -106,6 +106,8 @@ const adminAPI = {
       ipcRenderer.invoke("horarios:profesoresGuardados"),
     seleccionarProfesoresCsv: (): Promise<{ path: string; profesores: string[] } | null> =>
       ipcRenderer.invoke("horarios:seleccionarProfesoresCsv"),
+    cargarExcelRelleno: (): Promise<{ fileName: string; base64: string } | null> =>
+      ipcRenderer.invoke("horarios:cargarExcelRelleno"),
   },
 };
 

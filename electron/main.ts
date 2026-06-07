@@ -201,6 +201,23 @@ function registerIpcHandlers() {
     },
   );
 
+  // ── Horarios: seleccionar el Excel YA RELLENO por los profesores ──────────
+  // Devuelve el contenido en base64; el parseo (ExcelJS) lo hace el renderer.
+  ipcMain.handle(
+    "horarios:cargarExcelRelleno",
+    async (): Promise<{ fileName: string; base64: string } | null> => {
+      const res = await dialog.showOpenDialog({
+        title: "Selecciona el Excel de horarios relleno",
+        filters: [{ name: "Excel", extensions: ["xlsx"] }],
+        properties: ["openFile"],
+      });
+      if (res.canceled || res.filePaths.length === 0) return null;
+      const file = res.filePaths[0];
+      const buf = fs.readFileSync(file);
+      return { fileName: path.basename(file), base64: buf.toString("base64") };
+    },
+  );
+
   ipcMain.handle(
     "informe:exportar",
     async (_e, payload: { contenidoBase64: string; nombreArchivo: string; extension: "csv" | "xlsx" }): Promise<string | null> => {

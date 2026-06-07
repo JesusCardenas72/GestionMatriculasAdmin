@@ -15,6 +15,7 @@ import CursoSwitcherModal from "../components/CursoSwitcherModal";
 import GlobalSearch from "../components/GlobalSearch";
 import LocalScreen from "./LocalScreen";
 import InformesScreen from "./InformesScreen";
+import HorariosAlumnosScreen from "./HorariosAlumnosScreen";
 
 interface Props {
   config: AppConfig;
@@ -49,7 +50,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   } as const;
 
   const current =
-    active !== "local" && active !== "informes"
+    active !== "local" && active !== "informes" && active !== "horarios"
       ? queryByEstado[active as EstadoTramite]
       : null;
 
@@ -151,6 +152,8 @@ export default function MainScreen({ config, onEditConfig }: Props) {
         <LocalScreen config={config} />
       ) : active === "informes" ? (
         <InformesScreen config={config} />
+      ) : active === "horarios" ? (
+        <HorariosAlumnosScreen />
       ) : (
         <ResizableColumns
           id="solicitudes"
