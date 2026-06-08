@@ -71,11 +71,8 @@ export default function MainScreen({ config, onEditConfig }: Props) {
 
   return (
     <div className="h-screen flex flex-col bg-[var(--tc-bg)]">
-      <header className="h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display text-[22px] font-normal text-[var(--tc-ink)] tracking-[-0.6px]">
-            Gestión de Matrículas
-          </h1>
+      <header className="h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center gap-4">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => setCursoModalOpen(true)}
             className={
@@ -106,7 +103,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           localCount={localMatriculas.length}
           onChange={handleTabChange}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 ml-auto">
           <span
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
             title={isSoloLectura ? "Acceso de consulta sin permisos de edición" : "Acceso completo de administrador"}
@@ -153,7 +150,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
       ) : active === "informes" ? (
         <InformesScreen config={config} />
       ) : active === "horarios" ? (
-        <HorariosAlumnosScreen />
+        <HorariosAlumnosScreen config={config} />
       ) : (
         <ResizableColumns
           id="solicitudes"

@@ -30,6 +30,12 @@ import {
   setProfesoresCsvPath,
 } from "./horarios-store";
 import {
+  campanyas_listar,
+  campanyas_guardar,
+  campanyas_eliminar,
+  campanyas_eliminar_alumno,
+} from "./horarios-campanyas-store";
+import {
   cursosListarConocidos,
   cursosListar,
   cursosGuardar,
@@ -218,6 +224,12 @@ function registerIpcHandlers() {
     },
   );
 
+  // ── Horarios: campañas de envío ───────────────────────────────────────────
+  ipcMain.handle("horarios:campanyas:listar", () => campanyas_listar());
+  ipcMain.handle("horarios:campanyas:guardar", (_e, campanya) => campanyas_guardar(campanya));
+  ipcMain.handle("horarios:campanyas:eliminar", (_e, id: string) => campanyas_eliminar(id));
+  ipcMain.handle("horarios:campanyas:eliminarAlumno", (_e, campanyaId: string, clave: string) => campanyas_eliminar_alumno(campanyaId, clave));
+
   ipcMain.handle(
     "informe:exportar",
     async (_e, payload: { contenidoBase64: string; nombreArchivo: string; extension: "csv" | "xlsx" }): Promise<string | null> => {
@@ -243,10 +255,12 @@ function registerIpcHandlers() {
     "pdf:generarPdfBase64",
     async (
       _e,
-      payload: { html: string },
+      payload: { html: string; landscape?: boolean },
     ): Promise<{ success: boolean; base64?: string; error?: string }> => {
       const pdfWin = new BrowserWindow({
         show: false,
+        width: payload.landscape ? 1200 : 900,
+        height: payload.landscape ? 900 : 1200,
         webPreferences: {
           contextIsolation: true,
           nodeIntegration: false,
@@ -275,6 +289,7 @@ function registerIpcHandlers() {
       try {
         const pdfBuffer = await pdfWin.webContents.printToPDF({
           pageSize: "A4",
+          landscape: payload.landscape ?? false,
           printBackground: true,
           margins: { marginType: "none" },
         });
@@ -344,6 +359,31 @@ function registerIpcHandlers() {
   ipcMain.handle("pdf:unregisterBlob", (_e, payload: { id: string }): void => {
     pdfBlobs.delete(payload.id);
   });
+
+  ipcMain.handle(
+    "pdf:guardar",
+    async (
+      _e,
+      payload: { base64: string; fileName: string },
+    ): Promise<{ success: boolean; filePath?: string; error?: string }> => {
+      try {
+        const safe = (payload.fileName || "documento.pdf").replace(
+          /[\\/:*?"<>|]/g,
+          "_",
+        );
+        const { filePath, canceled } = await dialog.showSaveDialog({
+          defaultPath: safe,
+          filters: [{ name: "PDF", extensions: ["pdf"] }],
+        });
+        if (canceled || !filePath) return { success: false };
+        const buf = Buffer.from(payload.base64, "base64");
+        fs.writeFileSync(filePath, buf);
+        return { success: true, filePath };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+    },
+  );
 
   ipcMain.handle(
     "pdf:openForPrint",

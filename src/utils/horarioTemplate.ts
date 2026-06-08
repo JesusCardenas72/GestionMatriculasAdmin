@@ -1,6 +1,7 @@
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import { DIAS } from '../data/horariosListas';
 import type { ClaseHorario, HorarioAlumno } from '../horarios/types';
+import { buildCursoLabel } from '../horarios/types';
 
 const PALETA = ['n-info', 'n-olive', 'n-warn', 'n-violet', 'n-tint', 'n-pink'];
 
@@ -18,11 +19,6 @@ function aHHMM(min: number): string {
   return `${Math.floor(min / 60)}:${(min % 60).toString().padStart(2, '0')}`;
 }
 
-function colorDe(asignatura: string): string {
-  let h = 0;
-  for (let i = 0; i < asignatura.length; i++) h = (h * 31 + asignatura.charCodeAt(i)) >>> 0;
-  return PALETA[h % PALETA.length];
-}
 
 function rotacion(seed: number): string {
   const ang = (((seed * 2654435761) % 1000) / 1000 - 0.5) * 5;
@@ -51,6 +47,33 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
     .filter((x): x is { c: ClaseHorario; ini: number; fin: number } =>
       x.ini !== null && x.fin !== null && x.fin > x.ini
     );
+
+  // ── Resumen de asignaturas + horas semanales ───────────────────────────────
+  const horasPorAsig = new Map<string, number>();
+  for (const { c, ini, fin } of conMin) {
+    horasPorAsig.set(c.asignatura, (horasPorAsig.get(c.asignatura) ?? 0) + (fin - ini));
+  }
+  const asigResumen = [...horasPorAsig.entries()]
+    .sort((a, b) => b[1] - a[1]);
+
+  const colorMap = new Map(asigResumen.map(([nombre], i) => [nombre, PALETA[i % PALETA.length]]));
+
+  function fmtMin(min: number): string {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}min`;
+    if (h > 0) return `${h}h`;
+    return `${m}min`;
+  }
+
+  const totalMinutos = asigResumen.reduce((s, [, m]) => s + m, 0);
+  const nDias = new Set(conMin.map(({ c }) => c.dia)).size;
+
+  const asigGridHtml = asigResumen.map(([nombre, minutos]) => `
+    <div class="asig-row ${colorMap.get(nombre) ?? PALETA[0]}">
+      <span class="asig-nombre">${esc(nombre)}</span>
+      <span class="asig-horas">${fmtMin(minutos)}</span>
+    </div>`).join('');
 
   // ── Hourly grid range ─────────────────────────────────────────────────────
   let gridIni = 9 * 60;
@@ -130,12 +153,12 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
   if (cur.length) groups.push(cur);
 
   // ── Render rows ───────────────────────────────────────────────────────────
-  const nDias = DIAS.length;
+  const nTotalDias = DIAS.length;
   let filas = '';
 
   for (const grp of groups) {
     if (grp === 'sep') {
-      filas += `<tr class="sep-row"><td colspan="${nDias + 1}" class="sep-cell"><div class="sep-inner"><span class="sep-label">sin clases</span></div></td></tr>\n`;
+      filas += `<tr class="sep-row"><td colspan="${nTotalDias + 1}" class="sep-cell"><div class="sep-inner"><span class="sep-label">sin clases</span></div></td></tr>\n`;
       continue;
     }
 
@@ -156,7 +179,7 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
 
         const notesDivs = entries.map(e => {
           semilla++;
-          const color = colorDe(e.clase.asignatura);
+          const color = colorMap.get(e.clase.asignatura) ?? PALETA[0];
           const horas = `${esc(e.clase.entrada)} – ${esc(e.clase.salida)}`;
           const nota = e.clase.grupo ? `Grupo ${esc(e.clase.grupo)}` : '';
           const posClass = e.position === 'full' ? 'pos-full' : e.position === 'top' ? 'pos-top' : 'pos-bottom';
@@ -196,7 +219,7 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
 }
 *,*::before,*::after{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
-body{font-family:var(--font);color:var(--ink);min-height:100vh;
+body{font-family:var(--display);color:var(--ink);min-height:100vh;
   background:radial-gradient(ellipse at 25% 20%,#d8cdb4 0%,transparent 55%),
     radial-gradient(ellipse at 80% 80%,#ccc0a4 0%,transparent 55%),#c8b898;
   display:flex;align-items:flex-start;justify-content:center;padding:32px 20px 60px;}
@@ -208,13 +231,21 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .doc-year{text-align:center;font-size:26px;font-weight:500;color:#148180;letter-spacing:1.2px;margin:6px 0 16px;line-height:1;}
 .doc-meta{display:flex;flex-direction:column;gap:8px;padding:14px 0 16px;border-top:1px solid var(--border);border-bottom:2px solid var(--ink);}
 .meta-row{display:flex;align-items:baseline;gap:10px;font-size:15px;flex-wrap:wrap;}
-.meta-label{font-size:11px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;}
+.meta-label{font-family:var(--font);font-size:11px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;}
 .meta-val{font-family:var(--display);font-size:18px;color:var(--ink);border-bottom:1.5px solid var(--border);padding:0 6px 1px;min-width:140px;line-height:1.2;}
 .meta-val.wide{flex:1;}
 .meta-sep{width:1px;height:16px;background:var(--border);align-self:center;flex-shrink:0;}
+.asig-panel-title{font-family:var(--font);font-size:10px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;}
+.asig-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;border:1px solid transparent;}
+.asig-nombre{font-family:var(--display);font-size:13px;color:var(--ink);line-height:1.3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.asig-horas{font-family:var(--font);font-size:12px;font-weight:700;color:var(--primary);white-space:nowrap;flex-shrink:0;}
+.asig-total{font-family:var(--font);font-size:10px;color:var(--ink-mute);white-space:nowrap;}
+.asig-bottom-section{margin-top:14px;padding-top:10px;border-top:1px solid var(--border);}
+.asig-bottom-header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:7px;}
+.asig-bottom{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:5px;}
 table.tt{width:100%;border-collapse:collapse;table-layout:fixed;outline:2px solid var(--ink);outline-offset:-1px;margin-top:18px;}
 table.tt th,table.tt td{border:1px solid var(--border);position:relative;}
-table.tt thead th{background:var(--card);font-size:13px;font-weight:700;color:var(--ink);text-align:center;padding:12px 6px;letter-spacing:.8px;text-transform:uppercase;border-bottom:2px solid var(--border);}
+table.tt thead th{background:var(--card);font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink);text-align:center;padding:12px 6px;letter-spacing:.8px;text-transform:uppercase;border-bottom:2px solid var(--border);}
 td.time{background:var(--bg-panel);font-family:var(--display);font-size:12px;color:var(--ink-soft);text-align:center;vertical-align:middle;width:92px;padding:4px 6px;line-height:1.4;border-right:2px solid var(--border);white-space:nowrap;}
 td.cell{height:90px;background:var(--bg);vertical-align:top;padding:0;overflow:visible;}
 /* Notes — position variants */
@@ -234,7 +265,7 @@ td.cell{height:90px;background:var(--bg);vertical-align:top;padding:0;overflow:v
 .n-violet{background-color:var(--violet-bg);border:1px solid var(--violet-border);}
 .n-tint{background-color:var(--primary-tint);border:1px solid var(--primary-border);}
 .n-pink{background-color:var(--pink-bg);border:1px solid var(--pink-border);}
-.empty-msg{text-align:center;color:var(--ink-mute);font-size:15px;padding:40px 0;}
+.empty-msg{text-align:center;color:var(--ink-mute);font-family:var(--font);font-size:15px;padding:40px 0;}
 /* Separator "torn paper" */
 tr.sep-row td{height:32px;padding:0;border:none !important;background:transparent;}
 .sep-cell{padding:0 !important;}
@@ -242,7 +273,7 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
 .sep-inner::before,.sep-inner::after{content:'';position:absolute;left:0;right:0;height:0;}
 .sep-inner::before{top:8px;border-top:1px dashed rgba(45,36,29,.25);}
 .sep-inner::after{bottom:8px;border-top:1px dashed rgba(45,36,29,.25);}
-.sep-label{font-size:9px;font-weight:700;color:var(--ink-mute);letter-spacing:5px;text-transform:uppercase;
+.sep-label{font-family:var(--font);font-size:9px;font-weight:700;color:var(--ink-mute);letter-spacing:5px;text-transform:uppercase;
   background:var(--bg);padding:0 14px;position:relative;z-index:1;
   border-left:2px solid var(--border);border-right:2px solid var(--border);}
 /* PDF button */
@@ -261,17 +292,16 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
 .modal-bar{height:4px;border-radius:12px 12px 0 0;}
 .modal-head{padding:22px 26px 18px;border-bottom:1px solid var(--border);position:relative;}
 .modal-head h2{font-family:var(--display);font-size:22px;font-weight:400;margin:0 0 4px;color:var(--ink);}
-.modal-head .modal-time{font-size:13px;font-weight:600;color:var(--ink-soft);}
-.modal-close{position:absolute;top:14px;right:16px;width:28px;height:28px;border:none;background:none;font-size:18px;
+.modal-head .modal-time{font-family:var(--font);font-size:13px;font-weight:600;color:var(--ink-soft);}
+.modal-close{position:absolute;top:14px;right:16px;width:28px;height:28px;border:none;background:none;font-family:var(--font);font-size:18px;
   color:var(--ink-mute);cursor:pointer;border-radius:6px;display:flex;align-items:center;justify-content:center;}
 .modal-close:hover{background:var(--border-soft);color:var(--ink);}
 .modal-body{padding:18px 26px 24px;display:flex;flex-direction:column;gap:12px;}
 .modal-field{display:flex;flex-direction:column;gap:3px;}
-.modal-field .field-label{font-size:10.5px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;}
+.modal-field .field-label{font-family:var(--font);font-size:10.5px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;}
 .modal-field .field-value{font-family:var(--display);font-size:17px;color:var(--ink);border-bottom:1.5px solid var(--border);padding:2px 0 3px;line-height:1.3;min-height:24px;}
+@page{size:A4 landscape;margin:0;}
 @media print{
-  body{background:white;padding:0;}
-  .page{box-shadow:none;width:100%;}
   .pdf-btn,.modal-overlay{display:none !important;}
 }
 </style>
@@ -281,7 +311,7 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
   <div class="doc-header">
     <div class="header-logos">
       <img src="${LOGO_JCCM_B64}" alt="JCCM">
-      <h1 class="doc-title">Horario Semanal del Conservatorio</h1>
+      <h1 class="doc-title">Horario del Conservatorio</h1>
       <img src="${LOGO_CPM_B64}" alt="CPM Marcos Redondo">
     </div>
     <div class="doc-year">${esc(anio)}</div>
@@ -292,10 +322,7 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
       </div>
       <div class="meta-row">
         <span class="meta-label">Curso</span>
-        <span class="meta-val" style="min-width:240px;">${esc(alumno.ensenanzaCurso) || '—'}</span>
-        <span class="meta-sep"></span>
-        <span class="meta-label">Instrumento</span>
-        <span class="meta-val">${esc(alumno.especialidad) || '—'}</span>
+        <span class="meta-val" style="min-width:200px;">${esc(buildCursoLabel(alumno.ensenanzaCurso, alumno.especialidad)) || '—'}</span>
       </div>
     </div>
   </div>
@@ -307,9 +334,15 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
     <tbody>${filas}</tbody>
   </table></div>`
   }
+  ${asigResumen.length > 0 ? `
+  <div class="asig-bottom-section">
+    <div class="asig-bottom-header">
+      <span class="asig-panel-title">Asignaturas · horas semanales</span>
+      <span class="asig-total">Total: ${fmtMin(totalMinutos)} / semana · ${nDias} ${nDias === 1 ? 'día' : 'días'}</span>
+    </div>
+    <div class="asig-bottom">${asigGridHtml}</div>
+  </div>` : ''}
 </div>
-
-<button class="pdf-btn" onclick="window.print()">&#8595; Descargar / Imprimir PDF</button>
 
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">

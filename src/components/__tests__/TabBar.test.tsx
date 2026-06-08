@@ -13,8 +13,8 @@ const counts: Record<EstadoTramite, number | undefined> = {
 describe("TabBar", () => {
   it("renders the three tab labels", () => {
     render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} onChange={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /Pendiente de tramitación/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Pendiente de validación/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pnte\. Tramitación/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pnte\. Validación/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Tramitado/ })).toBeInTheDocument();
   });
 
@@ -33,14 +33,14 @@ describe("TabBar", () => {
   it("calls onChange with the correct estado on click", async () => {
     const onChange = vi.fn();
     render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} onChange={onChange} />);
-    await userEvent.click(screen.getByRole("button", { name: /Pendiente de validación/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Pnte\. Validación/ }));
     expect(onChange).toHaveBeenCalledWith(ESTADO.PENDIENTE_VALIDACION);
   });
 
   it("calls onChange even when clicking the already-active tab", async () => {
     const onChange = vi.fn();
     render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} onChange={onChange} />);
-    await userEvent.click(screen.getByRole("button", { name: /Pendiente de tramitación/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Pnte\. Tramitación/ }));
     expect(onChange).toHaveBeenCalledWith(ESTADO.PENDIENTE_TRAMITACION);
   });
 });

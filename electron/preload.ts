@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { AppConfig } from "./config-store";
 import type { CursoConocido } from "./cursos-store";
 import type { ConfigInforme, MatriculaLocal } from "../src/api/types";
+import type { CampanyaEnvio } from "../src/horarios/types";
 
 const adminAPI = {
   config: {
@@ -20,8 +21,14 @@ const adminAPI = {
       ipcRenderer.invoke("pdf:printHtml", { html }),
     generarBase64: (
       html: string,
+      landscape?: boolean,
     ): Promise<{ success: boolean; base64?: string; error?: string }> =>
-      ipcRenderer.invoke("pdf:generarPdfBase64", { html }),
+      ipcRenderer.invoke("pdf:generarPdfBase64", { html, landscape }),
+    guardar: (
+      base64: string,
+      fileName: string,
+    ): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+      ipcRenderer.invoke("pdf:guardar", { base64, fileName }),
     openForPrint: (
       base64: string,
       fileName: string,
@@ -108,6 +115,16 @@ const adminAPI = {
       ipcRenderer.invoke("horarios:seleccionarProfesoresCsv"),
     cargarExcelRelleno: (): Promise<{ fileName: string; base64: string } | null> =>
       ipcRenderer.invoke("horarios:cargarExcelRelleno"),
+    campanyas: {
+      listar: (): Promise<CampanyaEnvio[]> =>
+        ipcRenderer.invoke("horarios:campanyas:listar"),
+      guardar: (campanya: CampanyaEnvio): Promise<void> =>
+        ipcRenderer.invoke("horarios:campanyas:guardar", campanya),
+      eliminar: (id: string): Promise<void> =>
+        ipcRenderer.invoke("horarios:campanyas:eliminar", id),
+      eliminarAlumno: (campanyaId: string, clave: string): Promise<void> =>
+        ipcRenderer.invoke("horarios:campanyas:eliminarAlumno", campanyaId, clave),
+    },
   },
 };
 

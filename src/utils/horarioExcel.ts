@@ -109,20 +109,26 @@ export async function parseHorariosExcel(
 
     const email = txt(row, cEmail).toLowerCase();
     const nombre = nombreDe(row);
-    const clave = email || norm(nombre);
-    if (!clave) return;
+    const ensenanzaCurso = txt(row, cEns);
+    const especialidad = txt(row, cEsp);
 
-    let alumno = mapa.get(clave);
+    // Clave única por alumno: nombre + enseñanza/curso + especialidad.
+    // El email NO es clave porque dos hermanos pueden compartir correo
+    // pero son alumnos distintos y deben recibir horarios separados.
+    const claveBase = norm(nombre) + '|||' + norm(ensenanzaCurso) + '|||' + norm(especialidad);
+    if (!norm(nombre)) return;
+
+    let alumno = mapa.get(claveBase);
     if (!alumno) {
       alumno = {
-        clave,
+        clave: claveBase,
         nombre,
         email,
-        ensenanzaCurso: txt(row, cEns),
-        especialidad: txt(row, cEsp),
+        ensenanzaCurso,
+        especialidad,
         clases: [],
       };
-      mapa.set(clave, alumno);
+      mapa.set(claveBase, alumno);
     }
 
     const asignatura = txt(row, cAsig) || 'Clase';

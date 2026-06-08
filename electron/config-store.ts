@@ -15,6 +15,7 @@ export interface AppConfig {
   urlSubirMatricula: string;
   urlCrearAmpliacion: string;
   urlEnviarEmailAmpliacion?: string;
+  urlEnviarEmailHorario?: string;
   apiKey: string;
   /** Clave de acceso al modo Administrador (opcional; si falta se usa la por defecto). */
   adminPassword?: string;

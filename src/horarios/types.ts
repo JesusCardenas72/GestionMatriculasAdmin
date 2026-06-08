@@ -33,10 +33,40 @@ export interface HorarioAlumno {
   clases: ClaseHorario[];
 }
 
+/**
+ * Combina ensenanzaCurso (p. ej. "EP3", "EE4") y especialidad en una etiqueta
+ * legible: "3º Pro. de Piano", "4º Elem. de Violín", etc.
+ */
+export function buildCursoLabel(ensenanzaCurso: string, especialidad: string): string {
+  const m = ensenanzaCurso.match(/^([A-Z]{2})(\d+)/);
+  if (!m) return [ensenanzaCurso, especialidad].filter(Boolean).join(' · ');
+  const nivel = m[1] === 'EP' ? 'Pro.' : m[1] === 'EE' ? 'Elem.' : m[1];
+  const base = `${m[2]}º ${nivel}`;
+  return especialidad ? `${base} de ${especialidad}` : base;
+}
+
 /** Resultado de leer y agrupar un Excel relleno. */
 export interface CargaHorarios {
   fileName: string;
   alumnos: HorarioAlumno[];
   /** Filas con profesor pero a las que les faltó algún dato obligatorio (aviso). */
   incompletas: number;
+}
+
+/** Resultado del envío de un horario a un alumno concreto. */
+export interface ResultadoEnvio {
+  clave: string;
+  nombre: string;
+  email: string;
+  estado: 'ok' | 'error';
+  error?: string;
+}
+
+/** Campaña de envío de horarios: un lote enviado con nombre y descripción. */
+export interface CampanyaEnvio {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  fecha: string; // ISO
+  alumnos: ResultadoEnvio[];
 }

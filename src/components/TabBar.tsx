@@ -13,8 +13,8 @@ export interface TabDef {
 }
 
 export const TABS: Omit<TabDef, "count">[] = [
-  { estado: ESTADO.PENDIENTE_TRAMITACION, label: "Pendiente de tramitación", icon: <Clock className="w-3.5 h-3.5 shrink-0" /> },
-  { estado: ESTADO.PENDIENTE_VALIDACION, label: "Pendiente de validación", icon: <Eye className="w-3.5 h-3.5 shrink-0" /> },
+  { estado: ESTADO.PENDIENTE_TRAMITACION, label: "Pnte. Tramitación", icon: <Clock className="w-3.5 h-3.5 shrink-0" /> },
+  { estado: ESTADO.PENDIENTE_VALIDACION, label: "Pnte. Validación", icon: <Eye className="w-3.5 h-3.5 shrink-0" /> },
   { estado: ESTADO.TRAMITADO, label: "Tramitado", icon: <CheckCircle className="w-3.5 h-3.5 shrink-0" /> },
 ];
 

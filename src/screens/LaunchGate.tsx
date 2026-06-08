@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { GraduationCap, Lock, Eye, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Lock, Eye, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import appIcon from "../assets/appIcon.ico";
 import { DEFAULT_ADMIN_PASSWORD } from "../config/appMode";
 import { useAppMode } from "../contexts/AppModeProvider";
 
@@ -11,6 +12,32 @@ export default function LaunchGate() {
   const [clave, setClave] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [comprobando, setComprobando] = useState(false);
+  const [focoIdx, setFocoIdx] = useState(0);
+  const botonesRef = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    if (vista === "elegir") {
+      botonesRef.current[0]?.focus();
+    }
+  }, [vista]);
+
+  function onKeyDownMenu(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setFocoIdx((i) => {
+        const next = (i + 1) % 2;
+        botonesRef.current[next]?.focus();
+        return next;
+      });
+    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      setFocoIdx((i) => {
+        const next = (i - 1 + 2) % 2;
+        botonesRef.current[next]?.focus();
+        return next;
+      });
+    }
+  }
 
   async function verificarClave(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +68,7 @@ export default function LaunchGate() {
         style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)" }}
       >
         <div className="flex items-center gap-3">
-          <GraduationCap className="w-10 h-10" style={{ color: "var(--tc-primary)" }} />
+          <img src={appIcon} className="w-10 h-10 object-contain" alt="" />
           <div>
             <h1 className="text-2xl font-semibold" style={{ color: "var(--tc-ink)" }}>
               Gestión de Matrículas
@@ -53,16 +80,18 @@ export default function LaunchGate() {
         </div>
 
         {vista === "elegir" ? (
-          <div className="mt-8 space-y-3">
+          <div className="mt-8 space-y-3 outline-none" onKeyDown={onKeyDownMenu}>
             <button
+              ref={(el) => { botonesRef.current[0] = el; }}
               type="button"
-              onClick={() => {
-                setVista("clave");
-                setError(null);
-                setClave("");
+              onClick={() => { setVista("clave"); setError(null); setClave(""); }}
+              onFocus={() => setFocoIdx(0)}
+              className="w-full flex items-center gap-3 px-5 py-4 rounded-xl text-left transition-colors outline-none"
+              style={{
+                background: "var(--tc-primary)",
+                color: "#fff",
+                boxShadow: focoIdx === 0 ? "0 0 0 3px var(--tc-primary-dark)" : undefined,
               }}
-              className="w-full flex items-center gap-3 px-5 py-4 rounded-xl text-left transition-colors"
-              style={{ background: "var(--tc-primary)", color: "#fff" }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-primary-dark)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-primary)"; }}
             >
@@ -74,10 +103,17 @@ export default function LaunchGate() {
             </button>
 
             <button
+              ref={(el) => { botonesRef.current[1] = el; }}
               type="button"
               onClick={() => entrar("sololectura")}
-              className="w-full flex items-center gap-3 px-5 py-4 rounded-xl text-left transition-colors"
-              style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)", border: "1px solid var(--tc-border)" }}
+              onFocus={() => setFocoIdx(1)}
+              className="w-full flex items-center gap-3 px-5 py-4 rounded-xl text-left transition-colors outline-none"
+              style={{
+                background: "var(--tc-bg-panel)",
+                color: "var(--tc-ink)",
+                border: "1px solid var(--tc-border)",
+                boxShadow: focoIdx === 1 ? "0 0 0 3px var(--tc-primary)" : undefined,
+              }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "var(--tc-border-soft)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "var(--tc-bg-panel)"; }}
             >

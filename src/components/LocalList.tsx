@@ -418,7 +418,7 @@ export default function LocalList({
       <div className="px-4 pb-3 border-b border-[var(--tc-border)] flex flex-col gap-2.5">
 
         <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+          <div className="relative w-2/3">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tc-ink-mute)]" />
             <input
               value={q}
