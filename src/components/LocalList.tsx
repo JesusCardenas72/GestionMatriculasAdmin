@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronDown,
   ChevronUp,
@@ -70,10 +71,11 @@ function groupPairs(data: MatriculaLocal[]): GroupedItem[] {
   return result;
 }
 
+// ── Tarjeta individual (single) ───────────────────────────────────────────────
+
 function renderCardContent(m: MatriculaLocal, selected: boolean) {
   return (
     <div className="flex items-center gap-3 w-full min-w-0">
-      {/* Número de orden */}
       <div
         className="font-display shrink-0 text-center leading-none tabular-nums"
         style={{
@@ -86,10 +88,7 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
       >
         {m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0") : "—"}
       </div>
-
-      {/* Contenido: máx 2 líneas */}
       <div className="flex-1 min-w-0">
-        {/* Línea 1: nombre + badges + pendiente */}
         <div className="flex items-center gap-1 min-w-0 mb-0.5">
           <span
             className={
@@ -121,7 +120,6 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
             </span>
           )}
         </div>
-        {/* Línea 2: enseñanza + especialidad */}
         <div className="flex items-center gap-1.5 min-w-0">
           <span
             className="shrink-0 rounded-md font-bold"
@@ -138,155 +136,142 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
   );
 }
 
-interface StackedCardRowProps {
+interface SingleRowProps {
+  m: MatriculaLocal;
+  isSelected: boolean;
+  onSelect: (m: MatriculaLocal) => void;
+}
+
+function SingleRow({ m, isSelected, onSelect }: SingleRowProps) {
+  return (
+    <button
+      onClick={() => onSelect(m)}
+      className={"local-row w-full text-left cursor-pointer border-none" + (m.anulacion ? " opacity-50" : "")}
+      data-selected={isSelected ? "true" : undefined}
+      style={{
+        padding: isSelected ? "8px 14px" : undefined,
+        background: isSelected ? "var(--tc-primary-tint)" : undefined,
+        boxShadow: isSelected ? "inset 3px 0 0 var(--tc-primary)" : undefined,
+        display: "block",
+      }}
+    >
+      {/* Compact strip */}
+      <div className="loc-compact">
+        <div className="flex items-center gap-1.5 min-w-0" style={{ height: 22 }}>
+          <span className="shrink-0 tabular-nums font-bold" style={{ fontSize: 11, letterSpacing: -0.5, minWidth: 18, color: "var(--tc-ink-mute)" }}>
+            {m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0") : "—"}
+          </span>
+          <span className={"flex-1 min-w-0 truncate text-[12px] font-semibold " + (m.anulacion ? "line-through text-[var(--tc-ink-mute)]" : "text-[var(--tc-ink)]")}>
+            {m.nombre} {m.apellidos}
+          </span>
+          {m.anulacion && (
+            <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold bg-red-100 text-red-600">Anul.</span>
+          )}
+          {m.ampliacion && (
+            <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>Amp.</span>
+          )}
+          {m.repetidor && (
+            <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-red-100 text-red-600">REP</span>
+          )}
+          {m._pendienteSubida && <Upload className="w-3 h-3 shrink-0 text-[var(--tc-warn-ink)]" />}
+          {m.ensenanzaCurso && (
+            <span className="shrink-0 text-[10px] text-[var(--tc-ink-mute)]">{m.ensenanzaCurso}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Full content */}
+      <div className="loc-expanded">
+        {renderCardContent(m, isSelected)}
+      </div>
+    </button>
+  );
+}
+
+// ── Tarjeta apilada (par ampliación+original) ─────────────────────────────────
+// Mantiene el efecto visual stacked con hover de CSS sobre el wrapper
+
+interface PairRowProps {
   ampliacion: MatriculaLocal;
   original: MatriculaLocal;
   selectedId: string | null;
   onSelect: (m: MatriculaLocal) => void;
 }
 
-function StackedCardRow({
-  ampliacion,
-  original,
-  selectedId,
-  onSelect,
-}: StackedCardRowProps) {
-  const [hovered, setHovered] = useState(false);
-  const ampRef = useRef<HTMLButtonElement>(null);
-  const origRef = useRef<HTMLButtonElement>(null);
-  const [ampHeight, setAmpHeight] = useState(72);
-  const [origHeight, setOrigHeight] = useState(72);
+function PairRow({ ampliacion, original, selectedId, onSelect }: PairRowProps) {
   const OFFSET = 10;
-  const GAP = 2;
-
-  useEffect(() => {
-    if (ampRef.current) {
-      const h = ampRef.current.offsetHeight;
-      if (h > 0) setAmpHeight(h);
-    }
-    if (origRef.current) {
-      const h = origRef.current.offsetHeight;
-      if (h > 0) setOrigHeight(h);
-    }
-  }, []);
-
   const ampSelected = ampliacion.localId === selectedId;
   const origSelected = original.localId === selectedId;
-  const anySelected = ampSelected || origSelected;
-  const topH = origSelected ? origHeight : ampHeight;
-  const collapsedH = topH + OFFSET;
-  const expandedH = ampHeight + origHeight + GAP;
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <li
+    <div
       className="relative mb-0.5"
-      style={{
-        height: hovered ? expandedH : collapsedH,
-        transition: "height 0.35s cubic-bezier(0.33, 1, 0.68, 1)",
-        overflow: "visible",
-        zIndex: hovered || anySelected ? 10 : 0,
-      }}
+      style={{ paddingBottom: hovered ? 0 : OFFSET, transition: "padding 0.3s cubic-bezier(0.33,1,0.68,1)" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div
+      {/* Ampliación (encima) */}
+      <button
+        onClick={() => onSelect(ampliacion)}
+        className={"w-full text-left cursor-pointer border-none" + (ampliacion.anulacion ? " opacity-50" : "")}
         style={{
-          overflow: "hidden",
-          height: hovered ? expandedH : collapsedH,
-          transition: "height 0.35s cubic-bezier(0.33, 1, 0.68, 1)",
+          padding: "8px 14px",
+          borderRadius: 12,
+          background: ampSelected
+            ? "var(--tc-primary-tint)"
+            : hovered
+              ? "var(--tc-bg-panel)"
+              : origSelected
+                ? "transparent"
+                : "var(--tc-card)",
+          boxShadow: ampSelected
+            ? "inset 3px 0 0 var(--tc-primary)"
+            : hovered
+              ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
+              : "none",
+          transform: hovered ? "translateY(-2px)" : origSelected ? `translateY(${OFFSET}px)` : "translateY(0)",
+          opacity: origSelected && !hovered ? 0.85 : 1,
+          position: "relative",
+          zIndex: 2,
+          transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
         }}
       >
-        {/* Ampliación */}
-        <button
-          ref={ampRef}
-          onClick={() => onSelect(ampliacion)}
-          className={
-            "w-full text-left cursor-pointer border-none " +
-            (ampliacion.anulacion ? " opacity-50" : "")
-          }
-          style={{
-            position: origSelected ? "absolute" : "relative",
-            top: origSelected
-              ? (hovered ? origHeight + GAP : 0)
-              : undefined,
-            left: origSelected ? 0 : undefined,
-            right: origSelected ? 0 : undefined,
-            zIndex: origSelected ? 1 : 2,
-            padding: "8px 14px",
-            borderRadius: 12,
-            background:
-              ampSelected
-                ? "var(--tc-primary-tint)"
-                : hovered
-                  ? "var(--tc-bg-panel)"
-                  : origSelected
-                    ? "transparent"
-                    : "var(--tc-card)",
-            boxShadow: ampSelected
-              ? "inset 3px 0 0 var(--tc-primary)"
-              : hovered
-                ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
-                : "none",
-            transform: hovered
-              ? "translateY(-2px)"
-              : origSelected
-                ? `translateY(${OFFSET}px)`
-                : "translateY(0)",
-            opacity: origSelected && !hovered ? 0.85 : 1,
-            transition:
-              "top 0.35s cubic-bezier(0.33, 1, 0.68, 1), transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.35s ease, box-shadow 0.25s ease, background 0.2s ease",
-            transformOrigin: "center center",
-          }}
-        >
-          {renderCardContent(ampliacion, ampSelected)}
-        </button>
+        {renderCardContent(ampliacion, ampSelected)}
+      </button>
 
-        {/* Original */}
-        <button
-          ref={origRef}
-          onClick={() => onSelect(original)}
-          className={
-            "w-full text-left cursor-pointer border-none " +
-            (original.anulacion ? " opacity-50" : "")
-          }
-          style={{
-            position: origSelected ? "relative" : "absolute",
-            top: !origSelected
-              ? (hovered ? ampHeight + GAP : 0)
-              : undefined,
-            left: !origSelected ? 0 : undefined,
-            right: !origSelected ? 0 : undefined,
-            zIndex: origSelected ? 2 : 1,
-            padding: "8px 14px",
-            borderRadius: 12,
-            background:
-              origSelected
-                ? "var(--tc-primary-tint)"
-                : hovered
-                  ? "var(--tc-bg-panel)"
-                  : "transparent",
-            boxShadow: origSelected
-              ? "inset 3px 0 0 var(--tc-primary)"
-              : hovered
-                ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
-                : "none",
-            transform: hovered
-              ? "translateY(-2px)"
-              : !origSelected
-                ? `translateY(${OFFSET}px)`
-                : "translateY(0)",
-            opacity: !origSelected && !hovered ? 0.85 : 1,
-            transition:
-              "top 0.35s cubic-bezier(0.33, 1, 0.68, 1), transform 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.35s ease, box-shadow 0.25s ease, background 0.2s ease",
-            transformOrigin: "center center",
-          }}
-        >
-          {renderCardContent(original, origSelected)}
-        </button>
-      </div>
-    </li>
+      {/* Original (debajo, asomando) */}
+      <button
+        onClick={() => onSelect(original)}
+        className={"w-full text-left cursor-pointer border-none" + (original.anulacion ? " opacity-50" : "")}
+        style={{
+          padding: "8px 14px",
+          borderRadius: 12,
+          background: origSelected
+            ? "var(--tc-primary-tint)"
+            : hovered
+              ? "var(--tc-bg-panel)"
+              : "transparent",
+          boxShadow: origSelected
+            ? "inset 3px 0 0 var(--tc-primary)"
+            : hovered
+              ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
+              : "none",
+          transform: hovered ? "translateY(-2px)" : !origSelected ? `translateY(${OFFSET}px)` : "translateY(0)",
+          marginTop: hovered ? 2 : -OFFSET,
+          opacity: !origSelected && !hovered ? 0.85 : 1,
+          position: "relative",
+          zIndex: 1,
+          transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), margin-top 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
+        }}
+      >
+        {renderCardContent(original, origSelected)}
+      </button>
+    </div>
   );
 }
+
+// ── Lista principal ───────────────────────────────────────────────────────────
 
 interface Props {
   data: MatriculaLocal[];
@@ -313,7 +298,8 @@ export default function LocalList({
     field: null,
     dir: "desc",
   });
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { ensenanzas, especialidades } = useMemo(() => {
     const ensenanzas = [...new Set(data.map((m) => m.ensenanzaCurso).filter(Boolean))].sort();
@@ -360,6 +346,23 @@ export default function LocalList({
     });
   }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, sort]);
 
+  const grouped = useMemo(() => groupPairs(filtered), [filtered]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: grouped.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => {
+      const item = grouped[index];
+      if (!item) return 30;
+      if (item.type === "pair") return 100; // dos tarjetas apiladas
+      const m = item.matricula;
+      const isSelected = m.localId === selectedId;
+      return isSelected ? 88 : 30;
+    },
+    overscan: 8,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
+
   function handleEnsenanzaChange(val: string) {
     setFilterEnsenanza(val);
     setFilterEspecialidad("");
@@ -382,8 +385,6 @@ export default function LocalList({
   }
 
   const hasFilters = filterEnsenanza || filterEspecialidad || filterRepetidor !== "all";
-
-  const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
   return (
     <div className="flex flex-col h-full">
@@ -525,7 +526,12 @@ export default function LocalList({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto" style={{ overflowX: "clip", overflowClipMargin: 20 }}>
+      {/* ── Lista virtualizada ──────────────────────────────────────────── */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto"
+        style={{ overflowX: "clip", overflowClipMargin: 20 }}
+      >
         {isLoading && (
           <div className="p-6 flex items-center gap-2 text-[var(--tc-ink-soft)] text-sm">
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando...
@@ -539,86 +545,71 @@ export default function LocalList({
             Sin matrículas locales
           </div>
         )}
-        <ul className="px-2 pb-2">
-          {grouped.map((item) => {
-            if (item.type === "pair") {
+
+        {!isLoading && grouped.length > 0 && (
+          <div
+            style={{
+              height: rowVirtualizer.getTotalSize(),
+              width: "100%",
+              position: "relative",
+            }}
+            className="px-2 py-1"
+          >
+            {rowVirtualizer.getVirtualItems().map((vRow) => {
+              const item = grouped[vRow.index];
+              if (!item) return null;
+
+              if (item.type === "pair") {
+                return (
+                  <div
+                    key={`pair-${item.ampliacion.localId}`}
+                    data-index={vRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${vRow.start}px)`,
+                      zIndex: 10,
+                    }}
+                  >
+                    <PairRow
+                      ampliacion={item.ampliacion}
+                      original={item.original}
+                      selectedId={selectedId}
+                      onSelect={onSelect}
+                    />
+                  </div>
+                );
+              }
+
+              const m = item.matricula;
+              const isSelected = m.localId === selectedId;
               return (
-                <StackedCardRow
-                  key={item.ampliacion.localId}
-                  ampliacion={item.ampliacion}
-                  original={item.original}
-                  selectedId={selectedId}
-                  onSelect={onSelect}
-                />
-              );
-            }
-            const m = item.matricula;
-            const isSelected = m.localId === selectedId;
-            const isHovered = hoveredId === m.localId;
-            const active = isSelected || isHovered;
-            return (
-              <li
-                key={m.localId}
-                className="mb-px relative"
-                style={{ zIndex: active ? 10 : 0 }}
-                onMouseEnter={() => setHoveredId(m.localId)}
-                onMouseLeave={() => setHoveredId(null)}
-              >
-                <button
-                  onClick={() => onSelect(m)}
-                  className={"w-full text-left cursor-pointer border-none" + (m.anulacion ? " opacity-50" : "")}
+                <div
+                  key={m.localId}
+                  data-index={vRow.index}
+                  ref={rowVirtualizer.measureElement}
                   style={{
-                    padding: active ? "8px 14px" : "3px 14px",
-                    borderRadius: 12,
-                    background: isSelected ? "var(--tc-primary-tint)" : isHovered ? "var(--tc-bg-panel)" : "transparent",
-                    boxShadow: isSelected
-                      ? "inset 3px 0 0 var(--tc-primary)"
-                      : isHovered
-                        ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
-                        : "none",
-                    transform: isHovered ? "translateY(-2px)" : "translateY(0)",
-                    transformOrigin: "center center",
-                    transition: "padding 0.25s cubic-bezier(0.33,1,0.68,1), transform 0.25s cubic-bezier(0.33,1,0.68,1), box-shadow 0.25s ease, background 0.2s ease",
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${vRow.start}px)`,
+                    zIndex: isSelected ? 2 : 0,
                   }}
                 >
-                  {/* Compact strip — visible when collapsed */}
-                  <div style={{ display: "grid", gridTemplateRows: active ? "0fr" : "1fr", transition: "grid-template-rows 0.25s cubic-bezier(0.33,1,0.68,1)" }}>
-                    <div style={{ minHeight: 0, overflow: "hidden" }}>
-                      <div className="flex items-center gap-1.5 min-w-0" style={{ height: 22 }}>
-                        <span className="shrink-0 tabular-nums font-bold" style={{ fontSize: 11, letterSpacing: -0.5, minWidth: 18, color: "var(--tc-ink-mute)" }}>
-                          {m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0") : "—"}
-                        </span>
-                        <span className={"flex-1 min-w-0 truncate text-[12px] font-semibold " + (m.anulacion ? "line-through text-[var(--tc-ink-mute)]" : "text-[var(--tc-ink)]")}>
-                          {m.nombre} {m.apellidos}
-                        </span>
-                        {m.anulacion && (
-                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold bg-red-100 text-red-600">Anul.</span>
-                        )}
-                        {m.ampliacion && (
-                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>Amp.</span>
-                        )}
-                        {m.repetidor && (
-                          <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-red-100 text-red-600">REP</span>
-                        )}
-                        {m._pendienteSubida && <Upload className="w-3 h-3 shrink-0 text-[var(--tc-warn-ink)]" />}
-                        {m.ensenanzaCurso && (
-                          <span className="shrink-0 text-[10px] text-[var(--tc-ink-mute)]">{m.ensenanzaCurso}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Full content — visible when expanded */}
-                  <div style={{ display: "grid", gridTemplateRows: active ? "1fr" : "0fr", transition: "grid-template-rows 0.25s cubic-bezier(0.33,1,0.68,1)" }}>
-                    <div style={{ minHeight: 0, overflow: "hidden" }}>
-                      {renderCardContent(m, isSelected)}
-                    </div>
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                  <SingleRow
+                    m={m}
+                    isSelected={isSelected}
+                    onSelect={onSelect}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -72,3 +72,104 @@ body {
 .font-display {
   font-family: 'DM Serif Display', Georgia, serif;
 }
+
+/* ── SolicitudList: hover por CSS (sin estado React) ──────────────────────── */
+
+/* Estado base: compacto, sin fondo */
+.solicitud-row {
+  padding: 3px 14px;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  transform: translateY(0);
+  transition:
+    padding 0.22s cubic-bezier(0.33,1,0.68,1),
+    transform 0.22s cubic-bezier(0.33,1,0.68,1),
+    box-shadow 0.22s ease,
+    background 0.18s ease;
+}
+
+/* Override: cuando está seleccionado el padre ya pone padding/bg inline */
+.solicitud-row[data-selected="true"] {
+  padding: 8px 14px;
+}
+
+/* Hover: expande y eleva */
+.solicitud-row:hover {
+  padding: 8px 14px;
+  background: var(--tc-bg-panel) !important;
+  box-shadow: 0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08) !important;
+  transform: translateY(-2px);
+}
+
+/* Compact strip: visible cuando NO está en hover NI seleccionado */
+.solicitud-row .sol-compact {
+  display: block;
+  overflow: hidden;
+  max-height: 22px;
+  transition: max-height 0.22s cubic-bezier(0.33,1,0.68,1);
+}
+.solicitud-row:hover .sol-compact,
+.solicitud-row[data-selected="true"] .sol-compact {
+  max-height: 0;
+}
+
+/* Full content: oculto por defecto, visible en hover o seleccionado */
+.solicitud-row .sol-expanded {
+  display: block;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.22s cubic-bezier(0.33,1,0.68,1);
+}
+.solicitud-row:hover .sol-expanded,
+.solicitud-row[data-selected="true"] .sol-expanded {
+  max-height: 80px;
+}
+
+/* ── LocalList: hover por CSS ────────────────────────────────────────────── */
+
+.local-row {
+  padding: 3px 14px;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  transform: translateY(0);
+  transition:
+    padding 0.22s cubic-bezier(0.33,1,0.68,1),
+    transform 0.22s cubic-bezier(0.33,1,0.68,1),
+    box-shadow 0.22s ease,
+    background 0.18s ease;
+}
+
+.local-row[data-selected="true"] {
+  padding: 8px 14px;
+}
+
+.local-row:hover {
+  padding: 8px 14px;
+  background: var(--tc-bg-panel) !important;
+  box-shadow: 0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08) !important;
+  transform: translateY(-2px);
+}
+
+.local-row .loc-compact {
+  display: block;
+  overflow: hidden;
+  max-height: 22px;
+  transition: max-height 0.22s cubic-bezier(0.33,1,0.68,1);
+}
+.local-row:hover .loc-compact,
+.local-row[data-selected="true"] .loc-compact {
+  max-height: 0;
+}
+
+.local-row .loc-expanded {
+  display: block;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.22s cubic-bezier(0.33,1,0.68,1);
+}
+.local-row:hover .loc-expanded,
+.local-row[data-selected="true"] .loc-expanded {
+  max-height: 80px;
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Settings, ChevronDown, Lock, Eye, LogOut } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
@@ -68,6 +68,18 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   };
 
   const isTramitado = selected?.estado === ESTADO.TRAMITADO;
+
+  // Memorizar la transformación para no recalcular en cada render
+  const currentSolicitudes = useMemo<Solicitud[] | undefined>(() => {
+    const solicitudes = current?.data?.solicitudes;
+    if (!solicitudes) return undefined;
+    if (convalidacionMap.size === 0) return solicitudes;
+    return solicitudes.map((s) =>
+      convalidacionMap.has(s.rowId)
+        ? { ...s, tieneConvalidacion: convalidacionMap.get(s.rowId) }
+        : s,
+    );
+  }, [current?.data?.solicitudes, convalidacionMap]);
 
   return (
     <div className="h-screen flex flex-col bg-[var(--tc-bg)]">
@@ -159,11 +171,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           left={
             <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
               <SolicitudList
-                data={current!.data?.solicitudes?.map((s) =>
-                  convalidacionMap.has(s.rowId)
-                    ? { ...s, tieneConvalidacion: convalidacionMap.get(s.rowId) }
-                    : s,
-                )}
+                data={currentSolicitudes}
                 isLoading={current!.isLoading}
                 isFetching={current!.isFetching}
                 error={current!.error as Error | null}
