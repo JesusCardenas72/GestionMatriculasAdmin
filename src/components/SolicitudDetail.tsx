@@ -27,6 +27,7 @@ import {
 import { getCatalogoLocal, getCatalogoParaCurso, ensenanzaDesdeCode } from "../data/catalogoLocal";
 import { actualizarSolicitud } from "../api/solicitudes";
 import { FlowError } from "../api/client";
+import { cursosStore } from "../api/cursosStore";
 import PdfViewer from "./PdfViewer";
 import ConfirmDialog from "./ConfirmDialog";
 import TramitarEmailModal from "./TramitarEmailModal";
@@ -138,6 +139,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   const [asigItems, setAsigItems] = useState<AsignaturaLocal[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [localPdfBase64, setLocalPdfBase64] = useState<string | null>(null);
   const [addAsignaturaId, setAddAsignaturaId] = useState("");
   const [addEstado, setAddEstado] = useState<EstadoAsignatura>(ESTADO_ASIGNATURA.MATRICULADA);
   const [asigSaved, setAsigSaved] = useState(false);
@@ -152,6 +154,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     setAsigItems(null);
     setShowAdd(false);
     setAsigSaved(false);
+    setLocalPdfBase64(null);
   }, [solicitud.rowId]);
 
   const pdfQuery = usePdf(config, solicitud.rowId);
@@ -164,6 +167,38 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
 
   const asignaturasQuery = useAsignaturasSolicitud(config, solicitud.rowId);
   const guardarMutation = useGuardarAsignaturas(config);
+
+  // Cuando Dataverse falla al obtener el PDF (502, red, etc.), intentamos
+  // cargar el fichero local guardado por el sync de fondo, o generarlo ahora.
+  useEffect(() => {
+    if (!pdfQuery.error || pdfVacio || !solicitud.cursoEscolar) return;
+    void (async () => {
+      try {
+        const existing = await cursosStore.leerPdf(solicitud.cursoEscolar!, solicitud.rowId);
+        if (existing) {
+          setLocalPdfBase64(existing);
+          return;
+        }
+        const asigs = asignaturasQuery.data ?? [];
+        const { solicitudToPdfProps } = await import("../pdf/buildMatriculaPdf");
+        const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+        const { addWatermarkToHtml } = await import("../utils/pdfWatermark");
+        const html = addWatermarkToHtml(
+          buildMatriculaPdfHtml(solicitudToPdfProps(solicitud, asigs)),
+          "ERROR DESCARGA",
+          "generado localmente",
+        );
+        const gen = await window.adminAPI.pdf.generarBase64(html);
+        if (gen.success && gen.base64) {
+          await cursosStore.guardarPdf(solicitud.cursoEscolar!, solicitud.rowId, gen.base64);
+          setLocalPdfBase64(gen.base64);
+        }
+      } catch {
+        // silent — el usuario puede intentarlo manualmente con "Imprimir PDF"
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfQuery.error, pdfVacio, solicitud.rowId]);
 
   useEffect(() => {
     if (asignaturasQuery.data && asigItems === null) {
@@ -567,8 +602,12 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
                 </div>
               )}
               {pdfVacio && <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Esta solicitud no tiene PDF adjunto.</p>}
-              {pdfQuery.data?.contentBase64 && (
-                <PdfViewer contentBase64={pdfQuery.data.contentBase64} fileName={pdfQuery.data.fileName} mimeType={pdfQuery.data.mimeType} />
+              {(pdfQuery.data?.contentBase64 ?? localPdfBase64) && (
+                <PdfViewer
+                  contentBase64={(pdfQuery.data?.contentBase64 ?? localPdfBase64)!}
+                  fileName={pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`}
+                  mimeType={pdfQuery.data?.mimeType ?? "application/pdf"}
+                />
               )}
             </AccordionBlock>
           </div>
@@ -847,7 +886,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
                 Esta solicitud no tiene PDF adjunto.
               </div>
             )}
-            {pdfQuery.error && !pdfVacio && (
+            {pdfQuery.error && !pdfVacio && !localPdfBase64 && (
               <div className="p-4 text-sm text-red-600 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <div>
@@ -858,8 +897,12 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
                 </div>
               </div>
             )}
-            {pdfQuery.data?.contentBase64 && (
-              <PdfViewer contentBase64={pdfQuery.data.contentBase64} fileName={pdfQuery.data.fileName} mimeType={pdfQuery.data.mimeType} />
+            {(pdfQuery.data?.contentBase64 ?? localPdfBase64) && (
+              <PdfViewer
+                contentBase64={(pdfQuery.data?.contentBase64 ?? localPdfBase64)!}
+                fileName={pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`}
+                mimeType={pdfQuery.data?.mimeType ?? "application/pdf"}
+              />
             )}
           </div>
         </div>

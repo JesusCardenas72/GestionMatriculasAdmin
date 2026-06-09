@@ -13,30 +13,39 @@ export function addWatermarkToHtml(html: string, linea1: string, linea2: string)
   left: 0;
   width: 100vw;
   height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   pointer-events: none;
-  z-index: 99999;
+  z-index: -1;
   overflow: hidden;
+  opacity: 0.05;
 ">
-  <div style="
-    transform: rotate(-45deg);
-    transform-origin: center center;
-    text-align: center;
-    white-space: nowrap;
-    font-family: Arial Black, Arial, sans-serif;
-    font-weight: 900;
-    color: #bb0000;
-    opacity: 0.20;
-    line-height: 1.15;
-    letter-spacing: 4px;
-    padding: 0;
-    margin: 0;
-  ">
-    <div style="font-size: 88px;">${linea1}</div>
-    <div style="font-size: 64px;">${linea2}</div>
-  </div>
+  <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <text
+      x="50%" y="48%"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      transform="rotate(-45, 50%, 50%)"
+      font-family="Arial Black, Arial, sans-serif"
+      font-weight="900"
+      font-size="88"
+      fill="none"
+      stroke="#bb0000"
+      stroke-width="2"
+      letter-spacing="4"
+    >${linea1}</text>
+    <text
+      x="50%" y="58%"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      transform="rotate(-45, 50%, 50%)"
+      font-family="Arial Black, Arial, sans-serif"
+      font-weight="900"
+      font-size="64"
+      fill="none"
+      stroke="#bb0000"
+      stroke-width="1.5"
+      letter-spacing="4"
+    >${linea2}</text>
+  </svg>
 </div>`;
 
   // Insertar justo antes de </body>; si no hay body, añadir al final

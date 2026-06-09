@@ -69,9 +69,14 @@ export function usePdfBackgroundSync(
                 // Error real (502, red, timeout, etc.) → generar PDF local con marca de agua
                 if (signal.aborted) return;
                 try {
-                  const asigs = await listarAsignaturasSolicitud(config, {
-                    matriculaId: s.rowId,
-                  });
+                  let asigs: import("../api/types").AsignaturaMatriculada[] = [];
+                  try {
+                    asigs = await listarAsignaturasSolicitud(config, {
+                      matriculaId: s.rowId,
+                    });
+                  } catch {
+                    // Dataverse no disponible — generamos el PDF sin asignaturas
+                  }
                   const record = solicitudALocal(s, asigs);
                   const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
                   const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
