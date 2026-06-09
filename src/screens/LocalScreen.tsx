@@ -178,8 +178,21 @@ export default function LocalScreen({ config }: Props) {
 
         // 2) Descargar asignaturas + PDF de Dataverse para todas las nuevas en paralelo
         if (nuevas.length > 0) {
+          // Comprobar en bloque qué rowIds ya tienen PDF (descargados por el hook de fondo)
+          const rowIdsNuevas = nuevas.map((s) => s.rowId);
+          const pdfsCacheados = await cursosStore.tienePdfBatch(curso, rowIdsNuevas);
+
           const resultados = await Promise.allSettled(
             nuevas.map(async (solicitud) => {
+              // Si el hook de fondo ya descargó el PDF para este rowId, aprovecharlo
+              const pdfKey = solicitud.rowId; // siempre tenemos rowId aquí
+              if (pdfsCacheados[pdfKey]) {
+                const asigs = await listarAsignaturasSolicitud(config, {
+                  matriculaId: solicitud.rowId,
+                });
+                return { ...solicitudALocal(solicitud, asigs), _tienePdf: true };
+              }
+
               // Asignaturas y PDF de Dataverse en paralelo
               const [asigResult, pdfResult] = await Promise.allSettled([
                 listarAsignaturasSolicitud(config, { matriculaId: solicitud.rowId }),
@@ -188,14 +201,14 @@ export default function LocalScreen({ config }: Props) {
               const asigs = asigResult.status === "fulfilled" ? asigResult.value : [];
               const record = solicitudALocal(solicitud, asigs);
 
-              // Intentar guardar el PDF de Dataverse
+              // Intentar guardar el PDF de Dataverse con clave rowId
               const pdfDataverse =
                 pdfResult.status === "fulfilled" && pdfResult.value.contentBase64
                   ? pdfResult.value.contentBase64
                   : null;
 
               if (pdfDataverse) {
-                await cursosStore.guardarPdf(curso, record.localId, pdfDataverse);
+                await cursosStore.guardarPdf(curso, pdfKey, pdfDataverse);
                 return { ...record, _tienePdf: true };
               }
 
@@ -206,7 +219,7 @@ export default function LocalScreen({ config }: Props) {
                 const html = buildMatriculaPdfHtml(matriculaLocalToPdfProps(record));
                 const gen = await window.adminAPI.pdf.generarBase64(html);
                 if (gen.success && gen.base64) {
-                  await cursosStore.guardarPdf(curso, record.localId, gen.base64);
+                  await cursosStore.guardarPdf(curso, pdfKey, gen.base64);
                   return { ...record, _tienePdf: true };
                 }
               } catch {
@@ -302,12 +315,15 @@ export default function LocalScreen({ config }: Props) {
         return;
       }
 
+      // Clave del fichero PDF: rowId para solicitudes de Dataverse, localId si es puramente local
+      const pdfKey = selected.rowId ?? selected.localId;
+
       // ── Solicitud normal: 1º intentar PDF de Dataverse ─────────────────────
       if (selected.rowId) {
         try {
           const resp = await obtenerPDF(config, selected.rowId);
           if (resp.contentBase64) {
-            await cursosStore.guardarPdf(curso, selected.localId, resp.contentBase64);
+            await cursosStore.guardarPdf(curso, pdfKey, resp.contentBase64);
             await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
             return;
           }
@@ -325,7 +341,7 @@ export default function LocalScreen({ config }: Props) {
         console.error("Error generando PDF de matrícula:", result.error);
         return;
       }
-      await cursosStore.guardarPdf(curso, selected.localId, result.base64);
+      await cursosStore.guardarPdf(curso, pdfKey, result.base64);
       await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
     } finally {
       setIsSaving(false);

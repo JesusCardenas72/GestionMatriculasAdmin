@@ -37,6 +37,9 @@ export const cursosStore = {
   tienePdf: (curso: string, localId: string): Promise<boolean> =>
     window.adminAPI.cursos.tienePdf(curso, localId),
 
+  tienePdfBatch: (curso: string, keys: string[]): Promise<Record<string, boolean>> =>
+    window.adminAPI.cursos.tienePdfBatch(curso, keys),
+
   eliminarPdf: (curso: string, localId: string): Promise<void> =>
     window.adminAPI.cursos.eliminarPdf(curso, localId),
 

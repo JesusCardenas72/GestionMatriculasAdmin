@@ -347,6 +347,21 @@ export function cursosTienePdf(curso: string, localId: string): boolean {
 }
 
 /**
+ * Comprueba varios keys (rowId o localId) de una sola vez.
+ * Devuelve un objeto { [key]: boolean } para cada clave recibida.
+ */
+export function cursosTienePdfBatch(
+  curso: string,
+  keys: string[],
+): Record<string, boolean> {
+  const result: Record<string, boolean> = {};
+  for (const key of keys) {
+    result[key] = fs.existsSync(pdfFilePath(curso, key));
+  }
+  return result;
+}
+
+/**
  * Elimina el PDF de una matrícula al borrar el registro.
  */
 export function cursosEliminarPdf(curso: string, localId: string): void {

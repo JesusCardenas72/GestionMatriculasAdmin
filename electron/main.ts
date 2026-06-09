@@ -54,6 +54,7 @@ import {
   cursosGuardarPdf,
   cursosLeerPdf,
   cursosTienePdf,
+  cursosTienePdfBatch,
   cursosEliminarPdf,
   cursosGuardarLote,
   cursosMigrarPdfAFicheros,
@@ -198,6 +199,9 @@ function registerIpcHandlers() {
   );
   ipcMain.handle("cursos:eliminarPdf", (_e, curso: string, localId: string) =>
     cursosEliminarPdf(curso, localId),
+  );
+  ipcMain.handle("cursos:tienePdfBatch", (_e, curso: string, keys: string[]) =>
+    cursosTienePdfBatch(curso, keys),
   );
   ipcMain.handle("cursos:guardarLote", (_e, curso: string, records: MatriculaLocal[]) =>
     cursosGuardarLote(curso, records),

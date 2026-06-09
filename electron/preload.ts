@@ -92,6 +92,8 @@ const adminAPI = {
       ipcRenderer.invoke("cursos:leerPdf", curso, localId),
     tienePdf: (curso: string, localId: string): Promise<boolean> =>
       ipcRenderer.invoke("cursos:tienePdf", curso, localId),
+    tienePdfBatch: (curso: string, keys: string[]): Promise<Record<string, boolean>> =>
+      ipcRenderer.invoke("cursos:tienePdfBatch", curso, keys),
     eliminarPdf: (curso: string, localId: string): Promise<void> =>
       ipcRenderer.invoke("cursos:eliminarPdf", curso, localId),
     guardarLote: (curso: string, records: MatriculaLocal[]): Promise<void> =>

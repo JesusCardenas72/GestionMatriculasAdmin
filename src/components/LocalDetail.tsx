@@ -148,6 +148,11 @@ export default function LocalDetail({
   const [pdfBase64Preview, setPdfBase64Preview] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
+  // Clave con la que se guarda el fichero PDF:
+  //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
+  //   - localId si es un registro puramente local (ampliación sin subir, etc.)
+  const pdfKey = m.rowId ?? m.localId;
+
   async function abrirVisorPdf() {
     if (pdfBase64Preview) {
       setShowPdfPreview(true);
@@ -155,13 +160,30 @@ export default function LocalDetail({
     }
     setLoadingPdf(true);
     try {
-      const base64 = await cursosStore.leerPdf(curso, m.localId);
+      const base64 = await cursosStore.leerPdf(curso, pdfKey);
+      if (!base64) return; // el fichero no existe aún
       setPdfBase64Preview(base64);
       setShowPdfPreview(true);
     } finally {
       setLoadingPdf(false);
     }
   }
+
+  // Detectar automáticamente si el proceso de fondo ya descargó el PDF
+  // aunque el flag _tienePdf todavía no esté actualizado en el registro
+  useEffect(() => {
+    if (m._tienePdf) return; // ya está marcado, nada que comprobar
+    let cancelled = false;
+    cursosStore.tienePdf(curso, pdfKey).then((existe) => {
+      if (!cancelled && existe) {
+        // Actualizar el flag sin marcar como pendiente de subida
+        onSave({ _tienePdf: true });
+      }
+    }).catch(() => { /* silencioso */ });
+    return () => { cancelled = true; };
+  // Solo comprobar cuando cambia el registro seleccionado
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m.localId]);
 
   const originalValues = useRef({
     horaSalida: m.horaSalida ?? "",

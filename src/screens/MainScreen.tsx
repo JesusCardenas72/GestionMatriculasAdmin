@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useQueryClient } from "@tanstack/react-query";
 import { Settings, ChevronDown, Lock, Eye, LogOut } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
@@ -68,6 +69,15 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   };
 
   const isTramitado = selected?.estado === ESTADO.TRAMITADO;
+
+  // Descarga en segundo plano los PDFs de todas las solicitudes de la nube
+  const todasLasSolicitudes = useMemo<Solicitud[] | undefined>(() => {
+    const listas = [q1.data?.solicitudes, q2.data?.solicitudes, q3.data?.solicitudes];
+    if (listas.every((l) => l === undefined)) return undefined;
+    return (listas.flatMap((l) => l ?? []));
+  }, [q1.data?.solicitudes, q2.data?.solicitudes, q3.data?.solicitudes]);
+
+  usePdfBackgroundSync(config, curso, todasLasSolicitudes);
 
   // Memorizar la transformación para no recalcular en cada render
   const currentSolicitudes = useMemo<Solicitud[] | undefined>(() => {
