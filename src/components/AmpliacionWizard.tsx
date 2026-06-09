@@ -192,7 +192,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       _pendienteSubida: true,
       _guardadoEn: now,
       _modificadoEn: now,
-      _pdfBase64: null,
+      _tienePdf: false,
       _nOrdenDisplay: m.nOrden != null ? `${m.nOrden},1` : null,
     };
   }

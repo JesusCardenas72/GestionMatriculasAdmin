@@ -297,6 +297,8 @@ export interface MatriculaLocal {
   _pendienteSubida: boolean;
   _guardadoEn: string;
   _modificadoEn: string;
-  _pdfBase64: string | null;
+  /** @deprecated Reemplazado por ficheros sueltos. Mantenido solo para migración. */
+  _pdfBase64?: string | null;
+  _tienePdf: boolean;
   _nOrdenDisplay?: string | null;
 }

@@ -1,5 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import PdfViewer from "./PdfViewer";
+import { cursosStore } from "../api/cursosStore";
+import { useCursoContext } from "../contexts/CursoContextProvider";
 
 const HORAS_SALIDA = ["Antes de las 17 h", "17 h", "18 h"];
 const FORMAS_PAGO = ["Pago Único", "Pago Fraccionado", "Solicita Beca", "Becado"];
@@ -132,6 +134,7 @@ export default function LocalDetail({
   onGenerarPdf,
   onBorrar,
 }: Props) {
+  const { curso } = useCursoContext();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmAmpliacion, setConfirmAmpliacion] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -142,6 +145,23 @@ export default function LocalDetail({
   const [addCodigo, setAddCodigo] = useState("");
   const [addEstado, setAddEstado] = useState<EstadoAsignatura>(ESTADO_ASIGNATURA.MATRICULADA);
   const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [pdfBase64Preview, setPdfBase64Preview] = useState<string | null>(null);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+
+  async function abrirVisorPdf() {
+    if (pdfBase64Preview) {
+      setShowPdfPreview(true);
+      return;
+    }
+    setLoadingPdf(true);
+    try {
+      const base64 = await cursosStore.leerPdf(curso, m.localId);
+      setPdfBase64Preview(base64);
+      setShowPdfPreview(true);
+    } finally {
+      setLoadingPdf(false);
+    }
+  }
 
   const originalValues = useRef({
     horaSalida: m.horaSalida ?? "",
@@ -159,6 +179,7 @@ export default function LocalDetail({
     setItems(m.asignaturas.map((a) => ({ ...a })));
     setShowAdd(false);
     setAddCodigo("");
+    setPdfBase64Preview(null); // invalidar caché del visor al cambiar de matrícula
   }, [m.localId]);
 
   const ensenanza = ensenanzaDesdeCode(m.ensenanzaCurso);
@@ -458,13 +479,13 @@ export default function LocalDetail({
                       style={{ color: "var(--tc-ink)" }}
                     >
                       <FileText className="w-4 h-4 shrink-0" />
-                      {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
+                      {m._tienePdf ? "Regenerar PDF" : "Generar PDF"}
                     </button>
-                    {m._pdfBase64 && (
+                    {m._tienePdf && (
                       <button
                         type="button"
                         onClick={() => {
-                          setShowPdfPreview(true);
+                          void abrirVisorPdf();
                           setMenuOpen(false);
                         }}
                         className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-[var(--tc-bg-panel)]"
@@ -882,10 +903,10 @@ export default function LocalDetail({
                     {m.ampliacion ? "PDF de ampliación" : "PDF de matrícula"}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>
-                    {m._pdfBase64 ? "PDF generado y listo para subir" : "Genera el documento oficial de matrícula"}
+                    {m._tienePdf ? "PDF generado y listo para subir" : "Genera el documento oficial de matrícula"}
                   </p>
                 </div>
-                {m._pdfBase64 && (
+                {m._tienePdf && (
                   <span
                     className="px-2 py-0.5 rounded-full text-xs font-semibold"
                     style={{ background: "var(--tc-primary-tint)", color: "var(--tc-primary)" }}
@@ -956,15 +977,16 @@ export default function LocalDetail({
             style={{ background: "var(--tc-violet-ink)" }}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            {m._pdfBase64 ? "Regenerar PDF" : "Generar PDF"}
+            {m._tienePdf ? "Regenerar PDF" : "Generar PDF"}
           </button>
-          {m._pdfBase64 && (
+          {m._tienePdf && (
             <button
-              onClick={() => setShowPdfPreview(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+              onClick={() => void abrirVisorPdf()}
+              disabled={loadingPdf}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--tc-ink-soft)" }}
             >
-              <Download className="w-4 h-4" />
+              {loadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Descargar PDF
             </button>
           )}
@@ -1024,7 +1046,7 @@ export default function LocalDetail({
         )}
       </div>
 
-      {showPdfPreview && m._pdfBase64 && (
+      {showPdfPreview && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--tc-border)]">
@@ -1041,10 +1063,16 @@ export default function LocalDetail({
               </button>
             </div>
             <div className="flex-1 overflow-auto">
-              <PdfViewer
-                contentBase64={m._pdfBase64}
-                fileName={`ampliacion_${m.apellidos}_${m.nombre}.pdf`.replace(/\s+/g, "_")}
-              />
+              {pdfBase64Preview ? (
+                <PdfViewer
+                  contentBase64={pdfBase64Preview}
+                  fileName={`matricula_${m.apellidos}_${m.nombre}.pdf`.replace(/\s+/g, "_")}
+                />
+              ) : (
+                <div className="flex items-center justify-center p-12 text-[var(--tc-ink-mute)] text-sm">
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" /> Cargando PDF...
+                </div>
+              )}
             </div>
           </div>
         </div>

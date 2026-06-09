@@ -9,6 +9,7 @@ import {
   type MatriculaLocal,
   type Solicitud,
 } from "../api/types";
+import { cursosStore } from "../api/cursosStore";
 import { crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, subirMatriculaEditada } from "../api/solicitudes";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
@@ -76,7 +77,7 @@ function solicitudALocal(
     _pendienteSubida: false,
     _guardadoEn: now,
     _modificadoEn: now,
-    _pdfBase64: null,
+    _tienePdf: false,
   });
 }
 
@@ -89,7 +90,7 @@ export default function LocalScreen({ config }: Props) {
   const qc = useQueryClient();
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
-  const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida } = useLocalMatriculas(curso);
+  const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida, guardarLote } = useLocalMatriculas(curso);
   const eliminarRef = useRef(eliminar);
   eliminarRef.current = eliminar;
   const pendienteTramitacionQuery = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
@@ -117,6 +118,17 @@ export default function LocalScreen({ config }: Props) {
     )
       return;
 
+    // RED DE SEGURIDAD: si alguna lista devuelve menos filas de las que dice tener en
+    // total (lista truncada / paginación incompleta), no borrar ningún registro local.
+    // Las altas nuevas sí se incorporan igualmente.
+    const listaCompleta =
+      (pendienteTramitacionQuery.data.total === 0 ||
+        pendienteTramitacionQuery.data.solicitudes.length >= pendienteTramitacionQuery.data.total) &&
+      (pendienteValidacionQuery.data.total === 0 ||
+        pendienteValidacionQuery.data.solicitudes.length >= pendienteValidacionQuery.data.total) &&
+      (tramitadasQuery.data.total === 0 ||
+        tramitadasQuery.data.solicitudes.length >= tramitadasQuery.data.total);
+
     const localRowIds = new Set(
       matriculas.map((m) => m.rowId).filter((id): id is string => id !== null),
     );
@@ -136,38 +148,54 @@ export default function LocalScreen({ config }: Props) {
 
     // Detecta duplicados y huérfanos: registros locales con rowId que ya no está en
     // ninguna de las 3 listas remotas o cuyo rowId ya quedó representado por otro localId.
+    // Solo se borran si la lista de la nube llegó completa (red de seguridad).
     const conservados = new Set<string>();
     const obsoletos: string[] = [];
-    for (const m of matriculas) {
-      if (m._pendienteSubida) continue; // tiene cambios sin sincronizar, no tocar
-      if (m.rowId === null) continue; // creación local en curso (ampliación no subida)
-      if (!remoteRowIds.has(m.rowId)) {
-        obsoletos.push(m.localId);
-        continue;
+    if (listaCompleta) {
+      for (const m of matriculas) {
+        if (m._pendienteSubida) continue; // tiene cambios sin sincronizar, no tocar
+        if (m.rowId === null) continue; // creación local en curso (ampliación no subida)
+        if (!remoteRowIds.has(m.rowId)) {
+          obsoletos.push(m.localId);
+          continue;
+        }
+        if (conservados.has(m.rowId)) {
+          obsoletos.push(m.localId); // duplicado del mismo rowId
+          continue;
+        }
+        conservados.add(m.rowId);
       }
-      if (conservados.has(m.rowId)) {
-        obsoletos.push(m.localId); // duplicado del mismo rowId
-        continue;
-      }
-      conservados.add(m.rowId);
     }
 
     if (nuevas.length === 0 && obsoletos.length === 0) return;
 
     setIsSyncing(true);
 
-    Promise.allSettled([
-      ...obsoletos.map((localId) => eliminarRef.current(localId)),
-      ...nuevas.map(async (solicitud) => {
-        const asigs = await listarAsignaturasSolicitud(config, {
-          matriculaId: solicitud.rowId,
-        });
-        const record = solicitudALocal(solicitud, asigs);
-        await guardar(record);
-      }),
-    ]).finally(() => {
-      setIsSyncing(false);
-    });
+    (async () => {
+      try {
+        // 1) Borrar obsoletos (uno a uno, son pocos normalmente)
+        await Promise.allSettled(obsoletos.map((localId) => eliminarRef.current(localId)));
+
+        // 2) Descargar asignaturas de todas las nuevas en paralelo
+        if (nuevas.length > 0) {
+          const resultados = await Promise.allSettled(
+            nuevas.map(async (solicitud) => {
+              const asigs = await listarAsignaturasSolicitud(config, {
+                matriculaId: solicitud.rowId,
+              });
+              return solicitudALocal(solicitud, asigs);
+            }),
+          );
+          const records = resultados
+            .filter((r): r is PromiseFulfilledResult<MatriculaLocal> => r.status === "fulfilled")
+            .map((r) => r.value);
+          // 3) Guardar todo el lote en una sola escritura del archivo
+          if (records.length > 0) await guardarLote(records);
+        }
+      } finally {
+        setIsSyncing(false);
+      }
+    })();
   }, [
     isLoading,
     pendienteTramitacionQuery.data,
@@ -231,7 +259,8 @@ export default function LocalScreen({ config }: Props) {
         };
         const bytes = await buildAmpliacionPdfBytes(pdfProps);
         const base64 = uint8ToBase64(bytes);
-        await actualizar(selected.localId, { _pdfBase64: base64, _pendienteSubida: true });
+        await cursosStore.guardarPdf(curso, selected.localId, base64);
+        await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
       } else {
         const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
         const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
@@ -242,7 +271,8 @@ export default function LocalScreen({ config }: Props) {
           console.error("Error generando PDF de matrícula:", result.error);
           return;
         }
-        await actualizar(selected.localId, { _pdfBase64: result.base64, _pendienteSubida: true });
+        await cursosStore.guardarPdf(curso, selected.localId, result.base64);
+        await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
       }
     } finally {
       setIsSaving(false);
@@ -267,8 +297,12 @@ export default function LocalScreen({ config }: Props) {
         console.error("Error generando PDF de ampliación:", e);
       }
 
-      const nuevaConPdf = { ...nueva, _pdfBase64: pdfBase64 };
-      await guardar(nuevaConPdf);
+      // Guardar matrícula sin PDF en el JSON; el fichero se guarda aparte
+      const nuevaSinPdf = { ...nueva, _tienePdf: !!pdfBase64 };
+      await guardar(nuevaSinPdf);
+      if (pdfBase64) {
+        await cursosStore.guardarPdf(curso, nueva.localId, pdfBase64);
+      }
       if (selected) {
         await actualizar(selected.localId, {
           ampliada: true,
@@ -289,7 +323,7 @@ export default function LocalScreen({ config }: Props) {
         }
       }
       setShowAmpliacion(false);
-      setSelected(nuevaConPdf);
+      setSelected(nuevaSinPdf);
     } finally {
       setIsSaving(false);
     }
@@ -367,7 +401,7 @@ export default function LocalScreen({ config }: Props) {
             nombre: a.nombre,
             estado: a.estado,
           })),
-          pdfBase64: selected._pdfBase64,
+          pdfBase64: selected._tienePdf ? await cursosStore.leerPdf(curso, selected.localId) : null,
         });
         await actualizar(selected.localId, { rowId: result.rowId, _pendienteSubida: false });
       }
@@ -442,7 +476,7 @@ export default function LocalScreen({ config }: Props) {
               nombre: a.nombre,
               estado: a.estado,
             })),
-            pdfBase64: m._pdfBase64,
+            pdfBase64: m._tienePdf ? await cursosStore.leerPdf(curso, m.localId) : null,
           });
           await actualizar(m.localId, { rowId: result.rowId, _pendienteSubida: false });
         }

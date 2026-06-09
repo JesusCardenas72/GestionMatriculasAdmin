@@ -38,7 +38,7 @@ function makeMatricula(overrides: Partial<MatriculaLocal> = {}): MatriculaLocal 
     _pendienteSubida: false,
     _guardadoEn: "2025-01-01T00:00:00.000Z",
     _modificadoEn: "2025-01-01T00:00:00.000Z",
-    _pdfBase64: null,
+    _tienePdf: false,
     ...overrides,
   };
 }

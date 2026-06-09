@@ -86,6 +86,16 @@ const adminAPI = {
       ipcRenderer.invoke("cursos:importar"),
     migrarLegacy: (): Promise<{ migrado: boolean; cursos: string[] }> =>
       ipcRenderer.invoke("cursos:migrarLegacy"),
+    guardarPdf: (curso: string, localId: string, base64: string): Promise<boolean> =>
+      ipcRenderer.invoke("cursos:guardarPdf", curso, localId, base64),
+    leerPdf: (curso: string, localId: string): Promise<string | null> =>
+      ipcRenderer.invoke("cursos:leerPdf", curso, localId),
+    tienePdf: (curso: string, localId: string): Promise<boolean> =>
+      ipcRenderer.invoke("cursos:tienePdf", curso, localId),
+    eliminarPdf: (curso: string, localId: string): Promise<void> =>
+      ipcRenderer.invoke("cursos:eliminarPdf", curso, localId),
+    guardarLote: (curso: string, records: MatriculaLocal[]): Promise<void> =>
+      ipcRenderer.invoke("cursos:guardarLote", curso, records),
   },
   cursoContext: {
     load: (): Promise<{ cursoSeleccionado: string } | null> =>

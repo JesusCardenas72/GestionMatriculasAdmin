@@ -47,6 +47,12 @@ export function useLocalMatriculas(curso: string) {
     onSuccess: invalidar,
   });
 
+  /** Guarda un lote de matrículas con una sola escritura en disco */
+  const guardarLoteMut = useMutation({
+    mutationFn: (records: MatriculaLocal[]) => cursosStore.guardarLote(curso, records),
+    onSuccess: invalidar,
+  });
+
   return {
     matriculas: query.data ?? [],
     isLoading: query.isLoading,
@@ -58,5 +64,20 @@ export function useLocalMatriculas(curso: string) {
     },
     eliminar: eliminarMut.mutateAsync,
     marcarSubida: marcarSubidaMut.mutateAsync,
+    guardarLote: guardarLoteMut.mutateAsync,
   };
+}
+
+/**
+ * Carga el PDF de una matrícula bajo demanda (solo cuando se necesita mostrar o subir).
+ * No vive en el estado principal de la lista para no inflar la memoria.
+ */
+export function usePdfMatricula(curso: string, localId: string | null) {
+  return useQuery<string | null>({
+    queryKey: ["pdfMatricula", curso, localId],
+    queryFn: () => cursosStore.leerPdf(curso, localId!),
+    enabled: !!localId && !!curso,
+    staleTime: 5 * 60_000, // 5 minutos en caché
+    retry: false,
+  });
 }

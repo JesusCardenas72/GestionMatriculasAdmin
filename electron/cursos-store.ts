@@ -28,6 +28,15 @@ function cursoFileName(curso: string): string {
   return `matriculas-${curso.replace("/", "-")}.json`;
 }
 
+/** Carpeta donde se guardan los PDF de un curso: cursos/pdfs/<curso-safe>/ */
+function cursosPdfDir(curso: string): string {
+  return path.join(cursosDir(), "pdfs", curso.replace("/", "-"));
+}
+
+function pdfFilePath(curso: string, localId: string): string {
+  return path.join(cursosPdfDir(curso), `${localId}.pdf`);
+}
+
 function cursosFilePath(curso: string): string {
   return path.join(cursosDir(), cursoFileName(curso));
 }
@@ -84,12 +93,18 @@ function computeAmpliada(data: MatriculaLocal[]): MatriculaLocal[] {
   }));
 }
 
+/** Quita _pdfBase64 del objeto antes de enviarlo al renderer (no necesita viajar) */
+function stripPdfBase64(r: MatriculaLocal): MatriculaLocal {
+  const { _pdfBase64: _dropped, ...rest } = r;
+  return rest as MatriculaLocal;
+}
+
 function readCurso(curso: string): MatriculaLocal[] {
   const file = cursosFilePath(curso);
   if (!fs.existsSync(file)) return [];
   try {
     const data = JSON.parse(fs.readFileSync(file, "utf-8")) as MatriculaLocal[];
-    return computeAmpliada(data);
+    return computeAmpliada(data).map(stripPdfBase64);
   } catch {
     return [];
   }
@@ -97,9 +112,11 @@ function readCurso(curso: string): MatriculaLocal[] {
 
 function writeCurso(curso: string, records: MatriculaLocal[]): void {
   ensureCursosDir();
+  // Quitar _pdfBase64 del JSON (los PDF se guardan como ficheros sueltos)
+  const limpio = records.map(({ _pdfBase64: _dropped, ...r }) => r);
   fs.writeFileSync(
     cursosFilePath(curso),
-    JSON.stringify(records, null, 2),
+    JSON.stringify(limpio),   // sin indentación → archivo más pequeño
     "utf-8",
   );
   upsertIndex(curso, records.length);
@@ -288,4 +305,118 @@ export function cursosMigrarLegacy(): { migrado: boolean; cursos: string[] } {
   }
 
   return { migrado: true, cursos: cursosEscritos };
+}
+
+// ── API PDF: ficheros sueltos ─────────────────────────────────────────────────
+
+/**
+ * Guarda el PDF de una matrícula como fichero suelto en disco.
+ * Devuelve true si se guardó correctamente.
+ */
+export function cursosGuardarPdf(curso: string, localId: string, base64: string): boolean {
+  try {
+    const dir = cursosPdfDir(curso);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const buffer = Buffer.from(base64, "base64");
+    fs.writeFileSync(pdfFilePath(curso, localId), buffer);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Lee el PDF de una matrícula desde disco y lo devuelve como base64.
+ * Devuelve null si no existe.
+ */
+export function cursosLeerPdf(curso: string, localId: string): string | null {
+  try {
+    const filePath = pdfFilePath(curso, localId);
+    if (!fs.existsSync(filePath)) return null;
+    return fs.readFileSync(filePath).toString("base64");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Comprueba si existe el fichero PDF de una matrícula.
+ */
+export function cursosTienePdf(curso: string, localId: string): boolean {
+  return fs.existsSync(pdfFilePath(curso, localId));
+}
+
+/**
+ * Elimina el PDF de una matrícula al borrar el registro.
+ */
+export function cursosEliminarPdf(curso: string, localId: string): void {
+  try {
+    const filePath = pdfFilePath(curso, localId);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {
+    // silencioso
+  }
+}
+
+/**
+ * Guarda varias matrículas de una sola vez (evita reescrituras repetidas en el lote).
+ * Si una matrícula ya existe (mismo localId) la actualiza; si es nueva la añade.
+ */
+export function cursosGuardarLote(curso: string, nuevos: MatriculaLocal[]): void {
+  if (nuevos.length === 0) return;
+  const all = readCurso(curso);
+  const idxMap = new Map(all.map((r, i) => [r.localId, i]));
+  for (const record of nuevos) {
+    const idx = idxMap.get(record.localId);
+    if (idx !== undefined) {
+      all[idx] = record;
+    } else {
+      all.push(record);
+      idxMap.set(record.localId, all.length - 1);
+    }
+  }
+  writeCurso(curso, all);
+}
+
+/**
+ * Migración one-shot: extrae _pdfBase64 de todos los registros de todos los cursos
+ * y los guarda como ficheros sueltos. Se ejecuta una sola vez al arrancar.
+ */
+export function cursosMigrarPdfAFicheros(): { migradas: number } {
+  const index = readIndex();
+  let migradas = 0;
+
+  for (const entry of index) {
+    const file = cursosFilePath(entry.curso);
+    if (!fs.existsSync(file)) continue;
+
+    let raw: MatriculaLocal[];
+    try {
+      raw = JSON.parse(fs.readFileSync(file, "utf-8")) as MatriculaLocal[];
+    } catch {
+      continue;
+    }
+
+    let huboMigracion = false;
+    const limpio = raw.map((r) => {
+      if (r._pdfBase64) {
+        cursosGuardarPdf(entry.curso, r.localId, r._pdfBase64);
+        migradas++;
+        huboMigracion = true;
+        const { _pdfBase64: _dropped, ...sinPdf } = r;
+        return { ...sinPdf, _tienePdf: true };
+      }
+      // Asegurar que el campo existe aunque sea false
+      if (r._tienePdf === undefined) {
+        return { ...r, _tienePdf: cursosTienePdf(entry.curso, r.localId) };
+      }
+      return r;
+    });
+
+    if (huboMigracion || raw.some((r) => r._tienePdf === undefined)) {
+      fs.writeFileSync(cursosFilePath(entry.curso), JSON.stringify(limpio), "utf-8");
+    }
+  }
+
+  return { migradas };
 }

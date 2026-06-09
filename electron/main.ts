@@ -51,6 +51,12 @@ import {
   cursosExportarBackup,
   cursosImportar,
   cursosMigrarLegacy,
+  cursosGuardarPdf,
+  cursosLeerPdf,
+  cursosTienePdf,
+  cursosEliminarPdf,
+  cursosGuardarLote,
+  cursosMigrarPdfAFicheros,
 } from "./cursos-store";
 import { loadCursoContext, saveCursoContext } from "./curso-context-store";
 import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
@@ -181,6 +187,21 @@ function registerIpcHandlers() {
     return resultados;
   });
   ipcMain.handle("cursos:migrarLegacy", () => cursosMigrarLegacy());
+  ipcMain.handle("cursos:guardarPdf", (_e, curso: string, localId: string, base64: string) =>
+    cursosGuardarPdf(curso, localId, base64),
+  );
+  ipcMain.handle("cursos:leerPdf", (_e, curso: string, localId: string) =>
+    cursosLeerPdf(curso, localId),
+  );
+  ipcMain.handle("cursos:tienePdf", (_e, curso: string, localId: string) =>
+    cursosTienePdf(curso, localId),
+  );
+  ipcMain.handle("cursos:eliminarPdf", (_e, curso: string, localId: string) =>
+    cursosEliminarPdf(curso, localId),
+  );
+  ipcMain.handle("cursos:guardarLote", (_e, curso: string, records: MatriculaLocal[]) =>
+    cursosGuardarLote(curso, records),
+  );
 
   ipcMain.handle("cursoContext:load", () => loadCursoContext());
   ipcMain.handle("cursoContext:save", (_e, data: { cursoSeleccionado: string }) =>
@@ -379,7 +400,11 @@ function registerIpcHandlers() {
     "pdf:registerBlob",
     (_e, payload: { base64: string }): { id: string; url: string } => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      pdfBlobs.set(id, Buffer.from(payload.base64, "base64"));
+      const buf = Buffer.from(payload.base64, "base64");
+      console.log("[PDF DEBUG] registerBlob - base64 length:", payload.base64.length, "buffer length:", buf.length);
+      pdfBlobs.set(id, buf);
+      console.log("[PDF DEBUG] pdfBlobs now has", pdfBlobs.size, "entries");
+      console.log("[PDF DEBUG] Generated URL:", `localpdf://${id}`);
       return { id, url: `localpdf://${id}` };
     },
   );
@@ -466,9 +491,16 @@ function registerIpcHandlers() {
 
 app.whenReady().then(() => {
   protocol.handle("localpdf", (request) => {
-    const id = new URL(request.url).pathname.replace(/^\/+/, "");
+    const url = request.url;
+    const id = new URL(url).pathname.replace(/^\/+/, "");
+    console.log("[PDF DEBUG] protocol handle - url:", url, "extracted id:", id);
+    console.log("[PDF DEBUG] pdfBlobs has", pdfBlobs.size, "entries, keys:", [...pdfBlobs.keys()]);
     const buf = pdfBlobs.get(id);
-    if (!buf) return new Response("Not found", { status: 404 });
+    if (!buf) {
+      console.log("[PDF DEBUG] buf not found for id:", id);
+      return new Response("Not found", { status: 404 });
+    }
+    console.log("[PDF DEBUG] buf found, length:", buf.length);
     return new Response(new Uint8Array(buf), {
       status: 200,
       headers: { "content-type": "application/pdf" },
@@ -476,6 +508,7 @@ app.whenReady().then(() => {
   });
   registerIpcHandlers();
   cursosMigrarLegacy();
+  cursosMigrarPdfAFicheros(); // one-shot: extrae _pdfBase64 del JSON a ficheros sueltos
   createWindow();
 });
 
