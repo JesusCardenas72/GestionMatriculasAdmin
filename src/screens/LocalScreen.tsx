@@ -10,7 +10,7 @@ import {
   type Solicitud,
 } from "../api/types";
 import { cursosStore } from "../api/cursosStore";
-import { crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, subirMatriculaEditada } from "../api/solicitudes";
+import { crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
@@ -176,14 +176,44 @@ export default function LocalScreen({ config }: Props) {
         // 1) Borrar obsoletos (uno a uno, son pocos normalmente)
         await Promise.allSettled(obsoletos.map((localId) => eliminarRef.current(localId)));
 
-        // 2) Descargar asignaturas de todas las nuevas en paralelo
+        // 2) Descargar asignaturas + PDF de Dataverse para todas las nuevas en paralelo
         if (nuevas.length > 0) {
           const resultados = await Promise.allSettled(
             nuevas.map(async (solicitud) => {
-              const asigs = await listarAsignaturasSolicitud(config, {
-                matriculaId: solicitud.rowId,
-              });
-              return solicitudALocal(solicitud, asigs);
+              // Asignaturas y PDF de Dataverse en paralelo
+              const [asigResult, pdfResult] = await Promise.allSettled([
+                listarAsignaturasSolicitud(config, { matriculaId: solicitud.rowId }),
+                obtenerPDF(config, solicitud.rowId),
+              ]);
+              const asigs = asigResult.status === "fulfilled" ? asigResult.value : [];
+              const record = solicitudALocal(solicitud, asigs);
+
+              // Intentar guardar el PDF de Dataverse
+              const pdfDataverse =
+                pdfResult.status === "fulfilled" && pdfResult.value.contentBase64
+                  ? pdfResult.value.contentBase64
+                  : null;
+
+              if (pdfDataverse) {
+                await cursosStore.guardarPdf(curso, record.localId, pdfDataverse);
+                return { ...record, _tienePdf: true };
+              }
+
+              // Fallback: generar PDF desde los datos del formulario
+              try {
+                const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
+                const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+                const html = buildMatriculaPdfHtml(matriculaLocalToPdfProps(record));
+                const gen = await window.adminAPI.pdf.generarBase64(html);
+                if (gen.success && gen.base64) {
+                  await cursosStore.guardarPdf(curso, record.localId, gen.base64);
+                  return { ...record, _tienePdf: true };
+                }
+              } catch {
+                // silencioso — el PDF se podrá obtener manualmente
+              }
+
+              return record; // _tienePdf: false si todo falló
             }),
           );
           const records = resultados
@@ -223,10 +253,18 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
-  async function handleGenerarPdf() {
+  /**
+   * Obtiene el PDF para la matrícula seleccionada.
+   * Orden de preferencia:
+   *   1. PDF de Dataverse (original con documentación adjunta) — solo si tiene rowId y no es ampliación
+   *   2. PDF generado desde los datos del formulario (fallback automático)
+   * Las ampliaciones siempre generan su propio PDF (no tienen adjunto en Dataverse).
+   */
+  async function handleObtenerPdf() {
     if (!selected) return;
     setIsSaving(true);
     try {
+      // ── Ampliación: siempre generar PDF propio ──────────────────────────────
       if (selected.ampliacion) {
         const { buildAmpliacionPdfBytes, uint8ToBase64 } = await import("../pdf/buildAmpliacionPdf");
         const pdfProps: AmpliacionPdfProps = {
@@ -261,19 +299,34 @@ export default function LocalScreen({ config }: Props) {
         const base64 = uint8ToBase64(bytes);
         await cursosStore.guardarPdf(curso, selected.localId, base64);
         await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
-      } else {
-        const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
-        const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
-        const props = matriculaLocalToPdfProps(selected);
-        const html = buildMatriculaPdfHtml(props);
-        const result = await window.adminAPI.pdf.generarBase64(html);
-        if (!result.success || !result.base64) {
-          console.error("Error generando PDF de matrícula:", result.error);
-          return;
-        }
-        await cursosStore.guardarPdf(curso, selected.localId, result.base64);
-        await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
+        return;
       }
+
+      // ── Solicitud normal: 1º intentar PDF de Dataverse ─────────────────────
+      if (selected.rowId) {
+        try {
+          const resp = await obtenerPDF(config, selected.rowId);
+          if (resp.contentBase64) {
+            await cursosStore.guardarPdf(curso, selected.localId, resp.contentBase64);
+            await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
+            return;
+          }
+        } catch (e) {
+          console.warn("No se pudo obtener PDF de Dataverse, generando localmente:", e);
+        }
+      }
+
+      // ── Fallback: generar PDF desde los datos del formulario ────────────────
+      const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
+      const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+      const html = buildMatriculaPdfHtml(matriculaLocalToPdfProps(selected));
+      const result = await window.adminAPI.pdf.generarBase64(html);
+      if (!result.success || !result.base64) {
+        console.error("Error generando PDF de matrícula:", result.error);
+        return;
+      }
+      await cursosStore.guardarPdf(curso, selected.localId, result.base64);
+      await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
     } finally {
       setIsSaving(false);
     }
@@ -585,7 +638,7 @@ export default function LocalScreen({ config }: Props) {
                   setShowAmpliacion(true);
                 }}
                 onSubirNube={() => { if (!isSoloLectura) void handleSubirNube(); }}
-                onGenerarPdf={() => void handleGenerarPdf()}
+                onGenerarPdf={() => void handleObtenerPdf()}
                 onBorrar={() => { if (!isSoloLectura) void handleBorrar(); }}
               />
             ) : (

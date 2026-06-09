@@ -492,7 +492,8 @@ function registerIpcHandlers() {
 app.whenReady().then(() => {
   protocol.handle("localpdf", (request) => {
     const url = request.url;
-    const id = new URL(url).pathname.replace(/^\/+/, "");
+    // El ID está en el hostname: localpdf://<id>  (pathname sería siempre "/")
+    const id = new URL(url).hostname;
     console.log("[PDF DEBUG] protocol handle - url:", url, "extracted id:", id);
     console.log("[PDF DEBUG] pdfBlobs has", pdfBlobs.size, "entries, keys:", [...pdfBlobs.keys()]);
     const buf = pdfBlobs.get(id);

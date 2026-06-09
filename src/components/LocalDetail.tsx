@@ -479,7 +479,7 @@ export default function LocalDetail({
                       style={{ color: "var(--tc-ink)" }}
                     >
                       <FileText className="w-4 h-4 shrink-0" />
-                      {m._tienePdf ? "Regenerar PDF" : "Generar PDF"}
+                      {m._tienePdf ? "Regenerar PDF" : m.ampliacion ? "Generar PDF" : "Obtener PDF"}
                     </button>
                     {m._tienePdf && (
                       <button
@@ -903,7 +903,11 @@ export default function LocalDetail({
                     {m.ampliacion ? "PDF de ampliación" : "PDF de matrícula"}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>
-                    {m._tienePdf ? "PDF generado y listo para subir" : "Genera el documento oficial de matrícula"}
+                    {m._tienePdf
+                      ? "PDF disponible localmente"
+                      : m.ampliacion
+                        ? "Genera el documento de ampliación"
+                        : "Descarga el PDF de Dataverse (con documentación adjunta)"}
                   </p>
                 </div>
                 {m._tienePdf && (
@@ -977,7 +981,7 @@ export default function LocalDetail({
             style={{ background: "var(--tc-violet-ink)" }}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            {m._tienePdf ? "Regenerar PDF" : "Generar PDF"}
+            {m._tienePdf ? "Regenerar PDF" : m.ampliacion ? "Generar PDF" : "Obtener PDF"}
           </button>
           {m._tienePdf && (
             <button
