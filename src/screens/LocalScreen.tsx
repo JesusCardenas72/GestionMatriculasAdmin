@@ -22,64 +22,12 @@ import AmpliacionWizard from "../components/AmpliacionWizard";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
-import { formatearMatriculaLocal } from "../utils/formatText";
+import { solicitudALocal } from "../utils/solicitudALocal";
 
 interface Props {
   config: AppConfig;
 }
 
-function solicitudALocal(
-  s: Solicitud,
-  asignaturas: AsignaturaMatriculada[],
-): MatriculaLocal {
-  const now = new Date().toISOString();
-  return formatearMatriculaLocal({
-    localId: crypto.randomUUID(),
-    rowId: s.rowId,
-    origenRowId: s.rowId,
-    nOrden: s.nOrden,
-    nombreMatricula: s.nombreMatricula,
-    nombre: s.nombre,
-    apellidos: s.apellidos,
-    dni: s.dni,
-    email: s.email,
-    telefono: s.telefono,
-    fechaNacimiento: s.fechaNacimiento,
-    domicilio: s.domicilio,
-    localidad: s.localidad,
-    provincia: s.provincia,
-    cp: s.cp,
-    fechaInscripcion: s.fechaInscripcion,
-    createdon: s.createdon,
-    cursoEscolar: s.cursoEscolar,
-    ensenanzaCurso: s.ensenanzaCurso,
-    especialidad: s.especialidad,
-    formaPago: s.formaPago,
-    reduccionTasas: s.reduccionTasas,
-    autorizacionImagen: s.autorizacionImagen,
-    disponibilidadManana: s.disponibilidadManana,
-    horaSalida: s.horaSalida,
-    docFaltante: s.docFaltante,
-    repetidor: s.repetidor,
-    asignaturas: asignaturas.map((a) => ({
-      localId: crypto.randomUUID(),
-      rowId: a.rowId,
-      asignaturaId: a.asignaturaId,
-      codigo: 0,
-      nombre: a.nombre,
-      estado: a.estado,
-      observaciones: a.observaciones,
-      horario: null,
-    })),
-    anulacion: false,
-    ampliacion: false,
-    ampliada: false,
-    _pendienteSubida: false,
-    _guardadoEn: now,
-    _modificadoEn: now,
-    _tienePdf: false,
-  });
-}
 
 function toIsoDate(s: string | null | undefined): string | null {
   if (!s) return null;
@@ -201,29 +149,32 @@ export default function LocalScreen({ config }: Props) {
               const asigs = asigResult.status === "fulfilled" ? asigResult.value : [];
               const record = solicitudALocal(solicitud, asigs);
 
-              // Intentar guardar el PDF de Dataverse con clave rowId
-              const pdfDataverse =
-                pdfResult.status === "fulfilled" && pdfResult.value.contentBase64
-                  ? pdfResult.value.contentBase64
-                  : null;
-
-              if (pdfDataverse) {
-                await cursosStore.guardarPdf(curso, pdfKey, pdfDataverse);
+              // PDF de Dataverse obtenido correctamente
+              if (pdfResult.status === "fulfilled" && pdfResult.value.contentBase64) {
+                await cursosStore.guardarPdf(curso, pdfKey, pdfResult.value.contentBase64);
                 return { ...record, _tienePdf: true };
               }
 
-              // Fallback: generar PDF desde los datos del formulario
-              try {
-                const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
-                const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
-                const html = buildMatriculaPdfHtml(matriculaLocalToPdfProps(record));
-                const gen = await window.adminAPI.pdf.generarBase64(html);
-                if (gen.success && gen.base64) {
-                  await cursosStore.guardarPdf(curso, pdfKey, gen.base64);
-                  return { ...record, _tienePdf: true };
+              // Si pdfResult es rejected = error real (502, red, etc.) → generar con marca de agua
+              // Si fulfilled pero sin contentBase64 = Dataverse no tiene adjunto → no generar nada
+              if (pdfResult.status === "rejected") {
+                try {
+                  const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
+                  const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+                  const { addWatermarkToHtml } = await import("../utils/pdfWatermark");
+                  const html = addWatermarkToHtml(
+                    buildMatriculaPdfHtml(matriculaLocalToPdfProps(record)),
+                    "ERROR DESCARGA",
+                    "generado localmente",
+                  );
+                  const gen = await window.adminAPI.pdf.generarBase64(html);
+                  if (gen.success && gen.base64) {
+                    await cursosStore.guardarPdf(curso, pdfKey, gen.base64);
+                    return { ...record, _tienePdf: true };
+                  }
+                } catch {
+                  // silencioso — se podrá obtener manualmente
                 }
-              } catch {
-                // silencioso — el PDF se podrá obtener manualmente
               }
 
               return record; // _tienePdf: false si todo falló
@@ -320,6 +271,7 @@ export default function LocalScreen({ config }: Props) {
 
       // ── Solicitud normal: 1º intentar PDF de Dataverse ─────────────────────
       if (selected.rowId) {
+        let errorDataverse = false;
         try {
           const resp = await obtenerPDF(config, selected.rowId);
           if (resp.contentBase64) {
@@ -327,12 +279,32 @@ export default function LocalScreen({ config }: Props) {
             await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
             return;
           }
+          // resp vacío = Dataverse no tiene adjunto → generar limpio (sin marca de agua)
         } catch (e) {
-          console.warn("No se pudo obtener PDF de Dataverse, generando localmente:", e);
+          console.warn("Error al obtener PDF de Dataverse, generando localmente:", e);
+          errorDataverse = true;
+        }
+
+        if (errorDataverse) {
+          // Error real (502, red, etc.) → generar con marca de agua
+          const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
+          const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+          const { addWatermarkToHtml } = await import("../utils/pdfWatermark");
+          const html = addWatermarkToHtml(
+            buildMatriculaPdfHtml(matriculaLocalToPdfProps(selected)),
+            "ERROR DESCARGA",
+            "generado localmente",
+          );
+          const res = await window.adminAPI.pdf.generarBase64(html);
+          if (res.success && res.base64) {
+            await cursosStore.guardarPdf(curso, pdfKey, res.base64);
+            await actualizar(selected.localId, { _tienePdf: true, _pendienteSubida: true });
+          }
+          return;
         }
       }
 
-      // ── Fallback: generar PDF desde los datos del formulario ────────────────
+      // ── Sin adjunto en Dataverse o sin rowId: generar PDF limpio ────────────
       const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
       const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
       const html = buildMatriculaPdfHtml(matriculaLocalToPdfProps(selected));

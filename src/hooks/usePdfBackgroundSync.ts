@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import type { AppConfig } from "../../electron/config-store";
 import type { Solicitud } from "../api/types";
 import { cursosStore } from "../api/cursosStore";
-import { obtenerPDF } from "../api/solicitudes";
+import { listarAsignaturasSolicitud, obtenerPDF } from "../api/solicitudes";
+import { solicitudALocal } from "../utils/solicitudALocal";
 
 const BATCH_SIZE = 3;       // descargas simultáneas
 const DELAY_ENTRE_LOTES = 800; // ms entre lotes para no saturar la API
@@ -59,12 +60,34 @@ export function usePdfBackgroundSync(
               try {
                 const resp = await obtenerPDF(config, s.rowId);
                 if (resp.contentBase64) {
+                  // PDF de Dataverse recibido correctamente
                   await cursosStore.guardarPdf(curso, s.rowId, resp.contentBase64);
                 }
-                // Si resp.contentBase64 está vacío, Dataverse no tiene adjunto
+                // Si resp.contentBase64 está vacío → Dataverse no tiene adjunto
                 // → se omite; el usuario puede generarlo desde LocalDetail
               } catch {
-                // Error de red / flow → omitir silenciosamente
+                // Error real (502, red, timeout, etc.) → generar PDF local con marca de agua
+                if (signal.aborted) return;
+                try {
+                  const asigs = await listarAsignaturasSolicitud(config, {
+                    matriculaId: s.rowId,
+                  });
+                  const record = solicitudALocal(s, asigs);
+                  const { matriculaLocalToPdfProps } = await import("../pdf/buildMatriculaPdf");
+                  const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
+                  const { addWatermarkToHtml } = await import("../utils/pdfWatermark");
+                  const html = addWatermarkToHtml(
+                    buildMatriculaPdfHtml(matriculaLocalToPdfProps(record)),
+                    "ERROR DESCARGA",
+                    "generado localmente",
+                  );
+                  const gen = await window.adminAPI.pdf.generarBase64(html);
+                  if (gen.success && gen.base64) {
+                    await cursosStore.guardarPdf(curso, s.rowId, gen.base64);
+                  }
+                } catch {
+                  // Silencioso — el usuario puede generarlo manualmente
+                }
               }
             }),
           );
