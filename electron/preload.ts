@@ -4,6 +4,13 @@ import type { CursoConocido } from "./cursos-store";
 import type { ConfigInforme, MatriculaLocal } from "../src/api/types";
 import type { CampanyaEnvio } from "../src/horarios/types";
 
+export interface ProfesoresPreview {
+  path: string;
+  columnaDetectada: string;
+  totalProfesores: number;
+  muestraProfesores: string[];
+}
+
 const adminAPI = {
   config: {
     has: (): Promise<boolean> => ipcRenderer.invoke("config:has"),
@@ -113,8 +120,16 @@ const adminAPI = {
       ipcRenderer.invoke("horarios:profesoresGuardados"),
     seleccionarProfesoresCsv: (): Promise<{ path: string; profesores: string[] } | null> =>
       ipcRenderer.invoke("horarios:seleccionarProfesoresCsv"),
-    cargarExcelRelleno: (): Promise<{ fileName: string; base64: string } | null> =>
+    profesoresPrevisualizarCsv: (): Promise<ProfesoresPreview | null> =>
+      ipcRenderer.invoke("horarios:profesoresPrevisualizarCsv"),
+    profesoresConfirmarCsv: (csvPath: string): Promise<{ path: string; profesores: string[] } | null> =>
+      ipcRenderer.invoke("horarios:profesoresConfirmarCsv", csvPath),
+    cargarExcelRelleno: (): Promise<{ fileName: string; base64: string; path: string } | null> =>
       ipcRenderer.invoke("horarios:cargarExcelRelleno"),
+    obtenerExcelPath: (): Promise<string | null> =>
+      ipcRenderer.invoke("horarios:obtenerExcelPath"),
+    eliminarExcelPath: (): Promise<void> =>
+      ipcRenderer.invoke("horarios:eliminarExcelPath"),
     campanyas: {
       listar: (): Promise<CampanyaEnvio[]> =>
         ipcRenderer.invoke("horarios:campanyas:listar"),

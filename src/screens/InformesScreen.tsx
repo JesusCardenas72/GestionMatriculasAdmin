@@ -310,6 +310,15 @@ export default function InformesScreen({ config }: Props) {
   const [hCongelarHasta, setHCongelarHasta] = useState<string | null>(null);
   const [hInsertarTras, setHInsertarTras] = useState<string | null>(null);
 
+  // Previsualización CSV profesores (modal)
+  const [showProfesoresPreview, setShowProfesoresPreview] = useState(false);
+  const [profesoresPreview, setProfesoresPreview] = useState<{
+    path: string;
+    columnaDetectada: string;
+    totalProfesores: number;
+    muestraProfesores: string[];
+  } | null>(null);
+
   // Column DnD state
   const [colDrag, setColDrag] = useState<ColDragState | null>(null);
   const [ghostPos, setGhostPos] = useState({ x: 0, y: 0 });
@@ -918,9 +927,20 @@ export default function InformesScreen({ config }: Props) {
 
   async function handleCargarProfesores() {
     setShowExportMenu(false);
-    const sel = await window.adminAPI.horarios.seleccionarProfesoresCsv();
-    if (sel) {
-      window.alert(`Lista de profesores actualizada: ${sel.profesores.length} profesores cargados del CSV.`);
+    const preview = await window.adminAPI.horarios.profesoresPrevisualizarCsv();
+    if (preview) {
+      setProfesoresPreview(preview);
+      setShowProfesoresPreview(true);
+    }
+  }
+
+  async function handleConfirmarProfesoresCsv() {
+    if (!profesoresPreview) return;
+    const result = await window.adminAPI.horarios.profesoresConfirmarCsv(profesoresPreview.path);
+    setShowProfesoresPreview(false);
+    setProfesoresPreview(null);
+    if (result) {
+      window.alert(`Lista de profesores actualizada: ${result.profesores.length} profesores cargados del CSV.`);
     }
   }
 
@@ -2010,6 +2030,99 @@ export default function InformesScreen({ config }: Props) {
                     border: 'none',
                   }}
                 />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal Previsualización CSV Profesores ────────────────────────────── */}
+      <AnimatePresence>
+        {showProfesoresPreview && profesoresPreview && (
+          <motion.div
+            key="profesores-preview-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowProfesoresPreview(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileSpreadsheet className="w-5 h-5 shrink-0 text-emerald-500" />
+                  <h3 className="text-sm font-bold text-[#1b1b24]">Previsualización CSV - Profesores</h3>
+                </div>
+                <button
+                  onClick={() => setShowProfesoresPreview(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 py-4 space-y-4">
+                <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Archivo:</span>
+                    <span className="text-slate-700 font-medium truncate ml-2" title={profesoresPreview.path}>
+                      {profesoresPreview.path.split(/[\\/]/).pop()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Columna detectada:</span>
+                    <span className="text-slate-700 font-medium">{profesoresPreview.columnaDetectada}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Total profesores:</span>
+                    <span className="text-emerald-600 font-semibold">{profesoresPreview.totalProfesores}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500 mb-2">Primeros {profesoresPreview.muestraProfesores.length} profesores detectados:</p>
+                  <div className="bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    {profesoresPreview.muestraProfesores.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">No se encontraron profesores en el archivo.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {profesoresPreview.muestraProfesores.map((nombre, idx) => (
+                          <li key={idx} className="text-xs text-slate-700">
+                            <span className="text-slate-400 mr-2">{idx + 1}.</span>
+                            {nombre}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-slate-100 shrink-0 bg-slate-50">
+                <button
+                  onClick={() => setShowProfesoresPreview(false)}
+                  className="px-3.5 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmarProfesoresCsv}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Cargar profesores
+                </button>
               </div>
             </motion.div>
           </motion.div>

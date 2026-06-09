@@ -9,6 +9,7 @@ function storePath(): string {
 
 interface HorariosConfig {
   profesoresCsvPath?: string;
+  horariosExcelPath?: string;
 }
 
 function readConfig(): HorariosConfig {
@@ -31,6 +32,22 @@ export function getProfesoresCsvPath(): string | null {
 
 export function setProfesoresCsvPath(p: string): void {
   writeConfig({ ...readConfig(), profesoresCsvPath: p });
+}
+
+export function getHorariosExcelPath(): string | null {
+  return readConfig().horariosExcelPath ?? null;
+}
+
+export function setHorariosExcelPath(p: string): void {
+  writeConfig({ ...readConfig(), horariosExcelPath: p });
+}
+
+export function clearHorariosExcelPath(): void {
+  writeConfig((() => {
+    const cfg = readConfig();
+    delete cfg.horariosExcelPath;
+    return cfg;
+  })());
 }
 
 /** Divide una línea CSV respetando comillas dobles. */
@@ -58,9 +75,65 @@ function parseLineaCsv(linea: string): string[] {
   return out.map((s) => s.trim());
 }
 
+export interface ProfesoresPreview {
+  path: string;
+  columnaDetectada: string;
+  totalProfesores: number;
+  muestraProfesores: string[];
+}
+
+const PATRONES_NOMBRE_COLUMNA = [
+  "APELLIDOS",
+  "NOMBRE",
+  "PROFESOR",
+  "DOCENTE",
+  "TEACHER",
+  "NAME",
+  "NOMBRE COMPLETO",
+];
+
+function detectarColumnaNombres(cabecera: string[]): number {
+  const upper = cabecera.map((h) => h.toUpperCase());
+  for (const patron of PATRONES_NOMBRE_COLUMNA) {
+    const idx = upper.findIndex((h) => h.includes(patron));
+    if (idx >= 0) return idx;
+  }
+  return 0;
+}
+
+export function previsualizarProfesoresDeCsv(
+  csvPath: string,
+): ProfesoresPreview | null {
+  try {
+    const raw = fs.readFileSync(csvPath, "utf-8").replace(/^﻿/, "");
+    const lineas = raw.split(/\r?\n/).filter((l) => l.trim() !== "");
+    if (lineas.length === 0) return null;
+
+    const cabecera = parseLineaCsv(lineas[0]);
+    const col = detectarColumnaNombres(cabecera);
+    const nombreCol = cabecera[col] || "Columna 1";
+
+    const nombres = lineas
+      .slice(1)
+      .map((l) => parseLineaCsv(l)[col] ?? "")
+      .map((s) => s.trim())
+      .filter((s) => s !== "");
+
+    const unicos = Array.from(new Set(nombres));
+    return {
+      path: csvPath,
+      columnaDetectada: nombreCol,
+      totalProfesores: unicos.length,
+      muestraProfesores: unicos.slice(0, 15),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Lee un CSV de profesorado y devuelve los nombres.
- * Busca la columna "APELLIDOS Y NOMBRE"; si no la encuentra, usa la primera columna.
+ * Busca la columna que parezca tener nombres de profesores; si no la encuentra, usa la primera columna.
  * Ignora la fila de cabecera y elimina duplicados/vacíos.
  */
 export function leerProfesoresDeCsv(csvPath: string): string[] {
@@ -68,9 +141,8 @@ export function leerProfesoresDeCsv(csvPath: string): string[] {
   const lineas = raw.split(/\r?\n/).filter((l) => l.trim() !== "");
   if (lineas.length === 0) return [];
 
-  const cabecera = parseLineaCsv(lineas[0]).map((h) => h.toUpperCase());
-  let col = cabecera.findIndex((h) => h.includes("APELLIDOS"));
-  if (col < 0) col = 0;
+  const cabecera = parseLineaCsv(lineas[0]);
+  const col = detectarColumnaNombres(cabecera);
 
   const nombres = lineas
     .slice(1)

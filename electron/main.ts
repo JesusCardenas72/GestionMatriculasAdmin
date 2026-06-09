@@ -28,6 +28,11 @@ import {
   profesoresGuardados,
   leerProfesoresDeCsv,
   setProfesoresCsvPath,
+  previsualizarProfesoresDeCsv,
+  type ProfesoresPreview,
+  getHorariosExcelPath,
+  setHorariosExcelPath,
+  clearHorariosExcelPath,
 } from "./horarios-store";
 import {
   campanyas_listar,
@@ -192,15 +197,20 @@ function registerIpcHandlers() {
   // ── Horarios: lista de profesores desde CSV ──────────────────────────────
   ipcMain.handle("horarios:profesoresGuardados", () => profesoresGuardados());
   ipcMain.handle(
-    "horarios:seleccionarProfesoresCsv",
-    async (): Promise<{ path: string; profesores: string[] } | null> => {
+    "horarios:profesoresPrevisualizarCsv",
+    async (): Promise<ProfesoresPreview | null> => {
       const res = await dialog.showOpenDialog({
         title: "Selecciona el CSV de profesorado",
         filters: [{ name: "CSV", extensions: ["csv"] }],
         properties: ["openFile"],
       });
       if (res.canceled || res.filePaths.length === 0) return null;
-      const csvPath = res.filePaths[0];
+      return previsualizarProfesoresDeCsv(res.filePaths[0]);
+    },
+  );
+  ipcMain.handle(
+    "horarios:profesoresConfirmarCsv",
+    async (_e, csvPath: string): Promise<{ path: string; profesores: string[] } | null> => {
       const profesores = leerProfesoresDeCsv(csvPath);
       setProfesoresCsvPath(csvPath);
       return { path: csvPath, profesores };
@@ -209,9 +219,20 @@ function registerIpcHandlers() {
 
   // ── Horarios: seleccionar el Excel YA RELLENO por los profesores ──────────
   // Devuelve el contenido en base64; el parseo (ExcelJS) lo hace el renderer.
+  // Si hay una ruta guardada, intenta leerla primero; si falla, abre diálogo.
   ipcMain.handle(
     "horarios:cargarExcelRelleno",
-    async (): Promise<{ fileName: string; base64: string } | null> => {
+    async (): Promise<{ fileName: string; base64: string; path: string } | null> => {
+      const savedPath = getHorariosExcelPath();
+      if (savedPath && fs.existsSync(savedPath)) {
+        try {
+          const buf = fs.readFileSync(savedPath);
+          setHorariosExcelPath(savedPath);
+          return { fileName: path.basename(savedPath), base64: buf.toString("base64"), path: savedPath };
+        } catch {
+          // fall through to dialog
+        }
+      }
       const res = await dialog.showOpenDialog({
         title: "Selecciona el Excel de horarios relleno",
         filters: [{ name: "Excel", extensions: ["xlsx"] }],
@@ -220,9 +241,16 @@ function registerIpcHandlers() {
       if (res.canceled || res.filePaths.length === 0) return null;
       const file = res.filePaths[0];
       const buf = fs.readFileSync(file);
-      return { fileName: path.basename(file), base64: buf.toString("base64") };
+      setHorariosExcelPath(file);
+      return { fileName: path.basename(file), base64: buf.toString("base64"), path: file };
     },
   );
+
+  ipcMain.handle("horarios:obtenerExcelPath", () => getHorariosExcelPath());
+
+  ipcMain.handle("horarios:eliminarExcelPath", () => {
+    clearHorariosExcelPath();
+  });
 
   // ── Horarios: campañas de envío ───────────────────────────────────────────
   ipcMain.handle("horarios:campanyas:listar", () => campanyas_listar());
@@ -352,7 +380,7 @@ function registerIpcHandlers() {
     (_e, payload: { base64: string }): { id: string; url: string } => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       pdfBlobs.set(id, Buffer.from(payload.base64, "base64"));
-      return { id, url: `localpdf://pdf/${id}` };
+      return { id, url: `localpdf://${id}` };
     },
   );
 

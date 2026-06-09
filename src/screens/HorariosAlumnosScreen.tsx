@@ -88,9 +88,17 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   const alumnosParaEnviar = useRef<string[]>([]);
 
+  const [savedExcelPath, setSavedExcelPath] = useState<string | null>(null);
+
   useEffect(() => {
     window.adminAPI.horarios.campanyas.listar().then(setCampanyas).catch(() => {});
+    window.adminAPI.horarios.obtenerExcelPath().then(path => setSavedExcelPath(path));
   }, []);
+
+  const handleEliminarExcelPath = async () => {
+    await window.adminAPI.horarios.eliminarExcelPath();
+    setSavedExcelPath(null);
+  };
 
   /**
    * Construye un mapa nombre-normalizado → email a partir de las matrículas locales.
@@ -388,14 +396,40 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             horario semanal de cada alumno para verlo, descargarlo en PDF y enviarlo por email.
           </p>
           <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={handleCargar}
-              disabled={cargando}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--tc-primary)] text-white font-medium text-sm hover:opacity-90 transition disabled:opacity-60"
-            >
-              {cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
-              {cargando ? "Leyendo…" : "Cargar Excel de horarios"}
-            </button>
+            {savedExcelPath && (
+              <div className="w-full bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-xs text-amber-700 font-medium mb-1.5 truncate" title={savedExcelPath}>
+                  Archivo anterior: {savedExcelPath.split(/[\\/]/).pop()}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCargar}
+                    disabled={cargando}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 transition disabled:opacity-60"
+                  >
+                    {cargando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileUp className="w-3.5 h-3.5" />}
+                    {cargando ? "Leyendo…" : "Abrir de nuevo"}
+                  </button>
+                  <button
+                    onClick={handleEliminarExcelPath}
+                    title="Desvincular archivo"
+                    className="px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-600 hover:bg-amber-100 transition"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+            {!savedExcelPath && (
+              <button
+                onClick={handleCargar}
+                disabled={cargando}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--tc-primary)] text-white font-medium text-sm hover:opacity-90 transition disabled:opacity-60"
+              >
+                {cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+                {cargando ? "Leyendo…" : "Cargar Excel de horarios"}
+              </button>
+            )}
             {campanyas.length > 0 && (
               <button
                 onClick={() => setPanelDerecho("historial")}
