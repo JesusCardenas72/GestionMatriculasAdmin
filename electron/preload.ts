@@ -3,6 +3,7 @@ import type { AppConfig } from "./config-store";
 import type { CursoConocido } from "./cursos-store";
 import type { ConfigInforme, MatriculaLocal } from "../src/api/types";
 import type { CampanyaEnvio } from "../src/horarios/types";
+import type { TemporalesCursoConfig } from "./temporales-store";
 
 export interface ProfesoresPreview {
   path: string;
@@ -152,6 +153,12 @@ const adminAPI = {
       eliminarAlumno: (campanyaId: string, clave: string): Promise<void> =>
         ipcRenderer.invoke("horarios:campanyas:eliminarAlumno", campanyaId, clave),
     },
+  },
+  temporales: {
+    getConfig: (curso: string): Promise<TemporalesCursoConfig> =>
+      ipcRenderer.invoke("temporales:getConfig", curso),
+    setConfig: (curso: string, cfg: TemporalesCursoConfig): Promise<void> =>
+      ipcRenderer.invoke("temporales:setConfig", curso, cfg),
   },
 };
 

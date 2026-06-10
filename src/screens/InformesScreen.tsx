@@ -50,6 +50,7 @@ import {
 } from '../data/informesConfig';
 import { buildHtmlInforme } from '../utils/pdfInforme';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
+import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion } from '../utils/fusionHorarios';
 
 interface Props {
   config: AppConfig;
@@ -176,6 +177,7 @@ function localToSolicitud(r: MatriculaLocal, estado: EstadoTramite): FilaInforme
     docFaltante: r.docFaltante,
     ampliada: r.ampliada,
     repetidor: r.repetidor,
+    esTemporal: !!r.esTemporal && r.temporalEstado !== "sustituido",
   };
 }
 
@@ -208,6 +210,7 @@ function buildFilasAlumno(
     }
   }
   for (const m of matriculas) {
+    if (m.esTemporal && m.temporalEstado === "sustituido") continue; // ya reemplazado por el alumno real
     if (!usados.has(m.localId)) filas.push(localToSolicitud(m, ESTADO.TRAMITADO));
   }
   return filas;
@@ -226,6 +229,7 @@ function buildFilasAsignatura(
 
   const filas: FilaInforme[] = [];
   for (const m of matriculas) {
+    if (m.esTemporal && m.temporalEstado === "sustituido") continue; // ya reemplazado por el alumno real
     const estado = estadoByOrigen.get(m.origenRowId) ?? ESTADO.TRAMITADO;
     const base = localToSolicitud(m, estado);
     for (const a of m.asignaturas) {
@@ -309,6 +313,15 @@ export default function InformesScreen({ config }: Props) {
   const [hCongelar, setHCongelar] = useState(true);
   const [hCongelarHasta, setHCongelarHasta] = useState<string | null>(null);
   const [hInsertarTras, setHInsertarTras] = useState<string | null>(null);
+  // Fusión Actualización Nuevo Alumnado: reutiliza el modal de configuración y
+  // añade un paso de resumen antes de exportar el Excel fusionado.
+  const [hModoFusion, setHModoFusion] = useState(false);
+  const [fusionPendiente, setFusionPendiente] = useState<{
+    resultado: ResultadoFusion;
+    opciones: OpcionesHorario;
+    profesores: string[];
+    fileName: string;
+  } | null>(null);
 
   // Previsualización CSV profesores (modal)
   const [showProfesoresPreview, setShowProfesoresPreview] = useState(false);
@@ -864,7 +877,9 @@ export default function InformesScreen({ config }: Props) {
   }
 
   // Abre el modal de configuración del Excel de horarios con valores por defecto.
-  function handleExportarHorarios() {
+  // `fusion` activa la Fusión Actualización Nuevo Alumnado: carga un Excel ya
+  // relleno por los profesores y conserva sus horarios en el nuevo Excel.
+  function handleExportarHorarios(fusion = false) {
     setShowExportMenu(false);
     // 0. El informe debe estar "Por asignaturas" (no "Por alumno")
     if (informe.modo !== 'asignatura') {
@@ -874,6 +889,7 @@ export default function InformesScreen({ config }: Props) {
       );
       return;
     }
+    setHModoFusion(fusion);
     // Valores por defecto (equivalentes al comportamiento anterior):
     //  · Columnas fijas hasta "Especialidad" (o la primera columna si no existe).
     //  · Columnas de horario insertadas antes de las dos últimas (email/teléfono).
@@ -908,6 +924,26 @@ export default function InformesScreen({ config }: Props) {
         congelarHasta: hCongelar ? hCongelarHasta : null,
         insertarTras: hInsertarTras,
       };
+      if (hModoFusion) {
+        // Fusión: cargar el Excel relleno, casar sus horarios con las filas
+        // actuales (incluida la herencia temporal → alumno real) y mostrar el
+        // resumen antes de generar.
+        const sel = await window.adminAPI.horarios.cargarExcelRelleno();
+        if (!sel) return; // el usuario canceló
+        const crudas = await parseHorariosExcelCrudo(sel.base64);
+        const resultado = fusionarHorarios(resultados, crudas, matriculas);
+        if (resultado.conservadas + resultado.heredadas === 0) {
+          window.alert(
+            'El Excel cargado no contiene ningún horario que coincida con los alumnos del informe.\n' +
+              'Comprueba que es el Excel de horarios relleno por los profesores y que el informe es el mismo.',
+          );
+          return;
+        }
+        setFusionPendiente({ resultado, opciones, profesores, fileName: sel.fileName });
+        setShowHorariosConfig(false);
+        return;
+      }
+
       const base64 = await generarExcelHorarios(
         resultados,
         camposVisibles,
@@ -920,6 +956,30 @@ export default function InformesScreen({ config }: Props) {
         extension: 'xlsx',
       });
       setShowHorariosConfig(false);
+    } finally {
+      setHorariosGenerando(false);
+    }
+  }
+
+  // Confirmación del resumen de fusión: genera el Excel completo re-inyectando
+  // los horarios que introdujeron los profesores.
+  async function handleConfirmarFusion() {
+    if (!fusionPendiente) return;
+    setHorariosGenerando(true);
+    try {
+      const base64 = await generarExcelHorarios(
+        resultados,
+        camposVisibles,
+        fusionPendiente.profesores,
+        fusionPendiente.opciones,
+        fusionPendiente.resultado.valoresHorario,
+      );
+      const exportado = await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: `${informe.nombre} - Horarios (fusionado)`,
+        extension: 'xlsx',
+      });
+      if (exportado !== null) setFusionPendiente(null);
     } finally {
       setHorariosGenerando(false);
     }
@@ -1066,11 +1126,19 @@ export default function InformesScreen({ config }: Props) {
                   <span>Excel <span className="text-slate-400 text-xs">(.xlsx)</span></span>
                 </button>
                 <button
-                  onClick={handleExportarHorarios}
+                  onClick={() => handleExportarHorarios()}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
                 >
                   <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-500" />
                   <span>Generar Excel Horarios</span>
+                </button>
+                <button
+                  onClick={() => handleExportarHorarios(true)}
+                  title="Carga el Excel relleno por los profesores, sustituye los alumnos temporales por los reales y conserva los horarios introducidos"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-orange-500" />
+                  <span>Fusión Actualización Nuevo Alumnado</span>
                 </button>
                 <button
                   onClick={handleCargarProfesores}
@@ -1824,8 +1892,10 @@ export default function InformesScreen({ config }: Props) {
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <FileSpreadsheet className="w-5 h-5 shrink-0 text-emerald-500" />
-                  <h3 className="text-sm font-bold text-[#1b1b24]">Generar Excel de Horarios</h3>
+                  <FileSpreadsheet className={"w-5 h-5 shrink-0 " + (hModoFusion ? "text-orange-500" : "text-emerald-500")} />
+                  <h3 className="text-sm font-bold text-[#1b1b24]">
+                    {hModoFusion ? 'Fusión Actualización Nuevo Alumnado' : 'Generar Excel de Horarios'}
+                  </h3>
                 </div>
                 <button
                   onClick={() => setShowHorariosConfig(false)}
@@ -1838,6 +1908,13 @@ export default function InformesScreen({ config }: Props) {
 
               {/* Body */}
               <div className="px-5 py-4 space-y-5">
+                {hModoFusion && (
+                  <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
+                    Al pulsar «Continuar» se te pedirá el Excel de horarios YA RELLENO por los
+                    profesores. Sus horarios se conservarán y los alumnos temporales sustituidos se
+                    reemplazarán por los alumnos reales.
+                  </div>
+                )}
                 {/* Sección 1 — Columnas fijas */}
                 <div>
                   <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -1918,7 +1995,101 @@ export default function InformesScreen({ config }: Props) {
                   className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors shadow-sm"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  {horariosGenerando ? 'Generando…' : 'Generar Excel'}
+                  {horariosGenerando ? 'Generando…' : hModoFusion ? 'Continuar' : 'Generar Excel'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal resumen de la Fusión Actualización Nuevo Alumnado ─────────── */}
+      <AnimatePresence>
+        {fusionPendiente && (
+          <motion.div
+            key="fusion-resumen-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => !horariosGenerando && setFusionPendiente(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden max-h-[85vh]"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileSpreadsheet className="w-5 h-5 shrink-0 text-orange-500" />
+                  <h3 className="text-sm font-bold text-[#1b1b24]">Resumen de la fusión</h3>
+                </div>
+                <button
+                  onClick={() => setFusionPendiente(null)}
+                  disabled={horariosGenerando}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 disabled:opacity-40 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4 overflow-y-auto">
+                <p className="text-xs text-slate-500">
+                  Excel cargado: <span className="font-semibold text-slate-700">{fusionPendiente.fileName}</span>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <p className="text-lg font-bold text-emerald-700 tabular-nums">{fusionPendiente.resultado.conservadas}</p>
+                    <p className="text-[11px] text-emerald-700">horarios conservados tal cual</p>
+                  </div>
+                  <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
+                    <p className="text-lg font-bold text-orange-700 tabular-nums">{fusionPendiente.resultado.heredadas}</p>
+                    <p className="text-[11px] text-orange-700">heredados de alumnos temporales sustituidos</p>
+                  </div>
+                </div>
+
+                {fusionPendiente.resultado.sinHorario.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <p className="text-xs font-semibold text-amber-700 mb-1">
+                      Asignaturas de alumnos nuevos SIN horario heredado (quedarán vacías para que los profesores las rellenen):
+                    </p>
+                    <ul className="text-[11px] text-amber-700 list-disc ml-4 space-y-0.5">
+                      {fusionPendiente.resultado.sinHorario.map((s, i) => <li key={i}>{s}</li>)}
+                    </ul>
+                  </div>
+                )}
+
+                {fusionPendiente.resultado.huerfanas.length > 0 && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                    <p className="text-xs font-semibold text-red-700 mb-1">
+                      Atención: estos horarios del Excel NO encajan con ningún alumno del informe actual y se perderán:
+                    </p>
+                    <ul className="text-[11px] text-red-700 list-disc ml-4 space-y-0.5">
+                      {fusionPendiente.resultado.huerfanas.map((s, i) => <li key={i}>{s}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 shrink-0">
+                <button
+                  onClick={() => setFusionPendiente(null)}
+                  disabled={horariosGenerando}
+                  className="px-3.5 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => void handleConfirmarFusion()}
+                  disabled={horariosGenerando}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 disabled:opacity-40 transition-colors shadow-sm"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  {horariosGenerando ? 'Generando…' : 'Generar Excel fusionado'}
                 </button>
               </div>
             </motion.div>

@@ -13,6 +13,16 @@ export function ensenanzaDesdeCode(ensenanzaCurso: string): string {
   return m ? (ENSENANZA_MAP[m[1]] ?? "") : "";
 }
 
+/** Especialidades únicas del catálogo, ordenadas alfabéticamente. */
+export function getEspecialidades(): string[] {
+  const set = new Set<string>();
+  for (const a of rawAsignaturas as RawAsignatura[]) {
+    const esp = (a.ESPECIALIDAD ?? "").trim();
+    if (esp) set.add(esp);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, "es"));
+}
+
 export function getCatalogoParaCurso(
   especialidad: string,
   nivelExacto: number,

@@ -83,12 +83,16 @@ function anchoDesplegable(valores: string[]): number {
  * @param campos     columnas visibles del informe en pantalla (en su orden)
  * @param profesores lista de profesores (desde el CSV que elige el usuario)
  * @param opciones   configuración elegida en el modal (columnas fijas e inserción)
+ * @param valoresHorario valores h_* a pre-rellenar por fila (alineado con `filas`);
+ *                       lo usa la Fusión Actualización Nuevo Alumnado para conservar
+ *                       lo que los profesores ya introdujeron
  */
 export async function generarExcelHorarios(
   filas: FilaInforme[],
   campos: CampoMeta[],
   profesores: string[],
   opciones: OpcionesHorario,
+  valoresHorario?: Array<Partial<Record<string, string>> | null>,
 ): Promise<string> {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'GestiónMatrículas';
@@ -218,19 +222,29 @@ export async function generarExcelHorarios(
     if (texto) headerRow.getCell(i + 1).note = texto;
   });
 
-  // Filas de datos
-  filas.forEach(f => {
+  // Filas de datos (con los valores de horario heredados, si los hay)
+  filas.forEach((f, idx) => {
     const row: Record<string, string> = {};
     colsDatos.forEach(c => {
       if (c.campo) row[c.key] = formatValor(f, c.campo);
     });
+    const h = valoresHorario?.[idx];
+    if (h) {
+      colsMid.forEach(c => {
+        const v = h[c.key];
+        if (v) row[c.key] = v;
+      });
+    }
     ws.addRow(row);
   });
 
   const totalFilas = Math.max(filas.length, 50);
 
-  // Desplegables + protección por celda
+  // Desplegables + protección por celda. Las filas de alumnos temporales
+  // ("PDTE. N — …") se pintan en naranja para localizarlas de un vistazo.
+  const filaEsTemporal = (r: number) => r - 2 < filas.length && !!filas[r - 2].esTemporal;
   for (let r = 2; r <= totalFilas + 1; r++) {
+    const esTemp = filaEsTemporal(r);
     COLS.forEach((c, i) => {
       const cell = ws.getCell(r, i + 1);
       if (c.editable && c.lista) {
@@ -243,9 +257,17 @@ export async function generarExcelHorarios(
           error: 'Elige un valor de la lista desplegable.',
         };
         cell.protection = { locked: false };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F8E9' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: esTemp ? 'FFFFF3E0' : 'FFF1F8E9' },
+        };
       } else {
         cell.protection = { locked: true };
+        if (esTemp) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
+          cell.font = { italic: true, color: { argb: 'FF8D4E00' } };
+        }
       }
       cell.border = {
         bottom: { style: 'hair', color: { argb: 'FFCCCCCC' } },

@@ -3,7 +3,8 @@ import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive } from "luc
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
-export type ActiveTab = EstadoTramite | "local" | "informes" | "horarios";
+// "temporales" no aparece en la barra: se accede desde el menú de Configuración.
+export type ActiveTab = EstadoTramite | "local" | "temporales" | "informes" | "horarios";
 
 export interface TabDef {
   estado: EstadoTramite;

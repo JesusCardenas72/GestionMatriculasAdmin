@@ -74,6 +74,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [soloNuevos, setSoloNuevos] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
   const [panelDerecho, setPanelDerecho] = useState<PanelDerecho>("preview");
@@ -123,6 +124,37 @@ export default function HorariosAlumnosScreen({ config }: Props) {
     }
     return mapa;
   }, [localMatriculas]);
+
+  /**
+   * Alumnos "nuevos": matrículas reales que sustituyeron a un alumno temporal
+   * (conservan `sustituyeATemporalId` como traza). No recibieron el email de
+   * horarios en campañas anteriores, así que se les puede segregar y enviar.
+   */
+  const nombresNuevos = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of localMatriculas) {
+      if (m.esTemporal || !m.sustituyeATemporalId) continue;
+      const a = (m.apellidos ?? '').trim();
+      const n = (m.nombre ?? '').trim();
+      const nombreCompleto = a && n ? `${a}, ${n}` : a || n;
+      if (nombreCompleto) set.add(normNombre(nombreCompleto));
+    }
+    return set;
+  }, [localMatriculas]);
+
+  const esNuevo = useCallback(
+    (a: HorarioAlumno) => nombresNuevos.has(normNombre(a.nombre)),
+    [nombresNuevos],
+  );
+
+  /** Claves de alumnos con al menos un envío exitoso en cualquier campaña. */
+  const clavesEnviadas = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of campanyas) {
+      for (const r of c.alumnos) if (r.estado === 'ok') set.add(r.clave);
+    }
+    return set;
+  }, [campanyas]);
 
   /** Completa email y teléfono de cada alumno con los de Local si hay coincidencia por nombre. */
   const enriquecerEmails = useCallback((alumnos: HorarioAlumno[]): HorarioAlumno[] => {
@@ -190,15 +222,22 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   const alumnosFiltrados = useMemo(() => {
     if (!carga) return [];
+    const base = soloNuevos ? carga.alumnos.filter(esNuevo) : carga.alumnos;
     const q = busqueda.trim().toLowerCase();
-    if (!q) return carga.alumnos;
-    return carga.alumnos.filter(
+    if (!q) return base;
+    return base.filter(
       a =>
         a.nombre.toLowerCase().includes(q) ||
         a.especialidad.toLowerCase().includes(q) ||
         a.ensenanzaCurso.toLowerCase().includes(q),
     );
-  }, [carga, busqueda]);
+  }, [carga, busqueda, soloNuevos, esNuevo]);
+
+  /** Nuevos (por sustitución) presentes en la carga actual que aún no han recibido email. */
+  const nuevosSinEnviar = useMemo(
+    () => (carga ? carga.alumnos.filter(a => esNuevo(a) && !clavesEnviadas.has(a.clave)) : []),
+    [carga, esNuevo, clavesEnviadas],
+  );
 
   const todosSeleccionados =
     alumnosFiltrados.length > 0 && alumnosFiltrados.every(a => seleccionados.has(a.clave));
@@ -498,6 +537,34 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             />
           </div>
 
+          {/* Nuevos por sustitución de temporales */}
+          {nombresNuevos.size > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => setSoloNuevos(v => !v)}
+                title="Alumnos matriculados que sustituyeron a un temporal"
+                className={
+                  "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border transition " +
+                  (soloNuevos
+                    ? "bg-orange-100 text-orange-700 border-orange-300"
+                    : "bg-[var(--tc-bg)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
+                }
+              >
+                Solo nuevos (sustituciones)
+              </button>
+              {nuevosSinEnviar.length > 0 && (
+                <button
+                  onClick={() => setSeleccionados(new Set(nuevosSinEnviar.map(a => a.clave)))}
+                  title="Selecciona los alumnos nuevos a los que aún no se les ha enviado el horario"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition"
+                >
+                  <CheckSquare className="w-3 h-3" />
+                  Sel. nuevos sin enviar ({nuevosSinEnviar.length})
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Selección + envío */}
           <div className="flex items-center gap-1.5">
             <button
@@ -559,7 +626,24 @@ export default function HorariosAlumnosScreen({ config }: Props) {
                     }
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-[var(--tc-ink)] truncate leading-snug">{a.nombre || "—"}</div>
+                      <div className="text-sm font-medium text-[var(--tc-ink)] leading-snug flex items-center gap-1.5 min-w-0">
+                        <span className="truncate min-w-0">{a.nombre || "—"}</span>
+                        {esNuevo(a) && (
+                          <span
+                            title={clavesEnviadas.has(a.clave)
+                              ? "Alumno nuevo (sustituyó a un temporal) — horario ya enviado"
+                              : "Alumno nuevo (sustituyó a un temporal) — horario SIN enviar"}
+                            className={
+                              "shrink-0 px-1.5 py-px rounded-full text-[9px] font-bold border " +
+                              (clavesEnviadas.has(a.clave)
+                                ? "bg-slate-100 text-slate-500 border-slate-200"
+                                : "bg-orange-100 text-orange-700 border-orange-200")
+                            }
+                          >
+                            NUEVO
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-[var(--tc-ink-soft)] truncate leading-tight">
                         {buildCursoLabel(a.ensenanzaCurso, a.especialidad) || "—"}
                       </div>

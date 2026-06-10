@@ -60,6 +60,7 @@ import {
   cursosMigrarPdfAFicheros,
 } from "./cursos-store";
 import { loadCursoContext, saveCursoContext } from "./curso-context-store";
+import { temporalesGetConfig, temporalesSetConfig, type TemporalesCursoConfig } from "./temporales-store";
 import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -276,6 +277,12 @@ function registerIpcHandlers() {
   ipcMain.handle("horarios:eliminarExcelPath", () => {
     clearHorariosExcelPath();
   });
+
+  // ── Temporales: configuración de la sustitución programada ────────────────
+  ipcMain.handle("temporales:getConfig", (_e, curso: string) => temporalesGetConfig(curso));
+  ipcMain.handle("temporales:setConfig", (_e, curso: string, cfg: TemporalesCursoConfig) =>
+    temporalesSetConfig(curso, cfg),
+  );
 
   // ── Horarios: campañas de envío ───────────────────────────────────────────
   ipcMain.handle("horarios:campanyas:listar", () => campanyas_listar());
