@@ -464,7 +464,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   // ── Con datos ──────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex overflow-hidden">
-      {/* Lista de alumnos */}
+      {vistaPrincipal !== "listados" && (
       <div className="w-[320px] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-card)] flex flex-col">
         <div className="p-3 border-b border-[var(--tc-border)] space-y-2">
           <div className="flex gap-1.5">
@@ -611,6 +611,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Panel derecho */}
       <div className="flex-1 flex flex-col bg-[var(--tc-bg)] overflow-hidden">
