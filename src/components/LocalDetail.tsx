@@ -147,6 +147,7 @@ export default function LocalDetail({
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [pdfBase64Preview, setPdfBase64Preview] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [showInlinePdf, setShowInlinePdf] = useState(false);
 
   // Clave con la que se guarda el fichero PDF:
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
@@ -160,10 +161,36 @@ export default function LocalDetail({
     }
     setLoadingPdf(true);
     try {
-      const base64 = await cursosStore.leerPdf(curso, pdfKey);
-      if (!base64) return; // el fichero no existe aún
+      let base64 = await cursosStore.leerPdf(curso, pdfKey);
+      if (!base64 && m.localId) {
+        base64 = await cursosStore.leerPdf(curso, m.localId);
+      }
+      if (!base64) return;
       setPdfBase64Preview(base64);
       setShowPdfPreview(true);
+    } finally {
+      setLoadingPdf(false);
+    }
+  }
+
+  async function loadInlinePdf() {
+    if (pdfBase64Preview && showInlinePdf) {
+      setShowInlinePdf(false);
+      return;
+    }
+    if (pdfBase64Preview) {
+      setShowInlinePdf(true);
+      return;
+    }
+    setLoadingPdf(true);
+    try {
+      let base64 = await cursosStore.leerPdf(curso, pdfKey);
+      if (!base64 && m.localId) {
+        base64 = await cursosStore.leerPdf(curso, m.localId);
+      }
+      if (!base64) return;
+      setPdfBase64Preview(base64);
+      setShowInlinePdf(true);
     } finally {
       setLoadingPdf(false);
     }
@@ -176,8 +203,15 @@ export default function LocalDetail({
     let cancelled = false;
     cursosStore.tienePdf(curso, pdfKey).then((existe) => {
       if (!cancelled && existe) {
-        // Actualizar el flag sin marcar como pendiente de subida
         onSave({ _tienePdf: true });
+        return;
+      }
+      if (!cancelled && m.localId) {
+        cursosStore.tienePdf(curso, m.localId).then((existeLocal) => {
+          if (!cancelled && existeLocal) {
+            onSave({ _tienePdf: true });
+          }
+        });
       }
     }).catch(() => { /* silencioso */ });
     return () => { cancelled = true; };
@@ -969,6 +1003,43 @@ export default function LocalDetail({
                   </span>
                 )}
               </div>
+
+              {m._tienePdf && (
+                <div
+                  className="border rounded-lg overflow-hidden"
+                  style={{ borderColor: "var(--tc-border)" }}
+                >
+                  <button
+                    onClick={() => void loadInlinePdf()}
+                    disabled={loadingPdf}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors"
+                    style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)" }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" style={{ color: "var(--tc-primary)" }} />
+                      {showInlinePdf ? "Ocultar visor PDF" : "Ver PDF en línea"}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${showInlinePdf ? "rotate-180" : ""}`}
+                      style={{ color: "var(--tc-ink-mute)" }}
+                    />
+                  </button>
+                  {showInlinePdf && (
+                    <div className="border-t" style={{ borderColor: "var(--tc-border)" }}>
+                      {pdfBase64Preview ? (
+                        <PdfViewer
+                          contentBase64={pdfBase64Preview}
+                          fileName={`matricula_${m.apellidos}_${m.nombre}.pdf`.replace(/\s+/g, "_")}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center p-8 text-sm" style={{ color: "var(--tc-ink-mute)" }}>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Cargando PDF...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div
                 className="pt-3 border-t grid grid-cols-2 gap-x-8 gap-y-2 text-xs"
