@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useSustitucionProgramada } from "../hooks/useSustitucionProgramada";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown, Lock, Eye, LogOut, Hourglass, Sun, Link2, GraduationCap, Trash2 } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut, Hourglass, SlidersHorizontal } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
@@ -233,41 +233,17 @@ export default function MainScreen({ config, onEditConfig }: Props) {
               <div
                 className="absolute right-0 top-full mt-1.5 w-64 bg-[var(--tc-card)] border border-[var(--tc-border)] rounded-xl shadow-xl z-50 overflow-hidden py-1"
               >
-                <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>
-                  Configuración
-                </div>
                 <button
                   onClick={() => { setSettingsMenuOpen(false); onEditConfig(); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
                 >
-                  <Sun className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
-                  <span>Apariencia</span>
-                </button>
-                <button
-                  onClick={() => { setSettingsMenuOpen(false); onEditConfig(); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
-                >
-                  <Link2 className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
-                  <span>Conexión a Power Automate</span>
-                </button>
-                <button
-                  onClick={() => { setSettingsMenuOpen(false); onEditConfig(); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
-                >
-                  <GraduationCap className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
-                  <span>Cursos Escolares</span>
-                </button>
-                <button
-                  onClick={() => { setSettingsMenuOpen(false); onEditConfig(); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
-                >
-                  <Trash2 className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
-                  <span>Borrar cursos de Dataverse</span>
+                  <SlidersHorizontal className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                  <span>Configuración</span>
                 </button>
                 <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />
                 <button
                   onClick={() => { setSettingsMenuOpen(false); handleTabChange("temporales"); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
                 >
                   <Hourglass className="w-4 h-4 shrink-0 text-orange-500" />
                   <span className="flex-1 text-left">Alumnos temporales</span>
