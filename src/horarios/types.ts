@@ -26,6 +26,8 @@ export interface HorarioAlumno {
   clave: string;
   nombre: string;
   email: string;
+  /** Teléfono del alumno (enriquecido desde las matrículas locales; puede faltar). */
+  telefono?: string;
   /** Enseñanza y curso (cabecera "Curso"). */
   ensenanzaCurso: string;
   /** Especialidad / instrumento (cabecera "Instrumento"). */

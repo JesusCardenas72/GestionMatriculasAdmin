@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2, RefreshCw, Search, AlertCircle, Inbox, ChevronUp, ChevronDown, X } from "lucide-react";
 import type { Solicitud } from "../api/types";
@@ -98,11 +98,45 @@ export default function SolicitudList({
     count: filtered.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => {
-      // La fila seleccionada es más alta; las demás son compactas
       return filtered[index]?.rowId === selectedId ? 88 : 30;
     },
     overscan: 8,
   });
+
+  const virtualizerRef = useRef(rowVirtualizer);
+  virtualizerRef.current = rowVirtualizer;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+
+      if (filtered.length === 0) return;
+
+      const currentIndex = selectedId
+        ? filtered.findIndex((s) => s.rowId === selectedId)
+        : -1;
+
+      let nextIndex: number;
+      if (currentIndex === -1) {
+        nextIndex = 0;
+      } else {
+        nextIndex =
+          e.key === "ArrowDown"
+            ? Math.min(currentIndex + 1, filtered.length - 1)
+            : Math.max(currentIndex - 1, 0);
+        if (nextIndex === currentIndex) return;
+      }
+
+      onSelect(filtered[nextIndex]);
+      virtualizerRef.current.scrollToIndex(nextIndex, { align: "auto" });
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [filtered, selectedId, onSelect]);
 
   function handleEnsenanzaChange(val: string) {
     setFilterEnsenanza(val);
@@ -382,14 +416,21 @@ function SolicitudRow({ solicitud: s, isSelected, onSelect }: RowProps) {
       {/* Full content — visible when selected or hovered (via CSS) */}
       <div className="sol-expanded">
         <div className="flex items-center gap-3.5">
-          <div className="shrink-0 flex flex-col items-center" style={{ width: 48 }}>
-            <div className="font-display text-center leading-none tabular-nums" style={{ fontSize: 40, letterSpacing: -2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
-              {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
-            </div>
-            <div className="text-center font-bold uppercase" style={{ fontSize: 9, letterSpacing: 0.5, marginTop: 2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
-              {s.cursoEscolar ?? "—"}
-            </div>
-          </div>
+          {(() => {
+            const digits = s.nOrden != null ? String(s.nOrden).length : 1;
+            const fontSize = digits >= 3 ? 28 : digits === 2 ? 36 : 40;
+            const minWidth = digits >= 3 ? 52 : digits === 2 ? 44 : 28;
+            return (
+              <div className="shrink-0 flex flex-col items-center" style={{ minWidth }}>
+                <div className="font-display text-center leading-none tabular-nums" style={{ fontSize, letterSpacing: -2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
+                  {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
+                </div>
+                <div className="text-center font-bold uppercase" style={{ fontSize: 9, letterSpacing: 0.5, marginTop: 2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
+                  {s.cursoEscolar ?? "—"}
+                </div>
+              </div>
+            );
+          })()}
           <div className="flex-1 min-w-0">
             <div className="text-[13px] truncate mb-1" style={{ fontWeight: 700, letterSpacing: -0.1, color: isSelected ? "var(--tc-primary-dark)" : "var(--tc-ink)" }}>
               {s.nombre} {s.apellidos}

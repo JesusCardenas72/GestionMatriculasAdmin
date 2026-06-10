@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock, FileUp, Loader2, Download, Printer, AlertCircle,
   Search, Trash2, Mail, History, CheckSquare, Square, Send, X, Clock,
-  CheckCircle2, XCircle,
+  CheckCircle2, XCircle, ClipboardList, FileCode2,
 } from "lucide-react";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { parseHorariosExcel } from "../utils/horarioExcel";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
+import { buildListadoHtml, type VersionListado } from "../utils/horarioListadoTemplate";
 import { buildHorarioEmailHtml } from "../utils/horarioEmailTemplate";
 import { enviarEmailHorario } from "../api/horarios";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ResultadoEnvio } from "../horarios/types";
@@ -18,7 +19,7 @@ interface Props {
   config: AppConfig;
 }
 
-type PanelDerecho = "preview" | "historial";
+type PanelDerecho = "preview" | "historial" | "listados";
 
 /** Convierte "H:MM" a minutos totales; devuelve null si el formato no es válido. */
 function aMin(h: string): number | null {
@@ -101,30 +102,38 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   };
 
   /**
-   * Construye un mapa nombre-normalizado → email a partir de las matrículas locales.
+   * Construye un mapa nombre-normalizado → contacto (email + teléfono) a partir
+   * de las matrículas locales.
    * Clave: "apellidos, nombre" normalizado (igual que buildNombreCompleto en InformesScreen).
    */
-  const emailLocalPorNombre = useMemo(() => {
-    const mapa = new Map<string, string>();
+  const contactoLocalPorNombre = useMemo(() => {
+    const mapa = new Map<string, { email: string; telefono: string }>();
     for (const m of localMatriculas) {
       const a = (m.apellidos ?? '').trim();
       const n = (m.nombre ?? '').trim();
       const nombreCompleto = a && n ? `${a}, ${n}` : a || n;
-      if (nombreCompleto && m.email) {
-        mapa.set(normNombre(nombreCompleto), m.email.toLowerCase().trim());
+      if (nombreCompleto) {
+        mapa.set(normNombre(nombreCompleto), {
+          email: (m.email ?? '').toLowerCase().trim(),
+          telefono: (m.telefono ?? '').trim(),
+        });
       }
     }
     return mapa;
   }, [localMatriculas]);
 
-  /** Sustituye el email de cada alumno por el de Local si existe coincidencia por nombre. */
+  /** Completa email y teléfono de cada alumno con los de Local si hay coincidencia por nombre. */
   const enriquecerEmails = useCallback((alumnos: HorarioAlumno[]): HorarioAlumno[] => {
     return alumnos.map(a => {
-      const emailLocal = emailLocalPorNombre.get(normNombre(a.nombre));
-      if (emailLocal) return { ...a, email: emailLocal };
-      return a;
+      const local = contactoLocalPorNombre.get(normNombre(a.nombre));
+      if (!local) return a;
+      return {
+        ...a,
+        email: local.email || a.email,
+        telefono: local.telefono || a.telefono,
+      };
     });
-  }, [emailLocalPorNombre]);
+  }, [contactoLocalPorNombre]);
 
   const handleCargar = async () => {
     setError(null);
@@ -587,6 +596,18 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             Enviar a todos ({alumnosConEmail} con email)
           </button>
           <button
+            onClick={() => setPanelDerecho(p => p === "listados" ? "preview" : "listados")}
+            className={
+              "w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition " +
+              (panelDerecho === "listados"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
+                : "border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)]")
+            }
+          >
+            <ClipboardList className="w-4 h-4" />
+            Listados por asignatura
+          </button>
+          <button
             onClick={() => setPanelDerecho(p => p === "historial" ? "preview" : "historial")}
             className={
               "w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition " +
@@ -641,6 +662,8 @@ export default function HorariosAlumnosScreen({ config }: Props) {
               Selecciona un alumno de la lista
             </div>
           )
+        ) : panelDerecho === "listados" ? (
+          <ListadosPanel alumnos={carga.alumnos} anio={anio} />
         ) : (
           <HistorialPanel
             campanyas={campanyas}
@@ -672,6 +695,113 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 }
 
 // ── Subcomponentes ─────────────────────────────────────────────────────────
+
+/**
+ * Panel de listados de alumnado agrupados por Asignatura → Curso → Grupo/Aula/Profesor.
+ * Vista previa en pantalla (con buscador) + exportación a HTML autónomo e impresión.
+ */
+function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: string }) {
+  const [version, setVersion] = useState<VersionListado>("alumnos");
+  const [exportando, setExportando] = useState(false);
+  const [imprimiendo, setImprimiendo] = useState(false);
+
+  const html = useMemo(
+    () => buildListadoHtml(alumnos, anio, version),
+    [alumnos, anio, version],
+  );
+
+  const handleExportarHtml = async () => {
+    setExportando(true);
+    try {
+      const base64 = btoa(unescape(encodeURIComponent(html)));
+      const nombre = version === "profesores"
+        ? `Listados por asignatura (profesorado) ${anio}`
+        : `Listados por asignatura ${anio}`;
+      await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: nombre,
+        extension: "html",
+      });
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const handleImprimir = async () => {
+    setImprimiendo(true);
+    try {
+      await window.adminAPI.pdf.printHtml(html);
+    } finally {
+      setImprimiendo(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-sm font-medium text-[var(--tc-ink)] whitespace-nowrap">
+            Listados por asignatura
+          </span>
+          {/* Conmutador de versión */}
+          <div className="flex items-center bg-[var(--tc-bg-panel)] rounded-lg p-0.5">
+            <button
+              onClick={() => setVersion("alumnos")}
+              className={
+                "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
+                (version === "alumnos"
+                  ? "bg-[var(--tc-card)] text-[var(--tc-primary)] shadow-sm"
+                  : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink-soft)]")
+              }
+            >
+              Alumnado
+            </button>
+            <button
+              onClick={() => setVersion("profesores")}
+              className={
+                "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
+                (version === "profesores"
+                  ? "bg-[var(--tc-card)] text-[var(--tc-primary)] shadow-sm"
+                  : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink-soft)]")
+              }
+            >
+              Profesorado
+            </button>
+          </div>
+          {version === "profesores" && (
+            <span className="text-[11px] text-amber-600 whitespace-nowrap hidden lg:inline">
+              incluye email y teléfono
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleImprimir}
+            disabled={imprimiendo || exportando}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+          >
+            {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            Imprimir
+          </button>
+          <button
+            onClick={handleExportarHtml}
+            disabled={exportando || imprimiendo}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
+          >
+            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode2 className="w-4 h-4" />}
+            Generar HTML
+          </button>
+        </div>
+      </div>
+      <iframe
+        key={version}
+        title="Listados por asignatura"
+        srcDoc={html}
+        className="flex-1 w-full border-0 bg-white"
+      />
+    </>
+  );
+}
 
 function EnviarModal({
   total, nombreCampanya, descripcionCampanya, onNombre, onDescripcion,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useQueryClient } from "@tanstack/react-query";
 import { Settings, ChevronDown, Lock, Eye, LogOut } from "lucide-react";
@@ -8,7 +8,8 @@ import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
-import TabBar, { type ActiveTab } from "../components/TabBar";
+import TabBar, { type ActiveTab, TABS } from "../components/TabBar";
+import ErrorBoundary from "../components/ErrorBoundary";
 import SolicitudList from "../components/SolicitudList";
 import SolicitudDetail from "../components/SolicitudDetail";
 import ResizableColumns from "../components/ResizableColumns";
@@ -28,6 +29,13 @@ const TIPO_BADGE: Record<string, string> = {
   proximo: "bg-blue-100 text-blue-700",
   historico: "bg-slate-100 text-slate-500",
 };
+
+const ALL_TABS: ActiveTab[] = [
+  ...TABS.map((t) => t.estado as ActiveTab),
+  "local",
+  "informes",
+  "horarios",
+];
 
 export default function MainScreen({ config, onEditConfig }: Props) {
   const [active, setActive] = useState<ActiveTab>(ESTADO.PENDIENTE_TRAMITACION);
@@ -67,6 +75,32 @@ export default function MainScreen({ config, onEditConfig }: Props) {
     setActive(tab);
     setSelected(null);
   };
+
+  const handleTabChangeRef = useRef(handleTabChange);
+  handleTabChangeRef.current = handleTabChange;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+
+      const currentIndex = ALL_TABS.indexOf(active);
+      if (currentIndex === -1) return;
+      const nextIndex =
+        e.key === "ArrowRight"
+          ? Math.min(currentIndex + 1, ALL_TABS.length - 1)
+          : Math.max(currentIndex - 1, 0);
+      if (nextIndex !== currentIndex) {
+        handleTabChangeRef.current(ALL_TABS[nextIndex]);
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   const isTramitado = selected?.estado === ESTADO.TRAMITADO;
 
@@ -167,6 +201,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
         </div>
       )}
 
+      <ErrorBoundary key={String(active)}>
       {active === "local" ? (
         <LocalScreen config={config} />
       ) : active === "informes" ? (
@@ -215,6 +250,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           }
         />
       )}
+      </ErrorBoundary>
 
       <CursoSwitcherModal
         open={cursoModalOpen}

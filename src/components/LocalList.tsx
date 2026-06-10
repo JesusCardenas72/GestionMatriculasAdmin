@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronDown,
@@ -74,22 +74,33 @@ function groupPairs(data: MatriculaLocal[]): GroupedItem[] {
 // ── Tarjeta individual (single) ───────────────────────────────────────────────
 
 function renderCardContent(m: MatriculaLocal, selected: boolean) {
+  const numero = m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden) : null;
+  const digits = numero ? numero.length : 1;
+  const fontSize = digits >= 3 ? 28 : digits === 2 ? 36 : 40;
+  const minWidth = digits >= 3 ? 52 : digits === 2 ? 44 : 28;
   return (
-    <div className="flex items-center gap-3 w-full min-w-0">
-      <div
-        className="font-display shrink-0 text-center leading-none tabular-nums"
-        style={{
-          fontSize: 40,
-          letterSpacing: -2,
-          width: 44,
-          color: selected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
-          opacity: selected ? 1 : 0.5,
-        }}
-      >
-        {m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden).padStart(2, "0") : "—"}
+    <div className="flex items-center gap-3.5 w-full min-w-0">
+      <div className="shrink-0 flex flex-col items-center" style={{ minWidth }}>
+        <div
+          className="font-display text-center leading-none tabular-nums"
+          style={{
+            fontSize,
+            letterSpacing: -2,
+            color: selected ? "var(--tc-primary)" : "var(--tc-ink-mute)",
+            opacity: selected ? 1 : 0.5,
+          }}
+        >
+          {numero ? numero.padStart(2, "0") : "—"}
+        </div>
+        <div
+          className="text-center font-bold uppercase"
+          style={{ fontSize: 9, letterSpacing: 0.5, marginTop: 2, color: selected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: selected ? 1 : 0.5 }}
+        >
+          {m.cursoEscolar ?? "—"}
+        </div>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1 min-w-0 mb-0.5">
+        <div className="flex items-center gap-1 min-w-0 mb-1">
           <span
             className={
               "flex-1 min-w-0 truncate text-[13px] " +
@@ -103,17 +114,6 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
           >
             {m.nombre} {m.apellidos}
           </span>
-          {m.anulacion && (
-            <span className="shrink-0 px-1.5 py-px rounded-full text-[10px] font-semibold bg-red-100 text-red-600">Anulada</span>
-          )}
-          {m.ampliacion && (
-            <span className="shrink-0 px-1.5 py-px rounded-full text-[10px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>
-              Amp.
-            </span>
-          )}
-          {m.repetidor && (
-            <span className="shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REP</span>
-          )}
           {m._pendienteSubida && (
             <span title="Pendiente de subir" className="shrink-0 flex items-center gap-0.5 text-[10px] font-medium" style={{ color: "var(--tc-warn-ink)" }}>
               <Upload className="w-3 h-3" />
@@ -129,6 +129,17 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
           </span>
           {m.especialidad && (
             <span className="text-xs text-[var(--tc-ink-mute)] truncate">{m.especialidad}</span>
+          )}
+          {m.repetidor && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REPETIDOR</span>
+          )}
+          {m.anulacion && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">ANULADA</span>
+          )}
+          {m.ampliacion && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold border" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-bg)" }}>
+              AMPLIACIÓN
+            </span>
           )}
         </div>
       </div>
@@ -362,6 +373,51 @@ export default function LocalList({
     overscan: 8,
     measureElement: (el) => el.getBoundingClientRect().height,
   });
+
+  // Ref estable para el virtualizador, evita que sea dependencia del efecto
+  const virtualizerRef = useRef(rowVirtualizer);
+  virtualizerRef.current = rowVirtualizer;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+
+      if (filtered.length === 0) return;
+
+      const currentIndex = selectedId
+        ? filtered.findIndex((m) => m.localId === selectedId)
+        : -1;
+
+      let nextIndex: number;
+      if (currentIndex === -1) {
+        nextIndex = 0;
+      } else {
+        nextIndex =
+          e.key === "ArrowDown"
+            ? Math.min(currentIndex + 1, filtered.length - 1)
+            : Math.max(currentIndex - 1, 0);
+        if (nextIndex === currentIndex) return;
+      }
+
+      const nextItem = filtered[nextIndex];
+      onSelect(nextItem);
+
+      const groupIndex = grouped.findIndex((g) =>
+        g.type === "single"
+          ? g.matricula.localId === nextItem.localId
+          : g.ampliacion.localId === nextItem.localId || g.original.localId === nextItem.localId,
+      );
+      if (groupIndex >= 0) {
+        virtualizerRef.current.scrollToIndex(groupIndex, { align: "auto" });
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [filtered, grouped, selectedId, onSelect]);
 
   function handleEnsenanzaChange(val: string) {
     setFilterEnsenanza(val);

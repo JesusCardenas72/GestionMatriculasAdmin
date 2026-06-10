@@ -123,7 +123,7 @@ const adminAPI = {
     exportar: (payload: {
       contenidoBase64: string;
       nombreArchivo: string;
-      extension: "csv" | "xlsx";
+      extension: "csv" | "xlsx" | "html";
     }): Promise<string | null> =>
       ipcRenderer.invoke("informe:exportar", payload),
   },

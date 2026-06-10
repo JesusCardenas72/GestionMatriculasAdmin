@@ -228,6 +228,7 @@ export default function LocalDetail({
   }
 
   function saveForm(f = form) {
+    if (readOnly) return;
     const now = new Date().toISOString();
     const n = (v: string): string | null => v.trim() || null;
     onSave({
@@ -269,6 +270,7 @@ export default function LocalDetail({
   }
 
   function saveAsignaturas(newItems: AsignaturaEdit[]) {
+    if (readOnly) return;
     const now = new Date().toISOString();
     const asignaturas: AsignaturaLocal[] = newItems
       .filter((i) => !i._deleted)
@@ -421,18 +423,20 @@ export default function LocalDetail({
             <div className="flex gap-2 mb-2">
               <input
                 value={form.nombre}
-                onChange={(e) => setField("nombre", e.target.value)}
+                onChange={(e) => !readOnly && setField("nombre", e.target.value)}
                 onBlur={() => saveForm()}
+                readOnly={readOnly}
                 placeholder="Nombre"
-                className="font-display min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none leading-tight truncate"
+                className={`font-display min-w-0 bg-transparent border-b border-transparent focus:outline-none leading-tight truncate${!readOnly ? " hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)]" : " cursor-default"}`}
                 style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
               />
               <input
                 value={form.apellidos}
-                onChange={(e) => setField("apellidos", e.target.value)}
+                onChange={(e) => !readOnly && setField("apellidos", e.target.value)}
                 onBlur={() => saveForm()}
+                readOnly={readOnly}
                 placeholder="Apellidos"
-                className="font-display flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)] focus:outline-none leading-tight truncate"
+                className={`font-display flex-1 min-w-0 bg-transparent border-b border-transparent focus:outline-none leading-tight truncate${!readOnly ? " hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)]" : " cursor-default"}`}
                 style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
               />
             </div>
@@ -614,6 +618,7 @@ export default function LocalDetail({
                 value={form.dni}
                 onChange={(v) => setField("dni", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <EditField
                 label="Correo electrónico"
@@ -621,12 +626,14 @@ export default function LocalDetail({
                 value={form.email}
                 onChange={(v) => setField("email", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <EditField
                 label="Teléfono"
                 value={form.telefono}
                 onChange={(v) => setField("telefono", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <EditField
                 label="Fecha de nacimiento"
@@ -634,6 +641,7 @@ export default function LocalDetail({
                 value={form.fechaNacimiento}
                 onChange={(v) => setField("fechaNacimiento", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <EditField
                 label="Domicilio"
@@ -641,24 +649,28 @@ export default function LocalDetail({
                 onChange={(v) => setField("domicilio", v)}
                 onBlur={() => saveForm()}
                 className="col-span-2"
+                disabled={readOnly}
               />
               <EditField
                 label="Localidad"
                 value={form.localidad}
                 onChange={(v) => setField("localidad", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <EditField
                 label="Provincia"
                 value={form.provincia}
                 onChange={(v) => setField("provincia", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <EditField
                 label="C.P."
                 value={form.cp}
                 onChange={(v) => setField("cp", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
             </div>
           </AccordionBlock>
@@ -671,12 +683,14 @@ export default function LocalDetail({
                 value={form.ensenanzaCurso}
                 onChange={(v) => setField("ensenanzaCurso", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <EditField
                 label="Especialidad"
                 value={form.especialidad}
                 onChange={(v) => setField("especialidad", v)}
                 onBlur={() => saveForm()}
+                disabled={readOnly}
               />
               <SelectField
                 label="Hora de salida"
@@ -684,17 +698,20 @@ export default function LocalDetail({
                 originalValue={originalValues.current.horaSalida}
                 options={HORAS_SALIDA}
                 onChange={(v) => saveField("horaSalida", v)}
+                disabled={readOnly}
               />
               <div className="flex flex-col gap-3 pt-1">
                 <ToggleField
                   label="Disponibilidad mañana"
                   checked={form.disponibilidadManana}
                   onChange={(v) => saveBool("disponibilidadManana", v)}
+                  disabled={readOnly}
                 />
                 <ToggleField
                   label="Autorización imagen"
                   checked={form.autorizacionImagen}
                   onChange={(v) => saveBool("autorizacionImagen", v)}
+                  disabled={readOnly}
                 />
               </div>
             </div>
@@ -708,6 +725,7 @@ export default function LocalDetail({
                       setConfirmAmpliacion(true);
                     }
                   }}
+                  disabled={readOnly}
                 />
                 {confirmAmpliacion && (
                   <div className="mt-2 p-3 rounded-lg border" style={{ background: "var(--tc-bg-panel)", borderColor: "var(--tc-border-soft)" }}>
@@ -739,6 +757,7 @@ export default function LocalDetail({
                 label="Anulación"
                 checked={form.anulacion}
                 onChange={(v) => saveBool("anulacion", v)}
+                disabled={readOnly}
               />
             </div>
           </AccordionBlock>
@@ -766,7 +785,8 @@ export default function LocalDetail({
                     onChange={(e) =>
                       cambiarEstadoAsig(item.localId, Number(e.target.value) as EstadoAsignatura)
                     }
-                    className="text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2"
+                    disabled={readOnly}
+                    className="text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{
                       borderColor: "var(--tc-border)",
                       background: "var(--tc-card)",
@@ -780,25 +800,28 @@ export default function LocalDetail({
                     ))}
                   </select>
                   <button
-                    onClick={() => eliminarAsig(item.localId)}
-                    className="p-1 rounded-md transition-colors"
+                    onClick={() => !readOnly && eliminarAsig(item.localId)}
+                    disabled={readOnly}
+                    className="p-1 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ color: "var(--tc-ink-mute)" }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
-                      (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2";
+                      if (!readOnly) {
+                        (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
+                        (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2";
+                      }
                     }}
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-mute)";
                       (e.currentTarget as HTMLButtonElement).style.background = "transparent";
                     }}
-                    title="Eliminar asignatura"
+                    title={readOnly ? "No disponible en modo Solo Lectura" : "Eliminar asignatura"}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               ))}
 
-              {showAdd ? (
+              {showAdd && !readOnly ? (
                 <div
                   className="p-3 rounded-lg space-y-3"
                   style={{
@@ -869,9 +892,11 @@ export default function LocalDetail({
                 </div>
               ) : (
                 <button
-                  onClick={() => setShowAdd(true)}
-                  className="flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "var(--tc-primary)" }}
+                  onClick={() => !readOnly && setShowAdd(true)}
+                  disabled={readOnly}
+                  title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
+                  className="flex items-center gap-2 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ color: readOnly ? "var(--tc-ink-mute)" : "var(--tc-primary)" }}
                 >
                   <Plus className="w-4 h-4" /> Añadir asignatura
                 </button>
@@ -888,6 +913,7 @@ export default function LocalDetail({
                 originalValue={originalValues.current.formaPago}
                 options={FORMAS_PAGO}
                 onChange={(v) => saveField("formaPago", v)}
+                disabled={readOnly}
               />
               <SelectField
                 label="Reducción de tasas"
@@ -895,6 +921,7 @@ export default function LocalDetail({
                 originalValue={originalValues.current.reduccionTasas}
                 options={REDUCCIONES_TASAS}
                 onChange={(v) => saveField("reduccionTasas", v)}
+                disabled={readOnly}
               />
             </div>
           </AccordionBlock>
@@ -903,11 +930,12 @@ export default function LocalDetail({
           <AccordionBlock title="Observaciones" defaultOpen={false} forceOpen={allOpen}>
             <textarea
               value={form.docFaltante}
-              onChange={(e) => setField("docFaltante", e.target.value)}
+              onChange={(e) => !readOnly && setField("docFaltante", e.target.value)}
               onBlur={() => saveForm()}
+              readOnly={readOnly}
               rows={3}
               placeholder="Documentación faltante u observaciones..."
-              className="w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 resize-none"
+              className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 resize-none${readOnly ? " cursor-default" : ""}`}
               style={{
                 borderColor: "var(--tc-border)",
                 background: "var(--tc-bg-panel)",
@@ -1156,6 +1184,7 @@ function EditField({
   onBlur,
   type = "text",
   className,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -1163,6 +1192,7 @@ function EditField({
   onBlur: () => void;
   type?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className={className}>
@@ -1175,17 +1205,18 @@ function EditField({
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        className="w-full text-sm font-medium bg-transparent border-b border-transparent py-0.5 focus:outline-none"
+        onChange={(e) => !disabled && onChange(e.target.value)}
+        onBlur={disabled ? undefined : onBlur}
+        readOnly={disabled}
+        className={`w-full text-sm font-medium bg-transparent border-b border-transparent py-0.5 focus:outline-none${disabled ? " cursor-default" : ""}`}
         style={{ color: "var(--tc-ink)", borderColor: "transparent" }}
-        onFocus={(e) => (e.currentTarget.style.borderColor = "var(--tc-primary)")}
-        onBlurCapture={(e) => (e.currentTarget.style.borderColor = "transparent")}
-        onMouseEnter={(e) => {
+        onFocus={disabled ? undefined : (e) => (e.currentTarget.style.borderColor = "var(--tc-primary)")}
+        onBlurCapture={disabled ? undefined : (e) => (e.currentTarget.style.borderColor = "transparent")}
+        onMouseEnter={disabled ? undefined : (e) => {
           if (document.activeElement !== e.currentTarget)
             e.currentTarget.style.borderColor = "var(--tc-border)";
         }}
-        onMouseLeave={(e) => {
+        onMouseLeave={disabled ? undefined : (e) => {
           if (document.activeElement !== e.currentTarget)
             e.currentTarget.style.borderColor = "transparent";
         }}
@@ -1201,6 +1232,7 @@ function SelectField({
   options,
   onChange,
   className,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -1208,8 +1240,9 @@ function SelectField({
   options: string[];
   onChange: (v: string) => void;
   className?: string;
+  disabled?: boolean;
 }) {
-  const editado = value !== originalValue;
+  const editado = !disabled && value !== originalValue;
   return (
     <div className={className}>
       <div className="flex items-center gap-2 mb-0.5">
@@ -1225,8 +1258,9 @@ function SelectField({
       </div>
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full text-sm font-medium border-b py-0.5 focus:outline-none transition-colors bg-transparent"
+        onChange={(e) => !disabled && onChange(e.target.value)}
+        disabled={disabled}
+        className="w-full text-sm font-medium border-b py-0.5 focus:outline-none transition-colors bg-transparent disabled:opacity-60 disabled:cursor-not-allowed"
         style={{
           color: "var(--tc-ink)",
           borderColor: editado ? "var(--tc-primary)" : "transparent",
@@ -1248,18 +1282,21 @@ function ToggleField({
   label,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between">
       <p className="text-xs uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{label}</p>
       <button
         type="button"
-        onClick={() => onChange(!checked)}
-        className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1"
+        onClick={() => !disabled && onChange(!checked)}
+        disabled={disabled}
+        className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           background: checked ? "var(--tc-primary)" : "var(--tc-border)",
         }}
