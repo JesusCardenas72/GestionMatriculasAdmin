@@ -18,7 +18,7 @@ function cellText(value: ExcelJS.CellValue): string {
   if (typeof value === 'number') return String(value);
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'object') {
-    const v = value as Record<string, unknown>;
+    const v = value as unknown as Record<string, unknown>;
     if ('text' in v && typeof v.text === 'string') return v.text.trim();
     if ('result' in v) return cellText(v.result as ExcelJS.CellValue);
     if ('richText' in v && Array.isArray(v.richText)) {
@@ -47,9 +47,9 @@ export async function parseHorariosExcel(
   base64: string,
   fileName: string,
 ): Promise<CargaHorarios> {
-  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+  const bytes = Buffer.from(base64, 'base64');
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(bytes);
+  await wb.xlsx.load(bytes as any);
 
   const ws = wb.getWorksheet('Horarios') ?? wb.worksheets[0];
   if (!ws) {

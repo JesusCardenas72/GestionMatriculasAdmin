@@ -4,10 +4,8 @@ import type { AppConfig } from "../../electron/config-store";
 import {
   ESTADO,
   ESTADO_ASIGNATURA_LABEL,
-  type AsignaturaMatriculada,
   type EstadoTramite,
   type MatriculaLocal,
-  type Solicitud,
 } from "../api/types";
 import { cursosStore } from "../api/cursosStore";
 import { crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
