@@ -598,18 +598,6 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             Enviar a todos ({alumnosConEmail} con email)
           </button>
           <button
-            onClick={() => setPanelDerecho(p => p === "listados" ? "preview" : "listados")}
-            className={
-              "w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition " +
-              (panelDerecho === "listados"
-                ? "border-[var(--tc-primary)] text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
-                : "border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)]")
-            }
-          >
-            <ClipboardList className="w-4 h-4" />
-            Listados por asignatura
-          </button>
-          <button
             onClick={() => setPanelDerecho(p => p === "historial" ? "preview" : "historial")}
             className={
               "w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition " +
