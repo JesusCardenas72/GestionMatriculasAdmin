@@ -558,9 +558,9 @@ export default function LocalScreen({ config }: Props) {
       <ResizableColumns
         id="local"
         defaultLeftSize="380px"
-        className="flex-1 overflow-hidden px-6 py-5"
+        className="flex-1 overflow-hidden"
         left={
-          <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
+          <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col ml-6 mr-3 my-5">
             <LocalList
               data={matriculas}
               isLoading={isLoading || isFetching}
@@ -609,7 +609,7 @@ export default function LocalScreen({ config }: Props) {
           </div>
         }
         right={
-          <div className="h-full overflow-y-auto pb-6 px-4">
+          <div className="h-full overflow-y-auto pb-6 px-4 ml-3 mr-6 my-5 bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm">
             {selected ? (
               <LocalDetail
                 matricula={selected}

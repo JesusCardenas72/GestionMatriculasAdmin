@@ -102,8 +102,6 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
-  const isTramitado = selected?.estado === ESTADO.TRAMITADO;
-
   // Descarga en segundo plano los PDFs de todas las solicitudes de la nube
   const todasLasSolicitudes = useMemo<Solicitud[] | undefined>(() => {
     const listas = [q1.data?.solicitudes, q2.data?.solicitudes, q3.data?.solicitudes];
@@ -152,14 +150,16 @@ export default function MainScreen({ config, onEditConfig }: Props) {
             }}
           />
         </div>
-        <TabBar
-          active={active}
-          counts={counts}
-          pendingUploads={pendingUploads}
-          localCount={localMatriculas.length}
-          onChange={handleTabChange}
-        />
-        <div className="flex items-center gap-2 shrink-0 ml-auto">
+        <div className="flex-1 flex justify-center">
+          <TabBar
+            active={active}
+            counts={counts}
+            pendingUploads={pendingUploads}
+            localCount={localMatriculas.length}
+            onChange={handleTabChange}
+          />
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <span
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
             title={isSoloLectura ? "Acceso de consulta sin permisos de edición" : "Acceso completo de administrador"}
@@ -212,9 +212,9 @@ export default function MainScreen({ config, onEditConfig }: Props) {
         <ResizableColumns
           id="solicitudes"
           defaultLeftSize="320px"
-          className="flex-1 overflow-hidden p-6"
+          className="flex-1 overflow-hidden"
           left={
-            <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
+            <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col m-6 mr-3">
               <SolicitudList
                 data={currentSolicitudes}
                 isLoading={current!.isLoading}
@@ -227,7 +227,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
             </div>
           }
           right={
-            <div className={selected && !isTramitado ? "h-full overflow-hidden" : "h-full overflow-y-auto p-6"}>
+            <div className="h-full ml-3 mr-6 my-6 pl-6 overflow-y-auto bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm">
               {selected ? (
                 <SolicitudDetail
                   config={config}

@@ -47,7 +47,7 @@ export async function parseHorariosExcel(
   base64: string,
   fileName: string,
 ): Promise<CargaHorarios> {
-  const bytes = Buffer.from(base64, 'base64');
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(bytes as any);
 

@@ -43,7 +43,7 @@ export default function GlobalSearch({ pools, onSelect }: Props) {
     const all: { estado: EstadoTramite; s: Solicitud }[] = [];
     for (const pool of pools) {
       for (const s of pool.data ?? []) {
-        const haystack = `${s.nombre} ${s.apellidos} ${s.dni}`.toLowerCase();
+        const haystack = `${s.nombre} ${s.apellidos} ${s.dni} ${s.email ?? ""}`.toLowerCase();
         if (haystack.includes(needle)) all.push({ estado: pool.estado, s });
       }
     }
@@ -57,7 +57,7 @@ export default function GlobalSearch({ pools, onSelect }: Props) {
   }
 
   return (
-    <div ref={ref} className="relative w-48">
+    <div ref={ref} className="relative w-80">
       <Search
         className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
         style={{ color: "var(--tc-ink-mute)" }}
@@ -90,7 +90,9 @@ export default function GlobalSearch({ pools, onSelect }: Props) {
             </div>
           ) : (
             <ul>
-              {results.map(({ estado, s }) => (
+              {results.map(({ estado, s }) => {
+                const isEmailMatch = s.email?.toLowerCase().includes(q.trim().toLowerCase());
+                return (
                 <li key={`${estado}-${s.rowId}`}>
                   <button
                     onClick={() => handlePick(estado, s)}
@@ -101,12 +103,23 @@ export default function GlobalSearch({ pools, onSelect }: Props) {
                   >
                     <span className="flex-1 min-w-0">
                       <span className="block text-xs font-semibold truncate" style={{ color: "var(--tc-ink)" }}>
+                        {s.nOrden != null && (
+                          <span className="inline-flex items-center justify-center min-w-[20px] h-[16px] px-1 mr-1.5 rounded bg-[var(--tc-bg-panel)] text-[10px] font-bold" style={{ color: "var(--tc-ink-mute)" }}>
+                            #{s.nOrden}
+                          </span>
+                        )}
                         {s.nombre} {s.apellidos}
                       </span>
                       <span className="block text-[10px] truncate" style={{ color: "var(--tc-ink-mute)" }}>
-                        {s.ensenanzaCurso ?? ""}
-                        {s.especialidad ? " · " + s.especialidad : ""}
-                        {s.dni ? " · " + s.dni : ""}
+                        {isEmailMatch ? (
+                          <span style={{ color: "var(--tc-primary)" }}>{s.email}</span>
+                        ) : (
+                          <>
+                            {s.ensenanzaCurso ?? ""}
+                            {s.especialidad ? " · " + s.especialidad : ""}
+                            {s.dni ? " · " + s.dni : ""}
+                          </>
+                        )}
                       </span>
                     </span>
                     <span className={"shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-semibold " + ESTADO_COLOR[estado]}>
@@ -114,7 +127,8 @@ export default function GlobalSearch({ pools, onSelect }: Props) {
                     </span>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
