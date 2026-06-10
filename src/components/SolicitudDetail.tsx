@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,6 +17,7 @@ import {
   type EstadoAsignatura,
   type Solicitud,
 } from "../api/types";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useActualizarSolicitud,
   useAsignaturasSolicitud,
@@ -24,6 +25,8 @@ import {
   useGuardarAsignaturas,
   usePdf,
 } from "../hooks/useSolicitudes";
+import { useCursoContext } from "../contexts/CursoContextProvider";
+import type { AsignaturaLocal as AsignaturaLocalStore } from "../api/types";
 import { getCatalogoLocal, getCatalogoParaCurso, ensenanzaDesdeCode } from "../data/catalogoLocal";
 import { actualizarSolicitud } from "../api/solicitudes";
 import { FlowError } from "../api/client";
@@ -131,6 +134,10 @@ function parseEnsenanzaCurso(ensenanzaCurso: string): { cursoActual: number; esp
 
 export default function SolicitudDetail({ config, solicitud, onDone, onConvalidacionDetected }: Props) {
   const { isSoloLectura } = useAppMode();
+  const { curso } = useCursoContext();
+  const qc = useQueryClient();
+  // docFaltante pendiente de sync a local tras guardar asignaturas
+  const pendingLocalSync = useRef<string | null>(null);
   const [docFaltante, setDocFaltante] = useState(solicitud.docFaltante ?? "");
   const [pending, setPending] = useState<PendingAction>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -216,6 +223,51 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asignaturasQuery.data, solicitud.rowId]);
+
+  // Tras guardar asignaturas en la nube, sincroniza el registro local si existe
+  useEffect(() => {
+    if (pendingLocalSync.current === null) return;
+    if (!asignaturasQuery.data || !curso) return;
+    const freshAsigs = asignaturasQuery.data;
+    const rowId = solicitud.rowId;
+    const newDocFaltante = pendingLocalSync.current;
+    pendingLocalSync.current = null;
+
+    void (async () => {
+      try {
+        const localMatriculas = await cursosStore.listar(curso);
+        const localRecord = localMatriculas.find(
+          (m) => m.rowId === rowId && !m._pendienteSubida,
+        );
+        if (!localRecord) return;
+
+        const newAsigs: AsignaturaLocalStore[] = freshAsigs.map((a) => ({
+          localId:
+            localRecord.asignaturas.find((la) => la.rowId === a.rowId)?.localId ??
+            crypto.randomUUID(),
+          rowId: a.rowId,
+          asignaturaId: a.asignaturaId,
+          codigo:
+            localRecord.asignaturas.find((la) => la.rowId === a.rowId)?.codigo ?? 0,
+          nombre: a.nombre,
+          estado: a.estado,
+          observaciones: a.observaciones,
+          horario:
+            localRecord.asignaturas.find((la) => la.rowId === a.rowId)?.horario ?? null,
+        }));
+
+        await cursosStore.actualizar(curso, localRecord.localId, {
+          asignaturas: newAsigs,
+          docFaltante: newDocFaltante || null,
+          _modificadoEn: new Date().toISOString(),
+        });
+        void qc.invalidateQueries({ queryKey: ["localMatriculas", curso] });
+      } catch {
+        // sync failure silenciosa — no interrumpe el flujo de nube
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asignaturasQuery.data]);
 
   const esRepetidorSuelta =
     solicitud.repetidor &&
@@ -338,12 +390,17 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             const base = docFaltante.trim();
             const nuevo = base ? `${base}\n\n${resumen}` : resumen;
             setDocFaltante(nuevo);
+            // Captura el docFaltante actualizado para el sync local
+            pendingLocalSync.current = nuevo;
             actualizarSolicitud(config, {
               rowId: solicitud.rowId,
               nuevoEstado: solicitud.estado,
               docFaltante: nuevo,
               enviarEmail: false,
             }).catch(() => {});
+          } else {
+            // Sin cambios en docFaltante: igualmente sincroniza asignaturas en local
+            pendingLocalSync.current = docFaltante;
           }
         },
       },
@@ -603,11 +660,13 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               )}
               {pdfVacio && <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Esta solicitud no tiene PDF adjunto.</p>}
               {(pdfQuery.data?.contentBase64 ?? localPdfBase64) && (
-                <PdfViewer
-                  contentBase64={(pdfQuery.data?.contentBase64 ?? localPdfBase64)!}
-                  fileName={pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`}
-                  mimeType={pdfQuery.data?.mimeType ?? "application/pdf"}
-                />
+                <div className="h-[75vh]">
+                  <PdfViewer
+                    contentBase64={(pdfQuery.data?.contentBase64 ?? localPdfBase64)!}
+                    fileName={pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`}
+                    mimeType={pdfQuery.data?.mimeType ?? "application/pdf"}
+                  />
+                </div>
               )}
             </AccordionBlock>
           </div>
