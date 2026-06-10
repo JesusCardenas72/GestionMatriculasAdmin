@@ -20,6 +20,7 @@ interface Props {
 }
 
 type PanelDerecho = "preview" | "historial" | "listados";
+type VistaPrincipal = "individuales" | "listados";
 
 /** Convierte "H:MM" a minutos totales; devuelve null si el formato no es válido. */
 function aMin(h: string): number | null {
@@ -76,6 +77,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
   const [panelDerecho, setPanelDerecho] = useState<PanelDerecho>("preview");
+  const [vistaPrincipal, setVistaPrincipal] = useState<VistaPrincipal>("individuales");
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
   const [campanytaSeleccionada, setCampanyaSeleccionada] = useState<string | null>(null);
 
@@ -624,54 +626,86 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
       {/* Panel derecho */}
       <div className="flex-1 flex flex-col bg-[var(--tc-bg)] overflow-hidden">
-        {panelDerecho === "preview" ? (
-          seleccionado ? (
-            <>
-              <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between">
-                <span className="text-sm font-medium text-[var(--tc-ink)] truncate">
-                  Horario de {seleccionado.nombre}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleImprimirPdf}
-                    disabled={imprimiendo || generandoPdf}
-                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
-                  >
-                    {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                    Imprimir
-                  </button>
-                  <button
-                    onClick={handleDescargarPdf}
-                    disabled={generandoPdf || imprimiendo}
-                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
-                  >
-                    {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    Descargar PDF
-                  </button>
+        {/* Tabs principal */}
+        <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] flex items-stretch">
+          <button
+            onClick={() => { setVistaPrincipal("individuales"); setPanelDerecho("preview"); }}
+            className={
+              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
+              (vistaPrincipal === "individuales"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
+                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
+            }
+          >
+            <CalendarClock className="w-4 h-4" />
+            Horarios Individuales
+          </button>
+          <button
+            onClick={() => { setVistaPrincipal("listados"); setPanelDerecho("listados"); }}
+            className={
+              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
+              (vistaPrincipal === "listados"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
+                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
+            }
+          >
+            <ClipboardList className="w-4 h-4" />
+            Listados Por Asignaturas
+          </button>
+        </div>
+
+        {vistaPrincipal === "individuales" ? (
+          panelDerecho === "preview" ? (
+            seleccionado ? (
+              <>
+                <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between">
+                  <span className="text-sm font-medium text-[var(--tc-ink)] truncate">
+                    Horario de {seleccionado.nombre}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleImprimirPdf}
+                      disabled={imprimiendo || generandoPdf}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+                    >
+                      {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                      Imprimir
+                    </button>
+                    <button
+                      onClick={handleDescargarPdf}
+                      disabled={generandoPdf || imprimiendo}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+                    >
+                      {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      Descargar PDF
+                    </button>
+                  </div>
                 </div>
+                <iframe
+                  key={seleccionado.clave}
+                  title="Vista previa del horario"
+                  srcDoc={html}
+                  className="flex-1 w-full border-0 bg-white"
+                />
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-sm text-[var(--tc-ink-mute)]">
+                Selecciona un alumno de la lista
               </div>
-              <iframe
-                key={seleccionado.clave}
-                title="Vista previa del horario"
-                srcDoc={html}
-                className="flex-1 w-full border-0 bg-white"
-              />
-            </>
+            )
+          ) : panelDerecho === "listados" ? (
+            <ListadosPanel alumnos={carga.alumnos} anio={anio} />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-sm text-[var(--tc-ink-mute)]">
-              Selecciona un alumno de la lista
-            </div>
+            <HistorialPanel
+              campanyas={campanyas}
+              activa={campanytaActiva}
+              onSelect={setCampanyaSeleccionada}
+              onEliminarCampanya={handleEliminarCampanya}
+              onEliminarAlumno={handleEliminarAlumnoCampanya}
+            />
           )
-        ) : panelDerecho === "listados" ? (
-          <ListadosPanel alumnos={carga.alumnos} anio={anio} />
         ) : (
-          <HistorialPanel
-            campanyas={campanyas}
-            activa={campanytaActiva}
-            onSelect={setCampanyaSeleccionada}
-            onEliminarCampanya={handleEliminarCampanya}
-            onEliminarAlumno={handleEliminarAlumnoCampanya}
-          />
+          <ListadosPanel alumnos={carga.alumnos} anio={anio} />
         )}
       </div>
 
