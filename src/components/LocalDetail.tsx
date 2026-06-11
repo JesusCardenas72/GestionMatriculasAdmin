@@ -44,7 +44,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { ChevronDown, ChevronUp, Cloud, Download, FileText, Loader2, MoreHorizontal, Plus, Trash2, TrendingUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Cloud, Download, FileText, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -94,6 +94,7 @@ interface Props {
   onSubirNube: () => void;
   onGenerarPdf: () => void;
   onBorrar: () => void;
+  onEnviarCorreo: () => void;
 }
 
 function initForm(m: MatriculaLocal): FormData {
@@ -133,6 +134,7 @@ export default function LocalDetail({
   onSubirNube,
   onGenerarPdf,
   onBorrar,
+  onEnviarCorreo,
 }: Props) {
   const { curso } = useCursoContext();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -587,6 +589,62 @@ export default function LocalDetail({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Borrar
+              </button>
+            )}
+
+            {/* Enviar correo (solo si tiene estado remoto conocido) */}
+            {estado != null && !readOnly && (
+              <button
+                type="button"
+                onClick={onEnviarCorreo}
+                disabled={isSaving}
+                title={
+                  estado === 856530001
+                    ? "Abrir email de documentación requerida (Pendiente de Validación)"
+                    : estado === 856530002
+                      ? "Abrir email de matrícula tramitada (Tramitado)"
+                      : "Enviar correo"
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  borderColor:
+                    estado === 856530001
+                      ? "var(--tc-warn-border)"
+                      : estado === 856530002
+                        ? "var(--tc-success-border)"
+                        : "var(--tc-border)",
+                  color:
+                    estado === 856530001
+                      ? "var(--tc-warn-ink)"
+                      : estado === 856530002
+                        ? "var(--tc-success-ink)"
+                        : "var(--tc-ink-soft)",
+                  background:
+                    estado === 856530001
+                      ? "var(--tc-warn-bg)"
+                      : estado === 856530002
+                        ? "var(--tc-success-bg)"
+                        : "var(--tc-card)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    estado === 856530001
+                      ? "var(--tc-warn-border)"
+                      : estado === 856530002
+                        ? "var(--tc-success-border)"
+                        : "var(--tc-bg-panel)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    estado === 856530001
+                      ? "var(--tc-warn-bg)"
+                      : estado === 856530002
+                        ? "var(--tc-success-bg)"
+                        : "var(--tc-card)";
+                }}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Enviar correo
               </button>
             )}
           </div>

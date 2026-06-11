@@ -17,10 +17,71 @@ import LocalList from "../components/LocalList";
 import LocalDetail from "../components/LocalDetail";
 import ResizableColumns from "../components/ResizableColumns";
 import AmpliacionWizard from "../components/AmpliacionWizard";
+import TramitarEmailModal from "../components/TramitarEmailModal";
+import type { AsignaturaEmail } from "../utils/emailTemplate";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { solicitudALocal } from "../utils/solicitudALocal";
+
+function LocalEmailModal({
+  matricula,
+  estado,
+  open,
+  onClose,
+}: {
+  matricula: MatriculaLocal;
+  estado: EstadoTramite;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const esDocumentacion = estado === ESTADO.PENDIENTE_VALIDACION;
+  const solicitudLike = {
+    rowId: matricula.rowId ?? "",
+    nOrden: matricula.nOrden ?? null,
+    nombre: matricula.nombre,
+    apellidos: matricula.apellidos,
+    dni: matricula.dni,
+    email: matricula.email,
+    ensenanzaCurso: matricula.ensenanzaCurso,
+    especialidad: matricula.especialidad,
+    estado,
+    docFaltante: matricula.docFaltante ?? "",
+    repetidor: matricula.repetidor ?? false,
+    cursoEscolar: null,
+    telefono: matricula.telefono ?? null,
+    fechaNacimiento: matricula.fechaNacimiento ?? null,
+    domicilio: matricula.domicilio ?? null,
+    localidad: matricula.localidad ?? null,
+    provincia: matricula.provincia ?? null,
+    cp: matricula.cp ?? null,
+    formaPago: matricula.formaPago ?? null,
+    reduccionTasas: matricula.reduccionTasas ?? null,
+    autorizacionImagen: matricula.autorizacionImagen ?? false,
+    disponibilidadManana: matricula.disponibilidadManana ?? false,
+    horaSalida: matricula.horaSalida ?? null,
+  };
+  const asignaturas: AsignaturaEmail[] = matricula.asignaturas.map((a) => ({
+    nombre: a.nombre,
+    estado: a.estado,
+  }));
+
+  return (
+    <TramitarEmailModal
+      mode={esDocumentacion ? "documentacion" : "tramitar"}
+      open={open}
+      solicitud={solicitudLike as never}
+      asignaturas={asignaturas}
+      observacionesIniciales={esDocumentacion ? (matricula.docFaltante ?? "") : ""}
+      loading={false}
+      onConfirm={(_observaciones, emailHtml) => {
+        navigator.clipboard.writeText(emailHtml).catch(() => {});
+        onClose();
+      }}
+      onCancel={onClose}
+    />
+  );
+}
 
 interface Props {
   config: AppConfig;
@@ -51,6 +112,7 @@ export default function LocalScreen({ config }: Props) {
   const [subirError, setSubirError] = useState<string | null>(null);
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   // Auto-sincronización: descarga matrículas telemáticas de Dataverse que no estén en local
   // (estados: Pendiente de tramitación, Pendiente de validación y Tramitado)
@@ -379,6 +441,11 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
+  function handleEnviarCorreo() {
+    if (!selected || !estadoSeleccionado) return;
+    setShowEmailModal(true);
+  }
+
   async function handleSubirNube() {
     if (!selected) return;
     setIsSaving(true);
@@ -626,6 +693,7 @@ export default function LocalScreen({ config }: Props) {
                 onSubirNube={() => { if (!isSoloLectura) void handleSubirNube(); }}
                 onGenerarPdf={() => void handleObtenerPdf()}
                 onBorrar={() => { if (!isSoloLectura) void handleBorrar(); }}
+                onEnviarCorreo={() => void handleEnviarCorreo()}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center gap-3">
@@ -654,6 +722,14 @@ export default function LocalScreen({ config }: Props) {
           isSaving={isSaving}
           onClose={() => setShowAmpliacion(false)}
           onCrear={(nueva, emailHtml, pdfProps) => void handleCrearAmpliacion(nueva, emailHtml, pdfProps)}
+        />
+      )}
+      {showEmailModal && selected && estadoSeleccionado && (
+        <LocalEmailModal
+          matricula={selected}
+          estado={estadoSeleccionado}
+          open={showEmailModal}
+          onClose={() => setShowEmailModal(false)}
         />
       )}
     </>
