@@ -450,21 +450,21 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
 
   function handleConfirmTramitar(observaciones: string, emailHtml: string) {
     mutation.mutate(
-      { rowId: solicitud.rowId, nuevoEstado: ESTADO.TRAMITADO, docFaltante: observaciones, emailHtml, enviarEmail: true },
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.TRAMITADO, docFaltante: observaciones, emailHtml, email: solicitud.email, enviarEmail: true },
       { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
     );
   }
 
   function handleConfirmPedir(docFaltanteText: string, emailHtml: string) {
     mutation.mutate(
-      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, emailHtml, enviarEmail: true },
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, emailHtml, email: solicitud.email, enviarEmail: true },
       { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
     );
   }
 
   function handleConfirmPedirSinEmail(docFaltanteText: string) {
     mutation.mutate(
-      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, enviarEmail: false },
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, email: solicitud.email, enviarEmail: false },
       { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
     );
   }

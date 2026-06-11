@@ -78,6 +78,7 @@ function LocalEmailModal({
         nuevoEstado: estado,
         docFaltante: observaciones,
         emailHtml,
+        email: matricula.email,
         enviarEmail: true,
       });
       onClose();
@@ -460,8 +461,55 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
-  function handleEnviarCorreo() {
+  async function handleEnviarCorreo() {
     if (!selected || !estadoSeleccionado) return;
+
+    // Si tiene cambios pendientes de subida, sube primero
+    if (selected._pendienteSubida) {
+      setIsSaving(true);
+      setSubirError(null);
+      try {
+        if (selected.rowId) {
+          await subirMatriculaEditada(config, {
+            rowId: selected.rowId,
+            nOrden: selected.nOrden != null ? String(selected.nOrden) : null,
+            nombre: selected.nombre,
+            apellidos: selected.apellidos,
+            dni: selected.dni,
+            email: selected.email,
+            telefono: selected.telefono,
+            fechaNacimiento: toIsoDate(selected.fechaNacimiento),
+            domicilio: selected.domicilio,
+            localidad: selected.localidad,
+            provincia: selected.provincia,
+            cp: selected.cp,
+            ensenanzaCurso: selected.ensenanzaCurso,
+            especialidad: selected.especialidad,
+            formaPago: selected.formaPago,
+            reduccionTasas: selected.reduccionTasas,
+            autorizacionImagen: selected.autorizacionImagen,
+            disponibilidadManana: selected.disponibilidadManana,
+            horaSalida: selected.horaSalida,
+            repetidor: selected.repetidor,
+            asignaturasActualizadas: selected.asignaturas
+              .filter((a) => a.rowId !== null)
+              .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
+            asignaturasNuevas: selected.asignaturas
+              .filter((a) => a.rowId === null)
+              .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
+          });
+          await marcarSubida(selected.localId);
+        }
+      } catch (e) {
+        setSubirError(e instanceof Error ? e.message : "Error al subir los datos");
+        setIsSaving(false);
+        return;
+      } finally {
+        setIsSaving(false);
+      }
+    }
+
+    // Abre el modal de email
     setShowEmailModal(true);
   }
 

@@ -53,6 +53,7 @@ export interface ActualizarSolicitudInput {
   nuevoEstado: EstadoTramite;
   docFaltante?: string;
   emailHtml?: string;
+  email?: string;
   enviarEmail?: boolean;
 }
 
