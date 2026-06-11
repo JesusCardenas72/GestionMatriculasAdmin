@@ -8,7 +8,7 @@ import {
   type MatriculaLocal,
 } from "../api/types";
 import { cursosStore } from "../api/cursosStore";
-import { crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
+import { actualizarSolicitud, crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
@@ -27,14 +27,17 @@ import { solicitudALocal } from "../utils/solicitudALocal";
 function LocalEmailModal({
   matricula,
   estado,
+  config,
   open,
   onClose,
 }: {
   matricula: MatriculaLocal;
   estado: EstadoTramite;
+  config: AppConfig;
   open: boolean;
   onClose: () => void;
 }) {
+  const [loading, setLoading] = useState(false);
   const esDocumentacion = estado === ESTADO.PENDIENTE_VALIDACION;
   const solicitudLike = {
     rowId: matricula.rowId ?? "",
@@ -66,6 +69,25 @@ function LocalEmailModal({
     estado: a.estado,
   }));
 
+  async function handleConfirm(observaciones: string, emailHtml: string) {
+    if (!matricula.rowId) return;
+    setLoading(true);
+    try {
+      await actualizarSolicitud(config, {
+        rowId: matricula.rowId,
+        nuevoEstado: estado,
+        docFaltante: observaciones,
+        emailHtml,
+        enviarEmail: true,
+      });
+      onClose();
+    } catch (e) {
+      console.error("Error al reenviar email:", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <TramitarEmailModal
       mode={esDocumentacion ? "documentacion" : "tramitar"}
@@ -73,11 +95,8 @@ function LocalEmailModal({
       solicitud={solicitudLike as never}
       asignaturas={asignaturas}
       observacionesIniciales={esDocumentacion ? (matricula.docFaltante ?? "") : ""}
-      loading={false}
-      onConfirm={(_observaciones, emailHtml) => {
-        navigator.clipboard.writeText(emailHtml).catch(() => {});
-        onClose();
-      }}
+      loading={loading}
+      onConfirm={(observaciones, emailHtml) => void handleConfirm(observaciones, emailHtml)}
       onCancel={onClose}
     />
   );
@@ -728,6 +747,7 @@ export default function LocalScreen({ config }: Props) {
         <LocalEmailModal
           matricula={selected}
           estado={estadoSeleccionado}
+          config={config}
           open={showEmailModal}
           onClose={() => setShowEmailModal(false)}
         />
