@@ -36,13 +36,13 @@ export default function PdfViewer({ contentBase64, fileName }: Props) {
   }, [contentBase64]);
 
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden bg-slate-100">
+    <div className="h-full min-h-[500px] border border-slate-200 rounded-lg overflow-hidden bg-slate-100">
       {url ? (
         <iframe
           src={url}
           title={fileName || "Solicitud en PDF"}
-          className="w-full"
-          style={{ height: "700px", border: "none" }}
+          className="w-full h-full"
+          style={{ border: "none" }}
         />
       ) : (
         <div className="flex items-center gap-2 text-sm text-slate-500 p-4">
