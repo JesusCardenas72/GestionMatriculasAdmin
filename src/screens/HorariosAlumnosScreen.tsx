@@ -20,6 +20,7 @@ interface Props {
 }
 
 type PanelDerecho = "preview" | "historial" | "listados";
+type VistaPrincipal = "individuales" | "listados";
 
 /** Convierte "H:MM" a minutos totales; devuelve null si el formato no es válido. */
 function aMin(h: string): number | null {
@@ -73,14 +74,13 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [soloNuevos, setSoloNuevos] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
   const [panelDerecho, setPanelDerecho] = useState<PanelDerecho>("preview");
+  const [vistaPrincipal, setVistaPrincipal] = useState<VistaPrincipal>("individuales");
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
   const [campanytaSeleccionada, setCampanyaSeleccionada] = useState<string | null>(null);
-  const [listadoVersion, setListadoVersion] = useState<VersionListado>("alumnos");
-  const [exportandoListados, setExportandoListados] = useState(false);
-  const [imprimiendoListados, setImprimiendoListados] = useState(false);
 
   // Modal de envío
   const [showEnviarModal, setShowEnviarModal] = useState(false);
@@ -124,6 +124,37 @@ export default function HorariosAlumnosScreen({ config }: Props) {
     }
     return mapa;
   }, [localMatriculas]);
+
+  /**
+   * Alumnos "nuevos": matrículas reales que sustituyeron a un alumno temporal
+   * (conservan `sustituyeATemporalId` como traza). No recibieron el email de
+   * horarios en campañas anteriores, así que se les puede segregar y enviar.
+   */
+  const nombresNuevos = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of localMatriculas) {
+      if (m.esTemporal || !m.sustituyeATemporalId) continue;
+      const a = (m.apellidos ?? '').trim();
+      const n = (m.nombre ?? '').trim();
+      const nombreCompleto = a && n ? `${a}, ${n}` : a || n;
+      if (nombreCompleto) set.add(normNombre(nombreCompleto));
+    }
+    return set;
+  }, [localMatriculas]);
+
+  const esNuevo = useCallback(
+    (a: HorarioAlumno) => nombresNuevos.has(normNombre(a.nombre)),
+    [nombresNuevos],
+  );
+
+  /** Claves de alumnos con al menos un envío exitoso en cualquier campaña. */
+  const clavesEnviadas = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of campanyas) {
+      for (const r of c.alumnos) if (r.estado === 'ok') set.add(r.clave);
+    }
+    return set;
+  }, [campanyas]);
 
   /** Completa email y teléfono de cada alumno con los de Local si hay coincidencia por nombre. */
   const enriquecerEmails = useCallback((alumnos: HorarioAlumno[]): HorarioAlumno[] => {
@@ -191,15 +222,22 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   const alumnosFiltrados = useMemo(() => {
     if (!carga) return [];
+    const base = soloNuevos ? carga.alumnos.filter(esNuevo) : carga.alumnos;
     const q = busqueda.trim().toLowerCase();
-    if (!q) return carga.alumnos;
-    return carga.alumnos.filter(
+    if (!q) return base;
+    return base.filter(
       a =>
         a.nombre.toLowerCase().includes(q) ||
         a.especialidad.toLowerCase().includes(q) ||
         a.ensenanzaCurso.toLowerCase().includes(q),
     );
-  }, [carga, busqueda]);
+  }, [carga, busqueda, soloNuevos, esNuevo]);
+
+  /** Nuevos (por sustitución) presentes en la carga actual que aún no han recibido email. */
+  const nuevosSinEnviar = useMemo(
+    () => (carga ? carga.alumnos.filter(a => esNuevo(a) && !clavesEnviadas.has(a.clave)) : []),
+    [carga, esNuevo, clavesEnviadas],
+  );
 
   const todosSeleccionados =
     alumnosFiltrados.length > 0 && alumnosFiltrados.every(a => seleccionados.has(a.clave));
@@ -259,37 +297,6 @@ export default function HorariosAlumnosScreen({ config }: Props) {
       if (!res.success && res.error) setError(res.error);
     } finally {
       setImprimiendo(false);
-    }
-  };
-
-  const listadoHtml = useMemo(
-    () => buildListadoHtml(carga?.alumnos ?? [], anio, listadoVersion),
-    [carga?.alumnos, anio, listadoVersion],
-  );
-
-  const handleExportarHtml = async () => {
-    setExportandoListados(true);
-    try {
-      const base64 = btoa(unescape(encodeURIComponent(listadoHtml)));
-      const nombre = listadoVersion === "profesores"
-        ? `Listados por asignatura (profesorado) ${anio}`
-        : `Listados por asignatura ${anio}`;
-      await window.adminAPI.informe.exportar({
-        contenidoBase64: base64,
-        nombreArchivo: nombre,
-        extension: "html",
-      });
-    } finally {
-      setExportandoListados(false);
-    }
-  };
-
-  const handleImprimirListados = async () => {
-    setImprimiendoListados(true);
-    try {
-      await window.adminAPI.pdf.printHtml(listadoHtml);
-    } finally {
-      setImprimiendoListados(false);
     }
   };
 
@@ -496,7 +503,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   // ── Con datos ──────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex overflow-hidden">
-      {/* Lista de alumnos */}
+      {vistaPrincipal !== "listados" && (
       <div className="w-[320px] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-card)] flex flex-col">
         <div className="p-3 border-b border-[var(--tc-border)] space-y-2">
           <div className="flex gap-1.5">
@@ -529,6 +536,34 @@ export default function HorariosAlumnosScreen({ config }: Props) {
               className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)]"
             />
           </div>
+
+          {/* Nuevos por sustitución de temporales */}
+          {nombresNuevos.size > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => setSoloNuevos(v => !v)}
+                title="Alumnos matriculados que sustituyeron a un temporal"
+                className={
+                  "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border transition " +
+                  (soloNuevos
+                    ? "bg-orange-100 text-orange-700 border-orange-300"
+                    : "bg-[var(--tc-bg)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
+                }
+              >
+                Solo nuevos (sustituciones)
+              </button>
+              {nuevosSinEnviar.length > 0 && (
+                <button
+                  onClick={() => setSeleccionados(new Set(nuevosSinEnviar.map(a => a.clave)))}
+                  title="Selecciona los alumnos nuevos a los que aún no se les ha enviado el horario"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition"
+                >
+                  <CheckSquare className="w-3 h-3" />
+                  Sel. nuevos sin enviar ({nuevosSinEnviar.length})
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Selección + envío */}
           <div className="flex items-center gap-1.5">
@@ -591,7 +626,24 @@ export default function HorariosAlumnosScreen({ config }: Props) {
                     }
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-[var(--tc-ink)] truncate leading-snug">{a.nombre || "—"}</div>
+                      <div className="text-sm font-medium text-[var(--tc-ink)] leading-snug flex items-center gap-1.5 min-w-0">
+                        <span className="truncate min-w-0">{a.nombre || "—"}</span>
+                        {esNuevo(a) && (
+                          <span
+                            title={clavesEnviadas.has(a.clave)
+                              ? "Alumno nuevo (sustituyó a un temporal) — horario ya enviado"
+                              : "Alumno nuevo (sustituyó a un temporal) — horario SIN enviar"}
+                            className={
+                              "shrink-0 px-1.5 py-px rounded-full text-[9px] font-bold border " +
+                              (clavesEnviadas.has(a.clave)
+                                ? "bg-slate-100 text-slate-500 border-slate-200"
+                                : "bg-orange-100 text-orange-700 border-orange-200")
+                            }
+                          >
+                            NUEVO
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-[var(--tc-ink-soft)] truncate leading-tight">
                         {buildCursoLabel(a.ensenanzaCurso, a.especialidad) || "—"}
                       </div>
@@ -619,141 +671,103 @@ export default function HorariosAlumnosScreen({ config }: Props) {
           )}
         </div>
 
-
+        {/* Botón Enviar todos */}
+        <div className="p-3 border-t border-[var(--tc-border)] space-y-1.5">
+          <button
+            onClick={() => abrirModalEnvio(carga.alumnos.filter(a => a.email).map(a => a.clave))}
+            disabled={alumnosConEmail === 0}
+            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
+          >
+            <Mail className="w-4 h-4" />
+            Enviar a todos ({alumnosConEmail} con email)
+          </button>
+          <button
+            onClick={() => setPanelDerecho(p => p === "historial" ? "preview" : "historial")}
+            className={
+              "w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition " +
+              (panelDerecho === "historial"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
+                : "border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)]")
+            }
+          >
+            <History className="w-4 h-4" />
+            Historial de envíos {campanyas.length > 0 && `(${campanyas.length})`}
+          </button>
+        </div>
       </div>
+      )}
 
       {/* Panel derecho */}
       <div className="flex-1 flex flex-col bg-[var(--tc-bg)] overflow-hidden">
-        {/* Header superior: navegación (izq) + acciones contextuales (der) */}
-        <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <button
-              onClick={() => abrirModalEnvio(carga.alumnos.filter(a => a.email).map(a => a.clave))}
-              disabled={alumnosConEmail === 0}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
-            >
-              <Mail className="w-4 h-4" />
-              Enviar a todos
-            </button>
-            <button
-              onClick={() => setPanelDerecho(p => p === "listados" ? "preview" : "listados")}
-              className={
-                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition " +
-                (panelDerecho === "listados"
-                  ? "border-[var(--tc-primary)] text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
-                  : "border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)]")
-              }
-            >
-              <ClipboardList className="w-4 h-4" />
-              Listados por asignatura
-            </button>
-            <button
-              onClick={() => setPanelDerecho(p => p === "historial" ? "preview" : "historial")}
-              className={
-                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition " +
-                (panelDerecho === "historial"
-                  ? "border-[var(--tc-primary)] text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
-                  : "border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)]")
-              }
-            >
-              <History className="w-4 h-4" />
-              Historial de envíos {campanyas.length > 0 && `(${campanyas.length})`}
-            </button>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {panelDerecho === "preview" && seleccionado && (
-              <>
-                <button
-                  onClick={handleImprimirPdf}
-                  disabled={imprimiendo || generandoPdf}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
-                >
-                  {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                  Imprimir
-                </button>
-                <button
-                  onClick={handleDescargarPdf}
-                  disabled={generandoPdf || imprimiendo}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
-                >
-                  {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Descargar PDF
-                </button>
-              </>
-            )}
-            {panelDerecho === "listados" && (
-              <>
-                <div className="flex items-center bg-[var(--tc-bg-panel)] rounded-lg p-0.5">
-                  <button
-                    onClick={() => setListadoVersion("alumnos")}
-                    className={
-                      "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
-                      (listadoVersion === "alumnos"
-                        ? "bg-[var(--tc-card)] text-[var(--tc-primary)] shadow-sm"
-                        : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink-soft)]")
-                    }
-                  >
-                    Alumnado
-                  </button>
-                  <button
-                    onClick={() => setListadoVersion("profesores")}
-                    className={
-                      "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
-                      (listadoVersion === "profesores"
-                        ? "bg-[var(--tc-card)] text-[var(--tc-primary)] shadow-sm"
-                        : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink-soft)]")
-                    }
-                  >
-                    Profesorado
-                  </button>
-                </div>
-                {listadoVersion === "profesores" && (
-                  <span className="text-[11px] text-amber-600 whitespace-nowrap hidden lg:inline">
-                    incluye email y teléfono
-                  </span>
-                )}
-                <button
-                  onClick={handleImprimirListados}
-                  disabled={imprimiendoListados || exportandoListados}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
-                >
-                  {imprimiendoListados ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                  Imprimir
-                </button>
-                <button
-                  onClick={handleExportarHtml}
-                  disabled={exportandoListados || imprimiendoListados}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
-                >
-                  {exportandoListados ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode2 className="w-4 h-4" />}
-                  Generar HTML
-                </button>
-              </>
-            )}
-          </div>
+        {/* Tabs principal */}
+        <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] flex items-stretch">
+          <button
+            onClick={() => { setVistaPrincipal("individuales"); setPanelDerecho("preview"); }}
+            className={
+              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
+              (vistaPrincipal === "individuales"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
+                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
+            }
+          >
+            <CalendarClock className="w-4 h-4" />
+            Horarios Individuales
+          </button>
+          <button
+            onClick={() => { setVistaPrincipal("listados"); setPanelDerecho("listados"); }}
+            className={
+              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
+              (vistaPrincipal === "listados"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
+                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
+            }
+          >
+            <ClipboardList className="w-4 h-4" />
+            Listados Por Asignaturas
+          </button>
         </div>
-        {/* Contenido */}
-        <div className="flex-1 overflow-hidden">
-          {panelDerecho === "preview" ? (
+
+        {vistaPrincipal === "individuales" ? (
+          panelDerecho === "preview" ? (
             seleccionado ? (
-              <iframe
-                key={seleccionado.clave}
-                title="Vista previa del horario"
-                srcDoc={html}
-                className="flex-1 w-full border-0 bg-white"
-              />
+              <>
+                <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between">
+                  <span className="text-sm font-medium text-[var(--tc-ink)] truncate">
+                    Horario de {seleccionado.nombre}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleImprimirPdf}
+                      disabled={imprimiendo || generandoPdf}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+                    >
+                      {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                      Imprimir
+                    </button>
+                    <button
+                      onClick={handleDescargarPdf}
+                      disabled={generandoPdf || imprimiendo}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+                    >
+                      {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      Descargar PDF
+                    </button>
+                  </div>
+                </div>
+                <iframe
+                  key={seleccionado.clave}
+                  title="Vista previa del horario"
+                  srcDoc={html}
+                  className="flex-1 w-full border-0 bg-white"
+                />
+              </>
             ) : (
               <div className="flex-1 flex items-center justify-center text-sm text-[var(--tc-ink-mute)]">
                 Selecciona un alumno de la lista
               </div>
             )
           ) : panelDerecho === "listados" ? (
-            <iframe
-              key={listadoVersion}
-              title="Listados por asignatura"
-              srcDoc={listadoHtml}
-              className="flex-1 w-full border-0 bg-white"
-            />
+            <ListadosPanel alumnos={carga.alumnos} anio={anio} />
           ) : (
             <HistorialPanel
               campanyas={campanyas}
@@ -762,8 +776,10 @@ export default function HorariosAlumnosScreen({ config }: Props) {
               onEliminarCampanya={handleEliminarCampanya}
               onEliminarAlumno={handleEliminarAlumnoCampanya}
             />
-          )}
-        </div>
+          )
+        ) : (
+          <ListadosPanel alumnos={carga.alumnos} anio={anio} />
+        )}
       </div>
 
       {/* Modal de envío */}
@@ -787,7 +803,112 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
 // ── Subcomponentes ─────────────────────────────────────────────────────────
 
+/**
+ * Panel de listados de alumnado agrupados por Asignatura → Curso → Grupo/Aula/Profesor.
+ * Vista previa en pantalla (con buscador) + exportación a HTML autónomo e impresión.
+ */
+function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: string }) {
+  const [version, setVersion] = useState<VersionListado>("alumnos");
+  const [exportando, setExportando] = useState(false);
+  const [imprimiendo, setImprimiendo] = useState(false);
 
+  const html = useMemo(
+    () => buildListadoHtml(alumnos, anio, version),
+    [alumnos, anio, version],
+  );
+
+  const handleExportarHtml = async () => {
+    setExportando(true);
+    try {
+      const base64 = btoa(unescape(encodeURIComponent(html)));
+      const nombre = version === "profesores"
+        ? `Listados por asignatura (profesorado) ${anio}`
+        : `Listados por asignatura ${anio}`;
+      await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: nombre,
+        extension: "html",
+      });
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const handleImprimir = async () => {
+    setImprimiendo(true);
+    try {
+      await window.adminAPI.pdf.printHtml(html);
+    } finally {
+      setImprimiendo(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-sm font-medium text-[var(--tc-ink)] whitespace-nowrap">
+            Listados por asignatura
+          </span>
+          {/* Conmutador de versión */}
+          <div className="flex items-center bg-[var(--tc-bg-panel)] rounded-lg p-0.5">
+            <button
+              onClick={() => setVersion("alumnos")}
+              className={
+                "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
+                (version === "alumnos"
+                  ? "bg-[var(--tc-card)] text-[var(--tc-primary)] shadow-sm"
+                  : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink-soft)]")
+              }
+            >
+              Alumnado
+            </button>
+            <button
+              onClick={() => setVersion("profesores")}
+              className={
+                "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
+                (version === "profesores"
+                  ? "bg-[var(--tc-card)] text-[var(--tc-primary)] shadow-sm"
+                  : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink-soft)]")
+              }
+            >
+              Profesorado
+            </button>
+          </div>
+          {version === "profesores" && (
+            <span className="text-[11px] text-amber-600 whitespace-nowrap hidden lg:inline">
+              incluye email y teléfono
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleImprimir}
+            disabled={imprimiendo || exportando}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+          >
+            {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            Imprimir
+          </button>
+          <button
+            onClick={handleExportarHtml}
+            disabled={exportando || imprimiendo}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
+          >
+            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode2 className="w-4 h-4" />}
+            Generar HTML
+          </button>
+        </div>
+      </div>
+      <iframe
+        key={version}
+        title="Listados por asignatura"
+        srcDoc={html}
+        className="flex-1 w-full border-0 bg-white"
+      />
+    </>
+  );
+}
 
 function EnviarModal({
   total, nombreCampanya, descripcionCampanya, onNombre, onDescripcion,

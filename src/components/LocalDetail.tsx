@@ -89,6 +89,8 @@ interface Props {
   yaTieneAmpliacion: boolean;
   /** Modo Solo Lectura: bloquea Borrar, Crear Ampliación y Subir a la Nube. */
   readOnly?: boolean;
+  /** Temporales pendientes del curso, para el selector "Sustituye a…" en matrículas reales. */
+  temporalesPendientes?: MatriculaLocal[];
   onSave: (changes: Partial<MatriculaLocal>) => void;
   onAmpliacion: () => void;
   onSubirNube: () => void;
@@ -129,6 +131,7 @@ export default function LocalDetail({
   subirError,
   yaTieneAmpliacion,
   readOnly = false,
+  temporalesPendientes = [],
   onSave,
   onAmpliacion,
   onSubirNube,
@@ -149,6 +152,7 @@ export default function LocalDetail({
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [pdfBase64Preview, setPdfBase64Preview] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [showInlinePdf, setShowInlinePdf] = useState(false);
 
   // Clave con la que se guarda el fichero PDF:
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
@@ -162,10 +166,36 @@ export default function LocalDetail({
     }
     setLoadingPdf(true);
     try {
-      const base64 = await cursosStore.leerPdf(curso, pdfKey);
-      if (!base64) return; // el fichero no existe aún
+      let base64 = await cursosStore.leerPdf(curso, pdfKey);
+      if (!base64 && m.localId) {
+        base64 = await cursosStore.leerPdf(curso, m.localId);
+      }
+      if (!base64) return;
       setPdfBase64Preview(base64);
       setShowPdfPreview(true);
+    } finally {
+      setLoadingPdf(false);
+    }
+  }
+
+  async function loadInlinePdf() {
+    if (pdfBase64Preview && showInlinePdf) {
+      setShowInlinePdf(false);
+      return;
+    }
+    if (pdfBase64Preview) {
+      setShowInlinePdf(true);
+      return;
+    }
+    setLoadingPdf(true);
+    try {
+      let base64 = await cursosStore.leerPdf(curso, pdfKey);
+      if (!base64 && m.localId) {
+        base64 = await cursosStore.leerPdf(curso, m.localId);
+      }
+      if (!base64) return;
+      setPdfBase64Preview(base64);
+      setShowInlinePdf(true);
     } finally {
       setLoadingPdf(false);
     }
@@ -178,8 +208,15 @@ export default function LocalDetail({
     let cancelled = false;
     cursosStore.tienePdf(curso, pdfKey).then((existe) => {
       if (!cancelled && existe) {
-        // Actualizar el flag sin marcar como pendiente de subida
         onSave({ _tienePdf: true });
+        return;
+      }
+      if (!cancelled && m.localId) {
+        cursosStore.tienePdf(curso, m.localId).then((existeLocal) => {
+          if (!cancelled && existeLocal) {
+            onSave({ _tienePdf: true });
+          }
+        });
       }
     }).catch(() => { /* silencioso */ });
     return () => { cancelled = true; };
@@ -419,6 +456,18 @@ export default function LocalDetail({
                   REPETIDOR
                 </span>
               )}
+              {m.esTemporal && (
+                <span
+                  className={
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border " +
+                    (m.temporalEstado === "sustituido"
+                      ? "bg-slate-100 text-slate-500 border-slate-200"
+                      : "bg-orange-100 text-orange-700 border-orange-200")
+                  }
+                >
+                  {m.temporalEstado === "sustituido" ? "Temporal sustituido" : "Alumno temporal"}
+                </span>
+              )}
             </div>
 
             {/* Nombre editable */}
@@ -456,11 +505,52 @@ export default function LocalDetail({
               <span className="font-bold uppercase tracking-wide text-[10.5px]">Esp.</span>
               <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{m.especialidad ?? "—"}</span>
             </div>
+
+            {/* Temporal: aviso · Real: selector "Sustituye a…" */}
+            {m.esTemporal ? (
+              <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
+                Registro temporal para horarios: no se sube a la nube ni genera PDF. Se sustituirá por un
+                alumno real desde la pestaña Temporales.
+              </div>
+            ) : (
+              (() => {
+                const candidatos = temporalesPendientes.filter(
+                  (t) =>
+                    t.ensenanzaCurso === m.ensenanzaCurso &&
+                    (t.especialidad ?? "") === (m.especialidad ?? ""),
+                );
+                if (candidatos.length === 0 && !m.sustituyeATemporalId) return null;
+                return (
+                  <div className="mt-3 flex items-center gap-2 text-xs">
+                    <span className="font-bold uppercase tracking-wide text-[10.5px]" style={{ color: "var(--tc-ink-mute)" }}>
+                      Sustituye a
+                    </span>
+                    <select
+                      value={m.sustituyeATemporalId ?? ""}
+                      disabled={readOnly}
+                      onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null })}
+                      className="text-xs py-1 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)] max-w-[280px]"
+                    >
+                      <option value="">— Ningún temporal —</option>
+                      {candidatos.map((t) => (
+                        <option key={t.localId} value={t.localId}>{t.nombre}</option>
+                      ))}
+                    </select>
+                    {m.sustituyeATemporalId && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                        Pendiente de ejecutar en Temporales
+                      </span>
+                    )}
+                  </div>
+                );
+              })()
+            )}
           </div>
 
           {/* Acciones rápidas: menú + borrar */}
           <div className="shrink-0 flex items-start gap-2 pt-1">
-            {/* Menú tres puntos */}
+            {/* Menú tres puntos (sin PDF/Nube para temporales) */}
+            {!m.esTemporal && (
             <div
               className="relative"
               onMouseEnter={() => setMenuOpen(true)}
@@ -538,6 +628,7 @@ export default function LocalDetail({
                 </div>
               )}
             </div>
+            )}
 
             {/* Borrar */}
             {confirmDelete && !readOnly ? (
@@ -1028,6 +1119,43 @@ export default function LocalDetail({
                 )}
               </div>
 
+              {m._tienePdf && (
+                <div
+                  className="border rounded-lg overflow-hidden"
+                  style={{ borderColor: "var(--tc-border)" }}
+                >
+                  <button
+                    onClick={() => void loadInlinePdf()}
+                    disabled={loadingPdf}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors"
+                    style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)" }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" style={{ color: "var(--tc-primary)" }} />
+                      {showInlinePdf ? "Ocultar visor PDF" : "Ver PDF en línea"}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${showInlinePdf ? "rotate-180" : ""}`}
+                      style={{ color: "var(--tc-ink-mute)" }}
+                    />
+                  </button>
+                  {showInlinePdf && (
+                    <div className="border-t" style={{ borderColor: "var(--tc-border)" }}>
+                      {pdfBase64Preview ? (
+                        <PdfViewer
+                          contentBase64={pdfBase64Preview}
+                          fileName={`matricula_${m.apellidos}_${m.nombre}.pdf`.replace(/\s+/g, "_")}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center p-8 text-sm" style={{ color: "var(--tc-ink-mute)" }}>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Cargando PDF...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div
                 className="pt-3 border-t grid grid-cols-2 gap-x-8 gap-y-2 text-xs"
                 style={{ borderColor: "var(--tc-border-soft)", color: "var(--tc-ink-mute)" }}
@@ -1056,7 +1184,12 @@ export default function LocalDetail({
           className="px-6 py-4 flex flex-wrap items-center gap-2"
           style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
         >
-          {!m.ampliacion && !m.anulacion && !yaTieneAmpliacion && (
+          {m.esTemporal && (
+            <p className="self-center text-xs" style={{ color: "var(--tc-ink-mute)" }}>
+              Registro temporal: sin subida a la nube, PDF ni ampliación.
+            </p>
+          )}
+          {!m.esTemporal && !m.ampliacion && !m.anulacion && !yaTieneAmpliacion && (
             <button
               onClick={() => !readOnly && onAmpliacion()}
               disabled={isSaving || readOnly}
@@ -1068,7 +1201,7 @@ export default function LocalDetail({
               Crear Ampliación
             </button>
           )}
-          {!m.ampliacion && !m.anulacion && yaTieneAmpliacion && (
+          {!m.esTemporal && !m.ampliacion && !m.anulacion && yaTieneAmpliacion && (
             <span
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border"
               style={{
@@ -1082,6 +1215,7 @@ export default function LocalDetail({
               Ampliación ya creada
             </span>
           )}
+          {!m.esTemporal && (
           <button
             onClick={onGenerarPdf}
             disabled={isSaving}
@@ -1091,7 +1225,8 @@ export default function LocalDetail({
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
             {m._tienePdf ? "Regenerar PDF" : m.ampliacion ? "Generar PDF" : "Obtener PDF"}
           </button>
-          {m._tienePdf && (
+          )}
+          {!m.esTemporal && m._tienePdf && (
             <button
               onClick={() => void abrirVisorPdf()}
               disabled={loadingPdf}
@@ -1102,6 +1237,7 @@ export default function LocalDetail({
               Descargar PDF
             </button>
           )}
+          {!m.esTemporal && (
           <button
             onClick={() => !readOnly && onSubirNube()}
             disabled={isSaving || !m._pendienteSubida || readOnly}
@@ -1111,7 +1247,8 @@ export default function LocalDetail({
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
             Subir a la Nube
           </button>
-          {!m._pendienteSubida && (
+          )}
+          {!m.esTemporal && !m._pendienteSubida && (
             <p className="self-center text-xs" style={{ color: "var(--tc-ink-mute)" }}>Sin cambios pendientes de subir</p>
           )}
 

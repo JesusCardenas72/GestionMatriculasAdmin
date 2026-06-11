@@ -130,6 +130,19 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
           {m.especialidad && (
             <span className="text-xs text-[var(--tc-ink-mute)] truncate">{m.especialidad}</span>
           )}
+          {m.esTemporal && (
+            <span className={
+              "shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold border " +
+              (m.temporalEstado === "sustituido"
+                ? "bg-slate-100 text-slate-500 border-slate-200"
+                : "bg-orange-100 text-orange-700 border-orange-200")
+            }>
+              {m.temporalEstado === "sustituido" ? "SUSTITUIDO" : "TEMPORAL"}
+            </span>
+          )}
+          {!m.esTemporal && m.sustituyeATemporalId && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">SUSTITUYE</span>
+          )}
           {m.repetidor && (
             <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REPETIDOR</span>
           )}
@@ -177,6 +190,14 @@ function SingleRow({ m, isSelected, onSelect }: SingleRowProps) {
           </span>
           {m.anulacion && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold bg-red-100 text-red-600">Anul.</span>
+          )}
+          {m.esTemporal && (
+            <span className={
+              "shrink-0 px-1 py-px rounded text-[9px] font-semibold " +
+              (m.temporalEstado === "sustituido" ? "bg-slate-100 text-slate-500" : "bg-orange-100 text-orange-700")
+            }>
+              {m.temporalEstado === "sustituido" ? "Sust." : "Temp."}
+            </span>
           )}
           {m.ampliacion && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>Amp.</span>

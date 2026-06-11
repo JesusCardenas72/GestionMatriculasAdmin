@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppConfig } from "../../electron/config-store";
 import {
   ESTADO,
@@ -181,6 +181,7 @@ export default function LocalScreen({ config }: Props) {
     const obsoletos: string[] = [];
     if (listaCompleta) {
       for (const m of matriculas) {
+        if (m.esTemporal) continue; // placeholder de horarios, nunca existe en la nube
         if (m._pendienteSubida) continue; // tiene cambios sin sincronizar, no tocar
         if (m.rowId === null) continue; // creación local en curso (ampliación no subida)
         if (!remoteRowIds.has(m.rowId)) {
@@ -586,7 +587,7 @@ export default function LocalScreen({ config }: Props) {
   }
 
   async function handleSubirNubeTodo() {
-    const pendientes = matriculas.filter((m) => m._pendienteSubida);
+    const pendientes = matriculas.filter((m) => m._pendienteSubida && !m.esTemporal);
     if (pendientes.length === 0) return;
     setIsSubiendoTodo(true);
     setSubirTodoError(null);
@@ -663,7 +664,21 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
-  const pendingUploads = matriculas.filter((m) => m._pendienteSubida).length;
+  const pendingUploads = matriculas.filter((m) => m._pendienteSubida && !m.esTemporal).length;
+
+  // Temporales pendientes ofrecibles en el selector "Sustituye a…": los que no
+  // están ya vinculados por OTRA matrícula real distinta de la seleccionada.
+  const temporalesPendientes = useMemo(() => {
+    const usados = new Set<string>();
+    for (const m of matriculas) {
+      if (!m.esTemporal && m.sustituyeATemporalId && m.localId !== selected?.localId) {
+        usados.add(m.sustituyeATemporalId);
+      }
+    }
+    return matriculas.filter(
+      (m) => m.esTemporal && m.temporalEstado !== "sustituido" && !usados.has(m.localId),
+    );
+  }, [matriculas, selected?.localId]);
 
   const estadoPorRowId = new Map<string, EstadoTramite>();
   for (const s of pendienteTramitacionQuery.data?.solicitudes ?? []) {
@@ -692,9 +707,9 @@ export default function LocalScreen({ config }: Props) {
       <ResizableColumns
         id="local"
         defaultLeftSize="380px"
-        className="flex-1 overflow-hidden px-6 py-5"
+        className="flex-1 overflow-hidden"
         left={
-          <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
+          <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col ml-6 mr-3 my-5">
             <LocalList
               data={matriculas}
               isLoading={isLoading || isFetching}
@@ -743,7 +758,7 @@ export default function LocalScreen({ config }: Props) {
           </div>
         }
         right={
-          <div className="h-full overflow-y-auto pb-6 px-4">
+          <div className="h-full overflow-y-auto pb-6 px-4 ml-3 mr-6 my-5 bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm">
             {selected ? (
               <LocalDetail
                 matricula={selected}
@@ -752,6 +767,7 @@ export default function LocalScreen({ config }: Props) {
                 subirError={subirError}
                 yaTieneAmpliacion={yaTieneAmpliacion}
                 readOnly={isSoloLectura}
+                temporalesPendientes={temporalesPendientes}
                 onSave={(changes) => void handleSaveEdit(changes)}
                 onAmpliacion={() => {
                   if (isSoloLectura || yaTieneAmpliacion) return;

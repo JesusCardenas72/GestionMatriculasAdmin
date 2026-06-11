@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import type { CargaHorarios, ClaseHorario, HorarioAlumno } from '../horarios/types';
 
 /** Quita acentos, espacios sobrantes y pasa a minúsculas para comparar cabeceras. */
-function norm(s: string): string {
+export function norm(s: string): string {
   return s
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -12,7 +12,7 @@ function norm(s: string): string {
 }
 
 /** Texto plano de una celda de ExcelJS (soporta string, número, fórmula, fecha, richText). */
-function cellText(value: ExcelJS.CellValue): string {
+export function cellText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number') return String(value);
@@ -47,7 +47,7 @@ export async function parseHorariosExcel(
   base64: string,
   fileName: string,
 ): Promise<CargaHorarios> {
-  const bytes = Buffer.from(base64, 'base64');
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(bytes as any);
 

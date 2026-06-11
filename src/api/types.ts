@@ -202,6 +202,8 @@ export interface FilaInforme extends Solicitud {
   asigHorario?: string | null;
   /** Campo calculado: "Apellidos, Nombre" */
   nombreCompleto?: string;
+  /** true si la fila proviene de un alumno temporal pendiente (placeholder de horarios) */
+  esTemporal?: boolean;
 }
 
 export type OperadorFiltro =
@@ -294,6 +296,18 @@ export interface MatriculaLocal {
   ampliacion: boolean;
   ampliada: boolean;
   textoFormateado?: boolean;
+
+  // ── Alumnos temporales (placeholders para horarios) ──
+  /** true si es un registro placeholder creado desde la pestaña Temporales */
+  esTemporal?: boolean;
+  /** Numeración estable "PDTE. N" dentro del curso escolar (no se reutiliza al borrar) */
+  temporalNumero?: number;
+  /** Estado del temporal: pendiente de sustituir o ya sustituido por una matrícula real */
+  temporalEstado?: "pendiente" | "sustituido";
+  /** En temporales: localId de la matrícula real que lo sustituyó */
+  sustituidoPorLocalId?: string | null;
+  /** En matrículas reales: localId del temporal pendiente al que sustituirá */
+  sustituyeATemporalId?: string | null;
 
   _pendienteSubida: boolean;
   _guardadoEn: string;

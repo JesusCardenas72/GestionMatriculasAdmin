@@ -660,7 +660,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               )}
               {pdfVacio && <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Esta solicitud no tiene PDF adjunto.</p>}
               {(pdfQuery.data?.contentBase64 ?? localPdfBase64) && (
-                <div className="h-[75vh]">
+<div className="h-[75vh]">
                   <PdfViewer
                     contentBase64={(pdfQuery.data?.contentBase64 ?? localPdfBase64)!}
                     fileName={pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`}
@@ -728,10 +728,10 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
       {DetailHeader}
 
       {/* Cuerpo: dos columnas */}
-      <div className="flex-1 min-h-0 flex gap-5 p-6 overflow-hidden items-start">
+      <div className="flex-1 min-h-0 flex gap-5 p-6 overflow-hidden items-stretch">
 
         {/* Columna izquierda: asignaturas + notas */}
-        <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0 h-full" style={{ minWidth: 0 }}>
+        <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0" style={{ minWidth: 0, height: "calc(100vh - 280px)" }}>
 
           {/* Título sección asignaturas */}
           <div className="flex items-center justify-between">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
 // el <iframe> (los blob: no lo activan en subframes de Electron).
 export default function PdfViewer({ contentBase64, fileName }: Props) {
   const [url, setUrl] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let activeId: string | null = null;
@@ -35,14 +36,36 @@ export default function PdfViewer({ contentBase64, fileName }: Props) {
     };
   }, [contentBase64]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateHeight = () => {
+      const rect = container.getBoundingClientRect();
+      const style = container.querySelector("iframe")?.style;
+      if (style) {
+        style.height = `${rect.height}px`;
+      }
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [url]);
+
   return (
-    <div className="h-full min-h-[500px] border border-slate-200 rounded-lg overflow-hidden bg-slate-100">
+    <div ref={containerRef} className="border border-slate-200 rounded-lg overflow-hidden bg-slate-100 w-full h-full">
       {url ? (
         <iframe
           src={url}
           title={fileName || "Solicitud en PDF"}
-          className="w-full h-full"
-          style={{ border: "none" }}
+          className="w-full"
+          style={{ height: "100%", border: "none" }}
         />
       ) : (
         <div className="flex items-center gap-2 text-sm text-slate-500 p-4">
