@@ -27,6 +27,8 @@ export interface AsistenteTemporalesEstado {
   excelProfesoresRecibido: boolean;
   /** ISO timestamp de la última generación del Excel de horarios desde el asistente (paso 2). */
   fechaExcelGenerado: string | null;
+  /** ISO timestamp del último Excel fusionado generado en la ronda actual (paso 6). Se limpia al empezar otra ronda. */
+  fechaFusionadoGenerado: string | null;
 }
 
 interface TemporalesCursoEntrada extends TemporalesCursoConfig {

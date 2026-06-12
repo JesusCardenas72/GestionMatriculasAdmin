@@ -6,6 +6,7 @@ export const ASISTENTE_ESTADO_INICIAL: AsistenteTemporalesEstado = {
   ronda: 1,
   excelProfesoresRecibido: false,
   fechaExcelGenerado: null,
+  fechaFusionadoGenerado: null,
 };
 
 /**
