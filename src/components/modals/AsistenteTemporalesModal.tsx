@@ -1,17 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   BookOpen,
   CheckCircle,
   Circle,
+  FileSpreadsheet,
   Info,
   Lock,
   Play,
+  Plus,
   RefreshCw,
+  Upload,
   X,
 } from "lucide-react";
+import type { MatriculaLocal } from "../../api/types";
 import { useLocalMatriculas } from "../../hooks/useLocalMatriculas";
+import { getEspecialidades } from "../../data/catalogoLocal";
+import { CAMPOS_ASIGNATURA, CAMPOS_META } from "../../data/informesConfig";
+import { crearTemporales, crearTemporalesNominales } from "../../utils/temporales";
+import { parseArchivoTemporales } from "../../utils/importTemporales";
+import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
+import { generarExcelHorarios } from "../../utils/excelHorarios";
 import { useAppMode } from "../../contexts/AppModeProvider";
 import {
   ASISTENTE_ESTADO_INICIAL,
@@ -112,7 +123,7 @@ export function AsistenteTemporalesModal({
   onVerGuia: () => void;
 }) {
   const { isSoloLectura } = useAppMode();
-  const { matriculas, isLoading: cargandoMatriculas } = useLocalMatriculas(curso);
+  const { matriculas, isLoading: cargandoMatriculas, guardarLote } = useLocalMatriculas(curso);
   const { estado, isLoading: cargandoEstado, iniciar, guardar, reiniciar } =
     useAsistenteTemporales(curso);
 
@@ -277,6 +288,21 @@ export function AsistenteTemporalesModal({
 
               {cargando ? (
                 <p className="text-sm text-[var(--tc-ink-mute)]">Cargando…</p>
+              ) : pasoActual === 1 ? (
+                <Paso1Crear
+                  curso={curso}
+                  matriculas={matriculas}
+                  guardarLote={guardarLote}
+                  disabled={isSoloLectura}
+                />
+              ) : pasoActual === 2 ? (
+                <Paso2ExcelHorarios
+                  curso={curso}
+                  matriculas={matriculas}
+                  fechaExcelGenerado={vista.fechaExcelGenerado}
+                  disabled={isSoloLectura}
+                  onGenerado={(fecha) => void guardar({ fechaExcelGenerado: fecha })}
+                />
               ) : (
                 <ContenidoPaso
                   n={paso.n}
@@ -327,10 +353,358 @@ export function AsistenteTemporalesModal({
   );
 }
 
+const CURSOS_OPCIONES = ["EE1", "EE2", "EE3", "EE4", "EP1", "EP2", "EP3", "EP4", "EP5", "EP6"];
+
+function MensajeOk({ texto }: { texto: string }) {
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] text-emerald-700 flex items-start gap-2">
+      <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      <span className="whitespace-pre-line">{texto}</span>
+    </div>
+  );
+}
+
+function MensajeError({ texto }: { texto: string }) {
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700 flex items-start gap-2">
+      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+      <span className="whitespace-pre-line">{texto}</span>
+    </div>
+  );
+}
+
+/** Paso 1: alta manual e importación de temporales, sin salir del asistente. */
+function Paso1Crear({
+  curso,
+  matriculas,
+  guardarLote,
+  disabled,
+}: {
+  curso: string;
+  matriculas: MatriculaLocal[];
+  guardarLote: (nuevas: MatriculaLocal[]) => Promise<void>;
+  disabled: boolean;
+}) {
+  const especialidades = useMemo(() => getEspecialidades(), []);
+  const [formCurso, setFormCurso] = useState("EE1");
+  const [formEspecialidad, setFormEspecialidad] = useState(especialidades[0] ?? "");
+  const [formCantidad, setFormCantidad] = useState(1);
+  const [ocupado, setOcupado] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCrear = async () => {
+    setError(null);
+    setMensaje(null);
+    if (!formEspecialidad || formCantidad < 1) return;
+    setOcupado(true);
+    try {
+      const nuevos = crearTemporales(curso, formCurso, formEspecialidad, formCantidad, matriculas);
+      if (nuevos[0]?.asignaturas.length === 0) {
+        setError(
+          `El catálogo no tiene asignaturas para ${formEspecialidad} ${formCurso}. Revisa el curso y la especialidad.`,
+        );
+        return;
+      }
+      await guardarLote(nuevos);
+      setMensaje(
+        `Creado${nuevos.length > 1 ? "s" : ""} ${nuevos.length} alumno${nuevos.length > 1 ? "s" : ""} temporal${nuevos.length > 1 ? "es" : ""} de ${formEspecialidad} ${formCurso}.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron crear los temporales.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const handleImportar = async (file: File) => {
+    setError(null);
+    setMensaje(null);
+    setOcupado(true);
+    try {
+      const data = await file.arrayBuffer();
+      const { filas, errores: erroresParse } = await parseArchivoTemporales(file.name, data);
+      const { creados, errores: erroresCreacion } = crearTemporalesNominales(curso, filas, matriculas);
+      const avisos = [...erroresParse, ...erroresCreacion];
+
+      if (creados.length === 0) {
+        setError(
+          avisos.length > 0
+            ? `No se ha podido importar ningún alumno:\n${avisos.join("\n")}`
+            : "El archivo no contiene filas de alumnos.",
+        );
+        return;
+      }
+
+      const MAX_DETALLE = 15;
+      const detalle = creados
+        .slice(0, MAX_DETALLE)
+        .map((t) => `• ${t.apellidos}, ${t.nombre} — ${t.especialidad} ${t.ensenanzaCurso}`)
+        .join("\n");
+      const masDetalle = creados.length > MAX_DETALLE ? `\n…y ${creados.length - MAX_DETALLE} más` : "";
+      const avisoTxt = avisos.length > 0 ? `\n\nSe descartarán ${avisos.length} fila(s):\n${avisos.join("\n")}` : "";
+      if (
+        !window.confirm(
+          `Se van a crear ${creados.length} alumno(s) temporal(es) con el sufijo _Temp:\n\n${detalle}${masDetalle}${avisoTxt}\n\n¿Continuar?`,
+        )
+      )
+        return;
+
+      await guardarLote(creados);
+      setMensaje(
+        `Importados ${creados.length} alumno(s) temporal(es) desde "${file.name}".` +
+          (avisos.length > 0 ? ` Se descartaron ${avisos.length} fila(s).` : ""),
+      );
+      if (avisos.length > 0) setError(`Filas descartadas:\n${avisos.join("\n")}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
+    } finally {
+      setOcupado(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  if (disabled) {
+    return (
+      <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
+        En modo Solo Lectura no se pueden crear temporales.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
+          Curso
+          <select
+            value={formCurso}
+            onChange={(e) => setFormCurso(e.target.value)}
+            className="h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
+          >
+            {CURSOS_OPCIONES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
+          Especialidad
+          <select
+            value={formEspecialidad}
+            onChange={(e) => setFormEspecialidad(e.target.value)}
+            className="h-9 min-w-[150px] rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
+          >
+            {especialidades.map((esp) => (
+              <option key={esp} value={esp}>{esp}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
+          Nº de alumnos
+          <input
+            type="number"
+            min={1}
+            max={30}
+            value={formCantidad}
+            onChange={(e) => setFormCantidad(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+            className="h-9 w-20 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
+          />
+        </label>
+        <button
+          onClick={handleCrear}
+          disabled={ocupado || !formEspecialidad}
+          className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-3 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          <Plus className="w-4 h-4" />
+          {ocupado ? "Un momento…" : "Crear temporales"}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-[var(--tc-border-soft)]">
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={ocupado}
+          className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-3 text-sm font-semibold text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50 transition-colors"
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          Importar desde Excel o CSV
+        </button>
+        <p className="text-[11px] text-[var(--tc-ink-mute)] flex-1 min-w-[200px]">
+          Columnas: <strong>Apellidos</strong>, <strong>Nombre</strong>, <strong>Grado/Curso</strong>{" "}
+          (EE1–EE4, EP1–EP6) y <strong>Especialidad</strong>. Se crean con el sufijo <strong>_Temp</strong>.
+        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.csv,.txt"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleImportar(f);
+          }}
+        />
+      </div>
+
+      {mensaje && <MensajeOk texto={mensaje} />}
+      {error && <MensajeError texto={error} />}
+    </div>
+  );
+}
+
+/** Campos por defecto del Excel de horarios generado desde el asistente. */
+const CAMPOS_HORARIOS_DEFECTO = ["nombreCompleto", "ensenanzaCurso", "especialidad", "asigNombre", "email", "telefono"];
+
+/** Paso 2: generación del Excel de horarios, con carga del CSV de profesores in situ. */
+function Paso2ExcelHorarios({
+  curso,
+  matriculas,
+  fechaExcelGenerado,
+  disabled,
+  onGenerado,
+}: {
+  curso: string;
+  matriculas: MatriculaLocal[];
+  fechaExcelGenerado: string | null;
+  disabled: boolean;
+  onGenerado: (fechaIso: string) => void;
+}) {
+  const [nProfesores, setNProfesores] = useState<number | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.adminAPI.horarios
+      .profesoresGuardados()
+      .then(({ profesores }) => setNProfesores(profesores.length))
+      .catch(() => setNProfesores(0));
+  }, []);
+
+  const handleCargarProfesores = async () => {
+    setError(null);
+    try {
+      const preview = await window.adminAPI.horarios.profesoresPrevisualizarCsv();
+      if (!preview) return; // el usuario canceló
+      const muestra = preview.muestraProfesores.slice(0, 8).join(", ");
+      if (
+        !window.confirm(
+          `Se han detectado ${preview.totalProfesores} profesores (columna «${preview.columnaDetectada}»).\n\nEjemplos: ${muestra}…\n\n¿Usar esta lista?`,
+        )
+      )
+        return;
+      const result = await window.adminAPI.horarios.profesoresConfirmarCsv(preview.path);
+      if (result) {
+        setNProfesores(result.profesores.length);
+        setMensaje(`Lista de profesores cargada: ${result.profesores.length} profesores.`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cargar el CSV de profesores.");
+    }
+  };
+
+  const handleGenerar = async () => {
+    setError(null);
+    setMensaje(null);
+    setOcupado(true);
+    try {
+      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+      if (profesores.length === 0) {
+        setError("No se ha cargado la lista de profesores. Usa el botón «Cargar profesores (CSV)…» de arriba.");
+        return;
+      }
+      const filas = filasAsignaturaLocales(matriculas);
+      if (filas.length === 0) {
+        setError("No hay ningún alumno con asignaturas en este curso: no hay nada que poner en el Excel.");
+        return;
+      }
+      const todos = [...CAMPOS_META, ...CAMPOS_ASIGNATURA];
+      const campos = CAMPOS_HORARIOS_DEFECTO.map((k) => todos.find((c) => c.key === k)).filter(
+        (c): c is NonNullable<typeof c> => c != null,
+      );
+      const base64 = await generarExcelHorarios(filas, campos, profesores, {
+        congelar: true,
+        congelarHasta: "especialidad",
+        insertarTras: "asigNombre",
+      });
+      const exportado = await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: `Horarios ${curso.replace("/", "-")}`,
+        extension: "xlsx",
+      });
+      if (exportado !== null) {
+        const ahora = new Date().toISOString();
+        onGenerado(ahora);
+        setMensaje(
+          `Excel de horarios generado con ${filas.length} fila(s). Los temporales van con fondo naranja. Ya puedes hacérselo llegar a los profesores.`,
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el Excel de horarios.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {nProfesores === 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 flex items-center gap-2 flex-wrap">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span className="flex-1 min-w-[180px]">
+            Falta la lista de profesores: el Excel la necesita para los desplegables.
+          </span>
+          {!disabled && (
+            <button
+              onClick={handleCargarProfesores}
+              className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Cargar profesores (CSV)…
+            </button>
+          )}
+        </div>
+      )}
+      {nProfesores !== null && nProfesores > 0 && (
+        <p className="text-[12px] text-[var(--tc-ink-soft)]">
+          Lista de profesores cargada ({nProfesores}).{" "}
+          {!disabled && (
+            <button onClick={handleCargarProfesores} className="text-[var(--tc-primary)] underline">
+              Cambiar…
+            </button>
+          )}
+        </p>
+      )}
+
+      {!disabled && (
+        <div>
+          <button
+            onClick={handleGenerar}
+            disabled={ocupado || nProfesores === 0}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            {ocupado ? "Generando…" : "Generar Excel de horarios"}
+          </button>
+        </div>
+      )}
+
+      {fechaExcelGenerado && (
+        <p className="text-[12px] text-emerald-700">
+          Último Excel generado el {new Date(fechaExcelGenerado).toLocaleString("es-ES")}. Puedes volver a
+          generarlo si creas más temporales.
+        </p>
+      )}
+      {mensaje && <MensajeOk texto={mensaje} />}
+      {error && <MensajeError texto={error} />}
+    </div>
+  );
+}
+
 /**
- * Contenido específico de cada paso. En esta fase solo está operativo el check
- * manual del paso 3; las acciones integradas del resto de pasos llegan en las
- * fases 3–6 del plan (docs/alumnos-temporales.md, sección 11).
+ * Contenido de los pasos aún sin acciones integradas. El check manual del
+ * paso 3 ya es operativo; el resto llega en las fases 4–6 del plan
+ * (docs/alumnos-temporales.md, sección 11).
  */
 function ContenidoPaso({
   n,
@@ -355,13 +729,6 @@ function ContenidoPaso({
         />
         Ya tengo el Excel relleno por los profesores
       </label>
-    );
-  }
-  if (n === 2 && vista.fechaExcelGenerado) {
-    return (
-      <p className="text-[12px] text-emerald-700">
-        Excel generado el {new Date(vista.fechaExcelGenerado).toLocaleString("es-ES")}.
-      </p>
     );
   }
   if (n === 6 && vista.fechaFusionadoGenerado) {
