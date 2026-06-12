@@ -19,7 +19,12 @@ import type { MatriculaLocal } from "../../api/types";
 import { useLocalMatriculas } from "../../hooks/useLocalMatriculas";
 import { getEspecialidades } from "../../data/catalogoLocal";
 import { CAMPOS_ASIGNATURA, CAMPOS_META } from "../../data/informesConfig";
-import { crearTemporales, crearTemporalesNominales } from "../../utils/temporales";
+import {
+  crearTemporales,
+  crearTemporalesNominales,
+  esTemporalPendiente,
+  nombreVisibleTemporal,
+} from "../../utils/temporales";
 import { parseArchivoTemporales } from "../../utils/importTemporales";
 import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
 import { generarExcelHorarios } from "../../utils/excelHorarios";
@@ -123,7 +128,7 @@ export function AsistenteTemporalesModal({
   onVerGuia: () => void;
 }) {
   const { isSoloLectura } = useAppMode();
-  const { matriculas, isLoading: cargandoMatriculas, guardarLote } = useLocalMatriculas(curso);
+  const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar } = useLocalMatriculas(curso);
   const { estado, isLoading: cargandoEstado, iniciar, guardar, reiniciar } =
     useAsistenteTemporales(curso);
 
@@ -303,6 +308,8 @@ export function AsistenteTemporalesModal({
                   disabled={isSoloLectura}
                   onGenerado={(fecha) => void guardar({ fechaExcelGenerado: fecha })}
                 />
+              ) : pasoActual === 4 ? (
+                <Paso4Vincular matriculas={matriculas} actualizar={actualizar} disabled={isSoloLectura} />
               ) : (
                 <ContenidoPaso
                   n={paso.n}
@@ -702,8 +709,145 @@ function Paso2ExcelHorarios({
 }
 
 /**
+ * Paso 4: tabla de vinculación temporal ↔ matrícula real. Misma operación que
+ * el selector «Sustituye al alumno temporal» de la ficha Local, pero vista
+ * desde el temporal y con todos los pendientes juntos. Es bidireccional: lo
+ * vinculado aquí se ve en Local y viceversa.
+ */
+function Paso4Vincular({
+  matriculas,
+  actualizar,
+  disabled,
+}: {
+  matriculas: MatriculaLocal[];
+  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
+  disabled: boolean;
+}) {
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /** localId de temporal → matrícula real vinculada a él. */
+  const vinculadoPor = useMemo(() => {
+    const mapa = new Map<string, MatriculaLocal>();
+    for (const m of matriculas) {
+      if (!m.esTemporal && m.sustituyeATemporalId) mapa.set(m.sustituyeATemporalId, m);
+    }
+    return mapa;
+  }, [matriculas]);
+
+  const temporales = useMemo(
+    () =>
+      matriculas
+        .filter(esTemporalPendiente)
+        .sort(
+          (a, b) =>
+            `${a.especialidad ?? ""} ${a.ensenanzaCurso}`.localeCompare(
+              `${b.especialidad ?? ""} ${b.ensenanzaCurso}`,
+              "es",
+            ) || (a.temporalNumero ?? 0) - (b.temporalNumero ?? 0),
+        ),
+    [matriculas],
+  );
+
+  /** Matrículas reales que puede elegir un temporal: mismo curso y especialidad, sin otro vínculo. */
+  const candidatasDe = (t: MatriculaLocal): MatriculaLocal[] =>
+    matriculas
+      .filter(
+        (m) =>
+          !m.esTemporal &&
+          m.ensenanzaCurso === t.ensenanzaCurso &&
+          (m.especialidad ?? "") === (t.especialidad ?? "") &&
+          (!m.sustituyeATemporalId || m.sustituyeATemporalId === t.localId),
+      )
+      .sort((a, b) => `${a.apellidos}, ${a.nombre}`.localeCompare(`${b.apellidos}, ${b.nombre}`, "es"));
+
+  const handleVincular = async (t: MatriculaLocal, realId: string) => {
+    setError(null);
+    setOcupado(true);
+    try {
+      const actual = vinculadoPor.get(t.localId);
+      if (actual && actual.localId !== realId) {
+        await actualizar(actual.localId, { sustituyeATemporalId: null });
+      }
+      if (realId && actual?.localId !== realId) {
+        await actualizar(realId, { sustituyeATemporalId: t.localId });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar el vínculo.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  if (temporales.length === 0) {
+    return (
+      <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
+        No hay temporales pendientes de vincular en este curso.
+      </p>
+    );
+  }
+
+  const nVinculados = temporales.filter((t) => vinculadoPor.has(t.localId)).length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-xl border border-[var(--tc-border)] overflow-hidden">
+        <div className="grid grid-cols-2 gap-2 px-3 py-2 bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)]">
+          <span>Temporal pendiente</span>
+          <span>Matrícula real que lo sustituye</span>
+        </div>
+        <div className="max-h-[260px] overflow-y-auto">
+          {temporales.map((t) => {
+            const candidatas = candidatasDe(t);
+            const vinculada = vinculadoPor.get(t.localId);
+            return (
+              <div
+                key={t.localId}
+                className="grid grid-cols-2 gap-2 items-center px-3 py-2 border-t border-[var(--tc-border-soft)]"
+              >
+                <span
+                  className={`text-sm truncate ${vinculada ? "text-[var(--tc-ink-soft)]" : "font-medium text-orange-700"}`}
+                  title={nombreVisibleTemporal(t)}
+                >
+                  {nombreVisibleTemporal(t)}
+                </span>
+                {candidatas.length === 0 && !vinculada ? (
+                  <span className="text-[11px] italic text-[var(--tc-ink-mute)]">
+                    Sin matrículas compatibles todavía
+                  </span>
+                ) : (
+                  <select
+                    value={vinculada?.localId ?? ""}
+                    disabled={disabled || ocupado}
+                    onChange={(e) => void handleVincular(t, e.target.value)}
+                    className="h-8 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-xs text-[var(--tc-ink)] min-w-0"
+                  >
+                    <option value="">— Sin asignar —</option>
+                    {candidatas.map((m) => (
+                      <option key={m.localId} value={m.localId}>
+                        {m.apellidos}, {m.nombre}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <p className="text-[11px] text-[var(--tc-ink-mute)]">
+        {nVinculados} de {temporales.length} vinculados. Solo se ofrecen matrículas del mismo curso y
+        especialidad sin otro vínculo. No hace falta vincularlos todos: los que falten caerán en la
+        siguiente ronda.
+      </p>
+      {error && <MensajeError texto={error} />}
+    </div>
+  );
+}
+
+/**
  * Contenido de los pasos aún sin acciones integradas. El check manual del
- * paso 3 ya es operativo; el resto llega en las fases 4–6 del plan
+ * paso 3 ya es operativo; el resto llega en las fases 5–6 del plan
  * (docs/alumnos-temporales.md, sección 11).
  */
 function ContenidoPaso({
