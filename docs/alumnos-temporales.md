@@ -218,3 +218,71 @@ Las **columnas se mantienen en el mismo orden** que el Excel original y las fila
 ### Tests
 
 `src/utils/__tests__/`: `temporales.test.ts`, `importTemporales.test.ts`, `fusionHorarios.test.ts`, `fusionTemporales.test.ts`. Ejecutar con `npm test`.
+
+---
+
+## 11. Asistente paso a paso (en desarrollo)
+
+> Diseño aprobado el 2026-06-12 en una sesión de tormenta de ideas. Esta sección es la documentación de referencia; el documento original de la sesión está en `docs/superpowers/specs/2026-06-12-asistente-temporales-design.md`.
+
+### Qué es
+
+Una ventana tipo asistente que guía **todo el proceso de este documento** (pasos 1–8 de la chuleta) de principio a fin, con las acciones integradas dentro y memoria del progreso entre sesiones. El objetivo: que el orden correcto sea el único posible y no haya que consultar la guía para recordar qué toca.
+
+### Decisiones de diseño
+
+| Decisión | Elección |
+|---|---|
+| Tipo | Guía con acciones integradas (no solo navegación) |
+| Progreso | Mixto: detección automática desde los datos + casilla manual solo en el paso «Profesores rellenan» |
+| Forma | Modal con columna lateral de pasos (mapa siempre visible) + zona de trabajo a la derecha |
+| Acceso | Botón «Asistente» en la pestaña Temporales + franja de aviso si hay un proceso a medias |
+| Guía actual | Se conserva como consulta; enlazada desde el pie de la columna del asistente |
+| Pasos de otras pantallas | Integración total: todo se hace sin salir del asistente |
+| Ciclos | Los pasos 4–7 forman un bloque repetible con contador de rondas |
+
+### Estructura
+
+La columna lateral agrupa los 8 pasos en tres bloques:
+
+- **PREPARACIÓN**: 1 Crear temporales · 2 Excel de horarios · 3 Profesores rellenan
+- **CICLO DE SUSTITUCIONES (Ronda N)**: 4 Vincular · 5 Ejecutar · 6 Excel fusionado · 7 Eliminar sustituidos
+- **FINAL**: 8 Enviar horarios
+
+Estados visuales por paso: verde con check (hecho), azul (actual), gris (pendiente), con contadores reales al lado (12 creados, 3/5 vinculados…). Pie de columna: «Ver guía completa» y «Reiniciar proceso» (con confirmación; borra el estado del asistente, no los datos).
+
+Al completar el paso 7, el asistente comprueba si quedan temporales pendientes: si quedan, ofrece empezar la **Ronda N+1** (los pasos 4–7 vuelven a pendiente, el 1–3 queda hecho); si no, avanza al paso 8.
+
+### Contenido de cada paso
+
+1. **Crear temporales** — formulario manual + importación Excel/CSV embebidos (misma lógica de la pestaña). Auto-hecho con ≥1 temporal; se puede permanecer para crear más.
+2. **Generar Excel de horarios** — botón «Generar Excel» (reutiliza `generarExcelHorarios`). Si falta el CSV de profesores, lo avisa y ofrece «Cargar profesores (CSV)…» in situ. Guarda y muestra la fecha de generación.
+3. **Profesores rellenan** — paso externo: texto + casilla manual «Ya tengo el Excel relleno».
+4. **Vincular** — tabla con cada temporal pendiente y un desplegable de matrículas reales compatibles (mismo curso + especialidad, sin vincular). Equivale al desplegable de la ficha Local y es bidireccional con él. No exige vincular todos para avanzar.
+5. **Ejecutar sustituciones** — resumen de emparejamientos (`planSustituciones`) + botón «Ejecutar (N)» + fecha programada.
+6. **Excel fusionado** — botón con resumen de confirmación (lógica de fusión existente) y la regla de oro bien visible.
+7. **Eliminar sustituidos** — botón «Eliminar sustituidos (N)», solo accesible tras completar el 6 (el orden del asistente hace imposible borrar antes de fusionar). Al completarlo → pregunta de fin de ronda.
+8. **Enviar horarios a nuevos** — lista de alumnos NUEVO sin horario enviado, con casillas + botón de envío (reutiliza el envío de Horarios Individuales).
+
+Si un paso no puede avanzar, el asistente explica qué falta con los textos de «Problemas frecuentes» (sección 9).
+
+### Persistencia y casos especiales
+
+- Estado guardado **por curso académico** vía la config de temporales (`electron/temporales-store.ts`, IPC `temporales:*`, como `fechaProgramada`): paso actual, ronda, check manual del paso 3 y fecha del Excel generado.
+- Los pasos 1, 2, 4, 5, 6, 7 y 8 se detectan de los datos locales; solo el 3 es manual.
+- Pasos hechos clicables para revisar/repetir; futuros bloqueados hasta cumplir requisito.
+- **Modo Solo Lectura**: el asistente se abre en consulta con los botones de acción desactivados (`useAppMode`).
+- Proceso anual: con cada curso académico el asistente parte de cero.
+
+### Plan de implementación (por fases)
+
+| Fase | Contenido | Archivos principales |
+|---|---|---|
+| 1 | Estado y persistencia: ampliar la config de temporales con el estado del asistente por curso (paso, ronda, checks) | `electron/temporales-store.ts`, IPC, `src/api` |
+| 2 | Esqueleto del modal: columna lateral con bloques, navegación, detección automática de paso hecho/actual/bloqueado | `src/components/modals/AsistenteTemporalesModal.tsx` (nuevo) |
+| 3 | Pasos 1–3: crear/importar embebidos, generar Excel con aviso de CSV de profesores, check manual | reutiliza `TemporalesScreen`, `importTemporales`, `excelHorarios` |
+| 4 | Paso 4: tabla de vinculación temporal ↔ matrícula real | reutiliza la lógica del desplegable de `LocalDetail` |
+| 5 | Pasos 5–7 + lógica de rondas y pregunta de fin de ronda | reutiliza `planSustituciones`, fusión y borrado existentes |
+| 6 | Paso 8 (envío), botón «Asistente» y franja de aviso en `TemporalesScreen`, modo Solo Lectura, tests | `TemporalesScreen.tsx`, `HorariosAlumnosScreen` (envío), tests nuevos |
+
+Cada fase deja la app funcionando; el asistente no cambia el comportamiento de ninguna pantalla existente (todo lo que hace ya se podía hacer fuera de él).

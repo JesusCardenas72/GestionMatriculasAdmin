@@ -3,6 +3,10 @@
 **Fecha:** 2026-06-12
 **Estado:** Aprobado por el usuario (brainstorming completado)
 
+> **Documentación de referencia:** este archivo es el acta de la sesión de diseño.
+> La documentación viva del asistente (que se mantiene al día junto con el resto
+> del proceso) está en la **sección 11 de `docs/alumnos-temporales.md`**.
+
 ## Objetivo
 
 Una ventana tipo asistente (wizard) que guía todo el proceso de Alumnos Temporales
