@@ -167,7 +167,10 @@ export default function MainScreen({ config }: Props) {
 
   return (
     <div className="h-screen flex flex-col bg-[var(--tc-bg)] overflow-hidden">
-      <header className="h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center gap-4">
+      <header className="relative h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center gap-4">
+        <span className="absolute top-1 left-2.5 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
+          v.{__APP_VERSION__} &mdash; by Jesús Cárdenas (C.P.M. &quot;Marcos Redondo&quot;)
+        </span>
         <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => setCursoModalOpen(true)}
@@ -369,7 +372,7 @@ export default function MainScreen({ config }: Props) {
       {active === "local" ? (
         <LocalScreen config={config} />
       ) : active === "temporales" ? (
-        <TemporalesScreen />
+        <TemporalesScreen config={config} />
       ) : active === "informes" ? (
         <InformesScreen config={config} />
       ) : active === "horarios" ? (

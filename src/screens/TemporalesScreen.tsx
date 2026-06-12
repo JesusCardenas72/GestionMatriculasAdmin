@@ -8,6 +8,7 @@ import {
   Hourglass,
   Link2,
   Link2Off,
+  ListChecks,
   Plus,
   Trash2,
   UserCheck,
@@ -33,6 +34,9 @@ import {
 } from "../utils/fusionTemporales";
 import { generarExcelHorarios } from "../utils/excelHorarios";
 import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
+import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
+import type { AppConfig } from "../../electron/config-store";
+import type { AsistenteTemporalesEstado } from "../../electron/temporales-store";
 
 const CURSOS_OPCIONES = ["EE1", "EE2", "EE3", "EE4", "EP1", "EP2", "EP3", "EP4", "EP5", "EP6"];
 
@@ -44,7 +48,7 @@ const ESTADO_BADGE: Record<EstadoTemporal, { label: string; style: React.CSSProp
   sustituido: { label: "Sustituido", style: { background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0" } },
 };
 
-export default function TemporalesScreen() {
+export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading, actualizar, eliminar, guardarLote } = useLocalMatriculas(curso);
@@ -64,6 +68,17 @@ export default function TemporalesScreen() {
   const [isFusionando, setIsFusionando] = useState(false);
   const [showAyuda, setShowAyuda] = useState(false);
   const [showGuia, setShowGuia] = useState(false);
+  const [showAsistente, setShowAsistente] = useState(false);
+  const [asistenteEstado, setAsistenteEstado] = useState<AsistenteTemporalesEstado | null>(null);
+
+  // Franja «proceso a medias»: se recarga al cerrar el asistente para reflejar el avance.
+  useEffect(() => {
+    if (showAsistente) return;
+    window.adminAPI.temporales
+      .getAsistente(curso)
+      .then(setAsistenteEstado)
+      .catch(() => {});
+  }, [curso, showAsistente]);
 
   const especialidades = useMemo(() => getEspecialidades(), []);
 
@@ -353,6 +368,13 @@ export default function TemporalesScreen() {
             </p>
           </div>
           <button
+            onClick={() => setShowAsistente(true)}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-[var(--tc-primary)] text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+          >
+            <ListChecks className="w-4 h-4" />
+            Asistente
+          </button>
+          <button
             onClick={() => setShowAyuda(true)}
             className="shrink-0 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
           >
@@ -360,6 +382,22 @@ export default function TemporalesScreen() {
             ¿Cómo funciona?
           </button>
         </div>
+
+        {asistenteEstado && !showAsistente && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 flex items-center gap-3 flex-wrap">
+            <CalendarClock className="w-4 h-4 shrink-0" />
+            <span className="flex-1 min-w-[220px]">
+              Tienes un proceso del asistente en marcha: <strong>paso {asistenteEstado.pasoActual} de 8</strong>
+              {asistenteEstado.ronda > 1 ? ` (ronda ${asistenteEstado.ronda})` : ""}.
+            </span>
+            <button
+              onClick={() => setShowAsistente(true)}
+              className="shrink-0 h-8 inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              Retomar asistente
+            </button>
+          </div>
+        )}
 
         {mensaje && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
@@ -614,6 +652,14 @@ export default function TemporalesScreen() {
       </div>
 
       {showAyuda && <AyudaModal onCerrar={() => setShowAyuda(false)} onSaberMas={() => { setShowAyuda(false); setShowGuia(true); }} />}
+      {showAsistente && (
+        <AsistenteTemporalesModal
+          curso={curso}
+          config={config}
+          onCerrar={() => setShowAsistente(false)}
+          onVerGuia={() => setShowGuia(true)}
+        />
+      )}
       {showGuia && <GuiaAlumnosTemporalesModal onCerrar={() => setShowGuia(false)} />}
     </div>
   );
