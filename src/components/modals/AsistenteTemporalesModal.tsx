@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  CalendarClock,
   CheckCircle,
   Circle,
   FileSpreadsheet,
@@ -12,7 +13,9 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Trash2,
   Upload,
+  UserCheck,
   X,
 } from "lucide-react";
 import type { MatriculaLocal } from "../../api/types";
@@ -24,9 +27,15 @@ import {
   crearTemporalesNominales,
   esTemporalPendiente,
   nombreVisibleTemporal,
+  planSustituciones,
 } from "../../utils/temporales";
 import { parseArchivoTemporales } from "../../utils/importTemporales";
-import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
+import {
+  camposDesdeExcelHorarios,
+  filasAsignaturaLocales,
+  ordenarComoExcel,
+} from "../../utils/fusionTemporales";
+import { fusionarHorarios, parseHorariosExcelCrudo } from "../../utils/fusionHorarios";
 import { generarExcelHorarios } from "../../utils/excelHorarios";
 import { useAppMode } from "../../contexts/AppModeProvider";
 import {
@@ -128,7 +137,7 @@ export function AsistenteTemporalesModal({
   onVerGuia: () => void;
 }) {
   const { isSoloLectura } = useAppMode();
-  const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar } = useLocalMatriculas(curso);
+  const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar, eliminar } = useLocalMatriculas(curso);
   const { estado, isLoading: cargandoEstado, iniciar, guardar, reiniciar } =
     useAsistenteTemporales(curso);
 
@@ -310,6 +319,27 @@ export function AsistenteTemporalesModal({
                 />
               ) : pasoActual === 4 ? (
                 <Paso4Vincular matriculas={matriculas} actualizar={actualizar} disabled={isSoloLectura} />
+              ) : pasoActual === 5 ? (
+                <Paso5Ejecutar curso={curso} matriculas={matriculas} actualizar={actualizar} disabled={isSoloLectura} />
+              ) : pasoActual === 6 ? (
+                <Paso6Fusionado
+                  matriculas={matriculas}
+                  fechaFusionadoGenerado={vista.fechaFusionadoGenerado}
+                  disabled={isSoloLectura}
+                  onGenerado={(fecha) => void guardar({ fechaFusionadoGenerado: fecha })}
+                />
+              ) : pasoActual === 7 ? (
+                <Paso7Limpiar
+                  matriculas={matriculas}
+                  eliminar={eliminar}
+                  disabled={isSoloLectura}
+                  fusionadoGenerado={vista.fechaFusionadoGenerado != null}
+                  ronda={vista.ronda}
+                  onNuevaRonda={() =>
+                    void guardar({ ronda: vista.ronda + 1, pasoActual: 4, fechaFusionadoGenerado: null })
+                  }
+                  onIrAlFinal={() => irAPaso(8)}
+                />
               ) : (
                 <ContenidoPaso
                   n={paso.n}
@@ -845,9 +875,369 @@ function Paso4Vincular({
   );
 }
 
+/** Paso 5: ejecutar las sustituciones de los temporales vinculados, con fecha programada opcional. */
+function Paso5Ejecutar({
+  curso,
+  matriculas,
+  actualizar,
+  disabled,
+}: {
+  curso: string;
+  matriculas: MatriculaLocal[];
+  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
+  disabled: boolean;
+}) {
+  const [fechaProgramada, setFechaProgramada] = useState("");
+  const [ultimaEjecucion, setUltimaEjecucion] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.adminAPI.temporales
+      .getConfig(curso)
+      .then((cfg) => {
+        setFechaProgramada(cfg.fechaProgramada ?? "");
+        setUltimaEjecucion(cfg.ultimaEjecucion);
+      })
+      .catch(() => {});
+  }, [curso]);
+
+  const parejas = useMemo(() => planSustituciones(matriculas), [matriculas]);
+
+  const handleEjecutar = async () => {
+    if (parejas.length === 0) return;
+    const detalle = parejas
+      .map((p) => `• ${nombreVisibleTemporal(p.temporal)} → ${p.real.apellidos}, ${p.real.nombre}`)
+      .join("\n");
+    if (!window.confirm(`Se van a realizar ${parejas.length} sustitución(es):\n\n${detalle}\n\n¿Continuar?`)) return;
+    setOcupado(true);
+    setError(null);
+    try {
+      for (const p of parejas) {
+        await actualizar(p.temporal.localId, {
+          temporalEstado: "sustituido",
+          sustituidoPorLocalId: p.real.localId,
+        });
+      }
+      const ahora = new Date().toISOString();
+      await window.adminAPI.temporales.setConfig(curso, {
+        fechaProgramada: fechaProgramada || null,
+        ultimaEjecucion: ahora,
+      });
+      setUltimaEjecucion(ahora);
+      setMensaje(`${parejas.length} sustitución(es) realizadas. Siguiente paso: generar el Excel fusionado.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron ejecutar las sustituciones.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const handleGuardarFecha = async (valor: string) => {
+    setFechaProgramada(valor);
+    await window.adminAPI.temporales.setConfig(curso, {
+      fechaProgramada: valor || null,
+      ultimaEjecucion,
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {parejas.length > 0 && (
+        <div className="rounded-xl border border-[var(--tc-border)] overflow-hidden">
+          <div className="px-3 py-2 bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)]">
+            Sustituciones preparadas
+          </div>
+          <div className="max-h-[180px] overflow-y-auto">
+            {parejas.map((p) => (
+              <div
+                key={p.temporal.localId}
+                className="flex items-center gap-2 px-3 py-1.5 border-t border-[var(--tc-border-soft)] text-xs"
+              >
+                <span className="text-orange-700 font-medium truncate">{nombreVisibleTemporal(p.temporal)}</span>
+                <ArrowRight className="w-3.5 h-3.5 shrink-0 text-[var(--tc-ink-mute)]" />
+                <span className="text-[var(--tc-ink)] truncate">
+                  {p.real.apellidos}, {p.real.nombre}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!disabled && (
+        <div className="flex flex-wrap items-end gap-3">
+          <button
+            onClick={handleEjecutar}
+            disabled={ocupado || parejas.length === 0}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+            title={parejas.length === 0 ? "No hay temporales vinculados pendientes de ejecutar" : undefined}
+          >
+            <UserCheck className="w-4 h-4" />
+            {ocupado ? "Ejecutando…" : `Ejecutar sustituciones (${parejas.length})`}
+          </button>
+          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
+            Fecha programada (opcional)
+            <input
+              type="date"
+              value={fechaProgramada}
+              onChange={(e) => void handleGuardarFecha(e.target.value)}
+              className="h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
+            />
+          </label>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 text-[11px] text-[var(--tc-ink-mute)]">
+        <CalendarClock className="w-3.5 h-3.5" />
+        {ultimaEjecucion
+          ? `Última ejecución: ${new Date(ultimaEjecucion).toLocaleString("es-ES")}`
+          : "Aún no se ha ejecutado ninguna sustitución en este curso."}
+      </div>
+      {mensaje && <MensajeOk texto={mensaje} />}
+      {error && <MensajeError texto={error} />}
+    </div>
+  );
+}
+
+/** Paso 6: generar el Excel fusionado a partir del Excel relleno por los profesores. */
+function Paso6Fusionado({
+  matriculas,
+  fechaFusionadoGenerado,
+  disabled,
+  onGenerado,
+}: {
+  matriculas: MatriculaLocal[];
+  fechaFusionadoGenerado: string | null;
+  disabled: boolean;
+  onGenerado: (fechaIso: string) => void;
+}) {
+  const [ocupado, setOcupado] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const nSustituidos = useMemo(
+    () => matriculas.filter((m) => m.esTemporal && m.temporalEstado === "sustituido").length,
+    [matriculas],
+  );
+
+  const handleGenerar = async () => {
+    setError(null);
+    setMensaje(null);
+    setOcupado(true);
+    try {
+      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+      if (profesores.length === 0) {
+        setError("No se ha cargado la lista de profesores (paso 2). Cárgala antes de generar el Excel.");
+        return;
+      }
+      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
+      if (!sel) return; // el usuario canceló
+      const crudas = await parseHorariosExcelCrudo(sel.base64);
+      const { campos, insertarTras, desconocidas } = await camposDesdeExcelHorarios(sel.base64);
+      const tieneEspecialidad = campos.some((c) => c.key === "especialidad");
+      const filas = ordenarComoExcel(filasAsignaturaLocales(matriculas), crudas, matriculas);
+      const resultado = fusionarHorarios(filas, crudas, matriculas);
+      if (resultado.conservadas + resultado.heredadas === 0) {
+        setError(
+          "El Excel cargado no contiene ningún horario que coincida con los alumnos actuales. " +
+            "Comprueba que es el Excel de horarios relleno por los profesores.",
+        );
+        return;
+      }
+
+      const lineas = [
+        `Se va a generar un Excel nuevo a partir de "${sel.fileName}":`,
+        "",
+        `• ${resultado.conservadas} horario(s) se conservan tal cual.`,
+        `• ${resultado.heredadas} horario(s) pasan del temporal a su alumno real.`,
+      ];
+      if (resultado.sinHorario.length > 0)
+        lineas.push(`• ${resultado.sinHorario.length} asignatura(s) de alumnos nuevos quedan sin horario.`);
+      if (resultado.huerfanas.length > 0)
+        lineas.push(
+          `• ${resultado.huerfanas.length} fila(s) con horario del Excel no encajan con ningún alumno actual y no se trasladan.`,
+        );
+      if (desconocidas.length > 0)
+        lineas.push(`• Columnas no reconocidas que no se incluirán: ${desconocidas.join(", ")}.`);
+      lineas.push("", "¿Generar y guardar el Excel fusionado?");
+      if (!window.confirm(lineas.join("\n"))) return;
+
+      const base64 = await generarExcelHorarios(
+        filas,
+        campos,
+        profesores,
+        {
+          congelar: true,
+          congelarHasta: tieneEspecialidad ? "especialidad" : (campos[0]?.key ?? null),
+          insertarTras,
+        },
+        resultado.valoresHorario,
+      );
+      const nombreBase = sel.fileName.replace(/\.xlsx$/i, "");
+      const exportado = await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: `${nombreBase} (fusionado)`,
+        extension: "xlsx",
+      });
+      if (exportado !== null) {
+        onGenerado(new Date().toISOString());
+        setMensaje(
+          `Excel fusionado generado: ${resultado.conservadas} horario(s) conservados y ${resultado.heredadas} heredados por alumnos reales.` +
+            (resultado.sinHorario.length > 0 ? ` ${resultado.sinHorario.length} asignatura(s) quedan sin horario.` : ""),
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el Excel fusionado.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
+        Regla de oro: nunca borres los temporales sustituidos antes de generar este Excel.
+      </div>
+
+      {!disabled && (
+        <div>
+          <button
+            onClick={handleGenerar}
+            disabled={ocupado || nSustituidos === 0}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+            title={nSustituidos === 0 ? "Primero ejecuta alguna sustitución (paso 5)" : undefined}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            {ocupado ? "Generando…" : "Generar Excel fusionado"}
+          </button>
+        </div>
+      )}
+
+      {fechaFusionadoGenerado && (
+        <p className="text-[12px] text-emerald-700">
+          Excel fusionado generado el {new Date(fechaFusionadoGenerado).toLocaleString("es-ES")}.
+        </p>
+      )}
+      {mensaje && <MensajeOk texto={mensaje} />}
+      {error && <MensajeError texto={error} />}
+    </div>
+  );
+}
+
+/** Paso 7: eliminar los temporales ya sustituidos y decidir si empieza otra ronda. */
+function Paso7Limpiar({
+  matriculas,
+  eliminar,
+  disabled,
+  fusionadoGenerado,
+  ronda,
+  onNuevaRonda,
+  onIrAlFinal,
+}: {
+  matriculas: MatriculaLocal[];
+  eliminar: (localId: string) => Promise<void>;
+  disabled: boolean;
+  fusionadoGenerado: boolean;
+  ronda: number;
+  onNuevaRonda: () => void;
+  onIrAlFinal: () => void;
+}) {
+  const [ocupado, setOcupado] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const sustituidos = useMemo(
+    () => matriculas.filter((m) => m.esTemporal && m.temporalEstado === "sustituido"),
+    [matriculas],
+  );
+  const nPendientes = useMemo(
+    () => matriculas.filter(esTemporalPendiente).length,
+    [matriculas],
+  );
+  const limpiezaHecha = fusionadoGenerado && sustituidos.length === 0;
+
+  const handleEliminar = async () => {
+    if (sustituidos.length === 0) return;
+    if (
+      !window.confirm(
+        `¿Eliminar los ${sustituidos.length} temporales ya sustituidos?\n\nEl Excel fusionado ya está generado, así que es seguro borrarlos.`,
+      )
+    )
+      return;
+    setOcupado(true);
+    setError(null);
+    try {
+      for (const t of sustituidos) await eliminar(t.localId);
+      setMensaje(`Temporales sustituidos eliminados.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron eliminar los temporales.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {!disabled && sustituidos.length > 0 && (
+        <div>
+          <button
+            onClick={handleEliminar}
+            disabled={ocupado || !fusionadoGenerado}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+            title={!fusionadoGenerado ? "Genera antes el Excel fusionado (paso 6)" : undefined}
+          >
+            <Trash2 className="w-4 h-4" />
+            {ocupado ? "Eliminando…" : `Eliminar sustituidos (${sustituidos.length})`}
+          </button>
+        </div>
+      )}
+
+      {limpiezaHecha && (
+        <div className="rounded-xl border border-[var(--tc-border)] bg-[var(--tc-bg-panel)] p-4 flex flex-col gap-3">
+          {nPendientes > 0 ? (
+            <>
+              <p className="text-sm text-[var(--tc-ink)]">
+                Limpieza hecha, pero quedan <strong>{nPendientes} temporal(es) pendiente(s)</strong> esperando
+                su matrícula real. Cuando lleguen más matrículas, repite el ciclo con otra ronda.
+              </p>
+              {!disabled && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={onNuevaRonda}
+                    className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Empezar Ronda {ronda + 1}
+                  </button>
+                  <button
+                    onClick={onIrAlFinal}
+                    className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-card)] transition-colors"
+                  >
+                    Ir al paso final de todos modos
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-[var(--tc-ink)]">
+              No queda ningún temporal pendiente: el ciclo de sustituciones está completo. Continúa al paso
+              final para enviar los horarios a los alumnos nuevos.
+            </p>
+          )}
+        </div>
+      )}
+
+      {mensaje && <MensajeOk texto={mensaje} />}
+      {error && <MensajeError texto={error} />}
+    </div>
+  );
+}
+
 /**
  * Contenido de los pasos aún sin acciones integradas. El check manual del
- * paso 3 ya es operativo; el resto llega en las fases 5–6 del plan
+ * paso 3 ya es operativo; el paso 8 llega en la fase 6 del plan
  * (docs/alumnos-temporales.md, sección 11).
  */
 function ContenidoPaso({
