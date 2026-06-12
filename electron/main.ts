@@ -60,7 +60,14 @@ import {
   cursosMigrarPdfAFicheros,
 } from "./cursos-store";
 import { loadCursoContext, saveCursoContext } from "./curso-context-store";
-import { temporalesGetConfig, temporalesSetConfig, type TemporalesCursoConfig } from "./temporales-store";
+import {
+  temporalesGetAsistente,
+  temporalesGetConfig,
+  temporalesSetAsistente,
+  temporalesSetConfig,
+  type AsistenteTemporalesEstado,
+  type TemporalesCursoConfig,
+} from "./temporales-store";
 import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -282,6 +289,12 @@ function registerIpcHandlers() {
   ipcMain.handle("temporales:getConfig", (_e, curso: string) => temporalesGetConfig(curso));
   ipcMain.handle("temporales:setConfig", (_e, curso: string, cfg: TemporalesCursoConfig) =>
     temporalesSetConfig(curso, cfg),
+  );
+  ipcMain.handle("temporales:getAsistente", (_e, curso: string) => temporalesGetAsistente(curso));
+  ipcMain.handle(
+    "temporales:setAsistente",
+    (_e, curso: string, estado: AsistenteTemporalesEstado | null) =>
+      temporalesSetAsistente(curso, estado),
   );
 
   // ── Horarios: campañas de envío ───────────────────────────────────────────
