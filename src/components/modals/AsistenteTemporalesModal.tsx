@@ -10,9 +10,11 @@ import {
   FileSpreadsheet,
   Info,
   Lock,
+  Mail,
   Play,
   Plus,
   RefreshCw,
+  Send,
   Trash2,
   Upload,
   UserCheck,
@@ -37,6 +39,12 @@ import {
 } from "../../utils/fusionTemporales";
 import { fusionarHorarios, parseHorariosExcelCrudo } from "../../utils/fusionHorarios";
 import { generarExcelHorarios } from "../../utils/excelHorarios";
+import { norm, parseHorariosExcel } from "../../utils/horarioExcel";
+import { buildHorarioHtml } from "../../utils/horarioTemplate";
+import { buildHorarioEmailHtml } from "../../utils/horarioEmailTemplate";
+import { enviarEmailHorario } from "../../api/horarios";
+import type { CampanyaEnvio, ResultadoEnvio } from "../../horarios/types";
+import type { AppConfig } from "../../../electron/config-store";
 import { useAppMode } from "../../contexts/AppModeProvider";
 import {
   ASISTENTE_ESTADO_INICIAL,
@@ -129,10 +137,12 @@ const PASOS: PasoDef[] = [
 
 export function AsistenteTemporalesModal({
   curso,
+  config,
   onCerrar,
   onVerGuia,
 }: {
   curso: string;
+  config: AppConfig;
   onCerrar: () => void;
   onVerGuia: () => void;
 }) {
@@ -340,13 +350,34 @@ export function AsistenteTemporalesModal({
                   }
                   onIrAlFinal={() => irAPaso(8)}
                 />
-              ) : (
-                <ContenidoPaso
-                  n={paso.n}
-                  vista={vista}
-                  isSoloLectura={isSoloLectura}
-                  onMarcarExcelRecibido={(valor) => void guardar({ excelProfesoresRecibido: valor })}
+              ) : pasoActual === 8 ? (
+                <Paso8Enviar
+                  curso={curso}
+                  matriculas={matriculas}
+                  config={config}
+                  disabled={isSoloLectura}
+                  onTerminar={async () => {
+                    if (
+                      !window.confirm(
+                        "¿Dar por terminado el proceso de este curso?\n\nEl asistente olvidará su progreso (los datos no se tocan). La próxima vez empezará desde el paso 1.",
+                      )
+                    )
+                      return;
+                    await reiniciar();
+                    onCerrar();
+                  }}
                 />
+              ) : (
+                <label className="flex items-center gap-2.5 text-sm text-[var(--tc-ink)] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={vista.excelProfesoresRecibido}
+                    disabled={isSoloLectura}
+                    onChange={(e) => void guardar({ excelProfesoresRecibido: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--tc-primary)]"
+                  />
+                  Ya tengo el Excel relleno por los profesores
+                </label>
               )}
 
               {!hecho && paso.requisito && (
@@ -1236,47 +1267,265 @@ function Paso7Limpiar({
 }
 
 /**
- * Contenido de los pasos aún sin acciones integradas. El check manual del
- * paso 3 ya es operativo; el paso 8 llega en la fase 6 del plan
- * (docs/alumnos-temporales.md, sección 11).
+ * Paso 8: enviar el horario por email a los alumnos NUEVO (matrículas reales
+ * que sustituyeron a un temporal y aún no recibieron campaña). Reutiliza el
+ * envío de Horarios Individuales: PDF + email vía Flow, registrado en una
+ * campaña para que la pestaña Horarios lo refleje igual.
  */
-function ContenidoPaso({
-  n,
-  vista,
-  isSoloLectura,
-  onMarcarExcelRecibido,
+function Paso8Enviar({
+  curso,
+  matriculas,
+  config,
+  disabled,
+  onTerminar,
 }: {
-  n: number;
-  vista: { excelProfesoresRecibido: boolean; fechaExcelGenerado: string | null; fechaFusionadoGenerado: string | null };
-  isSoloLectura: boolean;
-  onMarcarExcelRecibido: (valor: boolean) => void;
+  curso: string;
+  matriculas: MatriculaLocal[];
+  config: AppConfig;
+  disabled: boolean;
+  onTerminar: () => Promise<void>;
 }) {
-  if (n === 3) {
-    return (
-      <label className="flex items-center gap-2.5 text-sm text-[var(--tc-ink)] cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={vista.excelProfesoresRecibido}
-          disabled={isSoloLectura}
-          onChange={(e) => onMarcarExcelRecibido(e.target.checked)}
-          className="w-4 h-4 accent-[var(--tc-primary)]"
-        />
-        Ya tengo el Excel relleno por los profesores
-      </label>
-    );
-  }
-  if (n === 6 && vista.fechaFusionadoGenerado) {
-    return (
-      <p className="text-[12px] text-emerald-700">
-        Excel fusionado generado el {new Date(vista.fechaFusionadoGenerado).toLocaleString("es-ES")}.
-      </p>
-    );
-  }
+  const anio = `Curso ${curso}`;
+  const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
+  const [seleccion, setSeleccion] = useState<Set<string> | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [campanyasCargadas, setCampanyasCargadas] = useState(false);
+
+  useEffect(() => {
+    window.adminAPI.horarios.campanyas
+      .listar()
+      .then(setCampanyas)
+      .catch(() => {})
+      .finally(() => setCampanyasCargadas(true));
+  }, []);
+
+  /** Matrículas reales que sustituyeron a un temporal (etiqueta NUEVO en Horarios). */
+  const nuevos = useMemo(
+    () =>
+      matriculas
+        .filter((m) => !m.esTemporal && m.sustituyeATemporalId)
+        .sort((a, b) => `${a.apellidos}, ${a.nombre}`.localeCompare(`${b.apellidos}, ${b.nombre}`, "es")),
+    [matriculas],
+  );
+
+  /** Nombres (normalizados) con al menos un envío correcto en cualquier campaña. */
+  const enviados = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of campanyas) {
+      for (const r of c.alumnos) if (r.estado === "ok") set.add(norm(r.nombre));
+    }
+    return set;
+  }, [campanyas]);
+
+  const nombreDe = (m: MatriculaLocal) => `${m.apellidos}, ${m.nombre}`;
+  const yaEnviado = (m: MatriculaLocal) => enviados.has(norm(nombreDe(m)));
+
+  // Selección inicial: los nuevos que aún no han recibido el email.
+  useEffect(() => {
+    if (seleccion !== null || !campanyasCargadas || nuevos.length === 0) return;
+    setSeleccion(new Set(nuevos.filter((m) => !yaEnviado(m)).map((m) => m.localId)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nuevos, enviados, campanyasCargadas]);
+
+  const sel = seleccion ?? new Set<string>();
+  const toggle = (localId: string) =>
+    setSeleccion((prev) => {
+      const s = new Set(prev ?? []);
+      if (s.has(localId)) s.delete(localId);
+      else s.add(localId);
+      return s;
+    });
+
+  const handleEnviar = async () => {
+    setError(null);
+    setMensaje(null);
+    if (!config.urlEnviarEmailHorario) {
+      setError("No está configurada la URL del Flow AdminEnviarEmailHorario. Añádela en Configuración.");
+      return;
+    }
+    const destinatarios = nuevos.filter((m) => sel.has(m.localId));
+    if (destinatarios.length === 0) {
+      setError("No hay ningún alumno seleccionado.");
+      return;
+    }
+    const sinEmail = destinatarios.filter((m) => !(m.email ?? "").trim());
+    setOcupado(true);
+    try {
+      // El horario de cada alumno sale del Excel fusionado: se pide elegirlo.
+      const selExcel = await window.adminAPI.horarios.cargarExcelRelleno();
+      if (!selExcel) return; // el usuario canceló
+      const res = await parseHorariosExcel(selExcel.base64, selExcel.fileName);
+      const porNombre = new Map(res.alumnos.map((a) => [norm(a.nombre), a]));
+
+      const listos: { m: MatriculaLocal; alumno: (typeof res.alumnos)[number] }[] = [];
+      const sinHorario: string[] = [];
+      for (const m of destinatarios) {
+        if (!(m.email ?? "").trim()) continue;
+        const alumno = porNombre.get(norm(nombreDe(m)));
+        if (alumno) listos.push({ m, alumno });
+        else sinHorario.push(nombreDe(m));
+      }
+      if (listos.length === 0) {
+        setError(
+          "Ninguno de los seleccionados aparece con horario en ese Excel. Comprueba que es el Excel fusionado más reciente.",
+        );
+        return;
+      }
+
+      const lineas = [
+        `Se va a enviar el horario por email a ${listos.length} alumno(s) desde "${selExcel.fileName}".`,
+      ];
+      if (sinHorario.length > 0)
+        lineas.push(`\nSin horario en el Excel (no se envían): ${sinHorario.join(", ")}.`);
+      if (sinEmail.length > 0)
+        lineas.push(`\nSin email registrado (no se envían): ${sinEmail.map(nombreDe).join(", ")}.`);
+      lineas.push("\n¿Continuar?");
+      if (!window.confirm(lineas.join("\n"))) return;
+
+      setProgreso({ actual: 0, total: listos.length });
+      const resultados: ResultadoEnvio[] = [];
+      for (let i = 0; i < listos.length; i++) {
+        const { m, alumno } = listos[i];
+        const conEmail = { ...alumno, email: (m.email ?? "").trim() || alumno.email };
+        setProgreso({ actual: i + 1, total: listos.length });
+        try {
+          const horarioHtml = buildHorarioHtml(conEmail, anio);
+          const emailHtml = buildHorarioEmailHtml(conEmail, anio);
+          const pdfRes = await window.adminAPI.pdf.generarBase64(horarioHtml, true);
+          if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "PDF no generado");
+          const nombreBase = `Horario ${conEmail.nombre}`.replace(/[\\/:*?"<>|]/g, "_");
+          const htmlBase64 = btoa(unescape(encodeURIComponent(horarioHtml)));
+          await enviarEmailHorario(config, {
+            email: conEmail.email,
+            nombre: conEmail.nombre,
+            emailHtml,
+            pdfBase64: pdfRes.base64,
+            pdfNombre: `${nombreBase}.pdf`,
+            htmlBase64,
+            htmlNombre: `${nombreBase}.html`,
+          });
+          resultados.push({ clave: conEmail.clave, nombre: conEmail.nombre, email: conEmail.email, estado: "ok" });
+        } catch (err) {
+          resultados.push({
+            clave: conEmail.clave,
+            nombre: conEmail.nombre,
+            email: conEmail.email,
+            estado: "error",
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      const campanya: CampanyaEnvio = {
+        id: crypto.randomUUID(),
+        nombre: `Asistente — horarios a nuevos (${new Date().toLocaleDateString("es-ES")})`,
+        descripcion: "Envío realizado desde el asistente de alumnos temporales.",
+        fecha: new Date().toISOString(),
+        alumnos: resultados,
+      };
+      await window.adminAPI.horarios.campanyas.guardar(campanya);
+      setCampanyas(await window.adminAPI.horarios.campanyas.listar());
+      setSeleccion(null); // se recalcula con los nuevos envíos
+
+      const ok = resultados.filter((r) => r.estado === "ok").length;
+      const fallos = resultados.length - ok;
+      setMensaje(
+        `Enviados ${ok} horario(s) por email.` +
+          (fallos > 0 ? ` ${fallos} envío(s) fallaron: revisa el historial en Horarios Individuales.` : ""),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron enviar los horarios.");
+    } finally {
+      setOcupado(false);
+      setProgreso(null);
+    }
+  };
+
   return (
-    <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
-      Las acciones de este paso se incorporarán al asistente en las próximas fases. De momento puedes
-      hacerlo desde su pantalla habitual; el asistente detectará el resultado igualmente.
-    </p>
+    <div className="flex flex-col gap-3">
+      {nuevos.length === 0 ? (
+        <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
+          No hay alumnos nuevos por sustitución en este curso.
+        </p>
+      ) : (
+        <div className="rounded-xl border border-[var(--tc-border)] overflow-hidden">
+          <div className="px-3 py-2 bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)]">
+            Alumnos nuevos (por sustitución)
+          </div>
+          <div className="max-h-[200px] overflow-y-auto">
+            {nuevos.map((m) => {
+              const enviado = yaEnviado(m);
+              return (
+                <label
+                  key={m.localId}
+                  className="flex items-center gap-2.5 px-3 py-1.5 border-t border-[var(--tc-border-soft)] text-xs cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={sel.has(m.localId)}
+                    disabled={disabled || ocupado}
+                    onChange={() => toggle(m.localId)}
+                    className="w-3.5 h-3.5 accent-[var(--tc-primary)]"
+                  />
+                  <span className="flex-1 min-w-0 truncate text-[var(--tc-ink)]">{nombreDe(m)}</span>
+                  <span className="text-[var(--tc-ink-mute)] truncate max-w-[180px]">
+                    {(m.email ?? "").trim() || "sin email"}
+                  </span>
+                  {enviado && (
+                    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      <Mail className="w-3 h-3" />
+                      Enviado
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!disabled && nuevos.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleEnviar}
+            disabled={ocupado || sel.size === 0}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+            {progreso
+              ? `Enviando ${progreso.actual} de ${progreso.total}…`
+              : ocupado
+                ? "Un momento…"
+                : `Enviar horarios (${sel.size})`}
+          </button>
+          <p className="text-[11px] text-[var(--tc-ink-mute)] flex-1 min-w-[200px]">
+            Se te pedirá el Excel fusionado: de ahí sale el horario de cada alumno. El envío queda
+            registrado como campaña en Horarios Individuales.
+          </p>
+        </div>
+      )}
+
+      {mensaje && <MensajeOk texto={mensaje} />}
+      {error && <MensajeError texto={error} />}
+
+      {!disabled && (
+        <div className="pt-3 border-t border-[var(--tc-border-soft)]">
+          <button
+            onClick={() => void onTerminar()}
+            disabled={ocupado}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
+          >
+            <CheckCircle className="w-4 h-4" />
+            Dar por terminado el proceso
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
+
 
