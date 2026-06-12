@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
   CheckCircle,
+  FileSpreadsheet,
   HelpCircle,
   Hourglass,
   Link2,
@@ -17,7 +18,21 @@ import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
 import { getEspecialidades } from "../data/catalogoLocal";
-import { crearTemporales, planSustituciones } from "../utils/temporales";
+import {
+  crearTemporales,
+  crearTemporalesNominales,
+  nombreVisibleTemporal,
+  planSustituciones,
+} from "../utils/temporales";
+import { parseArchivoTemporales } from "../utils/importTemporales";
+import { fusionarHorarios, parseHorariosExcelCrudo } from "../utils/fusionHorarios";
+import {
+  camposDesdeExcelHorarios,
+  filasAsignaturaLocales,
+  ordenarComoExcel,
+} from "../utils/fusionTemporales";
+import { generarExcelHorarios } from "../utils/excelHorarios";
+import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
 
 const CURSOS_OPCIONES = ["EE1", "EE2", "EE3", "EE4", "EP1", "EP2", "EP3", "EP4", "EP5", "EP6"];
 
@@ -38,13 +53,17 @@ export default function TemporalesScreen() {
   const [formEspecialidad, setFormEspecialidad] = useState("");
   const [formCantidad, setFormCantidad] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [fechaProgramada, setFechaProgramada] = useState<string>("");
   const [ultimaEjecucion, setUltimaEjecucion] = useState<string | null>(null);
   const [isEjecutando, setIsEjecutando] = useState(false);
+  const [isFusionando, setIsFusionando] = useState(false);
   const [showAyuda, setShowAyuda] = useState(false);
+  const [showGuia, setShowGuia] = useState(false);
 
   const especialidades = useMemo(() => getEspecialidades(), []);
 
@@ -104,6 +123,7 @@ export default function TemporalesScreen() {
 
   const nVinculados = temporales.filter((t) => estadoDe(t) === "vinculado").length;
   const nSustituidos = temporales.filter((t) => t.temporalEstado === "sustituido").length;
+  const nPendientes = temporales.length - nVinculados - nSustituidos;
 
   const handleCrear = async () => {
     setError(null);
@@ -129,11 +149,58 @@ export default function TemporalesScreen() {
     }
   };
 
+  const handleImportar = async (file: File) => {
+    setError(null);
+    setMensaje(null);
+    setIsImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const { filas, errores: erroresParse } = await parseArchivoTemporales(file.name, data);
+      const { creados, errores: erroresCreacion } = crearTemporalesNominales(curso, filas, matriculas);
+      const avisos = [...erroresParse, ...erroresCreacion];
+
+      if (creados.length === 0) {
+        setError(
+          avisos.length > 0
+            ? `No se ha podido importar ningún alumno:\n${avisos.join("\n")}`
+            : "El archivo no contiene filas de alumnos.",
+        );
+        return;
+      }
+
+      const MAX_DETALLE = 15;
+      const detalle = creados
+        .slice(0, MAX_DETALLE)
+        .map((t) => `• ${t.apellidos}, ${t.nombre} — ${t.especialidad} ${t.ensenanzaCurso}`)
+        .join("\n");
+      const masDetalle = creados.length > MAX_DETALLE ? `\n…y ${creados.length - MAX_DETALLE} más` : "";
+      const avisoTxt = avisos.length > 0 ? `\n\nSe descartarán ${avisos.length} fila(s):\n${avisos.join("\n")}` : "";
+      if (
+        !window.confirm(
+          `Se van a crear ${creados.length} alumno(s) temporal(es) con el sufijo _Temp:\n\n${detalle}${masDetalle}${avisoTxt}\n\n¿Continuar?`,
+        )
+      )
+        return;
+
+      await guardarLote(creados);
+      setMensaje(
+        `Importados ${creados.length} alumno(s) temporal(es) desde "${file.name}".` +
+          (avisos.length > 0 ? ` Se descartaron ${avisos.length} fila(s).` : ""),
+      );
+      if (avisos.length > 0) setError(`Filas descartadas:\n${avisos.join("\n")}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const handleEliminar = async (t: MatriculaLocal) => {
     const real = vinculadosPor.get(t.localId);
     const aviso = real
-      ? `"${t.nombre}" está vinculado a la matrícula de ${real.apellidos}, ${real.nombre}. Se quitará el vínculo y se borrará el temporal. ¿Continuar?`
-      : `¿Borrar "${t.nombre}"?`;
+      ? `"${nombreVisibleTemporal(t)}" está vinculado a la matrícula de ${real.apellidos}, ${real.nombre}. Se quitará el vínculo y se borrará el temporal. ¿Continuar?`
+      : `¿Borrar "${nombreVisibleTemporal(t)}"?`;
     if (!window.confirm(aviso)) return;
     if (real) await actualizar(real.localId, { sustituyeATemporalId: null });
     await eliminar(t.localId);
@@ -142,7 +209,7 @@ export default function TemporalesScreen() {
   const handleDesvincular = async (t: MatriculaLocal) => {
     const real = vinculadosPor.get(t.localId);
     if (!real) return;
-    if (!window.confirm(`¿Quitar el vínculo entre "${t.nombre}" y ${real.apellidos}, ${real.nombre}?`)) return;
+    if (!window.confirm(`¿Quitar el vínculo entre "${nombreVisibleTemporal(t)}" y ${real.apellidos}, ${real.nombre}?`)) return;
     await actualizar(real.localId, { sustituyeATemporalId: null });
   };
 
@@ -150,7 +217,7 @@ export default function TemporalesScreen() {
     const parejas = planSustituciones(matriculas);
     if (parejas.length === 0) return;
     const detalle = parejas
-      .map((p) => `• ${p.temporal.nombre} → ${p.real.apellidos}, ${p.real.nombre}`)
+      .map((p) => `• ${nombreVisibleTemporal(p.temporal)} → ${p.real.apellidos}, ${p.real.nombre}`)
       .join("\n");
     if (!window.confirm(`Se van a realizar ${parejas.length} sustitución(es):\n\n${detalle}\n\n¿Continuar?`)) return;
     setIsEjecutando(true);
@@ -175,6 +242,79 @@ export default function TemporalesScreen() {
       setError(e instanceof Error ? e.message : "No se pudieron ejecutar las sustituciones.");
     } finally {
       setIsEjecutando(false);
+    }
+  };
+
+  /**
+   * Genera el Excel de horarios fusionado partiendo del Excel vinculado
+   * (el mismo que se carga en Horarios): conserva los horarios que metieron
+   * los profesores, sustituye los temporales ya ejecutados por los datos del
+   * alumno real (heredando su horario y sin fondo naranja) y deja los
+   * temporales pendientes tal cual, manteniendo el orden de filas original.
+   */
+  const handleGenerarExcelFusionado = async () => {
+    setError(null);
+    setMensaje(null);
+    setIsFusionando(true);
+    try {
+      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+      if (profesores.length === 0) {
+        setError(
+          "No se ha cargado la lista de profesores. Usa «Cargar profesores (CSV)…» en el menú de acciones de Informes antes de generar el Excel.",
+        );
+        return;
+      }
+      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
+      if (!sel) return; // el usuario canceló
+      const crudas = await parseHorariosExcelCrudo(sel.base64);
+      const { campos, insertarTras, desconocidas } = await camposDesdeExcelHorarios(sel.base64);
+      const tieneEspecialidad = campos.some((c) => c.key === "especialidad");
+      const filas = ordenarComoExcel(filasAsignaturaLocales(matriculas), crudas, matriculas);
+      const resultado = fusionarHorarios(filas, crudas, matriculas);
+      if (resultado.conservadas + resultado.heredadas === 0) {
+        setError(
+          "El Excel cargado no contiene ningún horario que coincida con los alumnos actuales. " +
+            "Comprueba que es el Excel de horarios relleno por los profesores.",
+        );
+        return;
+      }
+
+      const lineas = [
+        `Se va a generar un Excel nuevo a partir de "${sel.fileName}":`,
+        "",
+        `• ${resultado.conservadas} horario(s) se conservan tal cual.`,
+        `• ${resultado.heredadas} horario(s) pasan del temporal a su alumno real.`,
+      ];
+      if (resultado.sinHorario.length > 0)
+        lineas.push(`• ${resultado.sinHorario.length} asignatura(s) de alumnos nuevos quedan sin horario.`);
+      if (resultado.huerfanas.length > 0)
+        lineas.push(`• ${resultado.huerfanas.length} fila(s) con horario del Excel no encajan con ningún alumno actual y no se trasladan.`);
+      if (desconocidas.length > 0)
+        lineas.push(`• Columnas no reconocidas que no se incluirán: ${desconocidas.join(", ")}.`);
+      lineas.push("", "¿Generar y guardar el Excel fusionado?");
+      if (!window.confirm(lineas.join("\n"))) return;
+
+      const base64 = await generarExcelHorarios(filas, campos, profesores, {
+        congelar: true,
+        congelarHasta: tieneEspecialidad ? "especialidad" : (campos[0]?.key ?? null),
+        insertarTras,
+      }, resultado.valoresHorario);
+      const nombreBase = sel.fileName.replace(/\.xlsx$/i, "");
+      const exportado = await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: `${nombreBase} (fusionado)`,
+        extension: "xlsx",
+      });
+      if (exportado !== null) {
+        setMensaje(
+          `Excel fusionado generado: ${resultado.conservadas} horario(s) conservados y ${resultado.heredadas} heredados por alumnos reales.` +
+            (resultado.sinHorario.length > 0 ? ` ${resultado.sinHorario.length} asignatura(s) quedan sin horario.` : ""),
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el Excel fusionado.");
+    } finally {
+      setIsFusionando(false);
     }
   };
 
@@ -228,9 +368,9 @@ export default function TemporalesScreen() {
           </div>
         )}
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            {error}
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="whitespace-pre-line">{error}</span>
           </div>
         )}
 
@@ -286,6 +426,35 @@ export default function TemporalesScreen() {
             <p className="mt-2 text-xs text-[var(--tc-ink-mute)]">
               Las asignaturas se asignan automáticamente según el catálogo del curso y la especialidad.
             </p>
+
+            {/* Importación desde archivo */}
+            <div className="mt-4 pt-4 border-t border-[var(--tc-border-soft)]">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isImporting}
+                  className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-semibold text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  {isImporting ? "Importando…" : "Importar desde Excel o CSV"}
+                </button>
+                <p className="text-xs text-[var(--tc-ink-mute)] flex-1 min-w-[240px]">
+                  El archivo debe tener las columnas <strong>Apellidos</strong>, <strong>Nombre</strong>,{" "}
+                  <strong>Grado/Curso</strong> (EE1–EE4, EP1–EP6) y <strong>Especialidad</strong>. Se crean
+                  temporales con el sufijo <strong>_Temp</strong> en nombre y apellidos.
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.csv,.txt"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleImportar(f);
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -294,9 +463,10 @@ export default function TemporalesScreen() {
           <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
             <h2 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">Sustitución por alumnado real</h2>
             <p className="text-xs text-[var(--tc-ink-soft)] mb-3">
-              Vincula cada matrícula nueva con su temporal desde la pestaña Local (botón «Sustituye a…» en la
-              ficha). Después ejecuta la sustitución aquí, o programa una fecha para que la app la haga sola al
-              arrancar. El Excel fusionado se genera desde Informes («Fusión Actualización Nuevo Alumnado»).
+              Vincula cada matrícula nueva con su temporal desde la pestaña Local (selector «Sustituye al
+              alumno temporal» en Datos Personales, debajo de Provincia). Después ejecuta la sustitución aquí,
+              o programa una fecha para que la app la haga sola al arrancar. Por último, genera el Excel
+              fusionado con el botón de abajo o desde Informes («Fusión Actualización Nuevo Alumnado»).
             </p>
             <div className="flex flex-wrap items-end gap-3">
               <button
@@ -317,6 +487,19 @@ export default function TemporalesScreen() {
                   className="h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
                 />
               </label>
+              <button
+                onClick={handleGenerarExcelFusionado}
+                disabled={isFusionando || nSustituidos === 0}
+                className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-semibold text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50 transition-colors"
+                title={
+                  nSustituidos === 0
+                    ? "Primero ejecuta alguna sustitución: el Excel fusionado se genera a partir de los temporales ya sustituidos"
+                    : "Genera el Excel de horarios con los alumnos reales en el lugar de sus temporales, conservando los horarios de los profesores"
+                }
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {isFusionando ? "Generando…" : "Generar Excel fusionado"}
+              </button>
               {nSustituidos > 0 && (
                 <button
                   onClick={handleLimpiarSustituidos}
@@ -338,9 +521,20 @@ export default function TemporalesScreen() {
 
         {/* Lista */}
         <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-[var(--tc-ink)] mb-3">
-            Temporales del curso {curso} ({temporales.length})
-          </h2>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <h2 className="text-sm font-semibold text-[var(--tc-ink)] flex-1">
+              Temporales del curso {curso} ({temporales.length})
+            </h2>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={ESTADO_BADGE.pendiente.style}>
+              {nPendientes} pendiente{nPendientes === 1 ? "" : "s"}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={ESTADO_BADGE.vinculado.style}>
+              {nVinculados} vinculado{nVinculados === 1 ? "" : "s"}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={ESTADO_BADGE.sustituido.style}>
+              {nSustituidos} sustituido{nSustituidos === 1 ? "" : "s"}
+            </span>
+          </div>
           {isLoading ? (
             <p className="text-sm text-[var(--tc-ink-mute)]">Cargando…</p>
           ) : temporales.length === 0 ? (
@@ -365,7 +559,7 @@ export default function TemporalesScreen() {
                           className="flex items-center gap-3 rounded-xl border border-[var(--tc-border-soft)] bg-[var(--tc-bg)] px-3 py-2"
                         >
                           <span className="text-sm font-medium text-[var(--tc-ink)] flex-1 min-w-0 truncate">
-                            {t.nombre}
+                            {nombreVisibleTemporal(t)}
                           </span>
                           <span className="text-xs text-[var(--tc-ink-mute)]">
                             {t.asignaturas.length} asig.
@@ -419,7 +613,8 @@ export default function TemporalesScreen() {
         </div>
       </div>
 
-      {showAyuda && <AyudaModal onCerrar={() => setShowAyuda(false)} />}
+      {showAyuda && <AyudaModal onCerrar={() => setShowAyuda(false)} onSaberMas={() => { setShowAyuda(false); setShowGuia(true); }} />}
+      {showGuia && <GuiaAlumnosTemporalesModal onCerrar={() => setShowGuia(false)} />}
     </div>
   );
 }
@@ -440,7 +635,7 @@ function PasoAyuda({ n, titulo, children }: { n: number; titulo: string; childre
   );
 }
 
-function AyudaModal({ onCerrar }: { onCerrar: () => void }) {
+function AyudaModal({ onCerrar, onSaberMas }: { onCerrar: () => void; onSaberMas: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
@@ -469,45 +664,65 @@ function AyudaModal({ onCerrar }: { onCerrar: () => void }) {
           <p className="text-[13px] text-[var(--tc-ink-soft)] leading-relaxed">
             Durante la matriculación, algunos profesores deben programar clases con alumnos que aún
             no se han matriculado (lo harán más tarde). Los <strong>alumnos temporales</strong> son
-            plazas reservadas: sabes cuántos alumnos habrá en cada curso y especialidad, aunque
-            todavía no sepas quiénes son. Así pueden aparecer en el Excel de horarios y, cuando
-            lleguen las matrículas reales, se sustituyen sin perder el trabajo de los profesores.
+            plazas reservadas que aparecen en el Excel de horarios y, cuando lleguen las matrículas
+            reales, se sustituyen sin perder el trabajo de los profesores.
           </p>
 
           <div className="space-y-4">
             <PasoAyuda n={1} titulo="Crear los alumnos temporales">
               <p>
-                Indica el <strong>curso</strong> (p. ej. EP1), la <strong>especialidad</strong>
-                {" "}(p. ej. Canto) y el <strong>número de alumnos</strong> previstos, y pulsa
-                «Crear temporales». Se generan registros llamados
-                {" "}<em>«PDTE. 1 — Canto EP1»</em>, <em>«PDTE. 2 — Canto EP1»</em>… con las
-                asignaturas que corresponden a ese curso ya asignadas automáticamente.
+                <strong>Opción A — Manual:</strong> indica el <strong>curso</strong> (p. ej. EP1),
+                la <strong>especialidad</strong> y el <strong>número de alumnos</strong> previstos y
+                pulsa «Crear temporales». Se generan registros llamados{" "}
+                <em>«PDTE. 1 — Canto EP1»</em>, <em>«PDTE. 2 — Canto EP1»</em>… con las asignaturas
+                del catálogo ya asignadas automáticamente.
+              </p>
+              <p>
+                <strong>Opción B — Importar desde Excel o CSV:</strong> pulsa «Importar desde Excel
+                o CSV» y selecciona un archivo con las columnas{" "}
+                <em>Apellidos, Nombre, Grado/Curso y Especialidad</em>. El curso debe escribirse
+                como EE1–EE4 o EP1–EP6. Se crea un temporal por cada fila con el sufijo{" "}
+                <strong>_Temp</strong> añadido al nombre y los apellidos (p. ej.
+                «García_Temp, Ana_Temp»). Las filas con datos incorrectos se descartan y se
+                informa de los motivos sin interrumpir el resto.
+              </p>
+              <p>
+                Ambas opciones generan temporales equivalentes: aparecen en naranja en el Excel de
+                horarios, se vinculan igual a matrículas reales y se sustituyen de la misma forma.
+                En la lista de esta página puedes ver de un vistazo los contadores{" "}
+                <span className="font-semibold" style={{ color: "#c2410c" }}>pendientes</span>,{" "}
+                <span className="font-semibold text-blue-600">vinculados</span> y{" "}
+                <span className="font-semibold text-slate-500">sustituidos</span>.
               </p>
             </PasoAyuda>
 
             <PasoAyuda n={2} titulo="Generar el Excel de horarios">
               <p>
-                Ve a <strong>Informes</strong>, ponlo en modo «Por asignaturas» y usa
-                {" "}<strong>«Generar Excel Horarios»</strong>. Los alumnos temporales aparecen con
-                {" "}<strong>fondo naranja</strong> y el nombre «PDTE. N — …», fáciles de localizar.
-                Los profesores rellenan profesor, aula, día y horas como con cualquier alumno.
+                Ve a <strong>Informes</strong>, ponlo en modo «Por asignaturas» y usa{" "}
+                <strong>«Generar Excel Horarios»</strong>. Los alumnos temporales aparecen con{" "}
+                <strong>fondo naranja</strong> (tanto los «PDTE. N» como los importados con _Temp),
+                fáciles de localizar. Los profesores rellenan profesor, aula, día y horas como con
+                cualquier alumno real.
               </p>
             </PasoAyuda>
 
             <PasoAyuda n={3} titulo="Vincular cada matrícula real con su temporal">
               <p>
-                Cuando un alumno se matricula de verdad, abre su ficha en <strong>Local</strong> y
-                usa el selector <strong>«Sustituye a…»</strong> para elegir el temporal al que
-                reemplaza (solo aparecen los del mismo curso y especialidad). El temporal pasa a
-                estado <span className="font-semibold text-blue-600">Vinculado</span>.
+                Cuando un alumno se matricula de verdad, abre su ficha en <strong>Local</strong>,
+                despliega la sección <strong>Datos Personales</strong> y busca el selector{" "}
+                <strong>«Sustituye al alumno temporal»</strong> que aparece justo debajo del campo
+                Provincia. Solo muestra los temporales del mismo curso y especialidad. Al elegir
+                uno, el temporal pasa a estado{" "}
+                <span className="font-semibold text-blue-600">Vinculado</span>.
               </p>
             </PasoAyuda>
 
             <PasoAyuda n={4} titulo="Ejecutar la sustitución">
               <p>
                 Vuelve aquí y pulsa <strong>«Ejecutar sustituciones»</strong> cuando quieras. El
-                temporal pasa a <span className="font-semibold text-slate-500">Sustituido</span> y
-                el alumno real ocupa su lugar en los informes.
+                temporal pasa a{" "}
+                <span className="font-semibold text-slate-500">Sustituido</span> y el alumno real
+                ocupa su lugar en los informes.
               </p>
               <p>
                 También puedes fijar una <strong>fecha programada</strong>: la app ejecutará las
@@ -517,20 +732,32 @@ function AyudaModal({ onCerrar }: { onCerrar: () => void }) {
 
             <PasoAyuda n={5} titulo="Fusionar el Excel ya trabajado por los profesores">
               <p>
-                En <strong>Informes</strong>, usa <strong>«Fusión Actualización Nuevo Alumnado»</strong>.
-                Carga el Excel que rellenaron los profesores: la app sustituye los datos de los
-                temporales por los de los alumnos reales, <strong>conserva</strong> los horarios
-                introducidos (profesor, aula, día, horas) y genera un Excel nuevo fusionado. Antes
-                de guardarlo verás un resumen de lo que se conserva, se hereda o queda sin horario.
+                Una vez ejecutadas las sustituciones, pulsa <strong>«Generar Excel fusionado»</strong>{" "}
+                en esta misma página. La app carga el Excel vinculado (el mismo que usas en la
+                pestaña Horarios) y genera uno nuevo donde:
+              </p>
+              <p>
+                · Los alumnos que ya estaban conservan sus filas y los horarios que metieron los
+                profesores, <strong>sin ninguna modificación</strong>.<br />
+                · Los temporales sustituidos aparecen con los datos del <strong>alumno real</strong>,
+                heredando su horario y ya <strong>sin el fondo naranja</strong>.<br />
+                · Los temporales aún no sustituidos siguen exactamente como estaban, en naranja.
+              </p>
+              <p>
+                Antes de guardarlo verás un resumen de lo que se conserva, se hereda o queda sin
+                horario. También puedes hacer lo mismo desde <strong>Informes</strong> con{" "}
+                <strong>«Fusión Actualización Nuevo Alumnado»</strong>. La fusión funciona igual con
+                temporales «PDTE. N» y con los importados con sufijo _Temp.
               </p>
             </PasoAyuda>
 
             <PasoAyuda n={6} titulo="Enviar los horarios a los nuevos alumnos">
               <p>
-                En <strong>Horarios → Horarios Individuales</strong>, los alumnos que sustituyeron a
-                un temporal salen con la etiqueta <span className="font-semibold text-orange-600">NUEVO</span>.
-                Usa el filtro «Solo nuevos» y el botón <strong>«Sel. nuevos sin enviar»</strong> para
-                seleccionarlos y enviarles el horario por email con el sistema de campañas habitual.
+                En <strong>Horarios → Horarios Individuales</strong>, los alumnos que sustituyeron
+                a un temporal salen con la etiqueta{" "}
+                <span className="font-semibold text-orange-600">NUEVO</span>. Usa el filtro «Solo
+                nuevos» y el botón <strong>«Sel. nuevos sin enviar»</strong> para seleccionarlos y
+                enviarles el horario por email con el sistema de campañas habitual.
               </p>
             </PasoAyuda>
           </div>
@@ -546,7 +773,13 @@ function AyudaModal({ onCerrar }: { onCerrar: () => void }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-5 py-3.5 border-t border-[var(--tc-border)] bg-[var(--tc-bg-panel)] shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-[var(--tc-border)] bg-[var(--tc-bg-panel)] shrink-0 gap-3">
+          <button
+            onClick={onSaberMas}
+            className="px-4 py-2 rounded-lg border border-[var(--tc-border)] text-[var(--tc-primary)] text-sm font-semibold hover:bg-[var(--tc-primary-tint)] transition-colors"
+          >
+            Saber más…
+          </button>
           <button
             onClick={onCerrar}
             className="px-4 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"

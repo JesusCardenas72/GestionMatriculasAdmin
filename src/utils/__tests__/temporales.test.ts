@@ -1,4 +1,11 @@
-import { crearTemporales, planSustituciones, esTemporalPendiente, nombreTemporal } from "../temporales";
+import {
+  crearTemporales,
+  crearTemporalesNominales,
+  planSustituciones,
+  esTemporalPendiente,
+  nombreTemporal,
+  nombreVisibleTemporal,
+} from "../temporales";
 import type { MatriculaLocal } from "../../api/types";
 
 function matriculaBase(over: Partial<MatriculaLocal>): MatriculaLocal {
@@ -66,6 +73,55 @@ describe("crearTemporales", () => {
     const out = crearTemporales("25/26", "EE2", "Violín", 1, previos);
     expect(out[0].temporalNumero).toBe(4);
     expect(out[0].nombre).toBe(nombreTemporal(4, "Violín", "EE2"));
+  });
+});
+
+describe("crearTemporalesNominales", () => {
+  it("crea temporales con sufijo _Temp en nombre y apellidos", () => {
+    const { creados, errores } = crearTemporalesNominales(
+      "25/26",
+      [{ apellidos: "García", nombre: "Ana", ensenanzaCurso: "EP1", especialidad: "Piano" }],
+      [],
+    );
+    expect(errores).toHaveLength(0);
+    expect(creados).toHaveLength(1);
+    expect(creados[0].nombre).toBe("Ana_Temp");
+    expect(creados[0].apellidos).toBe("García_Temp");
+    expect(creados[0].nombreMatricula).toBe("García_Temp, Ana_Temp");
+    expect(creados[0].esTemporal).toBe(true);
+    expect(creados[0].temporalEstado).toBe("pendiente");
+    expect(creados[0]._pendienteSubida).toBe(false);
+    expect(creados[0].asignaturas.length).toBeGreaterThan(0);
+    expect(nombreVisibleTemporal(creados[0])).toBe("García_Temp, Ana_Temp");
+  });
+
+  it("continúa la numeración de los temporales existentes", () => {
+    const previos = [matriculaBase({ esTemporal: true, temporalNumero: 5 })];
+    const { creados } = crearTemporalesNominales(
+      "25/26",
+      [{ apellidos: "García", nombre: "Ana", ensenanzaCurso: "EP1", especialidad: "Piano" }],
+      previos,
+    );
+    expect(creados[0].temporalNumero).toBe(6);
+    expect(creados[0].dni).toBe("TEMP-2526-6");
+  });
+
+  it("descarta duplicados, tanto de temporales existentes como dentro del mismo archivo", () => {
+    const previos = [
+      matriculaBase({ esTemporal: true, temporalNumero: 1, nombre: "Ana_Temp", apellidos: "García_Temp" }),
+    ];
+    const { creados, errores } = crearTemporalesNominales(
+      "25/26",
+      [
+        { apellidos: "García", nombre: "Ana", ensenanzaCurso: "EP1", especialidad: "Piano" }, // duplicado de un existente
+        { apellidos: "Ruiz", nombre: "Luis", ensenanzaCurso: "EP2", especialidad: "Piano" },
+        { apellidos: "Ruiz", nombre: "Luis", ensenanzaCurso: "EP2", especialidad: "Piano" }, // duplicado interno
+      ],
+      previos,
+    );
+    expect(creados).toHaveLength(1);
+    expect(creados[0].apellidos).toBe("Ruiz_Temp");
+    expect(errores).toHaveLength(2);
   });
 });
 

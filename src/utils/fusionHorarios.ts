@@ -55,7 +55,8 @@ export function nombreCompletoDe(apellidos: string, nombre: string): string {
   return a || n || "";
 }
 
-function prefijo(nombreCompleto: string, ensenanzaCurso: string, especialidad: string): string {
+/** Clave de alumno: nombre completo + curso + especialidad normalizados. */
+export function prefijo(nombreCompleto: string, ensenanzaCurso: string, especialidad: string): string {
   return norm(nombreCompleto) + "|||" + norm(ensenanzaCurso) + "|||" + norm(especialidad);
 }
 
@@ -177,7 +178,12 @@ export function fusionarHorarios(
       real.ensenanzaCurso,
       real.especialidad ?? "",
     );
-    const prefTemp = prefijo(t.nombre, t.ensenanzaCurso, t.especialidad ?? "");
+    // Los "PDTE. N" no tienen apellidos; los importados de Excel/CSV sí (sufijo _Temp)
+    const prefTemp = prefijo(
+      nombreCompletoDe(t.apellidos, t.nombre),
+      t.ensenanzaCurso,
+      t.especialidad ?? "",
+    );
     aliasRealATemporal.set(prefReal, prefTemp);
   }
 

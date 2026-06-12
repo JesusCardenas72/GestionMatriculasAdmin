@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useSustitucionProgramada } from "../hooks/useSustitucionProgramada";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown, Lock, Eye, LogOut, Hourglass, SlidersHorizontal } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut, Hourglass, Sun, Moon, Link2, GraduationCap, Trash2 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
@@ -20,10 +20,12 @@ import LocalScreen from "./LocalScreen";
 import InformesScreen from "./InformesScreen";
 import HorariosAlumnosScreen from "./HorariosAlumnosScreen";
 import TemporalesScreen from "./TemporalesScreen";
+import ConexionModal from "../components/modals/ConexionModal";
+import CursosModal from "../components/modals/CursosModal";
+import BorrarModal from "../components/modals/BorrarModal";
 
 interface Props {
   config: AppConfig;
-  onEditConfig: () => void;
 }
 
 const TIPO_BADGE: Record<string, string> = {
@@ -41,13 +43,29 @@ const ALL_TABS: ActiveTab[] = [
   "horarios",
 ];
 
-export default function MainScreen({ config, onEditConfig }: Props) {
+export default function MainScreen({ config }: Props) {
   const [active, setActive] = useState<ActiveTab>(ESTADO.PENDIENTE_TRAMITACION);
   const [selected, setSelected] = useState<Solicitud | null>(null);
   const [cursoModalOpen, setCursoModalOpen] = useState(false);
   const [convalidacionMap, setConvalidacionMap] = useState<Map<string, boolean>>(new Map());
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [conexionModalOpen, setConexionModalOpen] = useState(false);
+  const [cursosModalOpen, setCursosModalOpen] = useState(false);
+  const [borrarModalOpen, setBorrarModalOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(
+    () => (document.documentElement.getAttribute("data-theme") as "light" | "dark") ?? "light",
+  );
   const settingsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Sincronizar el estado local del tema cuando cambia desde ConfigScreen
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const t = document.documentElement.getAttribute("data-theme") as "light" | "dark";
+      setTheme(t ?? "light");
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   const { curso, tipo, readOnly } = useCursoContext();
   const { isSoloLectura, salir } = useAppMode();
@@ -148,7 +166,7 @@ export default function MainScreen({ config, onEditConfig }: Props) {
   }, [current?.data?.solicitudes, convalidacionMap]);
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--tc-bg)]">
+    <div className="h-screen flex flex-col bg-[var(--tc-bg)] overflow-hidden">
       <header className="h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center gap-4">
         <div className="flex items-center gap-3 shrink-0">
           <button
@@ -231,25 +249,92 @@ export default function MainScreen({ config, onEditConfig }: Props) {
 
             {settingsMenuOpen && (
               <div
-                className="absolute right-0 top-full mt-1.5 w-64 bg-[var(--tc-card)] border border-[var(--tc-border)] rounded-xl shadow-xl z-50 overflow-hidden py-1"
+                className="absolute right-0 top-full mt-1.5 w-72 bg-[var(--tc-card)] border border-[var(--tc-border)] rounded-xl shadow-xl z-50 overflow-hidden py-1"
               >
+                {/* Apariencia */}
+                <div className="flex items-center gap-3 px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                  {theme === "dark"
+                    ? <Moon className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                    : <Sun className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Apariencia</p>
+                    <p className="text-xs text-[var(--tc-ink-mute)] leading-tight">
+                      {theme === "dark" ? "Modo oscuro" : "Modo claro"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = theme === "light" ? "dark" : "light";
+                      setTheme(next);
+                      document.documentElement.setAttribute("data-theme", next);
+                      localStorage.setItem("theme", next);
+                    }}
+                    className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                    style={{ background: theme === "dark" ? "var(--tc-primary)" : "var(--tc-border)" }}
+                    role="switch"
+                    aria-checked={theme === "dark"}
+                  >
+                    <span
+                      className="pointer-events-none inline-block h-5 w-5 rounded-full shadow-lg transition-transform duration-200"
+                      style={{
+                        background: "var(--tc-surface)",
+                        transform: theme === "dark" ? "translateX(20px)" : "translateX(0px)",
+                      }}
+                    />
+                  </button>
+                </div>
+
+                {/* Conexión a Power Automate */}
                 <button
-                  onClick={() => { setSettingsMenuOpen(false); onEditConfig(); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                  onClick={() => { setSettingsMenuOpen(false); setConexionModalOpen(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
                 >
-                  <SlidersHorizontal className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
-                  <span>Configuración</span>
+                  <Link2 className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Conexión a Power Automate</p>
+                    <p className="text-xs text-[var(--tc-ink-mute)] leading-tight">URLs y API Key configuradas</p>
+                  </div>
                 </button>
+
+                {/* Cursos Escolares */}
+                <button
+                  onClick={() => { setSettingsMenuOpen(false); setCursosModalOpen(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
+                >
+                  <GraduationCap className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Cursos Escolares</p>
+                    <p className="text-xs text-[var(--tc-ink-mute)] leading-tight">Gestión de cursos y backups</p>
+                  </div>
+                </button>
+
+                {/* Borrar cursos de Dataverse */}
+                <button
+                  onClick={() => { setSettingsMenuOpen(false); setBorrarModalOpen(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)]"
+                >
+                  <Trash2 className="w-4 h-4 shrink-0" style={{ color: "var(--tc-danger-ink)" }} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium leading-tight" style={{ color: "var(--tc-ink)" }}>Borrar cursos de Dataverse</p>
+                    <p className="text-xs leading-tight" style={{ color: "var(--tc-ink-mute)" }}>Eliminar matrículas directamente de Dataverse</p>
+                  </div>
+                </button>
+
                 <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />
+
+                {/* Alumnos temporales */}
                 <button
                   onClick={() => { setSettingsMenuOpen(false); handleTabChange("temporales"); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
                 >
                   <Hourglass className="w-4 h-4 shrink-0 text-orange-500" />
-                  <span className="flex-1 text-left">Alumnos temporales</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Alumnos temporales</p>
+                  </div>
                   {temporalesPendientes > 0 && (
                     <span
-                      className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
+                      className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold shrink-0"
                       style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }}
                     >
                       {temporalesPendientes}
@@ -295,7 +380,8 @@ export default function MainScreen({ config, onEditConfig }: Props) {
           defaultLeftSize="320px"
           className="flex-1 overflow-hidden"
           left={
-            <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col m-6 mr-3">
+            <div className="h-full py-6 pl-6 pr-3">
+              <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
               <SolicitudList
                 data={currentSolicitudes}
                 isLoading={current!.isLoading}
@@ -305,10 +391,11 @@ export default function MainScreen({ config, onEditConfig }: Props) {
                 onSelect={setSelected}
                 onRefresh={() => qc.invalidateQueries({ queryKey: ["solicitudes", active] })}
               />
+              </div>
             </div>
           }
           right={
-            <div className="h-full ml-3 mr-6 my-6 pl-6 overflow-y-auto bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm">
+            <div className="h-full ml-3 mr-6 py-6 flex flex-col">
               {selected ? (
                 <SolicitudDetail
                   config={config}
@@ -337,6 +424,28 @@ export default function MainScreen({ config, onEditConfig }: Props) {
         open={cursoModalOpen}
         onClose={() => setCursoModalOpen(false)}
       />
+
+      {conexionModalOpen && (
+        <ConexionModal
+          initial={config}
+          onSave={async (cfg) => { await window.adminAPI.config.save(cfg); }}
+          onClose={() => setConexionModalOpen(false)}
+        />
+      )}
+
+      {cursosModalOpen && (
+        <CursosModal
+          config={config}
+          onClose={() => setCursosModalOpen(false)}
+        />
+      )}
+
+      {borrarModalOpen && (
+        <BorrarModal
+          config={config}
+          onClose={() => setBorrarModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

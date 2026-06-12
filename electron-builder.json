@@ -17,7 +17,7 @@
     "icon": "PergaminoIcon256.ico"
   },
   "portable": {
-    "artifactName": "GestionMatriculas-Portable.exe"
+    "artifactName": "GestionMatriculas-v${version}-Portable.exe"
   },
   "nsis": {
     "oneClick": false,

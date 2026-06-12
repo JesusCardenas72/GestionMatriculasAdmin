@@ -54,6 +54,7 @@ import {
   type MatriculaLocal,
 } from "../api/types";
 import { ensenanzaDesdeCode, getCatalogoLocal, getCatalogoParaCurso } from "../data/catalogoLocal";
+import { nombreVisibleTemporal } from "../utils/temporales";
 import { EstadoBadge } from "./SolicitudDetail";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
@@ -152,7 +153,7 @@ export default function LocalDetail({
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [pdfBase64Preview, setPdfBase64Preview] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
-  const [showInlinePdf, setShowInlinePdf] = useState(false);
+  const [showInlinePdf, setShowInlinePdf] = useState(true);
 
   // Clave con la que se guarda el fichero PDF:
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
@@ -221,6 +222,14 @@ export default function LocalDetail({
     }).catch(() => { /* silencioso */ });
     return () => { cancelled = true; };
   // Solo comprobar cuando cambia el registro seleccionado
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m.localId]);
+
+  // Cargar PDF inline al abrir el detalle si tiene PDF
+  useEffect(() => {
+    if (m._tienePdf && !pdfBase64Preview) {
+      void loadInlinePdf();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m.localId]);
 
@@ -357,9 +366,9 @@ export default function LocalDetail({
   const nOrdenColWidth = nOrdenDigits <= 2 ? 96 : nOrdenDigits === 3 ? 128 : 164;
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-4xl h-full flex flex-col">
       <div
-        className="rounded-xl overflow-hidden"
+        className="rounded-xl overflow-hidden flex flex-col"
         style={{
           background: "var(--tc-card)",
           border: "1px solid var(--tc-border)",
@@ -375,14 +384,17 @@ export default function LocalDetail({
             display: "flex",
             alignItems: "flex-start",
             gap: 20,
+            position: "relative",
           }}
         >
           {/* Número enorme editable */}
           <div className="shrink-0 flex flex-col items-center" style={{ width: nOrdenColWidth }}>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={form.nOrden}
-              onChange={(e) => setField("nOrden", e.target.value)}
+              onChange={(e) => setField("nOrden", e.target.value.replace(/\D/g, ""))}
               onBlur={() => saveForm()}
               placeholder="—"
               className="font-display w-full text-center bg-transparent border-none outline-none focus:ring-0 leading-none tabular-nums"
@@ -392,7 +404,6 @@ export default function LocalDetail({
                 fontWeight: 400,
                 letterSpacing: -4,
                 color: "var(--tc-primary)",
-                MozAppearance: "textfield",
               }}
             />
             <div
@@ -506,50 +517,77 @@ export default function LocalDetail({
               <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{m.especialidad ?? "—"}</span>
             </div>
 
-            {/* Temporal: aviso · Real: selector "Sustituye a…" */}
-            {m.esTemporal ? (
+            {/* Temporal: aviso (el selector "Sustituye a…" de matrículas reales está en Datos Personales) */}
+            {m.esTemporal && (
               <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
                 Registro temporal para horarios: no se sube a la nube ni genera PDF. Se sustituirá por un
                 alumno real desde la pestaña Temporales.
               </div>
-            ) : (
-              (() => {
-                const candidatos = temporalesPendientes.filter(
-                  (t) =>
-                    t.ensenanzaCurso === m.ensenanzaCurso &&
-                    (t.especialidad ?? "") === (m.especialidad ?? ""),
-                );
-                if (candidatos.length === 0 && !m.sustituyeATemporalId) return null;
-                return (
-                  <div className="mt-3 flex items-center gap-2 text-xs">
-                    <span className="font-bold uppercase tracking-wide text-[10.5px]" style={{ color: "var(--tc-ink-mute)" }}>
-                      Sustituye a
-                    </span>
-                    <select
-                      value={m.sustituyeATemporalId ?? ""}
-                      disabled={readOnly}
-                      onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null })}
-                      className="text-xs py-1 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)] max-w-[280px]"
-                    >
-                      <option value="">— Ningún temporal —</option>
-                      {candidatos.map((t) => (
-                        <option key={t.localId} value={t.localId}>{t.nombre}</option>
-                      ))}
-                    </select>
-                    {m.sustituyeATemporalId && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
-                        Pendiente de ejecutar en Temporales
-                      </span>
-                    )}
-                  </div>
-                );
-              })()
             )}
           </div>
 
-          {/* Acciones rápidas: menú + borrar */}
-          <div className="shrink-0 flex items-start gap-2 pt-1">
+          {/* Acciones rápidas: borrar (arriba) y menú tres puntos (abajo) */}
+          <div
+            className="absolute flex flex-col items-end"
+            style={{ top: 22, right: 28, bottom: 18 }}
+          >
+            {/* Borrar — superior derecha del encabezado */}
+            <div className="flex items-center">
+            {confirmDelete && !readOnly ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600 font-medium">¿Borrar?</span>
+                <button
+                  type="button"
+                  onClick={onBorrar}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Sí, borrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={isSaving}
+                  className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
+                  style={{ color: "var(--tc-ink-soft)" }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => !readOnly && setConfirmDelete(true)}
+                disabled={isSaving || readOnly}
+                title={readOnly ? "No disponible en modo Solo Lectura" : "Borrar matrícula del almacén local"}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  borderColor: "var(--tc-border)",
+                  color: "var(--tc-ink-soft)",
+                  background: "var(--tc-card)",
+                }}
+                onMouseEnter={(e) => {
+                  if (!readOnly) {
+                    (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-danger-border)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-soft)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-border)";
+                }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Borrar
+              </button>
+            )}
+          </div>
+
             {/* Menú tres puntos (sin PDF/Nube para temporales) */}
+            <div className="mt-auto">
             {!m.esTemporal && (
             <div
               className="relative"
@@ -624,124 +662,35 @@ export default function LocalDetail({
                       <Cloud className="w-4 h-4 shrink-0" />
                       Subir a la Nube
                     </button>
+                    {estado != null && !readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => { onEnviarCorreo(); setMenuOpen(false); }}
+                        disabled={isSaving}
+                        title={
+                          estado === 856530001
+                            ? "Abrir email de documentación requerida (Pendiente de Validación)"
+                            : estado === 856530002
+                              ? "Abrir email de matrícula tramitada (Tramitado)"
+                              : "Enviar correo"
+                        }
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-ink)" }}
+                      >
+                        <Mail className="w-4 h-4 shrink-0" />
+                        Enviar correo
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
             </div>
             )}
-
-            {/* Borrar */}
-            {confirmDelete && !readOnly ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-red-600 font-medium">¿Borrar definitivamente?</span>
-                <button
-                  type="button"
-                  onClick={onBorrar}
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Sí, borrar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(false)}
-                  disabled={isSaving}
-                  className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
-                  style={{ color: "var(--tc-ink-soft)" }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => !readOnly && setConfirmDelete(true)}
-                disabled={isSaving || readOnly}
-                title={readOnly ? "No disponible en modo Solo Lectura" : "Borrar matrícula del almacén local"}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  borderColor: "var(--tc-border)",
-                  color: "var(--tc-ink-soft)",
-                  background: "var(--tc-card)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!readOnly) {
-                    (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-danger-ink)";
-                    (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-danger-bg)";
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-danger-border)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-soft)";
-                  (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--tc-border)";
-                }}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Borrar
-              </button>
-            )}
-
-            {/* Enviar correo (solo si tiene estado remoto conocido) */}
-            {estado != null && !readOnly && (
-              <button
-                type="button"
-                onClick={onEnviarCorreo}
-                disabled={isSaving}
-                title={
-                  estado === 856530001
-                    ? "Abrir email de documentación requerida (Pendiente de Validación)"
-                    : estado === 856530002
-                      ? "Abrir email de matrícula tramitada (Tramitado)"
-                      : "Enviar correo"
-                }
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  borderColor:
-                    estado === 856530001
-                      ? "var(--tc-warn-border)"
-                      : estado === 856530002
-                        ? "var(--tc-success-border)"
-                        : "var(--tc-border)",
-                  color:
-                    estado === 856530001
-                      ? "var(--tc-warn-ink)"
-                      : estado === 856530002
-                        ? "var(--tc-success-ink)"
-                        : "var(--tc-ink-soft)",
-                  background:
-                    estado === 856530001
-                      ? "var(--tc-warn-bg)"
-                      : estado === 856530002
-                        ? "var(--tc-success-bg)"
-                        : "var(--tc-card)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    estado === 856530001
-                      ? "var(--tc-warn-border)"
-                      : estado === 856530002
-                        ? "var(--tc-success-border)"
-                        : "var(--tc-bg-panel)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    estado === 856530001
-                      ? "var(--tc-warn-bg)"
-                      : estado === 856530002
-                        ? "var(--tc-success-bg)"
-                        : "var(--tc-card)";
-                }}
-              >
-                <Mail className="w-3.5 h-3.5" />
-                Enviar correo
-              </button>
-            )}
+            </div>
           </div>
         </div>
 
-        <div className="p-6 space-y-2">
+        <div className="p-6 space-y-2 flex-1 overflow-y-auto">
           <div className="flex justify-end mb-1">
             <button
               type="button"
@@ -821,6 +770,44 @@ export default function LocalDetail({
                 onBlur={() => saveForm()}
                 disabled={readOnly}
               />
+              {/* Vínculo con alumno temporal (mismo curso y especialidad) */}
+              {!m.esTemporal &&
+                (() => {
+                  const candidatos = temporalesPendientes.filter(
+                    (t) =>
+                      t.ensenanzaCurso === m.ensenanzaCurso &&
+                      (t.especialidad ?? "") === (m.especialidad ?? ""),
+                  );
+                  if (candidatos.length === 0 && !m.sustituyeATemporalId) return null;
+                  return (
+                    <div className="col-span-2">
+                      <p
+                        className="text-xs uppercase tracking-wide mb-0.5"
+                        style={{ color: "var(--tc-ink-mute)" }}
+                      >
+                        Sustituye al alumno temporal
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={m.sustituyeATemporalId ?? ""}
+                          disabled={readOnly}
+                          onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null })}
+                          className="text-sm py-1 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)] max-w-[320px]"
+                        >
+                          <option value="">— Ningún temporal —</option>
+                          {candidatos.map((t) => (
+                            <option key={t.localId} value={t.localId}>{nombreVisibleTemporal(t)}</option>
+                          ))}
+                        </select>
+                        {m.sustituyeATemporalId && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                            Pendiente de ejecutar en Temporales
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
             </div>
           </AccordionBlock>
 
@@ -1140,7 +1127,7 @@ export default function LocalDetail({
                     />
                   </button>
                   {showInlinePdf && (
-                    <div className="border-t" style={{ borderColor: "var(--tc-border)" }}>
+                    <div className="border-t h-[500px]" style={{ borderColor: "var(--tc-border)" }}>
                       {pdfBase64Preview ? (
                         <PdfViewer
                           contentBase64={pdfBase64Preview}

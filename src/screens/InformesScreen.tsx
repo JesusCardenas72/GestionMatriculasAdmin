@@ -881,6 +881,20 @@ export default function InformesScreen({ config }: Props) {
   // relleno por los profesores y conserva sus horarios en el nuevo Excel.
   function handleExportarHorarios(fusion = false) {
     setShowExportMenu(false);
+    if (camposVisibles.length === 0) {
+      window.alert(
+        'No hay un informe apropiado para generar el Excel de horarios.\n' +
+          'Añade al menos una columna visible en el informe.',
+      );
+      return;
+    }
+    if (resultados.length === 0) {
+      window.alert(
+        'No hay un informe apropiado para generar el Excel de horarios.\n' +
+          'El informe actual no contiene datos. Revisa los filtros aplicados.',
+      );
+      return;
+    }
     // 0. El informe debe estar "Por asignaturas" (no "Por alumno")
     if (informe.modo !== 'asignatura') {
       window.alert(
@@ -911,12 +925,14 @@ export default function InformesScreen({ config }: Props) {
   async function handleGenerarHorarios() {
     setHorariosGenerando(true);
     try {
-      // 1. Conseguir la lista de profesores (CSV memorizado; si no hay, pedirlo)
+      // 1. Conseguir la lista de profesores (CSV memorizado)
       let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
       if (profesores.length === 0) {
-        const sel = await window.adminAPI.horarios.seleccionarProfesoresCsv();
-        if (!sel) return; // el usuario canceló
-        profesores = sel.profesores;
+        window.alert(
+          'No se ha cargado la lista de profesores.\n' +
+            'Usa la opción "Cargar profesores (CSV)…" del menú de acciones antes de generar el Excel de horarios.',
+        );
+        return;
       }
       // 2. Generar el Excel con las columnas del informe y las opciones elegidas
       const opciones: OpcionesHorario = {

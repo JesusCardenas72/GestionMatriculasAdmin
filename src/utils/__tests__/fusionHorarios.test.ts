@@ -1,5 +1,5 @@
 import { fusionarHorarios, type FilaCrudaHorario } from "../fusionHorarios";
-import { crearTemporales } from "../temporales";
+import { crearTemporales, crearTemporalesNominales } from "../temporales";
 import type { FilaInforme, MatriculaLocal } from "../../api/types";
 import { ESTADO } from "../../api/types";
 
@@ -95,6 +95,41 @@ describe("fusionarHorarios", () => {
     expect(r.sinHorario[0]).toContain("Coro");
     // El horario del temporal queda huérfano (su asignatura no coincide)
     expect(r.huerfanas).toHaveLength(1);
+  });
+
+  it("el alumno real hereda el horario de un temporal importado (sufijo _Temp)", () => {
+    // Temporal nominal "García_Temp, Ana_Temp" sustituido por "García, Ana"
+    const { creados } = crearTemporalesNominales(
+      "25/26",
+      [{ apellidos: "García", nombre: "Ana", ensenanzaCurso: "EP1", especialidad: "Piano" }],
+      [],
+    );
+    const nominal = creados[0];
+    const realNominal: MatriculaLocal = {
+      ...nominal,
+      localId: "real-2",
+      origenRowId: "real-2",
+      esTemporal: undefined,
+      temporalNumero: undefined,
+      temporalEstado: undefined,
+      sustituidoPorLocalId: undefined,
+      nombre: "Ana",
+      apellidos: "García",
+    };
+    const nominalSustituido: MatriculaLocal = {
+      ...nominal,
+      temporalEstado: "sustituido",
+      sustituidoPorLocalId: "real-2",
+    };
+    const filas = [fila("García, Ana", "EP1", "Piano", "Instrumento")];
+    const crudas = [
+      // En el Excel el temporal aparece como "Apellidos_Temp, Nombre_Temp"
+      cruda("García_Temp, Ana_Temp", "EP1", "Piano", "Instrumento", { h_prof: "Profe Z", h_aula: "B02" }),
+    ];
+    const r = fusionarHorarios(filas, crudas, [nominalSustituido, realNominal]);
+    expect(r.heredadas).toBe(1);
+    expect(r.valoresHorario[0]?.h_prof).toBe("Profe Z");
+    expect(r.huerfanas).toHaveLength(0);
   });
 
   it("lista como huérfanas las filas con horario que no encajan con ningún alumno", () => {

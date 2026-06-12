@@ -709,7 +709,8 @@ export default function LocalScreen({ config }: Props) {
         defaultLeftSize="380px"
         className="flex-1 overflow-hidden"
         left={
-          <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col ml-6 mr-3 my-5">
+          <div className="h-full pl-6 pr-3 py-5">
+            <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
             <LocalList
               data={matriculas}
               isLoading={isLoading || isFetching}
@@ -755,10 +756,11 @@ export default function LocalScreen({ config }: Props) {
                 )}
               </div>
             )}
+            </div>
           </div>
         }
         right={
-          <div className="h-full overflow-y-auto pb-6 px-4 ml-3 mr-6 my-5 bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm">
+          <div className="h-full ml-3 mr-6 py-5 flex flex-col">
             {selected ? (
               <LocalDetail
                 matricula={selected}

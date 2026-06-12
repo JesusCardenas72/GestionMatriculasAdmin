@@ -164,7 +164,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     setLocalPdfBase64(null);
   }, [solicitud.rowId]);
 
-  const pdfQuery = usePdf(config, solicitud.rowId);
+  const pdfQuery = usePdf(config, solicitud.rowId, solicitud.cursoEscolar ?? undefined);
   const pdfVacio =
     (pdfQuery.data !== undefined && !pdfQuery.data?.contentBase64) ||
     (pdfQuery.error instanceof FlowError &&
@@ -575,9 +575,9 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   // ── Tramitados ───────────────────────────────────────────────────────────
   if (isP3) {
     return (
-      <div className="max-w-4xl">
+      <div className="max-w-4xl h-full flex flex-col">
         <div
-          className="rounded-xl overflow-hidden"
+          className="rounded-xl overflow-hidden flex flex-col"
           style={{
             background: "var(--tc-card)",
             border: "1px solid var(--tc-border)",
@@ -586,7 +586,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         >
           {DetailHeader}
 
-          <div className="p-6 space-y-2">
+          <div className="p-6 space-y-2 flex-1 overflow-y-auto">
             <div className="flex justify-end mb-1">
               <button
                 type="button"
@@ -660,7 +660,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               )}
               {pdfVacio && <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Esta solicitud no tiene PDF adjunto.</p>}
               {(pdfQuery.data?.contentBase64 ?? localPdfBase64) && (
-<div className="h-[75vh]">
+<div className="h-[500px]">
                   <PdfViewer
                     contentBase64={(pdfQuery.data?.contentBase64 ?? localPdfBase64)!}
                     fileName={pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`}
@@ -731,7 +731,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
       <div className="flex-1 min-h-0 flex gap-5 p-6 overflow-hidden items-stretch">
 
         {/* Columna izquierda: asignaturas + notas */}
-        <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0" style={{ minWidth: 0, height: "calc(100vh - 280px)" }}>
+        <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0 h-full" style={{ minWidth: 0 }}>
 
           {/* Título sección asignaturas */}
           <div className="flex items-center justify-between">

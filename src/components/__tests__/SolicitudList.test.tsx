@@ -46,6 +46,26 @@ const defaultProps = {
   onRefresh: vi.fn(),
 };
 
+// jsdom no implementa layout: sin esto el virtualizador mide 0px y no pinta filas
+beforeAll(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+    configurable: true,
+    get: () => 800,
+  });
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get: () => 600,
+  });
+});
+
 describe("SolicitudList", () => {
   it("shows the loading state", () => {
     render(<SolicitudList {...defaultProps} isLoading />);
@@ -68,8 +88,9 @@ describe("SolicitudList", () => {
       makeSolicitud({ rowId: "2", nombre: "María", apellidos: "Pérez Ruiz", dni: "87654321B" }),
     ];
     render(<SolicitudList {...defaultProps} data={data} />);
-    expect(screen.getByText("Juan García López")).toBeInTheDocument();
-    expect(screen.getByText("María Pérez Ruiz")).toBeInTheDocument();
+    // cada fila pinta el nombre dos veces (vista compacta y expandida)
+    expect(screen.getAllByText("Juan García López").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("María Pérez Ruiz").length).toBeGreaterThan(0);
   });
 
   it("filters by nombre", async () => {
@@ -79,8 +100,8 @@ describe("SolicitudList", () => {
     ];
     render(<SolicitudList {...defaultProps} data={data} />);
     await userEvent.type(screen.getByPlaceholderText(/Buscar/), "María");
-    expect(screen.queryByText("Juan García López")).not.toBeInTheDocument();
-    expect(screen.getByText("María Pérez Ruiz")).toBeInTheDocument();
+    expect(screen.queryAllByText("Juan García López")).toHaveLength(0);
+    expect(screen.getAllByText("María Pérez Ruiz").length).toBeGreaterThan(0);
   });
 
   it("filters by DNI", async () => {
@@ -90,8 +111,8 @@ describe("SolicitudList", () => {
     ];
     render(<SolicitudList {...defaultProps} data={data} />);
     await userEvent.type(screen.getByPlaceholderText(/Buscar/), "87654321B");
-    expect(screen.queryByText("Juan García López")).not.toBeInTheDocument();
-    expect(screen.getByText("María Pérez Ruiz")).toBeInTheDocument();
+    expect(screen.queryAllByText("Juan García López")).toHaveLength(0);
+    expect(screen.getAllByText("María Pérez Ruiz").length).toBeGreaterThan(0);
   });
 
   it("shows empty state when search yields no results", async () => {
@@ -105,7 +126,7 @@ describe("SolicitudList", () => {
     const onSelect = vi.fn();
     const solicitud = makeSolicitud();
     render(<SolicitudList {...defaultProps} data={[solicitud]} onSelect={onSelect} />);
-    await userEvent.click(screen.getByText("Juan García López"));
+    await userEvent.click(screen.getAllByText("Juan García López")[0]);
     expect(onSelect).toHaveBeenCalledWith(solicitud);
   });
 

@@ -11,6 +11,7 @@ import {
   listarSolicitudes,
   obtenerPDF,
 } from "../api/solicitudes";
+import { cursosStore } from "../api/cursosStore";
 import type {
   ActualizarSolicitudInput,
   AsignaturaCatalogo,
@@ -38,10 +39,22 @@ export function useSolicitudes(cfg: AppConfig, estado: EstadoTramite, cursoEscol
   });
 }
 
-export function usePdf(cfg: AppConfig, rowId: string | null) {
+export function usePdf(cfg: AppConfig, rowId: string | null, curso?: string) {
   return useQuery({
     queryKey: rowId ? keys.pdf(rowId) : ["pdf", "none"],
-    queryFn: () => obtenerPDF(cfg, rowId!),
+    queryFn: async () => {
+      if (curso) {
+        const local = await cursosStore.leerPdf(curso, rowId!);
+        if (local) {
+          return {
+            contentBase64: local,
+            fileName: `matricula_${rowId}.pdf`,
+            mimeType: "application/pdf",
+          };
+        }
+      }
+      return obtenerPDF(cfg, rowId!);
+    },
     enabled: !!rowId,
     staleTime: 5 * 60_000,
     retry: (failureCount, error) => {

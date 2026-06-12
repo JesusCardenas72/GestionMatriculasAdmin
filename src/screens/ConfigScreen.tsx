@@ -69,6 +69,7 @@ interface Props {
   onClear?: () => Promise<void>;
   onCancel?: () => void;
   asModal?: boolean;
+  initialSection?: string;
 }
 
 export default function ConfigScreen({
@@ -77,6 +78,7 @@ export default function ConfigScreen({
   onClear,
   onCancel,
   asModal,
+  initialSection,
 }: Props) {
   const {
     register,
@@ -106,9 +108,10 @@ export default function ConfigScreen({
 
   const { isSoloLectura } = useAppMode();
   const [test, setTest] = useState<TestState>({ status: "idle" });
-  const [urlsOpen, setUrlsOpen] = useState(!initial);
-  const [cursosOpen, setCursosOpen] = useState(false);
-  const [borrarOpen, setBorrarOpen] = useState(false);
+  const [urlsOpen, setUrlsOpen] = useState(!initial || initialSection === "conexion");
+  const [cursosOpen, setCursosOpen] = useState(initialSection === "cursos");
+  const [borrarOpen, setBorrarOpen] = useState(initialSection === "borrar");
+  const aparienciaRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(
     () => (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'light'
   );
@@ -119,6 +122,12 @@ export default function ConfigScreen({
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
   }
+
+  useEffect(() => {
+    if (initialSection === "apariencia" && aparienciaRef.current) {
+      setTimeout(() => aparienciaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+    }
+  }, [initialSection]);
 
   async function onSubmit(values: FormValues) {
     await onSave(values);
@@ -171,6 +180,7 @@ export default function ConfigScreen({
 
         {/* ── Apariencia ── */}
         <div
+          ref={aparienciaRef}
           className="mt-6 p-4 rounded-xl flex items-center justify-between"
           style={{ background: "var(--tc-bg-panel)", border: "1px solid var(--tc-border-soft)" }}
         >

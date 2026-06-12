@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useConfig } from "./hooks/useConfig";
 import { useCursosConocidos } from "./hooks/useCursosConocidos";
@@ -11,8 +11,7 @@ import AdminSecretPanel from "./components/AdminSecretPanel";
 
 export default function App() {
   const { modo } = useAppMode();
-  const { state, save, clear } = useConfig();
-  const [editing, setEditing] = useState(false);
+  const { state, save } = useConfig();
   const { cursos } = useCursosConocidos();
   useMigracionTextoLocal(cursos.map((c) => c.curso));
 
@@ -69,28 +68,9 @@ export default function App() {
   return (
     <>
       <AdminSecretPanel />
-      <MainScreen config={state.config} onEditConfig={() => setEditing(true)} />
-      {editing && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto flex items-start justify-center p-6"
-          style={{ backdropFilter: "blur(6px)", background: "rgba(0,0,0,0.35)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setEditing(false); }}
-        >
-          <ConfigScreen
-            asModal
-            initial={state.config}
-            onSave={async (cfg) => {
-              await save(cfg);
-              setEditing(false);
-            }}
-            onClear={async () => {
-              await clear();
-              setEditing(false);
-            }}
-            onCancel={() => setEditing(false)}
-          />
-        </div>
-      )}
+      <MainScreen
+        config={state.config}
+      />
     </>
   );
 }
