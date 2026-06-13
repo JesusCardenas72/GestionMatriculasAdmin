@@ -143,6 +143,10 @@ const adminAPI = {
       ipcRenderer.invoke("horarios:obtenerExcelPath"),
     eliminarExcelPath: (): Promise<void> =>
       ipcRenderer.invoke("horarios:eliminarExcelPath"),
+    seleccionarExcelRelleno: (): Promise<{ fileName: string; base64: string; path: string } | null> =>
+      ipcRenderer.invoke("horarios:seleccionarExcelRelleno"),
+    leerExcelDesdeRuta: (filePath: string): Promise<{ fileName: string; base64: string; path: string } | null> =>
+      ipcRenderer.invoke("horarios:leerExcelDesdeRuta", filePath),
     campanyas: {
       listar: (): Promise<CampanyaEnvio[]> =>
         ipcRenderer.invoke("horarios:campanyas:listar"),

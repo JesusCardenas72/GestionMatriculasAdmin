@@ -63,7 +63,7 @@ export default function LaunchGate() {
       className="relative min-h-screen flex items-center justify-center p-6"
       style={{ background: "var(--tc-bg)" }}
     >
-      <span className="absolute top-1 left-2.5 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
+      <span className="fixed bottom-2 right-3 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
         v.{__APP_VERSION__} &mdash; by Jesús Cárdenas (C.P.M. &quot;Marcos Redondo&quot;)
       </span>
       <div

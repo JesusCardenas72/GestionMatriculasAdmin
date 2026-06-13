@@ -222,15 +222,23 @@ export async function generarExcelHorarios(
     if (texto) headerRow.getCell(i + 1).note = texto;
   });
 
+  const totalFilas = Math.max(filas.length, 50);
+  const lastRow = totalFilas + 1;
+  const colIdx: Record<string, number> = {};
+  COLS.forEach((c, i) => {
+    colIdx[c.key] = i + 1;
+  });
+  const L = (key: string) => colLetter(colIdx[key]);
+
   // Filas de datos (con los valores de horario heredados, si los hay)
   filas.forEach((f, idx) => {
     const row: Record<string, string> = {};
-    colsDatos.forEach(c => {
+    colsDatos.forEach((c) => {
       if (c.campo) row[c.key] = formatValor(f, c.campo);
     });
     const h = valoresHorario?.[idx];
     if (h) {
-      colsMid.forEach(c => {
+      colsMid.forEach((c) => {
         const v = h[c.key];
         if (v) row[c.key] = v;
       });
@@ -238,7 +246,24 @@ export async function generarExcelHorarios(
     ws.addRow(row);
   });
 
-  const totalFilas = Math.max(filas.length, 50);
+  // Auto-relleno Salida = Entrada + 1h (tope 21:00)
+  // Solo si la celda de salida está vacía (sin valor pre-rellenado por fusión).
+  const pares: [string, string][] = [
+    ["h_ent1", "h_sal1"],
+    ["h_ent2", "h_sal2"],
+  ];
+  for (let r = 2; r <= lastRow; r++) {
+    for (const [entKey, salKey] of pares) {
+      const salCell = ws.getCell(r, colIdx[salKey]);
+      if (!salCell.value) {
+        salCell.value = {
+          formula:
+            `IF(${L(entKey)}${r}<>"",` +
+            `TEXT(MIN(TIMEVALUE(${L(entKey)}${r})+TIME(1,0,0),TIMEVALUE("21:00")),"H:MM"),"")`,
+        };
+      }
+    }
+  }
 
   // Desplegables + protección por celda. Las filas de alumnos temporales
   // ("PDTE. N — …") se pintan en naranja para localizarlas de un vistazo.
@@ -279,11 +304,6 @@ export async function generarExcelHorarios(
   // ── Avisos automáticos de errores (formato condicional, sin macros) ──────
   // Las horas son texto "H:MM"; se comparan con TIMEVALUE() para que el orden
   // sea correcto (si no, "9:00" sería mayor que "10:00" como texto).
-  const lastRow = totalFilas + 1;
-  const colIdx: Record<string, number> = {};
-  COLS.forEach((c, i) => { colIdx[c.key] = i + 1; });
-  const L = (key: string) => colLetter(colIdx[key]); // letra de columna por clave
-
   const rangoCol = (key: string) => `${L(key)}2:${L(key)}${lastRow}`;
   const fillRojo = { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } } } as const;
   const fillAmbar = { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFEB9C' } } } as const;

@@ -285,6 +285,37 @@ function registerIpcHandlers() {
     clearHorariosExcelPath();
   });
 
+  // ── Horarios: seleccionar Excel relleno desde el asistente (paso 3) ───────
+  // Abre diálogo sin guardar la ruta global (se gestiona desde el estado del asistente).
+  ipcMain.handle(
+    "horarios:seleccionarExcelRelleno",
+    async (): Promise<{ fileName: string; base64: string; path: string } | null> => {
+      const res = await dialog.showOpenDialog({
+        title: "Selecciona el Excel de horarios relleno por los profesores",
+        filters: [{ name: "Excel", extensions: ["xlsx"] }],
+        properties: ["openFile"],
+      });
+      if (res.canceled || res.filePaths.length === 0) return null;
+      const file = res.filePaths[0];
+      const buf = fs.readFileSync(file);
+      return { fileName: path.basename(file), base64: buf.toString("base64"), path: file };
+    },
+  );
+
+  // Lee un Excel desde una ruta concreta (para el modo «linkado»).
+  ipcMain.handle(
+    "horarios:leerExcelDesdeRuta",
+    async (_e, filePath: string): Promise<{ fileName: string; base64: string; path: string } | null> => {
+      if (!filePath || !fs.existsSync(filePath)) return null;
+      try {
+        const buf = fs.readFileSync(filePath);
+        return { fileName: path.basename(filePath), base64: buf.toString("base64"), path: filePath };
+      } catch {
+        return null;
+      }
+    },
+  );
+
   // ── Temporales: configuración de la sustitución programada ────────────────
   ipcMain.handle("temporales:getConfig", (_e, curso: string) => temporalesGetConfig(curso));
   ipcMain.handle("temporales:setConfig", (_e, curso: string, cfg: TemporalesCursoConfig) =>

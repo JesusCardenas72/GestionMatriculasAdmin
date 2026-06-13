@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronDown,
   ChevronUp,
+  Ghost,
   HardDrive,
   Inbox,
   Loader2,
@@ -16,6 +17,7 @@ import type { MatriculaLocal } from "../api/types";
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
 type RepetidorFilter = "all" | "repetidor" | "noRepetidor";
+type FantasmaFilter = "all" | "solo" | "quitar";
 
 const SORT_BUTTONS: { field: SortField; label: string }[] = [
   { field: "nombre", label: "Nombre" },
@@ -137,7 +139,7 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
                 ? "bg-slate-100 text-slate-500 border-slate-200"
                 : "bg-orange-100 text-orange-700 border-orange-200")
             }>
-              {m.temporalEstado === "sustituido" ? "SUSTITUIDO" : "TEMPORAL"}
+              {m.temporalEstado === "sustituido" ? "SUSTITUIDO" : "FANTASMA"}
             </span>
           )}
           {!m.esTemporal && m.sustituyeATemporalId && (
@@ -196,7 +198,7 @@ function SingleRow({ m, isSelected, onSelect }: SingleRowProps) {
               "shrink-0 px-1 py-px rounded text-[9px] font-semibold " +
               (m.temporalEstado === "sustituido" ? "bg-slate-100 text-slate-500" : "bg-orange-100 text-orange-700")
             }>
-              {m.temporalEstado === "sustituido" ? "Sust." : "Temp."}
+              {m.temporalEstado === "sustituido" ? "Sust." : "Fant."}
             </span>
           )}
           {m.ampliacion && (
@@ -326,6 +328,7 @@ export default function LocalList({
   const [filterEnsenanza, setFilterEnsenanza] = useState("");
   const [filterEspecialidad, setFilterEspecialidad] = useState("");
   const [filterRepetidor, setFilterRepetidor] = useState<RepetidorFilter>("all");
+  const [filterFantasma, setFilterFantasma] = useState<FantasmaFilter>("all");
   const [sort, setSort] = useState<{ field: SortField | null; dir: SortDir }>({
     field: null,
     dir: "desc",
@@ -353,6 +356,8 @@ export default function LocalList({
       if (filterEspecialidad && m.especialidad !== filterEspecialidad) return false;
       if (filterRepetidor === "repetidor" && !m.repetidor) return false;
       if (filterRepetidor === "noRepetidor" && m.repetidor) return false;
+      if (filterFantasma === "solo" && !m.esTemporal) return false;
+      if (filterFantasma === "quitar" && m.esTemporal) return false;
       if (needle && !`${m.nombre} ${m.apellidos} ${m.dni}`.toLowerCase().includes(needle))
         return false;
       return true;
@@ -376,7 +381,7 @@ export default function LocalList({
           return sign * ((a.nOrden ?? Infinity) - (b.nOrden ?? Infinity));
       }
     });
-  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, sort]);
+  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, sort]);
 
   const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
@@ -461,7 +466,16 @@ export default function LocalList({
     });
   }
 
-  const hasFilters = filterEnsenanza || filterEspecialidad || filterRepetidor !== "all";
+  function handleFantasmaClick() {
+    setFilterFantasma((prev) => {
+      if (prev === "all") return "solo";
+      if (prev === "solo") return "quitar";
+      return "all";
+    });
+  }
+
+  const hasFilters =
+    filterEnsenanza || filterEspecialidad || filterRepetidor !== "all" || filterFantasma !== "all";
 
   return (
     <div className="flex flex-col h-full">
@@ -496,7 +510,7 @@ export default function LocalList({
       <div className="px-4 pb-3 border-b border-[var(--tc-border)] flex flex-col gap-2.5">
 
         <div className="flex items-center gap-2">
-          <div className="relative w-2/3">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tc-ink-mute)]" />
             <input
               value={q}
@@ -553,7 +567,7 @@ export default function LocalList({
 
         {hasFilters && (
           <button
-            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); setFilterRepetidor("all"); }}
+            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); setFilterRepetidor("all"); setFilterFantasma("all"); }}
             className="self-start text-xs text-[var(--tc-primary)] font-medium hover:underline"
           >
             Limpiar filtros
@@ -593,6 +607,20 @@ export default function LocalList({
             {filterRepetidor === "repetidor" && "Rep. Sí"}
             {filterRepetidor === "noRepetidor" && "Rep. No"}
             {filterRepetidor === "all" && "Rep."}
+          </button>
+          <button
+            onClick={handleFantasmaClick}
+            title="Filtrar fantasmas: Solo los fantasmas › Quitar los fantasmas › Mostrar todos"
+            className={
+              "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
+              (filterFantasma !== "all"
+                ? "bg-[var(--tc-card)] shadow-sm text-[var(--tc-primary)]"
+                : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            <Ghost className="w-3.5 h-3.5 shrink-0" />
+            {filterFantasma === "solo" && "Solo"}
+            {filterFantasma === "quitar" && "Quitar"}
           </button>
         </div>
 

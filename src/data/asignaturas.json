@@ -370,6 +370,16 @@
     "ESPECIALIDAD": "Fagot"
   },
   {
+    "MATERIA": "99001",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Fagot)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Fagot"
+  },
+  {
     "MATERIA": "38845",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -433,7 +443,7 @@
     "MATERIA": "39663",
     "DESCRIPCION": "Fundamentos de Composición",
     "ABREVIATURA": "FCOM",
-    "DEPARTAMENTO": "DEPARTAMENTO DE COMPOSICIÓN",
+    "DEPARTAMENTO": "",
     "CURSO": "5º de Enseñanzas Profesionales de Música (Canto)",
     "CURSO_N": "5º",
     "ENSEÑANZAS": "Profesional",
@@ -670,16 +680,6 @@
     "ESPECIALIDAD": "Clarinete"
   },
   {
-    "MATERIA": "38125",
-    "DESCRIPCION": "Orquesta",
-    "ABREVIATURA": "ORQ",
-    "DEPARTAMENTO": "",
-    "CURSO": "1º de Enseñanzas Profesionales de Música (Clarinete)",
-    "CURSO_N": "1º",
-    "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Clarinete"
-  },
-  {
     "MATERIA": "38127",
     "DESCRIPCION": "Banda",
     "ABREVIATURA": "BANDA",
@@ -753,16 +753,6 @@
     "MATERIA": "38571",
     "DESCRIPCION": "Armonía",
     "ABREVIATURA": "AR",
-    "DEPARTAMENTO": "",
-    "CURSO": "3º de Enseñanzas Profesionales de Música (Clarinete)",
-    "CURSO_N": "3º",
-    "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Clarinete"
-  },
-  {
-    "MATERIA": "38573",
-    "DESCRIPCION": "Orquesta",
-    "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
     "CURSO": "3º de Enseñanzas Profesionales de Música (Clarinete)",
     "CURSO_N": "3º",
@@ -1310,12 +1300,12 @@
     "ESPECIALIDAD": "Contrabajo"
   },
   {
-    "MATERIA": "39173",
+    "MATERIA": "38875",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "5º de Enseñanzas Profesionales de Música (Contrabajo)",
-    "CURSO_N": "5º",
+    "CURSO": "4º de Enseñanzas Profesionales de Música (Contrabajo)",
+    "CURSO_N": "4º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Contrabajo"
   },
@@ -1530,6 +1520,16 @@
     "ESPECIALIDAD": "Percusión"
   },
   {
+    "MATERIA": "99005",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Percusión)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Percusión"
+  },
+  {
     "MATERIA": "38269",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -1720,16 +1720,6 @@
     "ESPECIALIDAD": "Piano"
   },
   {
-    "MATERIA": "39953",
-    "DESCRIPCION": "Coro (P)",
-    "ABREVIATURA": "CO-P",
-    "DEPARTAMENTO": "",
-    "CURSO": "5º de Enseñanzas Profesionales de Música (Piano)",
-    "CURSO_N": "5º",
-    "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Piano"
-  },
-  {
     "MATERIA": "39955",
     "DESCRIPCION": "Didáctica de la Música",
     "ABREVIATURA": "DIMU",
@@ -1773,16 +1763,6 @@
     "MATERIA": "40365",
     "DESCRIPCION": "Fundamentos de Composición",
     "ABREVIATURA": "FCOM",
-    "DEPARTAMENTO": "",
-    "CURSO": "6º de Enseñanzas Profesionales de Música (Piano)",
-    "CURSO_N": "6º",
-    "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Piano"
-  },
-  {
-    "MATERIA": "40367",
-    "DESCRIPCION": "Coro (P)",
-    "ABREVIATURA": "CO-P",
     "DEPARTAMENTO": "",
     "CURSO": "6º de Enseñanzas Profesionales de Música (Piano)",
     "CURSO_N": "6º",
@@ -1873,6 +1853,16 @@
     "MATERIA": "39587",
     "DESCRIPCION": "Acompañamiento",
     "ABREVIATURA": "AC",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Piano)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Piano"
+  },
+  {
+    "MATERIA": "99006",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
     "DEPARTAMENTO": "",
     "CURSO": "6º de Enseñanzas Profesionales de Música (Piano)",
     "CURSO_N": "6º",
@@ -2183,6 +2173,16 @@
     "MATERIA": "39613",
     "DESCRIPCION": "Repertorio acompañado",
     "ABREVIATURA": "RA",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Saxofón)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Saxofón"
+  },
+  {
+    "MATERIA": "99007",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
     "DEPARTAMENTO": "",
     "CURSO": "6º de Enseñanzas Profesionales de Música (Saxofón)",
     "CURSO_N": "6º",
@@ -2600,6 +2600,16 @@
     "ESPECIALIDAD": "Trombón"
   },
   {
+    "MATERIA": "99008",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Trombón)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Trombón"
+  },
+  {
     "MATERIA": "38181",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -3010,6 +3020,16 @@
     "ESPECIALIDAD": "Trompa"
   },
   {
+    "MATERIA": "99009",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Trompa)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Trompa"
+  },
+  {
     "MATERIA": "38191",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -3380,6 +3400,16 @@
     "ESPECIALIDAD": "Trompeta"
   },
   {
+    "MATERIA": "99010",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Trompeta)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Trompeta"
+  },
+  {
     "MATERIA": "38201",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -3670,12 +3700,12 @@
     "ESPECIALIDAD": "Contrabajo"
   },
   {
-    "MATERIA": "39429",
+    "MATERIA": "39173",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "6º de Enseñanzas Profesionales de Música (Contrabajo)",
-    "CURSO_N": "6º",
+    "CURSO": "5º de Enseñanzas Profesionales de Música (Contrabajo)",
+    "CURSO_N": "5º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Contrabajo"
   },
@@ -3743,6 +3773,16 @@
     "MATERIA": "40129",
     "DESCRIPCION": "Música moderna",
     "ABREVIATURA": "MUMO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Contrabajo)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Contrabajo"
+  },
+  {
+    "MATERIA": "99000",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
     "DEPARTAMENTO": "",
     "CURSO": "6º de Enseñanzas Profesionales de Música (Contrabajo)",
     "CURSO_N": "6º",
@@ -4050,6 +4090,16 @@
     "ESPECIALIDAD": "Flauta Travesera"
   },
   {
+    "MATERIA": "99002",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Flauta Travesera)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Flauta Travesera"
+  },
+  {
     "MATERIA": "38451",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -4213,16 +4263,6 @@
     "MATERIA": "39879",
     "DESCRIPCION": "Fundamentos de Composición",
     "ABREVIATURA": "FCOM",
-    "DEPARTAMENTO": "",
-    "CURSO": "5º de Enseñanzas Profesionales de Música (Guitarra)",
-    "CURSO_N": "5º",
-    "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Guitarra"
-  },
-  {
-    "MATERIA": "39881",
-    "DESCRIPCION": "Coro (P)",
-    "ABREVIATURA": "CO-P",
     "DEPARTAMENTO": "",
     "CURSO": "5º de Enseñanzas Profesionales de Música (Guitarra)",
     "CURSO_N": "5º",
@@ -4413,6 +4453,16 @@
     "MATERIA": "39549",
     "DESCRIPCION": "Acompañamiento",
     "ABREVIATURA": "AC",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Guitarra)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Guitarra"
+  },
+  {
+    "MATERIA": "99003",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
     "DEPARTAMENTO": "",
     "CURSO": "6º de Enseñanzas Profesionales de Música (Guitarra)",
     "CURSO_N": "6º",
@@ -5070,6 +5120,16 @@
     "ESPECIALIDAD": "Oboe"
   },
   {
+    "MATERIA": "99004",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Oboe)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Oboe"
+  },
+  {
     "MATERIA": "38301",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -5090,14 +5150,14 @@
     "ESPECIALIDAD": "Viola"
   },
   {
-    "MATERIA": "38305",
+    "MATERIA": "39429",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "1º de Enseñanzas Profesionales de Música (Viola)",
-    "CURSO_N": "1º",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Contrabajo)",
+    "CURSO_N": "6º",
     "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Viola"
+    "ESPECIALIDAD": "Contrabajo"
   },
   {
     "MATERIA": "38307",
@@ -5130,12 +5190,12 @@
     "ESPECIALIDAD": "Viola"
   },
   {
-    "MATERIA": "38527",
+    "MATERIA": "38305",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "2º de Enseñanzas Profesionales de Música (Viola)",
-    "CURSO_N": "2º",
+    "CURSO": "1º de Enseñanzas Profesionales de Música (Viola)",
+    "CURSO_N": "1º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Viola"
   },
@@ -5170,12 +5230,12 @@
     "ESPECIALIDAD": "Viola"
   },
   {
-    "MATERIA": "38803",
+    "MATERIA": "38527",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "3º de Enseñanzas Profesionales de Música (Viola)",
-    "CURSO_N": "3º",
+    "CURSO": "2º de Enseñanzas Profesionales de Música (Viola)",
+    "CURSO_N": "2º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Viola"
   },
@@ -5230,12 +5290,12 @@
     "ESPECIALIDAD": "Viola"
   },
   {
-    "MATERIA": "39091",
+    "MATERIA": "38803",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "4º de Enseñanzas Profesionales de Música (Viola)",
-    "CURSO_N": "4º",
+    "CURSO": "3º de Enseñanzas Profesionales de Música (Viola)",
+    "CURSO_N": "3º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Viola"
   },
@@ -5330,12 +5390,12 @@
     "ESPECIALIDAD": "Viola"
   },
   {
-    "MATERIA": "39367",
+    "MATERIA": "39091",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "5º de Enseñanzas Profesionales de Música (Viola)",
-    "CURSO_N": "5º",
+    "CURSO": "4º de Enseñanzas Profesionales de Música (Viola)",
+    "CURSO_N": "4º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Viola"
   },
@@ -5450,12 +5510,12 @@
     "ESPECIALIDAD": "Viola"
   },
   {
-    "MATERIA": "39619",
+    "MATERIA": "39367",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "6º de Enseñanzas Profesionales de Música (Viola)",
-    "CURSO_N": "6º",
+    "CURSO": "5º de Enseñanzas Profesionales de Música (Viola)",
+    "CURSO_N": "5º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Viola"
   },
@@ -5473,6 +5533,16 @@
     "MATERIA": "39615",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Viola)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Viola"
+  },
+  {
+    "MATERIA": "99012",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
     "DEPARTAMENTO": "",
     "CURSO": "6º de Enseñanzas Profesionales de Música (Viola)",
     "CURSO_N": "6º",
@@ -5510,14 +5580,14 @@
     "ESPECIALIDAD": "Violoncello"
   },
   {
-    "MATERIA": "38827",
+    "MATERIA": "39619",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "3º de Enseñanzas Profesionales de Música (Violoncello)",
-    "CURSO_N": "3º",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Viola)",
+    "CURSO_N": "6º",
     "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Violoncello"
+    "ESPECIALIDAD": "Viola"
   },
   {
     "MATERIA": "38829",
@@ -5620,14 +5690,14 @@
     "ESPECIALIDAD": "Violoncello"
   },
   {
-    "MATERIA": "39387",
+    "MATERIA": "38313",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "5º de Enseñanzas Profesionales de Música (Violoncello)",
-    "CURSO_N": "5º",
+    "CURSO": "1º de Enseñanzas Profesionales de Música (Violín)",
+    "CURSO_N": "1º",
     "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Violoncello"
+    "ESPECIALIDAD": "Violín"
   },
   {
     "MATERIA": "39389",
@@ -5670,14 +5740,14 @@
     "ESPECIALIDAD": "Violoncello"
   },
   {
-    "MATERIA": "39639",
+    "MATERIA": "38535",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "6º de Enseñanzas Profesionales de Música (Violoncello)",
-    "CURSO_N": "6º",
+    "CURSO": "2º de Enseñanzas Profesionales de Música (Violín)",
+    "CURSO_N": "2º",
     "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Violoncello"
+    "ESPECIALIDAD": "Violín"
   },
   {
     "MATERIA": "39641",
@@ -5750,6 +5820,16 @@
     "ESPECIALIDAD": "Violoncello"
   },
   {
+    "MATERIA": "99013",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Violoncello)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Violoncello"
+  },
+  {
     "MATERIA": "38309",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -5770,12 +5850,12 @@
     "ESPECIALIDAD": "Violín"
   },
   {
-    "MATERIA": "38313",
+    "MATERIA": "38815",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "1º de Enseñanzas Profesionales de Música (Violín)",
-    "CURSO_N": "1º",
+    "CURSO": "3º de Enseñanzas Profesionales de Música (Violín)",
+    "CURSO_N": "3º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Violín"
   },
@@ -5810,12 +5890,12 @@
     "ESPECIALIDAD": "Violín"
   },
   {
-    "MATERIA": "38535",
+    "MATERIA": "39103",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "2º de Enseñanzas Profesionales de Música (Violín)",
-    "CURSO_N": "2º",
+    "CURSO": "4º de Enseñanzas Profesionales de Música (Violín)",
+    "CURSO_N": "4º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Violín"
   },
@@ -5850,12 +5930,12 @@
     "ESPECIALIDAD": "Violín"
   },
   {
-    "MATERIA": "38815",
+    "MATERIA": "39377",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "3º de Enseñanzas Profesionales de Música (Violín)",
-    "CURSO_N": "3º",
+    "CURSO": "5º de Enseñanzas Profesionales de Música (Violín)",
+    "CURSO_N": "5º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Violín"
   },
@@ -5970,12 +6050,12 @@
     "ESPECIALIDAD": "Violín"
   },
   {
-    "MATERIA": "39377",
+    "MATERIA": "39629",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "5º de Enseñanzas Profesionales de Música (Violín)",
-    "CURSO_N": "5º",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Violín)",
+    "CURSO_N": "6º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Violín"
   },
@@ -6020,14 +6100,14 @@
     "ESPECIALIDAD": "Violín"
   },
   {
-    "MATERIA": "39629",
+    "MATERIA": "38321",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "6º de Enseñanzas Profesionales de Música (Violín)",
-    "CURSO_N": "6º",
+    "CURSO": "1º de Enseñanzas Profesionales de Música (Violoncello)",
+    "CURSO_N": "1º",
     "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Violín"
+    "ESPECIALIDAD": "Violoncello"
   },
   {
     "MATERIA": "39631",
@@ -6100,6 +6180,16 @@
     "ESPECIALIDAD": "Violín"
   },
   {
+    "MATERIA": "99014",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Violín)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Violín"
+  },
+  {
     "MATERIA": "38317",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -6120,12 +6210,12 @@
     "ESPECIALIDAD": "Violoncello"
   },
   {
-    "MATERIA": "38321",
+    "MATERIA": "38543",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "1º de Enseñanzas Profesionales de Música (Violoncello)",
-    "CURSO_N": "1º",
+    "CURSO": "2º de Enseñanzas Profesionales de Música (Violoncello)",
+    "CURSO_N": "2º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Violoncello"
   },
@@ -6160,12 +6250,12 @@
     "ESPECIALIDAD": "Violoncello"
   },
   {
-    "MATERIA": "38543",
+    "MATERIA": "38827",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "2º de Enseñanzas Profesionales de Música (Violoncello)",
-    "CURSO_N": "2º",
+    "CURSO": "3º de Enseñanzas Profesionales de Música (Violoncello)",
+    "CURSO_N": "3º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Violoncello"
   },
@@ -7463,7 +7553,7 @@
     "MATERIA": "40693",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
-    "DEPARTAMENTO": "DEPARTAMENTO DE INSTRUMENTOS DE VIENTO MADERA",
+    "DEPARTAMENTO": "",
     "CURSO": "1º de Enseñanzas Elementales de Música (Clarinete)",
     "CURSO_N": "1º",
     "ENSEÑANZAS": "Elemental",
@@ -7473,7 +7563,7 @@
     "MATERIA": "40695",
     "DESCRIPCION": "Lenguaje Musical",
     "ABREVIATURA": "LM",
-    "DEPARTAMENTO": "DEPARTAMENTO DE LENGUAJE MUSICAL",
+    "DEPARTAMENTO": "",
     "CURSO": "1º de Enseñanzas Elementales de Música (Clarinete)",
     "CURSO_N": "1º",
     "ENSEÑANZAS": "Elemental",
@@ -7493,7 +7583,7 @@
     "MATERIA": "40781",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
-    "DEPARTAMENTO": "DEPARTAMENTO DE INSTRUMENTOS DE VIENTO MADERA",
+    "DEPARTAMENTO": "",
     "CURSO": "2º de Enseñanzas Elementales de Música (Clarinete)",
     "CURSO_N": "2º",
     "ENSEÑANZAS": "Elemental",
@@ -7503,7 +7593,7 @@
     "MATERIA": "40783",
     "DESCRIPCION": "Lenguaje Musical",
     "ABREVIATURA": "LM",
-    "DEPARTAMENTO": "DEPARTAMENTO DE LENGUAJE MUSICAL",
+    "DEPARTAMENTO": "",
     "CURSO": "2º de Enseñanzas Elementales de Música (Clarinete)",
     "CURSO_N": "2º",
     "ENSEÑANZAS": "Elemental",
@@ -8300,6 +8390,16 @@
     "ESPECIALIDAD": "Tuba"
   },
   {
+    "MATERIA": "99011",
+    "DESCRIPCION": "Coro",
+    "ABREVIATURA": "CO",
+    "DEPARTAMENTO": "",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Tuba)",
+    "CURSO_N": "6º",
+    "ENSEÑANZAS": "Profesional",
+    "ESPECIALIDAD": "Tuba"
+  },
+  {
     "MATERIA": "40817",
     "DESCRIPCION": "Instrumento",
     "ABREVIATURA": "INS",
@@ -8680,14 +8780,14 @@
     "ESPECIALIDAD": "Contrabajo"
   },
   {
-    "MATERIA": "38875",
+    "MATERIA": "39115",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "4º de Enseñanzas Profesionales de Música (Contrabajo)",
+    "CURSO": "4º de Enseñanzas Profesionales de Música (Violoncello)",
     "CURSO_N": "4º",
     "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Contrabajo"
+    "ESPECIALIDAD": "Violoncello"
   },
   {
     "MATERIA": "38879",
@@ -8840,14 +8940,14 @@
     "ESPECIALIDAD": "Violín"
   },
   {
-    "MATERIA": "39103",
+    "MATERIA": "39387",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "4º de Enseñanzas Profesionales de Música (Violín)",
-    "CURSO_N": "4º",
+    "CURSO": "5º de Enseñanzas Profesionales de Música (Violoncello)",
+    "CURSO_N": "5º",
     "ENSEÑANZAS": "Profesional",
-    "ESPECIALIDAD": "Violín"
+    "ESPECIALIDAD": "Violoncello"
   },
   {
     "MATERIA": "39105",
@@ -9180,12 +9280,12 @@
     "ESPECIALIDAD": "Violoncello"
   },
   {
-    "MATERIA": "39115",
+    "MATERIA": "39639",
     "DESCRIPCION": "Orquesta",
     "ABREVIATURA": "ORQ",
     "DEPARTAMENTO": "",
-    "CURSO": "4º de Enseñanzas Profesionales de Música (Violoncello)",
-    "CURSO_N": "4º",
+    "CURSO": "6º de Enseñanzas Profesionales de Música (Violoncello)",
+    "CURSO_N": "6º",
     "ENSEÑANZAS": "Profesional",
     "ESPECIALIDAD": "Violoncello"
   },

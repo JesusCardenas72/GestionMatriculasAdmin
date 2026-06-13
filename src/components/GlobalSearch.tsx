@@ -57,7 +57,7 @@ export default function GlobalSearch({ pools, onSelect }: Props) {
   }
 
   return (
-    <div ref={ref} className="relative w-80">
+    <div ref={ref} className="relative flex-1 min-w-0">
       <Search
         className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
         style={{ color: "var(--tc-ink-mute)" }}

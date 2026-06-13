@@ -21,7 +21,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--tc-border)] shrink-0 gap-3 bg-gradient-to-r from-[var(--tc-primary-tint)] to-[var(--tc-bg-panel)]">
           <div className="flex items-center gap-3 min-w-0">
             <BookOpen className="w-6 h-6 shrink-0 text-[var(--tc-primary)]" />
-            <h2 className="text-lg font-bold text-[var(--tc-ink)]">Guía completa: Alumnos temporales</h2>
+            <h2 className="text-lg font-bold text-[var(--tc-ink)]">Guía completa: Alumnado Fantasma</h2>
           </div>
           <button
             onClick={onCerrar}
@@ -36,23 +36,23 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
           {/* Introducción */}
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-[13px] text-blue-900 leading-relaxed">
-              <strong>Para qué sirve esta guía:</strong> el proceso de alumnos temporales se usa una vez al año, durante la matriculación. Aquí está todo el flujo de principio a fin. <strong>Sigue los pasos en orden.</strong>
+              <strong>Para qué sirve esta guía:</strong> el proceso de alumnos fantasma se usa una vez al año, durante la matriculación. Aquí está todo el flujo de principio a fin. <strong>Sigue los pasos en orden.</strong>
             </p>
           </div>
 
           {/* Sección 1: Qué es */}
           <Seccion
             n={1}
-            titulo="¿Qué es un alumno temporal y por qué existe?"
+            titulo="¿Qué es un alumno fantasma y por qué existe?"
             abierta={seccionAbierta === 1}
             onClick={() => toggleSeccion(1)}
           >
             <p className="text-[13px] text-[var(--tc-ink-soft)] mb-3">
-              Durante la matriculación, los profesores necesitan programar clases <strong>antes</strong> de que todos se hayan matriculado. Un <strong>alumno temporal</strong> es una plaza reservada: sabemos que habrá un alumno de cierto curso y especialidad, aunque no sepamos quién es aún.
+              Durante la matriculación, los profesores necesitan programar clases <strong>antes</strong> de que todos se hayan matriculado. Un <strong>alumno fantasma</strong> es una plaza reservada: sabemos que habrá un alumno de cierto curso y especialidad, aunque no sepamos quién es aún.
             </p>
             <div className="space-y-2 mb-3">
               <div className="text-[13px] text-[var(--tc-ink-soft)]">
-                <strong>Los temporales:</strong>
+                <strong>Los alumnos fantasma:</strong>
                 <ul className="list-disc list-inside text-[13px] space-y-1 mt-1 ml-1">
                   <li>Aparecen en el <strong>Excel de horarios con fondo naranja</strong></li>
                   <li><strong>Nunca</strong> se suben a la nube ni generan PDF</li>
@@ -66,7 +66,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
           {/* Sección 2: Crear */}
           <Seccion
             n={2}
-            titulo="Crear los alumnos temporales"
+            titulo="Crear los alumnos fantasma"
             abierta={seccionAbierta === 2}
             onClick={() => toggleSeccion(2)}
           >
@@ -77,7 +77,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
                   <li>Elige el <strong>curso</strong> (EE1–EE4 o EP1–EP6)</li>
                   <li>Elige la <strong>especialidad</strong></li>
                   <li>Indica el <strong>número de alumnos</strong> previstos</li>
-                  <li>Pulsa <strong>«Crear temporales»</strong></li>
+                  <li>Pulsa <strong>«Crear alumnos fantasma»</strong></li>
                 </ol>
                 <p className="text-[12px] text-[var(--tc-ink-mute)] mt-2 italic">Se generan: PDTE. 1 — Canto EP1, PDTE. 2 — Canto EP1…</p>
               </div>
@@ -129,7 +129,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
               <li>Usa <strong>«Generar Excel Horarios»</strong></li>
             </ol>
             <div className="rounded bg-orange-50 border border-orange-200 p-2 text-[12px] text-orange-900">
-              ✓ Los temporales salen con <strong>fondo naranja</strong><br />
+              ✓ Los alumnos fantasma salen con <strong>fondo naranja</strong><br />
               ✓ Los profesores rellenan el horario (profesor, aula, día, horas) usando desplegables
             </div>
           </Seccion>
@@ -137,18 +137,18 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
           {/* Sección 4: Vincular */}
           <Seccion
             n={4}
-            titulo="Vincular cada matrícula real con su temporal"
+            titulo="Vincular cada matrícula real con su alumno fantasma"
             abierta={seccionAbierta === 4}
             onClick={() => toggleSeccion(4)}
           >
             <ol className="list-decimal list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-2">
               <li>Abre la ficha de la matrícula en <strong>Local</strong></li>
               <li>Despliega <strong>Datos Personales</strong></li>
-              <li>Al final, <strong>debajo de Provincia</strong>, está el desplegable <strong>«Sustituye al alumno temporal»</strong></li>
-              <li>Elige el temporal (solo muestra los pendientes del mismo curso y especialidad)</li>
+              <li>Al final, <strong>debajo de Provincia</strong>, está el desplegable <strong>«Sustituye al alumno fantasma»</strong></li>
+              <li>Elige el alumno fantasma (solo muestra los pendientes del mismo curso y especialidad)</li>
             </ol>
             <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[12px] text-blue-900 mt-3">
-              El temporal pasa a estado <span className="font-bold text-blue-600">Vinculado</span>
+              El alumno fantasma pasa a estado <span className="font-bold text-blue-600">Vinculado</span>
             </div>
           </Seccion>
 
@@ -162,7 +162,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
             <div className="space-y-3">
               <div>
                 <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">Manual</h4>
-                <p className="text-[13px] text-[var(--tc-ink-soft)]">En la pestaña <strong>Temporales</strong>, pulsa <strong>«Ejecutar sustituciones (N)»</strong>. Cada temporal pasa a estado <span className="font-bold text-slate-500">Sustituido</span>.</p>
+                <p className="text-[13px] text-[var(--tc-ink-soft)]">En la pestaña <strong>Alumnado Fantasma</strong>, pulsa <strong>«Ejecutar sustituciones (N)»</strong>. Cada alumno fantasma pasa a estado <span className="font-bold text-slate-500">Sustituido</span>.</p>
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">Programada</h4>
@@ -170,7 +170,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
               </div>
               <div className="rounded bg-amber-50 border border-amber-200 p-2 text-[12px] text-amber-900 flex gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span><strong>Importante:</strong> ejecutar la sustitución NO borra el temporal. Debe seguir existiendo para el paso 6.</span>
+                <span><strong>Importante:</strong> ejecutar la sustitución NO borra el alumno fantasma. Debe seguir existiendo para el paso 6.</span>
               </div>
             </div>
           </Seccion>
@@ -187,15 +187,15 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
                 El Excel relleno por los profesores + las sustituciones ejecutadas = <strong>un Excel nuevo, correcto y listo</strong>.
               </p>
               <div className="border-l-4 border-green-400 pl-3 py-1">
-                <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">Desde la pestaña Temporales (recomendado)</h4>
+                <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">Desde la pestaña Alumnado Fantasma (recomendado)</h4>
                 <p className="text-[13px] text-[var(--tc-ink-soft)]">Pulsa <strong>«Generar Excel fusionado»</strong> (se activa cuando hay sustituidos). Verás un resumen y confirmas.</p>
               </div>
               <div className="border-l-4 border-purple-400 pl-3 py-1">
                 <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">Qué contiene el Excel fusionado</h4>
                 <ul className="text-[13px] text-[var(--tc-ink-soft)] space-y-1">
                   <li>✓ <strong>Alumnos que ya estaban:</strong> sus filas con horarios sin modificar</li>
-                  <li>✓ <strong>Temporales sustituidos:</strong> datos del alumno real, heredan horario, <strong>sin fondo naranja</strong></li>
-                  <li>✓ <strong>Temporales pendientes:</strong> siguen igual, en naranja</li>
+                  <li>✓ <strong>Alumnos fantasma sustituidos:</strong> datos del alumno real, heredan horario, <strong>sin fondo naranja</strong></li>
+                  <li>✓ <strong>Alumnos fantasma pendientes:</strong> siguen igual, en naranja</li>
                 </ul>
               </div>
             </div>
@@ -222,7 +222,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
               Orden correcto (chuleta)
             </h3>
             <div className="space-y-1 text-[12px] font-medium text-[var(--tc-ink)]">
-              <div>1. Crear temporales (manual o importar)</div>
+              <div>1. Crear alumnos fantasma (manual o importar)</div>
               <div>2. Generar Excel horarios (→ profesores)</div>
               <div>3. Profesores rellenan (fuera de la app)</div>
               <div>4. Llegan matrículas (Local → Datos Personales)</div>
@@ -232,7 +232,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
               <div>8. Enviar horarios a nuevos</div>
             </div>
             <div className="mt-3 text-[12px] font-bold text-red-600 border-t border-[var(--tc-primary)] pt-2">
-              Regla de oro: nunca borres temporales sustituidos antes de generar el Excel fusionado.
+              Regla de oro: nunca borres alumnos fantasma sustituidos antes de generar el Excel fusionado.
             </div>
           </div>
 
@@ -251,17 +251,17 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
               />
               <Problema
                 síntoma="El desplegable no aparece en Local"
-                causa="No hay temporales pendientes del mismo curso + especialidad"
-                solución="Comprueba que coinciden exactamente; crea el temporal si falta"
+                causa="No hay alumnos fantasma pendientes del mismo curso + especialidad"
+                solución="Comprueba que coinciden exactamente; crea el alumno fantasma si falta"
               />
               <Problema
                 síntoma="«Ejecutar sustituciones» está desactivado"
-                causa="Ningún temporal vinculado"
+                causa="Ningún alumno fantasma vinculado"
                 solución="Vincula primero desde la ficha Local"
               />
               <Problema
                 síntoma="«Generar Excel fusionado» está desactivado"
-                causa="Ningún temporal sustituido aún"
+                causa="Ningún alumno fantasma sustituido aún"
                 solución="Ejecuta antes las sustituciones"
               />
               <Problema

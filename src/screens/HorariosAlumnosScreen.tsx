@@ -126,7 +126,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   }, [localMatriculas]);
 
   /**
-   * Alumnos "nuevos": matrículas reales que sustituyeron a un alumno temporal
+   * Alumnos "nuevos": matrículas reales que sustituyeron a un alumno fantasma
    * (conservan `sustituyeATemporalId` como traza). No recibieron el email de
    * horarios en campañas anteriores, así que se les puede segregar y enviar.
    */
@@ -527,7 +527,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             {carga.fileName} · {carga.alumnos.length} alumnos
             {carga.incompletas > 0 && ` · ${carga.incompletas} incompletas`}
           </p>
-          <div className="relative w-2/3">
+          <div className="relative w-full">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--tc-ink-mute)]" />
             <input
               value={busqueda}
@@ -542,7 +542,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => setSoloNuevos(v => !v)}
-                title="Alumnos matriculados que sustituyeron a un temporal"
+                title="Alumnos matriculados que sustituyeron a un alumno fantasma"
                 className={
                   "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border transition " +
                   (soloNuevos
@@ -631,8 +631,8 @@ export default function HorariosAlumnosScreen({ config }: Props) {
                         {esNuevo(a) && (
                           <span
                             title={clavesEnviadas.has(a.clave)
-                              ? "Alumno nuevo (sustituyó a un temporal) — horario ya enviado"
-                              : "Alumno nuevo (sustituyó a un temporal) — horario SIN enviar"}
+                              ? "Alumno nuevo (sustituyó a un alumno fantasma) — horario ya enviado"
+                              : "Alumno nuevo (sustituyó a un alumno fantasma) — horario SIN enviar"}
                             className={
                               "shrink-0 px-1.5 py-px rounded-full text-[9px] font-bold border " +
                               (clavesEnviadas.has(a.clave)

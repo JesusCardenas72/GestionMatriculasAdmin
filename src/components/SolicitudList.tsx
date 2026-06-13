@@ -169,7 +169,7 @@ export default function SolicitudList({
       >
         {/* Búsqueda */}
         <div className="flex items-center gap-2">
-          <div className="relative w-2/3">
+          <div className="relative flex-1 min-w-0">
             <Search
               className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2"
               style={{ color: "var(--tc-ink-mute)" }}

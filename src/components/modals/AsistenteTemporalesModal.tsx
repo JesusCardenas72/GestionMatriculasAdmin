@@ -20,10 +20,10 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
-import type { MatriculaLocal } from "../../api/types";
+import type { ConfigInforme, MatriculaLocal } from "../../api/types";
 import { useLocalMatriculas } from "../../hooks/useLocalMatriculas";
 import { getEspecialidades } from "../../data/catalogoLocal";
-import { CAMPOS_ASIGNATURA, CAMPOS_META } from "../../data/informesConfig";
+import { CAMPO_MAP, INFORMES_PREDEFINIDOS, type CampoMeta } from "../../data/informesConfig";
 import {
   crearTemporales,
   crearTemporalesNominales,
@@ -38,7 +38,7 @@ import {
   ordenarComoExcel,
 } from "../../utils/fusionTemporales";
 import { fusionarHorarios, parseHorariosExcelCrudo } from "../../utils/fusionHorarios";
-import { generarExcelHorarios } from "../../utils/excelHorarios";
+import { generarExcelHorarios, type OpcionesHorario } from "../../utils/excelHorarios";
 import { norm, parseHorariosExcel } from "../../utils/horarioExcel";
 import { buildHorarioHtml } from "../../utils/horarioTemplate";
 import { buildHorarioEmailHtml } from "../../utils/horarioEmailTemplate";
@@ -72,17 +72,17 @@ const PASOS: PasoDef[] = [
   {
     n: 1,
     bloque: "PREPARACIÓN",
-    titulo: "Crear los alumnos temporales",
+    titulo: "Crear los alumnos fantasma",
     descripcion:
       "Crea una plaza por cada alumno previsto: a mano («PDTE. N» por curso y especialidad) o importando un Excel/CSV con nombres provisionales (sufijo _Temp). Puedes combinar ambas formas y crear más tandas cuando quieras.",
-    requisito: "No hay ningún alumno temporal creado todavía: crea al menos uno para continuar.",
+    requisito: "No hay ningún alumno fantasma creado todavía: crea al menos uno para continuar.",
   },
   {
     n: 2,
     bloque: "PREPARACIÓN",
     titulo: "Generar el Excel de horarios",
     descripcion:
-      "Genera el Excel que circulará entre los profesores. Los temporales salen con fondo naranja y los profesores les ponen horario como a cualquier alumno.",
+      "Genera el Excel que circulará entre los profesores. Los alumnos fantasma salen con fondo naranja y los profesores les ponen horario como a cualquier alumno.",
     requisito: "Aún no se ha generado el Excel de horarios desde el asistente.",
   },
   {
@@ -98,15 +98,15 @@ const PASOS: PasoDef[] = [
     bloque: "CICLO DE SUSTITUCIONES",
     titulo: "Vincular matrículas reales",
     descripcion:
-      "Según van llegando las matrículas de verdad, empareja cada una con su temporal pendiente (mismo curso y especialidad). No hace falta vincular todos para seguir: los rezagados caerán en la siguiente ronda.",
-    requisito: "No hay ningún temporal vinculado: vincula al menos una matrícula real para continuar.",
+      "Según van llegando las matrículas de verdad, empareja cada una con su alumno fantasma pendiente (mismo curso y especialidad). No hace falta vincular todos para seguir: los rezagados caerán en la siguiente ronda.",
+    requisito: "No hay ningún alumno fantasma vinculado: vincula al menos una matrícula real para continuar.",
   },
   {
     n: 5,
     bloque: "CICLO DE SUSTITUCIONES",
     titulo: "Ejecutar las sustituciones",
     descripcion:
-      "El alumno real ocupa el lugar de su temporal en los informes. Puedes ejecutarlas ahora o dejar fijada una fecha para que la app lo haga sola al arrancar.",
+      "El alumno real ocupa el lugar de su alumno fantasma en los informes. Puedes ejecutarlas ahora o dejar fijada una fecha para que la app lo haga sola al arrancar.",
     requisito: "Ninguna sustitución ejecutada aún en esta ronda.",
   },
   {
@@ -114,7 +114,7 @@ const PASOS: PasoDef[] = [
     bloque: "CICLO DE SUSTITUCIONES",
     titulo: "Generar el Excel fusionado",
     descripcion:
-      "Junta el Excel relleno por los profesores con las sustituciones: un Excel nuevo donde los alumnos reales heredan el horario de su temporal. Regla de oro: nunca borres temporales sustituidos antes de este paso.",
+      "Junta el Excel relleno por los profesores con las sustituciones: un Excel nuevo donde los alumnos reales heredan el horario de su alumno fantasma. Regla de oro: nunca borres alumnos fantasma sustituidos antes de este paso.",
     requisito: "Aún no se ha generado el Excel fusionado en esta ronda.",
   },
   {
@@ -122,15 +122,15 @@ const PASOS: PasoDef[] = [
     bloque: "CICLO DE SUSTITUCIONES",
     titulo: "Eliminar los sustituidos",
     descripcion:
-      "Con el Excel fusionado ya generado y comprobado, borra los temporales consumidos. Al terminar, si quedan temporales pendientes podrás empezar otra ronda.",
-    requisito: "Todavía quedan temporales sustituidos por eliminar.",
+      "Con el Excel fusionado ya generado y comprobado, borra los alumnos fantasma consumidos. Al terminar, si quedan alumnos fantasma pendientes podrás empezar otra ronda.",
+    requisito: "Todavía quedan alumnos fantasma sustituidos por eliminar.",
   },
   {
     n: 8,
     bloque: "FINAL",
     titulo: "Enviar horarios a los nuevos",
     descripcion:
-      "Los alumnos que sustituyeron a un temporal llevan la etiqueta NUEVO en Horarios Individuales. Envíales su horario por email.",
+      "Los alumnos que sustituyeron a un alumno fantasma llevan la etiqueta NUEVO en Horarios Individuales. Envíales su horario por email.",
     requisito: "",
   },
 ];
@@ -140,11 +140,14 @@ export function AsistenteTemporalesModal({
   config,
   onCerrar,
   onVerGuia,
+  embedded = false,
 }: {
   curso: string;
   config: AppConfig;
   onCerrar: () => void;
   onVerGuia: () => void;
+  /** Si es true, se muestra incrustado en la página (sin ventana flotante). */
+  embedded?: boolean;
 }) {
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar, eliminar } = useLocalMatriculas(curso);
@@ -180,7 +183,7 @@ export function AsistenteTemporalesModal({
   const handleReiniciar = async () => {
     if (
       !window.confirm(
-        "¿Reiniciar el asistente?\n\nSolo se olvida el progreso del asistente (paso actual, ronda y casillas). Los alumnos temporales y las matrículas NO se tocan.",
+        "¿Reiniciar el asistente?\n\nSolo se olvida el progreso del asistente (paso actual, ronda y casillas). Los alumnos fantasma y las matrículas NO se tocan.",
       )
     )
       return;
@@ -199,18 +202,21 @@ export function AsistenteTemporalesModal({
     return null;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onCerrar}>
+  const panel = (
       <div
-        className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
+        className={
+          embedded
+            ? "bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm flex flex-col overflow-hidden"
+            : "bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden max-h-[92vh]"
+        }
+        onClick={embedded ? undefined : (e) => e.stopPropagation()}
       >
         {/* Cabecera */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--tc-border)] shrink-0 gap-3 bg-gradient-to-r from-[var(--tc-primary-tint)] to-[var(--tc-bg-panel)]">
           <div className="flex items-center gap-3 min-w-0">
             <Play className="w-5 h-5 shrink-0 text-[var(--tc-primary)]" />
             <h2 className="text-lg font-bold text-[var(--tc-ink)] truncate">
-              Asistente de alumnos temporales — curso {curso}
+              Asistente de Alumnado Fantasma — curso {curso}
             </h2>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -220,18 +226,20 @@ export function AsistenteTemporalesModal({
             {isSoloLectura && (
               <span className="text-[11px] font-semibold text-amber-600">Solo lectura</span>
             )}
-            <button
-              onClick={onCerrar}
-              className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {!embedded && (
+              <button
+                onClick={onCerrar}
+                className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-1 min-h-[420px] overflow-hidden">
+        <div className={`flex overflow-hidden ${embedded ? "h-[480px]" : "flex-1 min-h-[420px]"}`}>
           {/* Columna de pasos */}
-          <div className="w-[235px] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-bg-panel)] p-3 flex flex-col gap-0.5 overflow-y-auto">
+          <div className="w-[min(35%,280px)] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-bg-panel)] p-3 flex flex-col gap-0.5 overflow-y-auto">
             {PASOS.map((p, i) => {
               const nuevoBloque = i === 0 || PASOS[i - 1].bloque !== p.bloque;
               const esHecho = pasoHecho(p.n) && p.n !== pasoActual;
@@ -271,7 +279,7 @@ export function AsistenteTemporalesModal({
                     ) : (
                       <Circle className="w-4 h-4 shrink-0" />
                     )}
-                    <span className="flex-1 min-w-0 truncate">
+                    <span className="flex-1 min-w-0">
                       {p.n} · {p.titulo}
                     </span>
                     {contador && (
@@ -327,6 +335,14 @@ export function AsistenteTemporalesModal({
                   disabled={isSoloLectura}
                   onGenerado={(fecha) => void guardar({ fechaExcelGenerado: fecha })}
                 />
+              ) : pasoActual === 3 ? (
+                <Paso3ProfesoresRellenan
+                  ruta={vista.excelProfesoresRuta}
+                  recibido={vista.excelProfesoresRecibido}
+                  disabled={isSoloLectura}
+                  onRutaCambiada={(ruta) => void guardar({ excelProfesoresRuta: ruta })}
+                  onRecibidoCambiado={(v) => void guardar({ excelProfesoresRecibido: v })}
+                />
               ) : pasoActual === 4 ? (
                 <Paso4Vincular matriculas={matriculas} actualizar={actualizar} disabled={isSoloLectura} />
               ) : pasoActual === 5 ? (
@@ -367,18 +383,7 @@ export function AsistenteTemporalesModal({
                     onCerrar();
                   }}
                 />
-              ) : (
-                <label className="flex items-center gap-2.5 text-sm text-[var(--tc-ink)] cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={vista.excelProfesoresRecibido}
-                    disabled={isSoloLectura}
-                    onChange={(e) => void guardar({ excelProfesoresRecibido: e.target.checked })}
-                    className="w-4 h-4 accent-[var(--tc-primary)]"
-                  />
-                  Ya tengo el Excel relleno por los profesores
-                </label>
-              )}
+              ) : null}
 
               {!hecho && paso.requisito && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 flex gap-2">
@@ -417,6 +422,12 @@ export function AsistenteTemporalesModal({
           </div>
         </div>
       </div>
+  );
+
+  if (embedded) return panel;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onCerrar}>
+      {panel}
     </div>
   );
 }
@@ -477,10 +488,10 @@ function Paso1Crear({
       }
       await guardarLote(nuevos);
       setMensaje(
-        `Creado${nuevos.length > 1 ? "s" : ""} ${nuevos.length} alumno${nuevos.length > 1 ? "s" : ""} temporal${nuevos.length > 1 ? "es" : ""} de ${formEspecialidad} ${formCurso}.`,
+        `Creado${nuevos.length > 1 ? "s" : ""} ${nuevos.length} alumno${nuevos.length > 1 ? "s" : ""} fantasma de ${formEspecialidad} ${formCurso}.`,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron crear los temporales.");
+      setError(e instanceof Error ? e.message : "No se pudieron crear los alumnos fantasma.");
     } finally {
       setOcupado(false);
     }
@@ -514,14 +525,14 @@ function Paso1Crear({
       const avisoTxt = avisos.length > 0 ? `\n\nSe descartarán ${avisos.length} fila(s):\n${avisos.join("\n")}` : "";
       if (
         !window.confirm(
-          `Se van a crear ${creados.length} alumno(s) temporal(es) con el sufijo _Temp:\n\n${detalle}${masDetalle}${avisoTxt}\n\n¿Continuar?`,
+          `Se van a crear ${creados.length} alumno(s) fantasma con el sufijo _Temp:\n\n${detalle}${masDetalle}${avisoTxt}\n\n¿Continuar?`,
         )
       )
         return;
 
       await guardarLote(creados);
       setMensaje(
-        `Importados ${creados.length} alumno(s) temporal(es) desde "${file.name}".` +
+        `Importados ${creados.length} alumno(s) fantasma desde "${file.name}".` +
           (avisos.length > 0 ? ` Se descartaron ${avisos.length} fila(s).` : ""),
       );
       if (avisos.length > 0) setError(`Filas descartadas:\n${avisos.join("\n")}`);
@@ -536,7 +547,7 @@ function Paso1Crear({
   if (disabled) {
     return (
       <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
-        En modo Solo Lectura no se pueden crear temporales.
+        En modo Solo Lectura no se pueden crear alumnos fantasma.
       </p>
     );
   }
@@ -585,7 +596,7 @@ function Paso1Crear({
           className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-3 text-sm font-semibold text-white disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
-          {ocupado ? "Un momento…" : "Crear temporales"}
+          {ocupado ? "Un momento…" : "Crear alumnos fantasma"}
         </button>
       </div>
 
@@ -620,9 +631,6 @@ function Paso1Crear({
   );
 }
 
-/** Campos por defecto del Excel de horarios generado desde el asistente. */
-const CAMPOS_HORARIOS_DEFECTO = ["nombreCompleto", "ensenanzaCurso", "especialidad", "asigNombre", "email", "telefono"];
-
 /** Paso 2: generación del Excel de horarios, con carga del CSV de profesores in situ. */
 function Paso2ExcelHorarios({
   curso,
@@ -637,10 +645,81 @@ function Paso2ExcelHorarios({
   disabled: boolean;
   onGenerado: (fechaIso: string) => void;
 }) {
-  const [nProfesores, setNProfesores] = useState<number | null>(null);
-  const [ocupado, setOcupado] = useState(false);
+  const [showGenerar, setShowGenerar] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {!disabled && (
+        <div>
+          <button
+            onClick={() => setShowGenerar(true)}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Generar Excel de horarios
+          </button>
+        </div>
+      )}
+
+      {fechaExcelGenerado && (
+        <p className="text-[12px] text-emerald-700">
+          Último Excel generado el {new Date(fechaExcelGenerado).toLocaleString("es-ES")}. Puedes volver a
+          generarlo si creas más alumnos fantasma.
+        </p>
+      )}
+      {mensaje && <MensajeOk texto={mensaje} />}
+
+      {showGenerar && (
+        <ModalGenerarHorariosAsistente
+          curso={curso}
+          matriculas={matriculas}
+          onClose={() => setShowGenerar(false)}
+          onGenerado={(fechaIso, nFilas) => {
+            onGenerado(fechaIso);
+            setMensaje(
+              `Excel de horarios generado con ${nFilas} fila(s). Los alumnos fantasma van con fondo naranja. Ya puedes hacérselo llegar a los profesores.`,
+            );
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Ventana del Paso 2: en una sola ventana pide el informe guardado (de él se toman
+ * las columnas) y la configuración de generación (columnas fijas y dónde insertar
+ * las de horario), y genera el Excel de horarios de los alumnos fantasma.
+ */
+function ModalGenerarHorariosAsistente({
+  curso,
+  matriculas,
+  onClose,
+  onGenerado,
+}: {
+  curso: string;
+  matriculas: MatriculaLocal[];
+  onClose: () => void;
+  onGenerado: (fechaIso: string, nFilas: number) => void;
+}) {
+  const [presets, setPresets] = useState<ConfigInforme[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [presetId, setPresetId] = useState("");
+  const [hCongelar, setHCongelar] = useState(true);
+  const [hCongelarHasta, setHCongelarHasta] = useState<string | null>(null);
+  const [hInsertarTras, setHInsertarTras] = useState<string | null>(null);
+  const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nProfesores, setNProfesores] = useState<number | null>(null);
+
+  useEffect(() => {
+    window.adminAPI.presets
+      .listar()
+      .then(setPresets)
+      .catch(() => setPresets([]))
+      .finally(() => setCargando(false));
+  }, []);
 
   useEffect(() => {
     window.adminAPI.horarios
@@ -662,108 +741,401 @@ function Paso2ExcelHorarios({
       )
         return;
       const result = await window.adminAPI.horarios.profesoresConfirmarCsv(preview.path);
-      if (result) {
-        setNProfesores(result.profesores.length);
-        setMensaje(`Lista de profesores cargada: ${result.profesores.length} profesores.`);
-      }
+      if (result) setNProfesores(result.profesores.length);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cargar el CSV de profesores.");
     }
   };
 
+  // Solo informes «Por asignaturas»: el Excel de horarios necesita filas por asignatura.
+  const predefinidos = useMemo(() => INFORMES_PREDEFINIDOS.filter((p) => p.modo === "asignatura"), []);
+  const misPresets = useMemo(() => presets.filter((p) => p.modo === "asignatura"), [presets]);
+  const hayInformes = predefinidos.length > 0 || misPresets.length > 0;
+
+  const informeSel = useMemo(
+    () =>
+      INFORMES_PREDEFINIDOS.find((p) => p.id === presetId) ??
+      presets.find((p) => p.id === presetId) ??
+      null,
+    [presetId, presets],
+  );
+
+  const campos = useMemo<CampoMeta[]>(() => {
+    if (!informeSel) return [];
+    return informeSel.camposVisibles.map((k) => CAMPO_MAP.get(k)).filter(Boolean) as CampoMeta[];
+  }, [informeSel]);
+
+  // Al elegir informe, fijar los valores por defecto de congelar/insertar.
+  useEffect(() => {
+    if (campos.length === 0) {
+      setHCongelarHasta(null);
+      setHInsertarTras(null);
+      return;
+    }
+    const claves = campos.map((c) => c.key);
+    setHCongelar(true);
+    setHCongelarHasta(claves.includes("especialidad") ? "especialidad" : (claves[0] ?? null));
+    setHInsertarTras(campos.length >= 3 ? campos[campos.length - 3].key : (claves[claves.length - 1] ?? null));
+  }, [campos]);
+
   const handleGenerar = async () => {
     setError(null);
-    setMensaje(null);
-    setOcupado(true);
+    if (!informeSel) {
+      setError("Elige primero un informe guardado.");
+      return;
+    }
+    setGenerando(true);
     try {
       const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
       if (profesores.length === 0) {
-        setError("No se ha cargado la lista de profesores. Usa el botón «Cargar profesores (CSV)…» de arriba.");
+        setError("No se ha cargado la lista de profesores. Cierra esta ventana y usa «Cargar profesores (CSV)…».");
         return;
       }
       const filas = filasAsignaturaLocales(matriculas);
       if (filas.length === 0) {
-        setError("No hay ningún alumno con asignaturas en este curso: no hay nada que poner en el Excel.");
+        setError("No hay ningún alumno fantasma con asignaturas en este curso: no hay nada que poner en el Excel.");
         return;
       }
-      const todos = [...CAMPOS_META, ...CAMPOS_ASIGNATURA];
-      const campos = CAMPOS_HORARIOS_DEFECTO.map((k) => todos.find((c) => c.key === k)).filter(
-        (c): c is NonNullable<typeof c> => c != null,
-      );
-      const base64 = await generarExcelHorarios(filas, campos, profesores, {
-        congelar: true,
-        congelarHasta: "especialidad",
-        insertarTras: "asigNombre",
-      });
+      const opciones: OpcionesHorario = {
+        congelar: hCongelar,
+        congelarHasta: hCongelar ? hCongelarHasta : null,
+        insertarTras: hInsertarTras,
+      };
+      const base64 = await generarExcelHorarios(filas, campos, profesores, opciones);
       const exportado = await window.adminAPI.informe.exportar({
         contenidoBase64: base64,
-        nombreArchivo: `Horarios ${curso.replace("/", "-")}`,
+        nombreArchivo: `Horarios ${curso.replace("/", "-")} — ${informeSel.nombre}`,
         extension: "xlsx",
       });
       if (exportado !== null) {
-        const ahora = new Date().toISOString();
-        onGenerado(ahora);
-        setMensaje(
-          `Excel de horarios generado con ${filas.length} fila(s). Los temporales van con fondo naranja. Ya puedes hacérselo llegar a los profesores.`,
-        );
+        onGenerado(new Date().toISOString(), filas.length);
+        onClose();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo generar el Excel de horarios.");
+    } finally {
+      setGenerando(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+      onClick={() => !generando && onClose()}
+    >
+      <div
+        className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cabecera */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <FileSpreadsheet className="w-5 h-5 shrink-0 text-[var(--tc-primary)]" />
+            <h3 className="text-sm font-bold text-[var(--tc-ink)]">Generar Excel de horarios</h3>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={generando}
+            className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] disabled:opacity-40 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Cuerpo */}
+        <div className="px-5 py-4 space-y-5 overflow-y-auto">
+          {/* Profesorado: el Excel necesita la lista para los desplegables */}
+          <div>
+            {nProfesores === null ? (
+              <p className="text-[12px] text-[var(--tc-ink-mute)]">Comprobando la lista de profesorado…</p>
+            ) : nProfesores > 0 ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12px] text-emerald-700 flex items-center gap-2 flex-wrap">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                <span className="flex-1 min-w-[160px]">Lista de profesorado cargada ({nProfesores}).</span>
+                <button
+                  onClick={handleCargarProfesores}
+                  className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Cambiar…
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 flex items-center gap-2 flex-wrap">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span className="flex-1 min-w-[160px]">
+                  Falta la lista de profesorado: el Excel la necesita para los desplegables.
+                </span>
+                <button
+                  onClick={handleCargarProfesores}
+                  className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Subir profesorado (CSV)…
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Informe guardado */}
+          <div>
+            <label className="block text-sm font-semibold text-[var(--tc-ink)] mb-1">Informe guardado</label>
+            <p className="text-[11px] text-[var(--tc-ink-mute)] mb-2">
+              Las columnas del Excel se toman del informe que elijas. Solo aparecen los informes «Por asignaturas».
+            </p>
+            <select
+              value={presetId}
+              onChange={(e) => setPresetId(e.target.value)}
+              disabled={cargando || !hayInformes}
+              className="w-full text-sm border border-[var(--tc-border)] rounded-lg px-3 py-2 bg-[var(--tc-bg)] text-[var(--tc-ink)] disabled:opacity-50"
+            >
+              <option value="">{cargando ? "Cargando informes…" : "— Elige un informe —"}</option>
+              {predefinidos.length > 0 && (
+                <optgroup label="Predefinidos">
+                  {predefinidos.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </optgroup>
+              )}
+              {misPresets.length > 0 && (
+                <optgroup label="Mis informes">
+                  {misPresets.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            {!cargando && !hayInformes && (
+              <p className="mt-2 text-[12px] text-amber-700">
+                No tienes ningún informe «Por asignaturas» guardado. Ve a Informes, ponlo en modo «Por asignaturas»,
+                guárdalo como preset y vuelve aquí.
+              </p>
+            )}
+          </div>
+
+          {informeSel && (
+            <>
+              <div className="h-px bg-[var(--tc-border-soft)]" />
+
+              {/* Columnas fijas */}
+              <div>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={hCongelar}
+                    onChange={(e) => setHCongelar(e.target.checked)}
+                    className="w-4 h-4 accent-[var(--tc-primary)]"
+                  />
+                  <span className="text-sm font-semibold text-[var(--tc-ink)]">Dejar columnas fijas al desplazar</span>
+                </label>
+                <p className="text-[11px] text-[var(--tc-ink-mute)] mt-1 ml-6">
+                  Se mantienen visibles a la izquierda aunque te desplaces por la hoja.
+                </p>
+                <div className="mt-2.5 ml-6">
+                  <label className="block text-[11px] font-medium text-[var(--tc-ink-soft)] mb-1">
+                    Última columna fija (incluida):
+                  </label>
+                  <select
+                    value={hCongelarHasta ?? ""}
+                    onChange={(e) => setHCongelarHasta(e.target.value || null)}
+                    disabled={!hCongelar}
+                    className="w-full text-sm border border-[var(--tc-border)] rounded-lg px-3 py-2 bg-[var(--tc-bg)] text-[var(--tc-ink)] disabled:opacity-50"
+                  >
+                    {campos.map((c) => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="h-px bg-[var(--tc-border-soft)]" />
+
+              {/* Dónde insertar las columnas de horario */}
+              <div>
+                <span className="text-sm font-semibold text-[var(--tc-ink)]">Dónde insertar las columnas de horario</span>
+                <p className="text-[11px] text-[var(--tc-ink-mute)] mt-1">
+                  Las columnas que rellenarán los profesores (Profesor, Aula, Grupo, Día, Entrada, Salida…) se
+                  insertarán en el punto que elijas.
+                </p>
+                <div className="mt-2.5">
+                  <select
+                    value={hInsertarTras ?? "__inicio__"}
+                    onChange={(e) => setHInsertarTras(e.target.value === "__inicio__" ? null : e.target.value)}
+                    className="w-full text-sm border border-[var(--tc-border)] rounded-lg px-3 py-2 bg-[var(--tc-bg)] text-[var(--tc-ink)]"
+                  >
+                    <option value="__inicio__">Al principio (antes de todas las columnas)</option>
+                    {campos.map((c) => (
+                      <option key={c.key} value={c.key}>Después de: {c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+
+          {error && <MensajeError texto={error} />}
+        </div>
+
+        {/* Pie */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-[var(--tc-border)] bg-[var(--tc-bg-panel)] shrink-0">
+          <button
+            onClick={onClose}
+            disabled={generando}
+            className="px-3.5 py-2 text-sm font-semibold text-[var(--tc-ink-soft)] rounded-lg hover:bg-[var(--tc-card)] disabled:opacity-40 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleGenerar}
+            disabled={generando || !informeSel || !nProfesores}
+            title={!nProfesores ? "Sube primero la lista de profesorado" : !informeSel ? "Elige primero un informe" : undefined}
+            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--tc-primary)] text-white text-sm font-semibold rounded-lg disabled:opacity-40 hover:opacity-90 transition-opacity shadow-sm"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            {generando ? "Generando…" : "Generar Excel"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Paso 3: los profesores rellenan el Excel. Permite seleccionar el archivo
+ * Excel devuelto por los profesores, mantenerlo linkado (recordar la ruta)
+ * o cargar otro distinto.
+ */
+function Paso3ProfesoresRellenan({
+  ruta,
+  recibido,
+  disabled,
+  onRutaCambiada,
+  onRecibidoCambiado,
+}: {
+  ruta: string | null;
+  recibido: boolean;
+  disabled: boolean;
+  onRutaCambiada: (ruta: string | null) => void;
+  onRecibidoCambiado: (v: boolean) => void;
+}) {
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ultimoCargado, setUltimoCargado] = useState<string | null>(null);
+
+  const handleSeleccionar = async () => {
+    setError(null);
+    setOcupado(true);
+    try {
+      const sel = await window.adminAPI.horarios.seleccionarExcelRelleno();
+      if (sel) {
+        onRutaCambiada(sel.path);
+        setUltimoCargado(sel.fileName);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
     } finally {
       setOcupado(false);
     }
   };
 
+  const handleDesvincular = () => {
+    onRutaCambiada(null);
+    setUltimoCargado(null);
+  };
+
+  const handleLinkear = async () => {
+    setError(null);
+    setOcupado(true);
+    try {
+      const sel = await window.adminAPI.horarios.seleccionarExcelRelleno();
+      if (sel) {
+        onRutaCambiada(sel.path);
+        setUltimoCargado(sel.fileName);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const nombreArchivo = ruta ? ruta.split("\\").pop()?.split("/").pop() ?? ruta : null;
+
   return (
     <div className="flex flex-col gap-3">
-      {nProfesores === 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 flex items-center gap-2 flex-wrap">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span className="flex-1 min-w-[180px]">
-            Falta la lista de profesores: el Excel la necesita para los desplegables.
-          </span>
-          {!disabled && (
-            <button
-              onClick={handleCargarProfesores}
-              className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Cargar profesores (CSV)…
-            </button>
-          )}
-        </div>
-      )}
-      {nProfesores !== null && nProfesores > 0 && (
-        <p className="text-[12px] text-[var(--tc-ink-soft)]">
-          Lista de profesores cargada ({nProfesores}).{" "}
-          {!disabled && (
-            <button onClick={handleCargarProfesores} className="text-[var(--tc-primary)] underline">
-              Cambiar…
-            </button>
-          )}
-        </p>
-      )}
+      {/* Selección / estado del archivo */}
+      <div className="rounded-xl border border-[var(--tc-border)] p-4 flex flex-col gap-3">
+        {!ruta ? (
+          <>
+            <p className="text-[13px] text-[var(--tc-ink-soft)] leading-relaxed">
+              Los profesores te devuelven el Excel con los horarios rellenos. Selecciona ese archivo
+              para vincularlo al asistente. Puedes mantenerlo linkado (el asistente recordará la ruta)
+              o cargar otro distinto cada vez.
+            </p>
+            <div>
+              <button
+                onClick={handleSeleccionar}
+                disabled={disabled || ocupado}
+                className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                {ocupado ? "Leyendo archivo…" : "Seleccionar Excel relleno…"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5">
+              <FileSpreadsheet className="w-5 h-5 shrink-0 text-emerald-600" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[var(--tc-ink)] truncate" title={ruta}>
+                  {nombreArchivo}
+                </p>
+                <p className="text-[11px] text-[var(--tc-ink-mute)] truncate" title={ruta}>
+                  {ruta}
+                </p>
+              </div>
+              <span className="text-[11px] font-semibold text-emerald-600 shrink-0">Linkado</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleLinkear}
+                disabled={disabled || ocupado}
+                className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-3 text-xs font-semibold text-[var(--tc-ink-soft)] hover:bg-[var(--tc-card)] disabled:opacity-50 transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {ocupado ? "Leyendo…" : "Cambiar archivo…"}
+              </button>
+              <button
+                onClick={handleDesvincular}
+                disabled={disabled}
+                className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-3 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Desvincular
+              </button>
+            </div>
+            {ultimoCargado && (
+              <p className="text-[12px] text-emerald-700">
+                Archivo cargado correctamente: {ultimoCargado}
+              </p>
+            )}
+          </>
+        )}
+      </div>
 
-      {!disabled && (
-        <div>
-          <button
-            onClick={handleGenerar}
-            disabled={ocupado || nProfesores === 0}
-            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            {ocupado ? "Generando…" : "Generar Excel de horarios"}
-          </button>
-        </div>
-      )}
+      {/* Check de confirmación */}
+      <label className="flex items-center gap-2.5 text-sm text-[var(--tc-ink)] cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={recibido}
+          disabled={disabled}
+          onChange={(e) => onRecibidoCambiado(e.target.checked)}
+          className="w-4 h-4 accent-[var(--tc-primary)]"
+        />
+        Ya tengo el Excel relleno por los profesores
+      </label>
 
-      {fechaExcelGenerado && (
-        <p className="text-[12px] text-emerald-700">
-          Último Excel generado el {new Date(fechaExcelGenerado).toLocaleString("es-ES")}. Puedes volver a
-          generarlo si creas más temporales.
-        </p>
-      )}
-      {mensaje && <MensajeOk texto={mensaje} />}
       {error && <MensajeError texto={error} />}
     </div>
   );
@@ -771,8 +1143,8 @@ function Paso2ExcelHorarios({
 
 /**
  * Paso 4: tabla de vinculación temporal ↔ matrícula real. Misma operación que
- * el selector «Sustituye al alumno temporal» de la ficha Local, pero vista
- * desde el temporal y con todos los pendientes juntos. Es bidireccional: lo
+ * el selector «Sustituye al alumno fantasma» de la ficha Local, pero vista
+ * desde el alumno fantasma y con todos los pendientes juntos. Es bidireccional: lo
  * vinculado aquí se ve en Local y viceversa.
  */
 function Paso4Vincular({
@@ -810,7 +1182,7 @@ function Paso4Vincular({
     [matriculas],
   );
 
-  /** Matrículas reales que puede elegir un temporal: mismo curso y especialidad, sin otro vínculo. */
+  /** Matrículas reales que puede elegir un alumno fantasma: mismo curso y especialidad, sin otro vínculo. */
   const candidatasDe = (t: MatriculaLocal): MatriculaLocal[] =>
     matriculas
       .filter(
@@ -843,7 +1215,7 @@ function Paso4Vincular({
   if (temporales.length === 0) {
     return (
       <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
-        No hay temporales pendientes de vincular en este curso.
+        No hay alumnos fantasma pendientes de vincular en este curso.
       </p>
     );
   }
@@ -854,7 +1226,7 @@ function Paso4Vincular({
     <div className="flex flex-col gap-3">
       <div className="rounded-xl border border-[var(--tc-border)] overflow-hidden">
         <div className="grid grid-cols-2 gap-2 px-3 py-2 bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)]">
-          <span>Temporal pendiente</span>
+          <span>Alumno fantasma pendiente</span>
           <span>Matrícula real que lo sustituye</span>
         </div>
         <div className="max-h-[260px] overflow-y-auto">
@@ -906,7 +1278,7 @@ function Paso4Vincular({
   );
 }
 
-/** Paso 5: ejecutar las sustituciones de los temporales vinculados, con fecha programada opcional. */
+/** Paso 5: ejecutar las sustituciones de los alumnos fantasma vinculados, con fecha programada opcional. */
 function Paso5Ejecutar({
   curso,
   matriculas,
@@ -1003,7 +1375,7 @@ function Paso5Ejecutar({
             onClick={handleEjecutar}
             disabled={ocupado || parejas.length === 0}
             className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-            title={parejas.length === 0 ? "No hay temporales vinculados pendientes de ejecutar" : undefined}
+            title={parejas.length === 0 ? "No hay alumnos fantasma vinculados pendientes de ejecutar" : undefined}
           >
             <UserCheck className="w-4 h-4" />
             {ocupado ? "Ejecutando…" : `Ejecutar sustituciones (${parejas.length})`}
@@ -1082,7 +1454,7 @@ function Paso6Fusionado({
         `Se va a generar un Excel nuevo a partir de "${sel.fileName}":`,
         "",
         `• ${resultado.conservadas} horario(s) se conservan tal cual.`,
-        `• ${resultado.heredadas} horario(s) pasan del temporal a su alumno real.`,
+        `• ${resultado.heredadas} horario(s) pasan del alumno fantasma a su alumno real.`,
       ];
       if (resultado.sinHorario.length > 0)
         lineas.push(`• ${resultado.sinHorario.length} asignatura(s) de alumnos nuevos quedan sin horario.`);
@@ -1129,7 +1501,7 @@ function Paso6Fusionado({
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
-        Regla de oro: nunca borres los temporales sustituidos antes de generar este Excel.
+        Regla de oro: nunca borres los alumnos fantasma sustituidos antes de generar este Excel.
       </div>
 
       {!disabled && (
@@ -1157,7 +1529,7 @@ function Paso6Fusionado({
   );
 }
 
-/** Paso 7: eliminar los temporales ya sustituidos y decidir si empieza otra ronda. */
+/** Paso 7: eliminar los alumnos fantasma ya sustituidos y decidir si empieza otra ronda. */
 function Paso7Limpiar({
   matriculas,
   eliminar,
@@ -1193,7 +1565,7 @@ function Paso7Limpiar({
     if (sustituidos.length === 0) return;
     if (
       !window.confirm(
-        `¿Eliminar los ${sustituidos.length} temporales ya sustituidos?\n\nEl Excel fusionado ya está generado, así que es seguro borrarlos.`,
+        `¿Eliminar los ${sustituidos.length} alumnos fantasma ya sustituidos?\n\nEl Excel fusionado ya está generado, así que es seguro borrarlos.`,
       )
     )
       return;
@@ -1201,9 +1573,9 @@ function Paso7Limpiar({
     setError(null);
     try {
       for (const t of sustituidos) await eliminar(t.localId);
-      setMensaje(`Temporales sustituidos eliminados.`);
+      setMensaje(`Alumnos fantasma sustituidos eliminados.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron eliminar los temporales.");
+      setError(e instanceof Error ? e.message : "No se pudieron eliminar los alumnos fantasma.");
     } finally {
       setOcupado(false);
     }
@@ -1230,7 +1602,7 @@ function Paso7Limpiar({
           {nPendientes > 0 ? (
             <>
               <p className="text-sm text-[var(--tc-ink)]">
-                Limpieza hecha, pero quedan <strong>{nPendientes} temporal(es) pendiente(s)</strong> esperando
+                Limpieza hecha, pero quedan <strong>{nPendientes} alumno(s) fantasma pendiente(s)</strong> esperando
                 su matrícula real. Cuando lleguen más matrículas, repite el ciclo con otra ronda.
               </p>
               {!disabled && (
@@ -1253,7 +1625,7 @@ function Paso7Limpiar({
             </>
           ) : (
             <p className="text-sm text-[var(--tc-ink)]">
-              No queda ningún temporal pendiente: el ciclo de sustituciones está completo. Continúa al paso
+              No queda ningún alumno fantasma pendiente: el ciclo de sustituciones está completo. Continúa al paso
               final para enviar los horarios a los alumnos nuevos.
             </p>
           )}
@@ -1268,7 +1640,7 @@ function Paso7Limpiar({
 
 /**
  * Paso 8: enviar el horario por email a los alumnos NUEVO (matrículas reales
- * que sustituyeron a un temporal y aún no recibieron campaña). Reutiliza el
+ * que sustituyeron a un alumno fantasma y aún no recibieron campaña). Reutiliza el
  * envío de Horarios Individuales: PDF + email vía Flow, registrado en una
  * campaña para que la pestaña Horarios lo refleje igual.
  */
@@ -1303,7 +1675,7 @@ function Paso8Enviar({
       .finally(() => setCampanyasCargadas(true));
   }, []);
 
-  /** Matrículas reales que sustituyeron a un temporal (etiqueta NUEVO en Horarios). */
+  /** Matrículas reales que sustituyeron a un alumno fantasma (etiqueta NUEVO en Horarios). */
   const nuevos = useMemo(
     () =>
       matriculas
@@ -1423,7 +1795,7 @@ function Paso8Enviar({
       const campanya: CampanyaEnvio = {
         id: crypto.randomUUID(),
         nombre: `Asistente — horarios a nuevos (${new Date().toLocaleDateString("es-ES")})`,
-        descripcion: "Envío realizado desde el asistente de alumnos temporales.",
+        descripcion: "Envío realizado desde el asistente de Alumnado Fantasma.",
         fecha: new Date().toISOString(),
         alumnos: resultados,
       };

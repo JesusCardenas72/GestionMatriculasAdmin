@@ -90,7 +90,7 @@ interface Props {
   yaTieneAmpliacion: boolean;
   /** Modo Solo Lectura: bloquea Borrar, Crear Ampliación y Subir a la Nube. */
   readOnly?: boolean;
-  /** Temporales pendientes del curso, para el selector "Sustituye a…" en matrículas reales. */
+  /** Alumnos fantasma pendientes del curso, para el selector "Sustituye a…" en matrículas reales. */
   temporalesPendientes?: MatriculaLocal[];
   onSave: (changes: Partial<MatriculaLocal>) => void;
   onAmpliacion: () => void;
@@ -476,7 +476,7 @@ export default function LocalDetail({
                       : "bg-orange-100 text-orange-700 border-orange-200")
                   }
                 >
-                  {m.temporalEstado === "sustituido" ? "Temporal sustituido" : "Alumno temporal"}
+                  {m.temporalEstado === "sustituido" ? "Fantasma sustituido" : "Alumno fantasma"}
                 </span>
               )}
             </div>
@@ -520,8 +520,8 @@ export default function LocalDetail({
             {/* Temporal: aviso (el selector "Sustituye a…" de matrículas reales está en Datos Personales) */}
             {m.esTemporal && (
               <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
-                Registro temporal para horarios: no se sube a la nube ni genera PDF. Se sustituirá por un
-                alumno real desde la pestaña Temporales.
+                Registro fantasma para horarios: no se sube a la nube ni genera PDF. Se sustituirá por un
+                alumno real desde la pestaña Alumnado Fantasma.
               </div>
             )}
           </div>
@@ -770,7 +770,7 @@ export default function LocalDetail({
                 onBlur={() => saveForm()}
                 disabled={readOnly}
               />
-              {/* Vínculo con alumno temporal (mismo curso y especialidad) */}
+              {/* Vínculo con alumno fantasma (mismo curso y especialidad) */}
               {!m.esTemporal &&
                 (() => {
                   const candidatos = temporalesPendientes.filter(
@@ -785,7 +785,7 @@ export default function LocalDetail({
                         className="text-xs uppercase tracking-wide mb-0.5"
                         style={{ color: "var(--tc-ink-mute)" }}
                       >
-                        Sustituye al alumno temporal
+                        Sustituye al alumno fantasma
                       </p>
                       <div className="flex items-center gap-2">
                         <select
@@ -794,14 +794,14 @@ export default function LocalDetail({
                           onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null })}
                           className="text-sm py-1 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)] max-w-[320px]"
                         >
-                          <option value="">— Ningún temporal —</option>
+                          <option value="">— Ningún alumno fantasma —</option>
                           {candidatos.map((t) => (
                             <option key={t.localId} value={t.localId}>{nombreVisibleTemporal(t)}</option>
                           ))}
                         </select>
                         {m.sustituyeATemporalId && (
                           <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
-                            Pendiente de ejecutar en Temporales
+                            Pendiente de ejecutar en Alumnado Fantasma
                           </span>
                         )}
                       </div>
@@ -1173,7 +1173,7 @@ export default function LocalDetail({
         >
           {m.esTemporal && (
             <p className="self-center text-xs" style={{ color: "var(--tc-ink-mute)" }}>
-              Registro temporal: sin subida a la nube, PDF ni ampliación.
+              Registro fantasma: sin subida a la nube, PDF ni ampliación.
             </p>
           )}
           {!m.esTemporal && !m.ampliacion && !m.anulacion && !yaTieneAmpliacion && (

@@ -1150,7 +1150,7 @@ export default function InformesScreen({ config }: Props) {
                 </button>
                 <button
                   onClick={() => handleExportarHorarios(true)}
-                  title="Carga el Excel relleno por los profesores, sustituye los alumnos temporales por los reales y conserva los horarios introducidos"
+                  title="Carga el Excel relleno por los profesores, sustituye los alumnos fantasma por los reales y conserva los horarios introducidos"
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
                 >
                   <FileSpreadsheet className="w-4 h-4 shrink-0 text-orange-500" />
@@ -1927,7 +1927,7 @@ export default function InformesScreen({ config }: Props) {
                 {hModoFusion && (
                   <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
                     Al pulsar «Continuar» se te pedirá el Excel de horarios YA RELLENO por los
-                    profesores. Sus horarios se conservarán y los alumnos temporales sustituidos se
+                    profesores. Sus horarios se conservarán y los alumnos fantasma sustituidos se
                     reemplazarán por los alumnos reales.
                   </div>
                 )}
@@ -2064,7 +2064,7 @@ export default function InformesScreen({ config }: Props) {
                   </div>
                   <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
                     <p className="text-lg font-bold text-orange-700 tabular-nums">{fusionPendiente.resultado.heredadas}</p>
-                    <p className="text-[11px] text-orange-700">heredados de alumnos temporales sustituidos</p>
+                    <p className="text-[11px] text-orange-700">heredados de alumnos fantasma sustituidos</p>
                   </div>
                 </div>
 

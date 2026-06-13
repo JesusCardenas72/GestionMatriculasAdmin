@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useSustitucionProgramada } from "../hooks/useSustitucionProgramada";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown, Lock, Eye, LogOut, Hourglass, Sun, Moon, Link2, GraduationCap, Trash2 } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
@@ -168,10 +168,10 @@ export default function MainScreen({ config }: Props) {
   return (
     <div className="h-screen flex flex-col bg-[var(--tc-bg)] overflow-hidden">
       <header className="relative h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center gap-4">
-        <span className="absolute top-1 left-2.5 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
+        <span className="fixed bottom-2 right-3 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
           v.{__APP_VERSION__} &mdash; by Jesús Cárdenas (C.P.M. &quot;Marcos Redondo&quot;)
         </span>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => setCursoModalOpen(true)}
             className={
@@ -201,6 +201,7 @@ export default function MainScreen({ config }: Props) {
             counts={counts}
             pendingUploads={pendingUploads}
             localCount={localMatriculas.length}
+            temporalesPendientes={temporalesPendientes}
             onChange={handleTabChange}
           />
         </div>
@@ -243,7 +244,7 @@ export default function MainScreen({ config }: Props) {
                 <span
                   className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[10px] font-bold"
                   style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }}
-                  title={`${temporalesPendientes} alumno(s) temporal(es) pendiente(s)`}
+                  title={`${temporalesPendientes} alumno(s) fantasma pendiente(s)`}
                 >
                   {temporalesPendientes}
                 </span>
@@ -326,14 +327,14 @@ export default function MainScreen({ config }: Props) {
 
                 <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />
 
-                {/* Alumnos temporales */}
+                {/* Alumnado Fantasma */}
                 <button
                   onClick={() => { setSettingsMenuOpen(false); handleTabChange("temporales"); }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
                 >
-                  <Hourglass className="w-4 h-4 shrink-0 text-orange-500" />
+                  <img src="/AlumnadoFantasma.ico" alt="" className="w-4 h-4 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Alumnos temporales</p>
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Alumnado Fantasma</p>
                   </div>
                   {temporalesPendientes > 0 && (
                     <span

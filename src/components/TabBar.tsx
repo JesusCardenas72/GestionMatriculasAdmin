@@ -1,5 +1,5 @@
 import { LayoutGroup, motion } from "framer-motion";
-import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive } from "lucide-react";
+import { CalendarClock, CheckCircle, Clock, Eye, FileText, Ghost, HardDrive } from "lucide-react";
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
@@ -24,30 +24,32 @@ interface Props {
   counts: Record<EstadoTramite, number | undefined>;
   pendingUploads?: number;
   localCount?: number;
+  temporalesPendientes?: number;
   onChange: (tab: ActiveTab) => void;
 }
 
 const spring = { type: "spring", stiffness: 400, damping: 35 } as const;
 
-export default function TabBar({ active, counts, pendingUploads, localCount, onChange }: Props) {
+export default function TabBar({ active, counts, pendingUploads, localCount, temporalesPendientes, onChange }: Props) {
   return (
     <LayoutGroup>
       <div className="flex items-center gap-3">
-        {/* Estados */}
-        <div className="bg-[var(--tc-bg-panel)] rounded-full p-1 flex items-center gap-0.5 border border-[var(--tc-border)]">
-          {TABS.map((tab) => {
-            const isActive = tab.estado === active;
-            const count = counts[tab.estado];
-            return (
-              <motion.button
-                layout
-                key={tab.estado}
-                onClick={() => onChange(tab.estado)}
-                className={
-                  "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
-                  (isActive ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
-                }
-              >
+          {/* Estados */}
+          <div className="bg-[var(--tc-bg-panel)] rounded-full p-1 flex items-center gap-0.5 border border-[var(--tc-border)]">
+            {TABS.map((tab) => {
+              const isActive = tab.estado === active;
+              const count = counts[tab.estado];
+              return (
+                <motion.button
+                  layout
+                  key={tab.estado}
+                  onClick={() => onChange(tab.estado)}
+                  title={tab.label}
+                  className={
+                    "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+                    (isActive ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
+                  }
+                >
                 {isActive && (
                   <motion.span
                     layoutId="tab-pill"
@@ -82,6 +84,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, onC
           <motion.button
             layout
             onClick={() => onChange("local")}
+            title="Local"
             className={
               "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
               (active === "local" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
@@ -96,7 +99,6 @@ export default function TabBar({ active, counts, pendingUploads, localCount, onC
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <HardDrive className="w-3.5 h-3.5 shrink-0" />
-              <span className={active === "local" ? "font-semibold" : ""}>Local</span>
               {localCount !== undefined && localCount > 0 && (
                 <span
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
@@ -128,6 +130,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, onC
           <motion.button
             layout
             onClick={() => onChange("informes")}
+            title="Informes"
             className={
               "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
               (active === "informes" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
@@ -142,7 +145,6 @@ export default function TabBar({ active, counts, pendingUploads, localCount, onC
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 shrink-0" />
-              <span className={active === "informes" ? "font-semibold" : ""}>Informes</span>
             </span>
           </motion.button>
 
@@ -150,6 +152,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, onC
           <motion.button
             layout
             onClick={() => onChange("horarios")}
+            title="Horarios"
             className={
               "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
               (active === "horarios" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
@@ -164,10 +167,41 @@ export default function TabBar({ active, counts, pendingUploads, localCount, onC
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <CalendarClock className="w-3.5 h-3.5 shrink-0" />
-              <span className="flex flex-col items-start leading-none gap-0.5">
-                <span className={active === "horarios" ? "font-semibold" : ""}>Horarios</span>
-                <span className="text-[9px] font-normal opacity-50">(experimental)</span>
-              </span>
+            </span>
+          </motion.button>
+
+          {/* Alumnado Fantasma */}
+          <motion.button
+            layout
+            onClick={() => onChange("temporales")}
+            title="Alumnado Fantasma"
+            aria-label="Alumnado Fantasma"
+            className={
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+              (active === "temporales" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            {active === "temporales" && (
+              <motion.span
+                layoutId="tab-pill"
+                className="absolute inset-0 rounded-full bg-[var(--tc-card)] shadow-sm"
+                transition={spring}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-1.5">
+              <Ghost className="w-4 h-4 shrink-0" />
+              {temporalesPendientes !== undefined && temporalesPendientes > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
+                  style={
+                    active === "temporales"
+                      ? { background: "var(--tc-primary)", color: "#fff" }
+                      : { background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }
+                  }
+                >
+                  {temporalesPendientes}
+                </span>
+              )}
             </span>
           </motion.button>
         </div>

@@ -25,6 +25,8 @@ export interface AsistenteTemporalesEstado {
   ronda: number;
   /** Check manual del paso 3: «Ya tengo el Excel relleno». */
   excelProfesoresRecibido: boolean;
+  /** Ruta absoluta del Excel relleno seleccionado (linkado) en el paso 3, o null si no hay. */
+  excelProfesoresRuta: string | null;
   /** ISO timestamp de la última generación del Excel de horarios desde el asistente (paso 2). */
   fechaExcelGenerado: string | null;
   /** ISO timestamp del último Excel fusionado generado en la ronda actual (paso 6). Se limpia al empezar otra ronda. */
