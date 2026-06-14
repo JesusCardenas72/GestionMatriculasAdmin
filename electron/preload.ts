@@ -13,6 +13,7 @@ export interface ProfesoresPreview {
 }
 
 const adminAPI = {
+  getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
   config: {
     has: (): Promise<boolean> => ipcRenderer.invoke("config:has"),
     load: (): Promise<AppConfig | null> => ipcRenderer.invoke("config:load"),

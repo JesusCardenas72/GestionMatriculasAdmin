@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, protocol, screen } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,6 +76,7 @@ import {
   type TemporalesCursoConfig,
 } from "./temporales-store";
 import type { MatriculaLocal, ConfigInforme } from "../src/api/types";
+import { loadWindowState, saveWindowState } from "./window-state-store";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -103,9 +104,11 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 let win: BrowserWindow | null = null;
 
 function createWindow() {
-  win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+  const saved = loadWindowState();
+
+  let windowOptions: Electron.BrowserWindowConstructorOptions = {
+    width: saved?.width ?? 1280,
+    height: saved?.height ?? 800,
     icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -113,7 +116,57 @@ function createWindow() {
       nodeIntegration: false,
       plugins: true,
     },
-  });
+  };
+
+  if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+    const displays = screen.getAllDisplays();
+    const onScreen = displays.some((d) => {
+      const b = d.bounds;
+      return (
+        saved.x! >= b.x &&
+        saved.y! >= b.y &&
+        saved.x! < b.x + b.width &&
+        saved.y! < b.y + b.height
+      );
+    });
+    if (onScreen) {
+      windowOptions.x = saved.x;
+      windowOptions.y = saved.y;
+    }
+  }
+
+  win = new BrowserWindow(windowOptions);
+
+  if (saved?.maximized) {
+    win.maximize();
+  }
+
+  const persistState = () => {
+    if (!win || win.isDestroyed()) return;
+    const maximized = win.isMaximized();
+    if (!maximized) {
+      const bounds = win.getBounds();
+      saveWindowState({
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        maximized: false,
+      });
+    } else {
+      saveWindowState({
+        x: undefined,
+        y: undefined,
+        width: 0,
+        height: 0,
+        maximized: true,
+      });
+    }
+  };
+
+  win.on("resize", persistState);
+  win.on("move", persistState);
+  win.on("close", persistState);
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
@@ -124,6 +177,7 @@ function createWindow() {
 }
 
 function registerIpcHandlers() {
+  ipcMain.handle("app:getVersion", () => app.getVersion());
   ipcMain.handle("config:has", () => hasConfig());
   ipcMain.handle("config:load", () => loadConfig());
   ipcMain.handle("config:save", (_e, cfg: AppConfig) => saveConfig(cfg));

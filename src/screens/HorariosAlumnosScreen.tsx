@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock, FileUp, Loader2, Download, Printer, AlertCircle,
   Search, Trash2, Mail, History, CheckSquare, Square, Send, X, Clock,
-  CheckCircle2, XCircle, ClipboardList, FileCode2,
+  CheckCircle2, XCircle, ClipboardList, FileCode2, Ghost, Filter, ListChecks,
 } from "lucide-react";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
-import { parseHorariosExcel } from "../utils/horarioExcel";
+import { parseHorariosExcel, extraerCamposInforme } from "../utils/horarioExcel";
 import { parseHorariosExcelCrudo } from "../utils/fusionHorarios";
-import { actualizarHorariosStore } from "../utils/horariosPersistencia";
+import { actualizarHorariosStore, construirCargaDesdeStore } from "../utils/horariosPersistencia";
 import type { HorariosCursoData } from "../../electron/horarios-data-store";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
 import { buildListadoHtml, type VersionListado } from "../utils/horarioListadoTemplate";
@@ -17,7 +17,9 @@ import { enviarEmailHorario } from "../api/horarios";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ResultadoEnvio } from "../horarios/types";
 import { buildCursoLabel } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
+import type { ConfigInforme, CampoKey } from "../api/types";
 import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
+import ResizableColumns from "../components/ResizableColumns";
 
 interface Props {
   config: AppConfig;
@@ -86,6 +88,12 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
   const [campanytaSeleccionada, setCampanyaSeleccionada] = useState<string | null>(null);
 
+  // Filtros de la lista de alumnos
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [filtroFantasma, setFiltroFantasma] = useState<"todos" | "solo" | "sin">("todos");
+  const [filtroEnvio, setFiltroEnvio] = useState<"todos" | "enviados" | "pendientes">("todos");
+  const [filtroEmail, setFiltroEmail] = useState<"todos" | "conEmail" | "sinEmail">("todos");
+
   // Modal de envío
   const [showEnviarModal, setShowEnviarModal] = useState(false);
   const [nombreCampanya, setNombreCampanya] = useState("");
@@ -97,19 +105,44 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   // Modal de historial de horarios
   const [showHistorialHorariosModal, setShowHistorialHorariosModal] = useState(false);
 
-  const alumnosParaEnviar = useRef<string[]>([]);
+  // Popup: formato detectado automáticamente al cargar un Excel
+  const [modalFormatoDetectado, setModalFormatoDetectado] = useState<{
+    campos: string[];
+    presetNombre: string;
+  } | null>(null);
 
-  const [savedExcelPath, setSavedExcelPath] = useState<string | null>(null);
+  const alumnosParaEnviar = useRef<string[]>([]);
 
   useEffect(() => {
     window.adminAPI.horarios.campanyas.listar().then(setCampanyas).catch(() => {});
-    window.adminAPI.horarios.obtenerExcelPath().then(path => setSavedExcelPath(path));
   }, []);
 
-  const handleEliminarExcelPath = async () => {
-    await window.adminAPI.horarios.eliminarExcelPath();
-    setSavedExcelPath(null);
-  };
+  /**
+   * Carga automática: al entrar en la pestaña (o al cambiar de curso) muestra los
+   * horarios guardados internamente de cargas anteriores, sin tener que volver a
+   * cargar el Excel. No pisa una carga ya presente (`prev ?? …`), así que tras
+   * cargar otro Excel o borrar todos se respeta la decisión del usuario.
+   */
+  const [autoLoadando, setAutoLoadando] = useState(true);
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const storeData = await window.adminAPI.horarios.data.obtener(curso);
+        if (cancelado) return;
+        const cargaStore = construirCargaDesdeStore(storeData);
+        if (cargaStore.alumnos.length > 0) {
+          setCarga(prev => prev ?? cargaStore);
+          setSelectedClave(prev => prev ?? cargaStore.alumnos[0]?.clave ?? null);
+        }
+      } catch {
+        // Si el almacén falla, no hay carga automática.
+      } finally {
+        if (!cancelado) setAutoLoadando(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [curso]);
 
   /**
    * Construye un mapa nombre-normalizado → contacto (email + teléfono) a partir
@@ -154,6 +187,36 @@ export default function HorariosAlumnosScreen({ config }: Props) {
     [nombresNuevos],
   );
 
+  /** Temporales pendientes (plazas fantasma sin asignar aún). */
+  const nombresFantasma = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of localMatriculas) {
+      if (m.esTemporal && m.temporalEstado === "pendiente") {
+        const n = m.apellidos && m.nombre
+          ? `${m.apellidos}, ${m.nombre}`
+          : m.apellidos || m.nombre || "";
+        if (n) set.add(normNombre(n));
+      }
+    }
+    return set;
+  }, [localMatriculas]);
+
+  const esFantasma = useCallback(
+    (a: HorarioAlumno) => nombresFantasma.has(normNombre(a.nombre)),
+    [nombresFantasma],
+  );
+
+  /** Mapa clave → fecha ISO del último envío ok por alumno. */
+  const enviosPorClave = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const c of [...campanyas].sort((a, b) => b.fecha.localeCompare(a.fecha))) {
+      for (const r of c.alumnos) {
+        if (r.estado === "ok") mapa.set(r.clave, c.fecha);
+      }
+    }
+    return mapa;
+  }, [campanyas]);
+
   /** Claves de alumnos con al menos un envío exitoso en cualquier campaña. */
   const clavesEnviadas = useMemo(() => {
     const set = new Set<string>();
@@ -176,6 +239,15 @@ export default function HorariosAlumnosScreen({ config }: Props) {
     });
   }, [contactoLocalPorNombre]);
 
+  /**
+   * Completa email y teléfono de la carga actual cuando llegan (o cambian) las
+   * matrículas locales. Imprescindible para los horarios cargados del almacén,
+   * que vienen sin email; idempotente para los cargados desde Excel.
+   */
+  useEffect(() => {
+    setCarga(prev => (prev ? { ...prev, alumnos: enriquecerEmails(prev.alumnos) } : prev));
+  }, [enriquecerEmails]);
+
   const handleCargar = async () => {
     setError(null);
     try {
@@ -188,6 +260,43 @@ export default function HorariosAlumnosScreen({ config }: Props) {
       const crudas = await parseHorariosExcelCrudo(sel.base64);
       const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
       const resultado = actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
+
+      // Si aún no hay formato registrado para este curso, detectarlo del Excel cargado
+      if (!storeData.formatoHorarios) {
+        const camposDetectados = await extraerCamposInforme(sel.base64);
+        if (camposDetectados.length > 0) {
+          // Detectar modo: si hay campos de asignatura → modo 'asignatura'
+          const asigKeys = new Set(['asigNombre', 'asigCodigo', 'asigEstado', 'asigHorario']);
+          const modo: 'asignatura' | 'alumno' = camposDetectados.some(k => asigKeys.has(k))
+            ? 'asignatura'
+            : 'alumno';
+
+          // Crear preset automáticamente en Informes
+          const nombrePreset = `Horarios ${curso}`;
+          const presetAuto: ConfigInforme = {
+            id: crypto.randomUUID(),
+            nombre: nombrePreset,
+            camposVisibles: camposDetectados as CampoKey[],
+            filtros: [],
+            orden: [],
+            agruparPor: null,
+            modo,
+            predefinido: false,
+          };
+          await window.adminAPI.presets.guardar(presetAuto);
+
+          storeData.formatoHorarios = {
+            camposVisibles: camposDetectados,
+            opciones: { congelar: true, congelarHasta: null, insertarTras: null },
+            creadoEn: new Date().toISOString(),
+            origen: 'carga_excel',
+            presetId: presetAuto.id,
+            presetNombre: presetAuto.nombre,
+          };
+          setModalFormatoDetectado({ campos: camposDetectados, presetNombre: nombrePreset });
+        }
+      }
+
       await window.adminAPI.horarios.data.guardar(curso, storeData);
       console.log(`[Horarios] Store actualizado: +${resultado.anadidas} ~${resultado.actualizadas} -${resultado.eliminadas}`);
 
@@ -235,20 +344,26 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   const alumnosFiltrados = useMemo(() => {
     if (!carga) return [];
-    const base = soloNuevos ? carga.alumnos.filter(esNuevo) : carga.alumnos;
+    let base = carga.alumnos;
+    if (filtroFantasma === "solo") base = base.filter(esFantasma);
+    else if (filtroFantasma === "sin") base = base.filter(a => !esFantasma(a));
+    if (filtroEnvio === "enviados") base = base.filter(a => enviosPorClave.has(a.clave));
+    else if (filtroEnvio === "pendientes") base = base.filter(a => !enviosPorClave.has(a.clave));
+    if (filtroEmail === "conEmail") base = base.filter(a => a.email);
+    else if (filtroEmail === "sinEmail") base = base.filter(a => !a.email);
+    if (soloNuevos) base = base.filter(esNuevo);
     const q = busqueda.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter(
-      a =>
-        a.nombre.toLowerCase().includes(q) ||
-        a.especialidad.toLowerCase().includes(q) ||
-        a.ensenanzaCurso.toLowerCase().includes(q),
+    if (q) base = base.filter(a =>
+      a.nombre.toLowerCase().includes(q) ||
+      a.especialidad.toLowerCase().includes(q) ||
+      a.ensenanzaCurso.toLowerCase().includes(q),
     );
-  }, [carga, busqueda, soloNuevos, esNuevo]);
+    return base;
+  }, [carga, filtroFantasma, filtroEnvio, filtroEmail, soloNuevos, esFantasma, enviosPorClave, esNuevo, busqueda]);
 
   /** Nuevos (por sustitución) presentes en la carga actual que aún no han recibido email. */
   const nuevosSinEnviar = useMemo(
-    () => (carga ? carga.alumnos.filter(a => esNuevo(a) && !clavesEnviadas.has(a.clave)) : []),
+    () => (carga ? carga.alumnos.filter(a => esNuevo(a) && !clavesEnviadas.has(a.clave) && a.email) : []),
     [carga, esNuevo, clavesEnviadas],
   );
 
@@ -318,7 +433,15 @@ export default function HorariosAlumnosScreen({ config }: Props) {
       setError("No está configurada la URL del Flow AdminEnviarEmailHorario. Añádela en Configuración.");
       return;
     }
-    alumnosParaEnviar.current = claves;
+    // Guardia: fantasmas y alumnos sin email NUNCA reciben correo
+    const limpias = carga
+      ? carga.alumnos.filter(a => claves.includes(a.clave) && a.email && !esFantasma(a)).map(a => a.clave)
+      : claves;
+    if (limpias.length === 0) {
+      setError("Ningún alumno seleccionado tiene email o son todos plazas fantasma.");
+      return;
+    }
+    alumnosParaEnviar.current = limpias;
     setNombreCampanya("");
     setDescripcionCampanya("");
     setResultadoEnvio(null);
@@ -329,7 +452,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   const confirmarEnvio = async () => {
     if (!carga || !nombreCampanya.trim()) return;
     const claves = alumnosParaEnviar.current;
-    const destinatarios = carga.alumnos.filter(a => claves.includes(a.clave) && a.email);
+    const destinatarios = carga.alumnos.filter(a => claves.includes(a.clave) && a.email && !esFantasma(a));
     if (destinatarios.length === 0) {
       setError("Ninguno de los alumnos seleccionados tiene email registrado.");
       setShowEnviarModal(false);
@@ -413,14 +536,30 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   const nSeleccionados = seleccionados.size;
   const alumnosConEmail = useMemo(
-    () => carga?.alumnos.filter(a => a.email).length ?? 0,
-    [carga],
+    () => carga?.alumnos.filter(a => a.email && !esFantasma(a)).length ?? 0,
+    [carga, esFantasma],
+  );
+
+  /** Alumnos con email, no fantasma, que aún no han recibido ningún envío. */
+  const pendientesConEmail = useMemo(
+    () => carga ? carga.alumnos.filter(a => a.email && !esFantasma(a) && !enviosPorClave.has(a.clave)) : [],
+    [carga, esFantasma, enviosPorClave],
   );
 
   const campanytaActiva = campanyas.find(c => c.id === campanytaSeleccionada) ?? campanyas[0] ?? null;
 
   // ── Sin datos ──────────────────────────────────────────────────────────────
   if (!carga) {
+    // Mientras el auto-load del almacén no ha terminado, mostramos solo el spinner
+    // para evitar el flash de pantalla vacía cuando hay datos guardados.
+    if (autoLoadando) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-[var(--tc-ink-mute)]" />
+        </div>
+      );
+    }
+
     if (panelDerecho === "historial" && campanyas.length > 0) {
       return (
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -459,40 +598,14 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             horario semanal de cada alumno para verlo, descargarlo en PDF y enviarlo por email.
           </p>
           <div className="flex flex-col items-center gap-3">
-            {savedExcelPath && (
-              <div className="w-full bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <p className="text-xs text-amber-700 font-medium mb-1.5 truncate" title={savedExcelPath}>
-                  Archivo anterior: {savedExcelPath.split(/[\\/]/).pop()}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleCargar}
-                    disabled={cargando}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 transition disabled:opacity-60"
-                  >
-                    {cargando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileUp className="w-3.5 h-3.5" />}
-                    {cargando ? "Leyendo…" : "Abrir de nuevo"}
-                  </button>
-                  <button
-                    onClick={handleEliminarExcelPath}
-                    title="Desvincular archivo"
-                    className="px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-600 hover:bg-amber-100 transition"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
-            {!savedExcelPath && (
-              <button
-                onClick={handleCargar}
-                disabled={cargando}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--tc-primary)] text-white font-medium text-sm hover:opacity-90 transition disabled:opacity-60"
-              >
-                {cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
-                {cargando ? "Leyendo…" : "Cargar Excel de horarios"}
-              </button>
-            )}
+            <button
+              onClick={handleCargar}
+              disabled={cargando}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--tc-primary)] text-white font-medium text-sm hover:opacity-90 transition disabled:opacity-60"
+            >
+              {cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+              {cargando ? "Leyendo…" : "Cargar Excel de horarios"}
+            </button>
             {campanyas.length > 0 && (
               <button
                 onClick={() => setPanelDerecho("historial")}
@@ -516,8 +629,15 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   // ── Con datos ──────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex overflow-hidden">
-      {vistaPrincipal !== "listados" && (
-      <div className="w-[320px] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-card)] flex flex-col">
+      {vistaPrincipal !== "listados" ? (
+      <ResizableColumns
+        id="horarios"
+        defaultLeftSize="320px"
+        minLeftSize="240px"
+        maxLeftSize="500px"
+        className="flex-1 overflow-hidden"
+        left={
+        <div className="h-full flex flex-col bg-[var(--tc-card)]">
         <div className="p-3 border-b border-[var(--tc-border)] space-y-2">
           <div className="flex gap-1.5">
             <button
@@ -549,6 +669,71 @@ export default function HorariosAlumnosScreen({ config }: Props) {
               className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)]"
             />
           </div>
+
+          {/* Botón Filtros + chips */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setMostrarFiltros(v => !v)}
+              className={
+                "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border transition " +
+                (mostrarFiltros
+                  ? "bg-[var(--tc-primary-tint)] text-[var(--tc-primary)] border-[var(--tc-primary)]"
+                  : "bg-[var(--tc-bg)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
+              }
+            >
+              <Filter className="w-3 h-3" />
+              Filtros
+            </button>
+            {pendientesConEmail.length > 0 && (
+              <button
+                onClick={() => setSeleccionados(new Set(pendientesConEmail.map(a => a.clave)))}
+                title="Selecciona los alumnos que aún no han recibido el horario y ya tienen email"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition"
+              >
+                <ListChecks className="w-3 h-3" />
+                Sel. sin enviar con email ({pendientesConEmail.length})
+              </button>
+            )}
+          </div>
+          {mostrarFiltros && (
+            <div className="flex flex-col gap-1 px-1 py-1.5 rounded-lg bg-[var(--tc-bg-panel)] border border-[var(--tc-border)]">
+              <button
+                onClick={() => setFiltroFantasma(v => v === "todos" ? "solo" : v === "solo" ? "sin" : "todos")}
+                className={
+                  "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border transition " +
+                  (filtroFantasma !== "todos"
+                    ? "bg-slate-200 text-slate-700 border-slate-300"
+                    : "bg-[var(--tc-card)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
+                }
+              >
+                <Ghost className="w-3 h-3" />
+                {filtroFantasma === "todos" ? "Fantasma: todos" : filtroFantasma === "solo" ? "Solo fantasma" : "Sin fantasma"}
+              </button>
+              <button
+                onClick={() => setFiltroEnvio(v => v === "todos" ? "enviados" : v === "enviados" ? "pendientes" : "todos")}
+                className={
+                  "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border transition " +
+                  (filtroEnvio !== "todos"
+                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                    : "bg-[var(--tc-card)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
+                }
+              >
+                <Mail className="w-3 h-3" />
+                {filtroEnvio === "todos" ? "Envío: todos" : filtroEnvio === "enviados" ? "Solo enviados" : "Solo pendientes"}
+              </button>
+              <button
+                onClick={() => setFiltroEmail(v => v === "todos" ? "conEmail" : v === "conEmail" ? "sinEmail" : "todos")}
+                className={
+                  "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border transition " +
+                  (filtroEmail !== "todos"
+                    ? "bg-amber-100 text-amber-700 border-amber-200"
+                    : "bg-[var(--tc-card)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
+                }
+              >
+                {filtroEmail === "todos" ? "Email: todos" : filtroEmail === "conEmail" ? "Con email" : "Sin email"}
+              </button>
+            </div>
+          )}
 
           {/* Nuevos por sustitución de temporales */}
           {nombresNuevos.size > 0 && (
@@ -641,6 +826,23 @@ export default function HorariosAlumnosScreen({ config }: Props) {
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-[var(--tc-ink)] leading-snug flex items-center gap-1.5 min-w-0">
                         <span className="truncate min-w-0">{a.nombre || "—"}</span>
+                        {esFantasma(a) && (
+                          <span
+                            title="Plaza fantasma (PDTE.) aún sin matricular"
+                            className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-px rounded-full text-[9px] font-bold border bg-slate-200 text-slate-600 border-slate-300"
+                          >
+                            <Ghost className="w-2.5 h-2.5" />
+                            FANTASMA
+                          </span>
+                        )}
+                        {enviosPorClave.has(a.clave) && (
+                          <span
+                            title={`Horario enviado el ${new Date(enviosPorClave.get(a.clave)!).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}`}
+                            className="shrink-0 px-1.5 py-px rounded-full text-[9px] font-bold border bg-emerald-100 text-emerald-700 border-emerald-200"
+                          >
+                            Enviado
+                          </span>
+                        )}
                         {esNuevo(a) && (
                           <span
                             title={clavesEnviadas.has(a.clave)
@@ -687,7 +889,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
         {/* Botón Enviar todos */}
         <div className="p-3 border-t border-[var(--tc-border)] space-y-1.5">
           <button
-            onClick={() => abrirModalEnvio(carga.alumnos.filter(a => a.email).map(a => a.clave))}
+            onClick={() => abrirModalEnvio(carga.alumnos.filter(a => a.email && !esFantasma(a)).map(a => a.clave))}
             disabled={alumnosConEmail === 0}
             className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
           >
@@ -714,11 +916,9 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             Historial de horarios
           </button>
         </div>
-      </div>
-      )}
-
-      {/* Panel derecho */}
-      <div className="flex-1 flex flex-col bg-[var(--tc-bg)] overflow-hidden">
+      </div>}
+      right={
+      <div className="h-full flex flex-col bg-[var(--tc-bg)] overflow-hidden min-h-0">
         {/* Tabs principal */}
         <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] flex items-stretch">
           <button
@@ -778,7 +978,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
                   key={seleccionado.clave}
                   title="Vista previa del horario"
                   srcDoc={html}
-                  className="flex-1 w-full border-0 bg-white"
+                  className="flex-1 w-full border-0 bg-white min-h-0"
                 />
               </>
             ) : (
@@ -800,7 +1000,37 @@ export default function HorariosAlumnosScreen({ config }: Props) {
         ) : (
           <ListadosPanel alumnos={carga.alumnos} anio={anio} />
         )}
+      </div>} />
+      ) : (
+      <div className="flex-1 flex flex-col bg-[var(--tc-bg)] overflow-hidden">
+        <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] flex items-stretch">
+          <button
+            onClick={() => { setVistaPrincipal("individuales"); setPanelDerecho("preview"); }}
+            className={
+              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
+              (vistaPrincipal === "individuales"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
+                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
+            }
+          >
+            <CalendarClock className="w-4 h-4" />
+            Horarios Individuales
+          </button>
+          <button
+            className={
+              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
+              (vistaPrincipal === "listados"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
+                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
+            }
+          >
+            <ClipboardList className="w-4 h-4" />
+            Listados Por Asignaturas
+          </button>
+        </div>
+        <ListadosPanel alumnos={carga.alumnos} anio={anio} />
       </div>
+      )}
 
       {/* Modal de envío */}
       {showEnviarModal && (
@@ -824,6 +1054,47 @@ export default function HorariosAlumnosScreen({ config }: Props) {
           curso={curso}
           onClose={() => setShowHistorialHorariosModal(false)}
         />
+      )}
+
+      {/* Modal: formato de horarios detectado automáticamente */}
+      {modalFormatoDetectado && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
+          <div className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 pt-5 pb-4 border-b border-[var(--tc-border)] flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <span className="text-blue-600 text-base font-bold">i</span>
+              </div>
+              <h2 className="text-base font-semibold text-[var(--tc-ink)]">Formato de horarios registrado</h2>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-[var(--tc-ink-soft)]">
+                Las columnas del Excel cargado han sido registradas como el{' '}
+                <strong className="text-[var(--tc-ink)]">formato de referencia</strong> para los Excel de horarios de este curso.
+              </p>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 space-y-1">
+                <p className="text-[11px] font-semibold text-emerald-700">
+                  ✓ Preset creado en Informes: <em>«{modalFormatoDetectado.presetNombre}»</em>
+                </p>
+                <p className="text-[11px] text-emerald-600">
+                  {modalFormatoDetectado.campos.length} columnas · {modalFormatoDetectado.campos.join(' · ')}
+                </p>
+              </div>
+              <p className="text-xs text-[var(--tc-ink-mute)]">
+                Los próximos Excel de horarios de este curso deberán generarse desde Informes usando el preset{' '}
+                <em>«{modalFormatoDetectado.presetNombre}»</em>, con exactamente esas columnas y en ese orden.
+                Si necesitas cambiar el formato, usa el botón «Cambiar» en el modal de generación.
+              </p>
+            </div>
+            <div className="px-6 pb-5 flex justify-end">
+              <button
+                onClick={() => setModalFormatoDetectado(null)}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:opacity-90 transition"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

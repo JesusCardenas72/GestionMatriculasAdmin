@@ -43,7 +43,7 @@ export default function ResizableColumns({
   }
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative h-full ${className}`}>
       <Group
         orientation="horizontal"
         id={storageKey}

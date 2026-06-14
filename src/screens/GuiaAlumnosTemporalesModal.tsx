@@ -1,7 +1,7 @@
 import { ChevronDown, AlertCircle, CheckCircle, Clock, BookOpen, Lightbulb, Zap, X } from "lucide-react";
 import { useState } from "react";
 
-export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void }) {
+export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar: () => void; onSaberMas?: () => void }) {
   const [seccionAbierta, setSeccionAbierta] = useState<number>(1);
 
   const toggleSeccion = (n: number) => {
@@ -210,9 +210,50 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
           >
             <ol className="list-decimal list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-2">
               <li><strong>Solo después</strong> de generar el Excel fusionado, pulsa <strong>«Eliminar sustituidos»</strong></li>
-              <li>En <strong>Horarios → Horarios Individuales</strong>, los alumnos NUEVOS tienen etiqueta naranja <strong>NUEVO</strong></li>
-              <li>Usa el filtro «Solo nuevos» y <strong>«Sel. nuevos sin enviar»</strong> para enviarles el horario por email</li>
+              <li>En <strong>Horarios → Horarios Individuales</strong>, los alumnos NUEVOS tienen etiqueta naranja <strong>NUEVO</strong> y las plazas fantasma sin matricular, una etiqueta <strong>FANTASMA</strong></li>
+              <li>Pulsa <strong>«Filtros»</strong> para acotar la lista: <strong>fantasma</strong> (todos / solo / ocultos), <strong>sin enviar / ya enviados</strong>, <strong>con / sin email</strong> y por <strong>curso o especialidad</strong></li>
+              <li>Con el filtro puesto, usa <strong>«Sel. filtrados con email»</strong> o el botón <strong>«Enviar a filtrados»</strong> para mandar el horario solo a ese grupo</li>
+              <li>Cuando lleguen las matrículas reales y se sustituyan los fantasma, usa <strong>«Sel. sin enviar con email»</strong>: marca solo a quienes aún no recibieron el horario y ya tienen correo (los que en el primer envío quedaron fuera por no tener email)</li>
+              <li>Cada alumno indica si ya recibió el correo y cuándo. En <strong>«Historial de envíos» → «Resumen global»</strong> ves de un vistazo a quién se ha enviado y a quién falta</li>
             </ol>
+            <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[12px] text-blue-900 mt-3">
+              Las plazas <strong>fantasma</strong> y los alumnos <strong>sin email</strong> nunca reciben correo: la app los excluye automáticamente del envío.
+            </div>
+          </Seccion>
+
+          {/* Sección 8: Memoria automática + histórico */}
+          <Seccion
+            n={8}
+            titulo="Memoria automática de horarios e histórico"
+            abierta={seccionAbierta === 8}
+            onClick={() => toggleSeccion(8)}
+          >
+            <p className="text-[13px] text-[var(--tc-ink-soft)] mb-3">
+              La app <strong>recuerda sola</strong> todos los horarios. Cada vez que generas o cargas un Excel de horarios, guarda internamente lo que han rellenado los profesores (por curso escolar). Así, al generar un Excel nuevo, <strong>los horarios ya conocidos se rellenan automáticamente</strong> y los alumnos fantasma sustituidos <strong>heredan</strong> el horario de su plaza.
+            </p>
+
+            <div className="rounded bg-green-50 border border-green-200 p-3 mb-3">
+              <h4 className="text-sm font-semibold text-green-900 mb-1 flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4" />
+                Tus datos están seguros
+              </h4>
+              <p className="text-[12px] text-green-800">
+                Cargar un Excel <strong>nunca borra</strong> horarios de otros alumnos. Puedes cargar Excels parciales (solo una enseñanza, solo los nuevos, solo temporales) sin miedo: la app <strong>solo añade y actualiza</strong>, nunca elimina lo que no aparece. Además guarda una copia de seguridad automática por si algo falla.
+              </p>
+            </div>
+
+            <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">El histórico de cambios</h4>
+            <p className="text-[13px] text-[var(--tc-ink-soft)] mb-2">
+              En la pestaña <strong>Horarios</strong>, el botón <strong>«Historial de horarios»</strong> abre la lista de todos los cambios, con <strong>día y hora</strong>. Cada entrada indica cuántos horarios se añadieron, cambiaron o se quedaron igual, y de qué archivo venían.
+            </p>
+            <ul className="list-disc list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-1">
+              <li><strong>Exportar / Importar:</strong> guarda el histórico en un archivo o tráelo de otro equipo (no duplica lo que ya tengas).</li>
+              <li><strong>Restaurar:</strong> vuelve al estado de cualquier momento anterior. Se crea una entrada nueva de «Restauración» (no se pierde nada).</li>
+              <li><strong>Eliminar:</strong> borra una entrada concreta del histórico si ya no la necesitas.</li>
+            </ul>
+            <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[12px] text-blue-900 mt-3">
+              El único borrado de horarios es <strong>manual desde aquí</strong>. Mientras no lo hagas tú, todos los estados se pueden recuperar.
+            </div>
           </Seccion>
 
           {/* Chuleta */}
@@ -238,16 +279,21 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
 
           {/* Problemas frecuentes */}
           <Seccion
-            n={8}
+            n={9}
             titulo="Problemas frecuentes"
-            abierta={seccionAbierta === 8}
-            onClick={() => toggleSeccion(8)}
+            abierta={seccionAbierta === 9}
+            onClick={() => toggleSeccion(9)}
           >
             <div className="space-y-2">
               <Problema
                 síntoma="Al importar, «la especialidad X no está en el catálogo»"
                 causa="Nombre distinto al del catálogo"
                 solución="Corrige la celda con el nombre exacto de la especialidad"
+              />
+              <Problema
+                síntoma="Creo que faltan horarios que ya tenía"
+                causa="Quizá restauraste un estado anterior, o un Excel viejo cambió un dato"
+                solución="Abre «Historial de horarios» en la pestaña Horarios y restaura el estado de la fecha que quieras. Cargar un Excel NO borra horarios de otros alumnos."
               />
               <Problema
                 síntoma="El desplegable no aparece en Local"
@@ -285,7 +331,15 @@ export function GuiaAlumnosTemporalesModal({ onCerrar }: { onCerrar: () => void 
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-6 py-3 border-t border-[var(--tc-border)] bg-[var(--tc-bg-panel)] shrink-0">
+        <div className="flex items-center justify-between px-6 py-3 border-t border-[var(--tc-border)] bg-[var(--tc-bg-panel)] shrink-0 gap-3">
+          {onSaberMas ? (
+            <button
+              onClick={onSaberMas}
+              className="px-4 py-2 rounded-lg border border-[var(--tc-border)] text-[var(--tc-primary)] text-sm font-semibold hover:bg-[var(--tc-primary-tint)] transition-colors"
+            >
+              Saber más…
+            </button>
+          ) : <span />}
           <button
             onClick={onCerrar}
             className="px-4 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"

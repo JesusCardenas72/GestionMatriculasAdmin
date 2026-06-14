@@ -14,6 +14,11 @@ export default function LaunchGate() {
   const [comprobando, setComprobando] = useState(false);
   const [focoIdx, setFocoIdx] = useState(0);
   const botonesRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const [versionApp, setVersionApp] = useState(__APP_VERSION__);
+
+  useEffect(() => {
+    window.adminAPI.getVersion().then(setVersionApp).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (vista === "elegir") {
@@ -64,7 +69,7 @@ export default function LaunchGate() {
       style={{ background: "var(--tc-bg)" }}
     >
       <span className="fixed bottom-2 right-3 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
-        v.{__APP_VERSION__} &mdash; by Jesús Cárdenas (C.P.M. &quot;Marcos Redondo&quot;)
+        v.{versionApp} &mdash; by Jesús Cárdenas (C.P.M. &quot;Marcos Redondo&quot;)
       </span>
       <div
         className="w-full max-w-md p-8 rounded-2xl shadow"

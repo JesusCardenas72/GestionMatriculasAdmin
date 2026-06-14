@@ -47,6 +47,11 @@ export default function MainScreen({ config }: Props) {
   const [active, setActive] = useState<ActiveTab>(ESTADO.PENDIENTE_TRAMITACION);
   const [selected, setSelected] = useState<Solicitud | null>(null);
   const [cursoModalOpen, setCursoModalOpen] = useState(false);
+  const [versionApp, setVersionApp] = useState(__APP_VERSION__);
+
+  useEffect(() => {
+    window.adminAPI.getVersion().then(setVersionApp).catch(() => {});
+  }, []);
   const [convalidacionMap, setConvalidacionMap] = useState<Map<string, boolean>>(new Map());
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [conexionModalOpen, setConexionModalOpen] = useState(false);
@@ -169,7 +174,7 @@ export default function MainScreen({ config }: Props) {
     <div className="h-screen flex flex-col bg-[var(--tc-bg)] overflow-hidden">
       <header className="relative h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center gap-4">
         <span className="fixed bottom-2 right-3 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
-          v.{__APP_VERSION__} &mdash; by Jesús Cárdenas (C.P.M. &quot;Marcos Redondo&quot;)
+          v.{versionApp} &mdash; by Jesús Cárdenas (C.P.M. &quot;Marcos Redondo&quot;)
         </span>
         <div className="flex items-center gap-3 min-w-0">
           <button

@@ -52,7 +52,7 @@ import { buildHtmlInforme } from '../utils/pdfInforme';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion } from '../utils/fusionHorarios';
 import { obtenerValoresHorario, actualizarHorariosStore } from '../utils/horariosPersistencia';
-import type { HorariosCursoData } from '../../electron/horarios-data-store';
+import type { HorariosCursoData, FormatoHorarios } from '../../electron/horarios-data-store';
 
 interface Props {
   config: AppConfig;
@@ -309,6 +309,20 @@ export default function InformesScreen({ config }: Props) {
   const presetMenuRef = useRef<HTMLDivElement>(null);
   const presetBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Formato de horarios registrado para el curso actual
+  const [formatoHorarios, setFormatoHorarios] = useState<FormatoHorarios | null>(null);
+  // Modal info: formato guardado por primera vez
+  const [modalFormatoGuardado, setModalFormatoGuardado] = useState<string | null>(null); // presetNombre
+  // Modal error: el informe no coincide con el formato guardado
+  const [modalFormatoMismatch, setModalFormatoMismatch] = useState<{
+    camposGuardados: string[];
+    camposActuales: string[];
+    presetId?: string;
+    presetNombre?: string;
+    opciones: OpcionesHorario;
+    fusion: boolean;
+  } | null>(null);
+
   // Configuración del Excel de horarios (modal)
   const [showHorariosConfig, setShowHorariosConfig] = useState(false);
   const [horariosGenerando, setHorariosGenerando] = useState(false);
@@ -352,6 +366,14 @@ export default function InformesScreen({ config }: Props) {
     window.adminAPI.presets.listar().then(setPresets);
     window.adminAPI.presets.ocultosListar().then(setOcultos);
   }, []);
+
+  // Carga el formato de horarios guardado para el curso activo (se resetea al cambiar curso)
+  useEffect(() => {
+    setFormatoHorarios(null);
+    window.adminAPI.horarios.data.obtener(curso).then((data: HorariosCursoData) => {
+      setFormatoHorarios(data.formatoHorarios ?? null);
+    }).catch(() => {});
+  }, [curso]);
 
   // Close add-field dropdown when clicking outside
   useEffect(() => {
@@ -879,6 +901,129 @@ export default function InformesScreen({ config }: Props) {
     });
   }
 
+  /** Compara dos arrays de strings (orden importa). */
+  function arraysIguales(a: string[], b: string[]): boolean {
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+
+  /**
+   * Comprueba si el formato de horarios coincide con el informe actual.
+   * - Si no hay formato guardado: lo guarda (y auto-crea preset si falta) y devuelve true.
+   * - Si coincide: devuelve true.
+   * - Si NO coincide: muestra el modal de error y devuelve false.
+   */
+  async function guardarOEnforzarFormato(
+    currentKeys: string[],
+    opciones: OpcionesHorario,
+    fusion: boolean,
+  ): Promise<boolean> {
+    const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+
+    if (storeData.formatoHorarios) {
+      const guardados = storeData.formatoHorarios.camposVisibles;
+      if (!arraysIguales(currentKeys, guardados)) {
+        setModalFormatoMismatch({
+          camposGuardados: guardados,
+          camposActuales: currentKeys,
+          presetId: storeData.formatoHorarios.presetId,
+          presetNombre: storeData.formatoHorarios.presetNombre,
+          opciones,
+          fusion,
+        });
+        return false;
+      }
+      return true;
+    }
+
+    // Primer uso: guardar el formato
+    const nuevoFormato: FormatoHorarios = {
+      camposVisibles: currentKeys,
+      opciones,
+      creadoEn: new Date().toISOString(),
+      origen: 'generacion',
+    };
+
+    let presetNombreGuardado: string;
+    if (!isSavedPreset) {
+      const nombrePreset = informe.nombre.trim() || 'Horarios';
+      const presetAuto: ConfigInforme = {
+        ...deepClone(informe),
+        id: crypto.randomUUID(),
+        nombre: nombrePreset,
+        predefinido: false,
+      };
+      await window.adminAPI.presets.guardar(presetAuto);
+      const lista = await window.adminAPI.presets.listar();
+      setPresets(lista);
+      setInforme(presetAuto);
+      nuevoFormato.presetId = presetAuto.id;
+      nuevoFormato.presetNombre = presetAuto.nombre;
+      presetNombreGuardado = presetAuto.nombre;
+    } else {
+      nuevoFormato.presetId = informe.id;
+      nuevoFormato.presetNombre = informe.nombre;
+      presetNombreGuardado = informe.nombre;
+    }
+
+    storeData.formatoHorarios = nuevoFormato;
+    await window.adminAPI.horarios.data.guardar(curso, storeData);
+    setFormatoHorarios(nuevoFormato);
+    setModalFormatoGuardado(presetNombreGuardado);
+    return true;
+  }
+
+  /** Genera y descarga el Excel de horarios usando las opciones y datos actuales. */
+  async function doGenerarExcelNormal(opciones: OpcionesHorario) {
+    let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+    if (profesores.length === 0) {
+      window.alert(
+        'No se ha cargado la lista de profesores.\n' +
+          'Usa la opción "Cargar profesores (CSV)…" del menú de acciones antes de generar el Excel de horarios.',
+      );
+      return;
+    }
+
+    let valoresHorario: Array<Record<string, string> | null> | undefined;
+    const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+    if (storeData.entries.length > 0) {
+      const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
+        resultados,
+        storeData.entries,
+        matriculas,
+      );
+      if (conservadas + heredadas > 0) {
+        valoresHorario = vh;
+        console.log(`[Horarios] Auto-relleno: ${conservadas} conservados, ${heredadas} heredados del store`);
+      }
+    }
+
+    const base64 = await generarExcelHorarios(
+      resultados,
+      camposVisibles,
+      profesores,
+      opciones,
+      valoresHorario,
+    );
+    await window.adminAPI.informe.exportar({
+      contenidoBase64: base64,
+      nombreArchivo: `${informe.nombre} - Horarios`,
+      extension: 'xlsx',
+    });
+  }
+
+  /** Borra el formato de horarios guardado para el curso actual (permite establecer uno nuevo). */
+  async function handleBorrarFormatoGuardado() {
+    if (!window.confirm(
+      'Se borrará el formato de horarios registrado para este curso.\n' +
+      'La próxima vez que generes un Excel de horarios, el informe actual se registrará como el nuevo formato.\n\n' +
+      '¿Continuar?',
+    )) return;
+    const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+    delete storeData.formatoHorarios;
+    await window.adminAPI.horarios.data.guardar(curso, storeData);
+    setFormatoHorarios(null);
+  }
+
   // Abre el modal de configuración del Excel de horarios con valores por defecto.
   // `fusion` activa la Fusión Actualización Nuevo Alumnado: carga un Excel ya
   // relleno por los profesores y conserva sus horarios en el nuevo Excel.
@@ -907,20 +1052,26 @@ export default function InformesScreen({ config }: Props) {
       return;
     }
     setHModoFusion(fusion);
-    // Valores por defecto (equivalentes al comportamiento anterior):
-    //  · Columnas fijas hasta "Especialidad" (o la primera columna si no existe).
-    //  · Columnas de horario insertadas antes de las dos últimas (email/teléfono).
+    // Si hay un formato guardado, sus opciones son los valores por defecto.
+    // Si no, se usan los valores clásicos (congelar hasta Especialidad, insertar antes de las 2 últimas).
     const claves = camposVisibles.map(c => c.key);
-    const congelarDef = claves.includes('especialidad')
-      ? 'especialidad'
-      : (claves[0] ?? null);
-    const insertarDef =
-      camposVisibles.length >= 3
-        ? camposVisibles[camposVisibles.length - 3].key
-        : (claves[claves.length - 1] ?? null);
-    setHCongelar(true);
-    setHCongelarHasta(congelarDef);
-    setHInsertarTras(insertarDef);
+    if (formatoHorarios?.opciones) {
+      const fo = formatoHorarios.opciones;
+      setHCongelar(fo.congelar);
+      setHCongelarHasta(fo.congelarHasta);
+      setHInsertarTras(fo.insertarTras);
+    } else {
+      const congelarDef = claves.includes('especialidad')
+        ? 'especialidad'
+        : (claves[0] ?? null);
+      const insertarDef =
+        camposVisibles.length >= 3
+          ? camposVisibles[camposVisibles.length - 3].key
+          : (claves[claves.length - 1] ?? null);
+      setHCongelar(true);
+      setHCongelarHasta(congelarDef);
+      setHInsertarTras(insertarDef);
+    }
     setShowHorariosConfig(true);
   }
 
@@ -928,27 +1079,34 @@ export default function InformesScreen({ config }: Props) {
   async function handleGenerarHorarios() {
     setHorariosGenerando(true);
     try {
-      // 1. Conseguir la lista de profesores (CSV memorizado)
-      let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
-      if (profesores.length === 0) {
-        window.alert(
-          'No se ha cargado la lista de profesores.\n' +
-            'Usa la opción "Cargar profesores (CSV)…" del menú de acciones antes de generar el Excel de horarios.',
-        );
-        return;
-      }
-      // 2. Generar el Excel con las columnas del informe y las opciones elegidas
       const opciones: OpcionesHorario = {
         congelar: hCongelar,
         congelarHasta: hCongelar ? hCongelarHasta : null,
         insertarTras: hInsertarTras,
       };
+      const currentKeys = camposVisibles.map(c => c.key);
+
+      // Verificar coherencia de formato (o guardarlo si es la primera vez)
+      const ok = await guardarOEnforzarFormato(currentKeys, opciones, hModoFusion);
+      if (!ok) {
+        setShowHorariosConfig(false);
+        return;
+      }
+
       if (hModoFusion) {
         // Fusión: cargar el Excel relleno, casar sus horarios con las filas
         // actuales (incluida la herencia temporal → alumno real) y mostrar el
         // resumen antes de generar.
+        let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+        if (profesores.length === 0) {
+          window.alert(
+            'No se ha cargado la lista de profesores.\n' +
+              'Usa la opción "Cargar profesores (CSV)…" del menú de acciones antes de generar el Excel de horarios.',
+          );
+          return;
+        }
         const sel = await window.adminAPI.horarios.cargarExcelRelleno();
-        if (!sel) return; // el usuario canceló
+        if (!sel) return;
         const crudas = await parseHorariosExcelCrudo(sel.base64);
         const resultado = fusionarHorarios(resultados, crudas, matriculas);
         if (resultado.conservadas + resultado.heredadas === 0) {
@@ -963,34 +1121,65 @@ export default function InformesScreen({ config }: Props) {
         return;
       }
 
-      // Modo normal: intentar auto-rellenar desde el store de horarios
-      let valoresHorario: Array<Record<string, string> | null> | undefined;
-      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-      if (storeData.entries.length > 0) {
-        const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
-          resultados,
-          storeData.entries,
-          matriculas,
-        );
-        if (conservadas + heredadas > 0) {
-          valoresHorario = vh;
-          console.log(`[Horarios] Auto-relleno: ${conservadas} conservados, ${heredadas} heredados del store`);
-        }
-      }
-
-      const base64 = await generarExcelHorarios(
-        resultados,
-        camposVisibles,
-        profesores,
-        opciones,
-        valoresHorario,
-      );
-      await window.adminAPI.informe.exportar({
-        contenidoBase64: base64,
-        nombreArchivo: `${informe.nombre} - Horarios`,
-        extension: 'xlsx',
-      });
+      // Modo normal
+      await doGenerarExcelNormal(opciones);
       setShowHorariosConfig(false);
+    } finally {
+      setHorariosGenerando(false);
+    }
+  }
+
+  /**
+   * Llamado desde el modal de mismatch cuando el usuario decide actualizar el formato
+   * guardado con el informe actual y continuar la generación.
+   */
+  async function handleActualizarFormatoYGenerar() {
+    if (!modalFormatoMismatch) return;
+    const { opciones, fusion, camposActuales } = modalFormatoMismatch;
+    setModalFormatoMismatch(null);
+    setHorariosGenerando(true);
+    try {
+      // Guardar nuevo formato
+      const nuevoFormato: FormatoHorarios = {
+        camposVisibles: camposActuales,
+        opciones,
+        creadoEn: new Date().toISOString(),
+        origen: 'generacion',
+      };
+      if (!isSavedPreset) {
+        const nombrePreset = informe.nombre.trim() || 'Horarios';
+        const presetAuto: ConfigInforme = { ...deepClone(informe), id: crypto.randomUUID(), nombre: nombrePreset, predefinido: false };
+        await window.adminAPI.presets.guardar(presetAuto);
+        const lista = await window.adminAPI.presets.listar();
+        setPresets(lista);
+        setInforme(presetAuto);
+        nuevoFormato.presetId = presetAuto.id;
+        nuevoFormato.presetNombre = presetAuto.nombre;
+      } else {
+        nuevoFormato.presetId = informe.id;
+        nuevoFormato.presetNombre = informe.nombre;
+      }
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      storeData.formatoHorarios = nuevoFormato;
+      await window.adminAPI.horarios.data.guardar(curso, storeData);
+      setFormatoHorarios(nuevoFormato);
+
+      // Continuar con la generación
+      if (fusion) {
+        let { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+        if (profesores.length === 0) { window.alert('No se ha cargado la lista de profesores.'); return; }
+        const sel = await window.adminAPI.horarios.cargarExcelRelleno();
+        if (!sel) return;
+        const crudas = await parseHorariosExcelCrudo(sel.base64);
+        const resultado = fusionarHorarios(resultados, crudas, matriculas);
+        if (resultado.conservadas + resultado.heredadas === 0) {
+          window.alert('El Excel cargado no contiene ningún horario que coincida con los alumnos del informe.');
+          return;
+        }
+        setFusionPendiente({ resultado, opciones, profesores, fileName: sel.fileName, crudas });
+      } else {
+        await doGenerarExcelNormal(opciones);
+      }
     } finally {
       setHorariosGenerando(false);
     }
@@ -1948,6 +2137,32 @@ export default function InformesScreen({ config }: Props) {
 
               {/* Body */}
               <div className="px-5 py-4 space-y-5">
+                {/* Banner: formato guardado para este curso */}
+                {formatoHorarios && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 flex items-start gap-2">
+                    <span className="text-emerald-600 shrink-0 mt-0.5">✓</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-emerald-700">
+                        Formato registrado{formatoHorarios.presetNombre ? `: «${formatoHorarios.presetNombre}»` : ''}
+                      </p>
+                      <p className="text-[11px] text-emerald-600 mt-0.5">
+                        El informe actual debe coincidir exactamente con este formato ({formatoHorarios.camposVisibles.length} columnas).
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleBorrarFormatoGuardado}
+                      title="Borrar formato guardado para este curso"
+                      className="shrink-0 text-[10px] text-emerald-600 hover:text-red-500 underline ml-1"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+                )}
+                {!formatoHorarios && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    Al generar, este informe quedará registrado como el formato de referencia para los Excel de horarios de este curso.
+                  </div>
+                )}
                 {hModoFusion && (
                   <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
                     Al pulsar «Continuar» se te pedirá el Excel de horarios YA RELLENO por los
@@ -2241,6 +2456,153 @@ export default function InformesScreen({ config }: Props) {
                     border: 'none',
                   }}
                 />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal: Formato de horarios guardado por primera vez ─────────────── */}
+      <AnimatePresence>
+        {modalFormatoGuardado !== null && (
+          <motion.div
+            key="formato-guardado-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setModalFormatoGuardado(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <span className="text-emerald-600 text-base">✓</span>
+                </div>
+                <h3 className="text-sm font-bold text-[#1b1b24]">Formato de horarios registrado</h3>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-sm text-slate-700">
+                  El informe actual ha quedado registrado como el <strong>formato de referencia</strong> para los Excel de horarios de este curso
+                  {modalFormatoGuardado ? <> (preset <em>«{modalFormatoGuardado}»</em>)</> : ''}.
+                </p>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-emerald-700 mb-1">Columnas registradas ({formatoHorarios?.camposVisibles.length ?? 0}):</p>
+                  <p className="text-[11px] text-emerald-600">
+                    {(formatoHorarios?.camposVisibles ?? []).map(k => CAMPO_MAP.get(k)?.label ?? k).join(' · ')}
+                  </p>
+                </div>
+                <p className="text-xs text-slate-500">
+                  A partir de ahora, todos los nuevos Excel de horarios de este curso deberán generarse con exactamente estas columnas y en este orden.
+                  Si necesitas cambiar el formato, usa el botón «Cambiar» en el modal de generación.
+                </p>
+              </div>
+              <div className="flex justify-end px-5 py-3.5 border-t border-slate-100 bg-slate-50/60">
+                <button
+                  onClick={() => setModalFormatoGuardado(null)}
+                  className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  Entendido
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal: Informe no coincide con el formato guardado ───────────────── */}
+      <AnimatePresence>
+        {modalFormatoMismatch && (
+          <motion.div
+            key="formato-mismatch-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[85vh]"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <span className="text-red-600 text-base font-bold">!</span>
+                </div>
+                <h3 className="text-sm font-bold text-[#1b1b24]">El informe no coincide con el formato de horarios</h3>
+              </div>
+              <div className="px-5 py-4 space-y-3 overflow-y-auto">
+                <p className="text-sm text-slate-700">
+                  El formato registrado para los Excel de horarios de este curso
+                  {modalFormatoMismatch.presetNombre ? <> (preset <em>«{modalFormatoMismatch.presetNombre}»</em>)</> : ''} exige exactamente
+                  estas columnas en este orden:
+                </p>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] text-slate-500 font-semibold mb-1">Formato guardado ({modalFormatoMismatch.camposGuardados.length} columnas):</p>
+                  <p className="text-[11px] text-slate-700">
+                    {modalFormatoMismatch.camposGuardados.map(k => CAMPO_MAP.get(k)?.label ?? k).join(' · ')}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-[11px] text-amber-700 font-semibold mb-1">Informe actual ({modalFormatoMismatch.camposActuales.length} columnas):</p>
+                  <p className="text-[11px] text-amber-700">
+                    {modalFormatoMismatch.camposActuales.map(k => CAMPO_MAP.get(k)?.label ?? k).join(' · ')}
+                  </p>
+                </div>
+                {(() => {
+                  const guardados = new Set(modalFormatoMismatch.camposGuardados);
+                  const actuales = new Set(modalFormatoMismatch.camposActuales);
+                  const faltan = modalFormatoMismatch.camposGuardados.filter(k => !actuales.has(k));
+                  const sobran = modalFormatoMismatch.camposActuales.filter(k => !guardados.has(k));
+                  return (faltan.length > 0 || sobran.length > 0) ? (
+                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                      {faltan.length > 0 && <p>Faltan en el informe actual: <span className="font-medium text-red-600">{faltan.map(k => CAMPO_MAP.get(k)?.label ?? k).join(', ')}</span></p>}
+                      {sobran.length > 0 && <p>Columnas extra en el informe actual: <span className="font-medium text-amber-600">{sobran.map(k => CAMPO_MAP.get(k)?.label ?? k).join(', ')}</span></p>}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">Las columnas son las mismas pero en distinto orden.</p>
+                  );
+                })()}
+                <p className="text-xs text-slate-400">
+                  Para mantener la coherencia entre los Excel de horarios del curso, todos deben usar el mismo formato.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 shrink-0">
+                <button
+                  onClick={() => setModalFormatoMismatch(null)}
+                  className="px-3.5 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                {modalFormatoMismatch.presetId && (
+                  <button
+                    onClick={() => {
+                      loadPredefinido(modalFormatoMismatch.presetId!);
+                      setModalFormatoMismatch(null);
+                    }}
+                    className="px-3.5 py-2 text-sm font-semibold text-[var(--tc-primary)] border border-[var(--tc-primary)] rounded-lg hover:bg-[var(--tc-primary-tint)] transition-colors"
+                  >
+                    Cargar preset «{modalFormatoMismatch.presetNombre}»
+                  </button>
+                )}
+                <button
+                  onClick={() => void handleActualizarFormatoYGenerar()}
+                  disabled={horariosGenerando}
+                  className="px-3.5 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-40 transition-colors"
+                >
+                  {horariosGenerando ? 'Generando…' : 'Actualizar formato y generar'}
+                </button>
               </div>
             </motion.div>
           </motion.div>

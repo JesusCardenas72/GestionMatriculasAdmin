@@ -34,11 +34,27 @@ export interface HorariosSnapshot {
   entries: HorariosEntry[];
 }
 
+/** Formato de columnas del informe base que se usa para generar los Excel de horarios. */
+export interface FormatoHorarios {
+  /** Claves de los campos del informe en el orden acordado (sin las columnas h_*). */
+  camposVisibles: string[];
+  /** Opciones de layout usadas la primera vez (congelar, insertarTras). */
+  opciones: { congelar: boolean; congelarHasta: string | null; insertarTras: string | null };
+  /** Preset asociado (si se guardó o existía al establecer el formato). */
+  presetId?: string;
+  presetNombre?: string;
+  creadoEn: string;
+  /** Cómo se estableció el formato: generando un Excel o cargando uno relleno. */
+  origen: 'generacion' | 'carga_excel';
+}
+
 export interface HorariosCursoData {
   curso: string;
   entries: HorariosEntry[];
   snapshots: HorariosSnapshot[];
   lastUpdated: string | null;
+  /** Formato de columnas acordado para los Excel de horarios de este curso. */
+  formatoHorarios?: FormatoHorarios;
 }
 
 function basePath(): string {
@@ -59,21 +75,41 @@ function ensureDir(): void {
 
 export function horariosDataObtener(curso: string): HorariosCursoData {
   const file = cursoToFile(curso);
-  if (!fs.existsSync(file)) {
-    return { curso, entries: [], snapshots: [], lastUpdated: null };
-  }
-  try {
-    const raw = fs.readFileSync(file, "utf-8");
-    return JSON.parse(raw) as HorariosCursoData;
-  } catch {
-    return { curso, entries: [], snapshots: [], lastUpdated: null };
-  }
+  const vacio: HorariosCursoData = { curso, entries: [], snapshots: [], lastUpdated: null };
+
+  const leer = (ruta: string): HorariosCursoData | null => {
+    if (!fs.existsSync(ruta)) return null;
+    try {
+      return JSON.parse(fs.readFileSync(ruta, "utf-8")) as HorariosCursoData;
+    } catch {
+      return null;
+    }
+  };
+
+  const principal = leer(file);
+  if (principal) return principal;
+
+  // El archivo principal no existe o está corrupto: intentamos la copia .bak.
+  const respaldo = leer(`${file}.bak`);
+  if (respaldo) return respaldo;
+
+  return vacio;
 }
 
 export function horariosDataGuardar(curso: string, data: HorariosCursoData): void {
   ensureDir();
   const file = cursoToFile(curso);
-  fs.writeFileSync(file, JSON.stringify(data), "utf-8");
+  const tmp = `${file}.tmp`;
+  const bak = `${file}.bak`;
+
+  // Escritura atómica: escribimos en un temporal y renombramos. Antes de
+  // pisar el archivo bueno, guardamos una copia .bak para poder recuperarlo
+  // si algo falla a mitad.
+  fs.writeFileSync(tmp, JSON.stringify(data), "utf-8");
+  if (fs.existsSync(file)) {
+    fs.copyFileSync(file, bak);
+  }
+  fs.renameSync(tmp, file);
 }
 
 export function horariosDataExportarHistorial(curso: string): { curso: string; snapshots: HorariosSnapshot[] } {

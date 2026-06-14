@@ -520,7 +520,7 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
             </p>
           </div>
           <button
-            onClick={() => setShowAyuda(true)}
+            onClick={() => setShowGuia(true)}
             className="shrink-0 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
           >
             <HelpCircle className="w-4 h-4" />
@@ -899,8 +899,16 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
         </div>
       </div>
 
+      {showGuia && (
+        <GuiaAlumnosTemporalesModal
+          onCerrar={() => setShowGuia(false)}
+          onSaberMas={() => {
+            setShowGuia(false);
+            setShowAyuda(true);
+          }}
+        />
+      )}
       {showAyuda && <AyudaModal onCerrar={() => setShowAyuda(false)} onSaberMas={() => { setShowAyuda(false); setShowGuia(true); }} />}
-      {showGuia && <GuiaAlumnosTemporalesModal onCerrar={() => setShowGuia(false)} />}
     </div>
   );
 }

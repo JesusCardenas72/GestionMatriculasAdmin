@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { CargaHorarios, ClaseHorario, HorarioAlumno } from '../horarios/types';
+import { CAMPOS_META, CAMPOS_ASIGNATURA } from '../data/informesConfig';
 
 /** Quita acentos, espacios sobrantes y pasa a minúsculas para comparar cabeceras. */
 export function norm(s: string): string {
@@ -35,6 +36,48 @@ function findCol(headers: Map<string, number>, ...claves: string[]): number | nu
     if (idx) return idx;
   }
   return null;
+}
+
+/**
+ * Etiquetas normalizadas de las 9 columnas de horario que insertan los profesores.
+ * Se usan para excluirlas al reconstruir el listado de campos del informe.
+ */
+const H_LABELS_NORM = new Set([
+  'profesor', 'grupo', 'aula',
+  'dia 1', 'entrada 1', 'salida 1',
+  'dia 2', 'entrada 2', 'salida 2',
+]);
+
+/**
+ * Lee los encabezados de la hoja "Horarios" de un Excel relleno y devuelve las
+ * claves (CampoKey) de las columnas del informe en el orden en que aparecen.
+ * Las 9 columnas de horario (Profesor, Aula, Grupo…) se excluyen automáticamente.
+ *
+ * Se usa para detectar y guardar el FormatoHorarios cuando el usuario carga
+ * un Excel relleno en la pestaña Horarios y aún no había formato establecido.
+ */
+export async function extraerCamposInforme(base64: string): Promise<string[]> {
+  const labelToKey = new Map<string, string>();
+  for (const c of [...CAMPOS_META, ...CAMPOS_ASIGNATURA]) {
+    labelToKey.set(norm(c.label), c.key);
+  }
+
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(bytes as any);
+
+  const ws = wb.getWorksheet('Horarios') ?? wb.worksheets[0];
+  if (!ws) return [];
+
+  const campos: string[] = [];
+  ws.getRow(1).eachCell((cell) => {
+    const txt = norm(cellText(cell.value));
+    if (!txt || H_LABELS_NORM.has(txt)) return;
+    const key = labelToKey.get(txt);
+    if (key && !campos.includes(key)) campos.push(key);
+  });
+
+  return campos;
 }
 
 /**
