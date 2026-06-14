@@ -600,6 +600,97 @@ function registerIpcHandlers() {
     },
   );
 
+  ipcMain.handle("pdf:getImpresoras", async () => {
+    try {
+      if (!win) return [];
+      const printers = await win.webContents.getPrintersAsync();
+      return printers.map((p: Electron.PrinterInfo) => ({
+        name: p.name,
+        displayName: p.displayName,
+        isDefault: p.isDefault,
+      }));
+    } catch {
+      return [];
+    }
+  });
+
+  function parsearPaginasParaElectron(
+    str: string,
+  ): { from: number; to: number }[] | undefined {
+    if (!str.trim()) return undefined;
+    const rangos: { from: number; to: number }[] = [];
+    for (const parte of str.split(",")) {
+      const segmentos = parte.trim().split("-");
+      const a = parseInt(segmentos[0].trim(), 10);
+      if (isNaN(a) || a < 1) continue;
+      const b = segmentos.length > 1 ? parseInt(segmentos[1].trim(), 10) : a;
+      rangos.push({ from: a - 1, to: (isNaN(b) ? a : b) - 1 });
+    }
+    return rangos.length > 0 ? rangos : undefined;
+  }
+
+  ipcMain.handle(
+    "pdf:printConOpciones",
+    async (
+      _e,
+      payload: {
+        html: string;
+        impresora?: string;
+        paginas?: string;
+        dosCaras?: "simplex" | "longEdge" | "shortEdge";
+        copias?: number;
+      },
+    ): Promise<{ success: boolean; error?: string }> => {
+      const printWin = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+
+      const cleanup = () => {
+        try {
+          if (!printWin.isDestroyed()) printWin.destroy();
+        } catch {
+          /* empty */
+        }
+      };
+
+      try {
+        const dataUrl =
+          "data:text/html;charset=utf-8;base64," +
+          Buffer.from(payload.html, "utf-8").toString("base64");
+        await printWin.loadURL(dataUrl);
+      } catch (err) {
+        cleanup();
+        return { success: false, error: (err as Error).message };
+      }
+
+      const pageRanges = payload.paginas
+        ? parsearPaginasParaElectron(payload.paginas)
+        : undefined;
+
+      return await new Promise((resolve) => {
+        const options: Electron.WebContentsPrintOptions = {
+          silent: true,
+          printBackground: true,
+          ...(payload.impresora ? { deviceName: payload.impresora } : {}),
+          ...(pageRanges ? { pageRanges } : {}),
+          ...(payload.dosCaras ? { duplexMode: payload.dosCaras } : {}),
+          ...(payload.copias && payload.copias > 1
+            ? { copies: payload.copias }
+            : {}),
+        };
+        printWin.webContents.print(options, (success, failureReason) => {
+          cleanup();
+          resolve({ success, error: success ? undefined : failureReason });
+        });
+      });
+    },
+  );
+
   ipcMain.handle(
     "pdf:openForPrint",
     async (

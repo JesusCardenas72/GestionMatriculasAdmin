@@ -47,6 +47,17 @@ const adminAPI = {
       ipcRenderer.invoke("pdf:registerBlob", { base64 }),
     unregisterBlob: (id: string): Promise<void> =>
       ipcRenderer.invoke("pdf:unregisterBlob", { id }),
+    getImpresoras: (): Promise<
+      { name: string; displayName: string; isDefault: boolean }[]
+    > => ipcRenderer.invoke("pdf:getImpresoras"),
+    printConOpciones: (payload: {
+      html: string;
+      impresora?: string;
+      paginas?: string;
+      dosCaras?: "simplex" | "longEdge" | "shortEdge";
+      copias?: number;
+    }): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke("pdf:printConOpciones", payload),
   },
   local: {
     listar: (): Promise<MatriculaLocal[]> =>

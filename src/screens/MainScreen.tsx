@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useSustitucionProgramada } from "../hooks/useSustitucionProgramada";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2 } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
@@ -23,6 +23,7 @@ import TemporalesScreen from "./TemporalesScreen";
 import ConexionModal from "../components/modals/ConexionModal";
 import CursosModal from "../components/modals/CursosModal";
 import BorrarModal from "../components/modals/BorrarModal";
+import AyudaModal from "../components/modals/AyudaModal";
 
 interface Props {
   config: AppConfig;
@@ -57,6 +58,7 @@ export default function MainScreen({ config }: Props) {
   const [conexionModalOpen, setConexionModalOpen] = useState(false);
   const [cursosModalOpen, setCursosModalOpen] = useState(false);
   const [borrarModalOpen, setBorrarModalOpen] = useState(false);
+  const [ayudaModalOpen, setAyudaModalOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(
     () => (document.documentElement.getAttribute("data-theme") as "light" | "dark") ?? "light",
   );
@@ -114,6 +116,7 @@ export default function MainScreen({ config }: Props) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.ctrlKey || e.metaKey) return; // Ctrl+← / Ctrl+→ reservado para expansión de PDF
       const tag = (document.activeElement as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
@@ -350,6 +353,20 @@ export default function MainScreen({ config }: Props) {
                     </span>
                   )}
                 </button>
+
+                <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />
+
+                {/* Ayuda y atajos */}
+                <button
+                  onClick={() => { setSettingsMenuOpen(false); setAyudaModalOpen(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
+                >
+                  <HelpCircle className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Ayuda y atajos de teclado</p>
+                    <p className="text-xs text-[var(--tc-ink-mute)] leading-tight">Navegación, PDF y accesos rápidos</p>
+                  </div>
+                </button>
               </div>
             )}
           </div>
@@ -455,6 +472,11 @@ export default function MainScreen({ config }: Props) {
           onClose={() => setBorrarModalOpen(false)}
         />
       )}
+
+      <AyudaModal
+        open={ayudaModalOpen}
+        onClose={() => setAyudaModalOpen(false)}
+      />
     </div>
   );
 }

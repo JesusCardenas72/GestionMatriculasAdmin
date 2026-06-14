@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import QuickPrintBar from "./QuickPrintBar";
 import {
   AlertCircle,
   CheckCircle2,
@@ -146,6 +147,11 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   const [asigItems, setAsigItems] = useState<AsignaturaLocal[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [pdfPhase, setPdfPhase] = useState<"idle" | "entering" | "open" | "exiting">("idle");
+  const [pdfOriginRect, setPdfOriginRect] = useState<{ top: number; left: number; right: number; bottom: number } | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [localPdfBase64, setLocalPdfBase64] = useState<string | null>(null);
   const [addAsignaturaId, setAddAsignaturaId] = useState("");
   const [addEstado, setAddEstado] = useState<EstadoAsignatura>(ESTADO_ASIGNATURA.MATRICULADA);
@@ -162,6 +168,8 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     setShowAdd(false);
     setAsigSaved(false);
     setLocalPdfBase64(null);
+    setPdfPhase("idle");
+    setPdfOriginRect(null);
   }, [solicitud.rowId]);
 
   const pdfQuery = usePdf(config, solicitud.rowId, solicitud.cursoEscolar ?? undefined);
@@ -169,6 +177,9 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     (pdfQuery.data !== undefined && !pdfQuery.data?.contentBase64) ||
     (pdfQuery.error instanceof FlowError &&
       (pdfQuery.error.body ?? "").includes("No file attachment found"));
+  const pdfBase64 = pdfQuery.data?.contentBase64 ?? localPdfBase64;
+  const pdfFileName = pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`;
+  const pdfMimeType = pdfQuery.data?.mimeType ?? "application/pdf";
   const mutation = useActualizarSolicitud(config);
   const borrarMutation = useBorrarSolicitud(config);
 
@@ -407,7 +418,15 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     );
   }
 
-  async function handleImprimirPdf() {
+  function handlePrintBarArrowKey() {
+    setShowPrintModal(false);
+    if (pdfPhase === "open") {
+      setPdfPhase("exiting");
+      setTimeout(() => { setPdfPhase("idle"); setPdfOriginRect(null); }, 750);
+    }
+  }
+
+  async function handleImprimirConOpciones(paginas: string, dosCaras: boolean) {
     setIsGeneratingPdf(true);
     try {
       const { solicitudToPdfProps } = await import("../pdf/buildMatriculaPdf");
@@ -421,17 +440,69 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
       }));
       const props = solicitudToPdfProps(solicitud, asigs);
       const html = buildMatriculaPdfHtml(props);
-      const result = await window.adminAPI.pdf.generarBase64(html);
-      if (!result.success || !result.base64) {
-        console.error("Error generando PDF de solicitud:", result.error);
-        return;
+      const result = await window.adminAPI.pdf.printConOpciones({
+        html,
+        paginas: paginas || undefined,
+        dosCaras: dosCaras ? "longEdge" : "simplex",
+      });
+      if (!result.success) {
+        console.error("Error al imprimir solicitud:", result.error);
       }
-      const filename = `matricula_${solicitud.apellidos}_${solicitud.nombre}.pdf`.replace(/\s+/g, "_");
-      await window.adminAPI.pdf.openForPrint(result.base64, filename);
     } finally {
       setIsGeneratingPdf(false);
+      setShowPrintModal(false);
     }
   }
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "p" && !showPrintModal) {
+        e.preventDefault();
+        setShowPrintModal(true);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+        const tag = (document.activeElement as HTMLElement | null)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+        if (pdfPhase === "idle") {
+          if (!cardRef.current || !pdfContainerRef.current) return;
+          const cardRect = cardRef.current.getBoundingClientRect();
+          const pdfRect = pdfContainerRef.current.getBoundingClientRect();
+          setPdfOriginRect({
+            top: pdfRect.top - cardRect.top,
+            left: pdfRect.left - cardRect.left,
+            right: cardRect.right - pdfRect.right,
+            bottom: cardRect.bottom - pdfRect.bottom,
+          });
+          setPdfPhase("entering");
+        } else if (pdfPhase === "open") {
+          setPdfPhase("exiting");
+          setTimeout(() => { setPdfPhase("idle"); setPdfOriginRect(null); }, 750);
+        }
+        return;
+      }
+      // Cualquier flecha sin Ctrl mientras el PDF está expandido → colapsar y dejar navegar
+      if (pdfPhase === "open" && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+        const tag = (document.activeElement as HTMLElement | null)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        setShowPrintModal(false);
+        setPdfPhase("exiting");
+        setTimeout(() => { setPdfPhase("idle"); setPdfOriginRect(null); }, 750);
+        // no preventDefault — deja que la navegación de lista/pestañas continúe
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showPrintModal, pdfPhase]);
+
+  useEffect(() => {
+    if (pdfPhase !== "entering") return;
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => { setPdfPhase("open"); });
+    });
+    return () => cancelAnimationFrame(r1);
+  }, [pdfPhase]);
 
   const runAction = () => {
     if (!pending) return;
@@ -572,9 +643,84 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     </div>
   );
 
+  // ── Overlay: PDF expandido (FLIP animation desde su posición actual) ──────
+  const pdfTransition = "top 0.75s cubic-bezier(0.4,0,0.2,1), left 0.75s cubic-bezier(0.4,0,0.2,1), right 0.75s cubic-bezier(0.4,0,0.2,1), bottom 0.75s cubic-bezier(0.4,0,0.2,1)";
+  const overlayPdfExpandido = pdfPhase !== "idle" && pdfOriginRect ? (
+    <div
+      className="absolute z-20 flex flex-col rounded-2xl overflow-hidden"
+      style={{
+        background: "var(--tc-card)",
+        border: "1px solid var(--tc-border)",
+        boxShadow: "0 1px 2px rgba(45,36,29,0.04), 0 14px 30px -12px rgba(45,36,29,0.10)",
+        top: pdfPhase === "open" ? 0 : pdfOriginRect.top,
+        left: pdfPhase === "open" ? 0 : pdfOriginRect.left,
+        right: pdfPhase === "open" ? 0 : pdfOriginRect.right,
+        bottom: pdfPhase === "open" ? 0 : pdfOriginRect.bottom,
+        transition: pdfPhase === "entering" ? "none" : pdfTransition,
+      }}
+    >
+      <div
+        className="flex items-center justify-between px-5 py-3 shrink-0"
+        style={{ borderBottom: "1px solid var(--tc-border-soft)" }}
+      >
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4" style={{ color: "var(--tc-primary)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
+          </svg>
+          <span className="font-display text-sm font-medium" style={{ color: "var(--tc-ink)" }}>
+            Solicitud en PDF — {solicitud.nombre} {solicitud.apellidos}
+          </span>
+        </div>
+        <span className="text-xs select-none" style={{ color: "var(--tc-ink-mute)" }}>
+          Shift+← para cerrar
+        </span>
+      </div>
+      <div className="flex-1 min-h-0">
+        {pdfBase64 ? (
+          <PdfViewer contentBase64={pdfBase64} fileName={pdfFileName} mimeType={pdfMimeType} />
+        ) : (
+          <div className="h-full flex items-center justify-center text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>
+            No hay PDF disponible para esta solicitud.
+          </div>
+        )}
+      </div>
+      <div
+        className="px-5 py-3 shrink-0"
+        style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
+      >
+        {showPrintModal ? (
+          <QuickPrintBar
+            imprimiendo={isGeneratingPdf}
+            onPrint={(paginas, dosCaras) => void handleImprimirConOpciones(paginas, dosCaras)}
+            onCancelar={() => setShowPrintModal(false)}
+            onArrowKey={handlePrintBarArrowKey}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowPrintModal(true)}
+            disabled={isGeneratingPdf}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+            style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+            title="Imprimir PDF (Ctrl+P)"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
+            </svg>
+            Imprimir PDF
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   // ── Tramitados ───────────────────────────────────────────────────────────
   if (isP3) {
     return (
+      <div className="w-full h-full relative">
       <div className="max-w-4xl h-full flex flex-col">
         <div
           className="rounded-xl overflow-hidden flex flex-col"
@@ -678,26 +824,34 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             </div>
           )}
 
-          <div className="px-6 py-4 flex items-center gap-3" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
-            <button
-              type="button"
-              onClick={() => void handleImprimirPdf()}
-              disabled={isGeneratingPdf || asignaturasQuery.isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
-              style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
-            >
-              {isGeneratingPdf ? (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
-              ) : (
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
-                </svg>
-              )}
-              Imprimir PDF
-            </button>
-            <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>Solicitud tramitada. Sin acciones disponibles.</p>
+          <div className="px-6 py-4" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+            {showPrintModal ? (
+              <QuickPrintBar
+                imprimiendo={isGeneratingPdf}
+                onPrint={(paginas, dosCaras) => void handleImprimirConOpciones(paginas, dosCaras)}
+                onCancelar={() => setShowPrintModal(false)}
+            onArrowKey={handlePrintBarArrowKey}
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(true)}
+                  disabled={isGeneratingPdf || asignaturasQuery.isLoading}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+                  style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+                  title="Imprimir PDF (Ctrl+P)"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
+                  </svg>
+                  Imprimir PDF
+                </button>
+                <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>Solicitud tramitada. Sin acciones disponibles.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -712,13 +866,16 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
           onCancel={() => setPending(null)}
         />
       </div>
+      {overlayPdfExpandido}
+      </div>
     );
   }
 
   // ── Pendiente tramitación / Pendiente validación ─────────────────────────
   return (
     <div
-      className="h-full flex flex-col rounded-2xl overflow-hidden"
+      ref={cardRef}
+      className="h-full flex flex-col rounded-2xl overflow-hidden relative"
       style={{
         background: "var(--tc-card)",
         border: "1px solid var(--tc-border)",
@@ -929,6 +1086,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             </h3>
           </div>
           <div
+            ref={pdfContainerRef}
             className="flex-1 min-h-0 overflow-hidden rounded-xl"
             style={{ border: "1px solid var(--tc-border)", background: "var(--tc-bg-panel)" }}
           >
@@ -972,24 +1130,32 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         className="px-6 py-4 flex items-center justify-end gap-3 shrink-0"
         style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
       >
-        <button
-          type="button"
-          onClick={() => void handleImprimirPdf()}
-          disabled={isGeneratingPdf || asignaturasQuery.isLoading}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors mr-auto"
-          style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
-        >
-          {isGeneratingPdf ? (
-            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
-          ) : (
+        {showPrintModal ? (
+          <div className="mr-auto flex-1">
+            <QuickPrintBar
+              imprimiendo={isGeneratingPdf}
+              onPrint={(paginas, dosCaras) => void handleImprimirConOpciones(paginas, dosCaras)}
+              onCancelar={() => setShowPrintModal(false)}
+            onArrowKey={handlePrintBarArrowKey}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowPrintModal(true)}
+            disabled={isGeneratingPdf || asignaturasQuery.isLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors mr-auto"
+            style={{ border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-card)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-bg-panel)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--tc-card)"; }}
+            title="Imprimir PDF (Ctrl+P)"
+          >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>
             </svg>
-          )}
-          Imprimir PDF
-        </button>
+            Imprimir PDF
+          </button>
+        )}
         {(mutation.error || borrarMutation.error) && (
           <span className="text-xs text-red-600 mr-auto flex items-center gap-1">
             <AlertCircle className="w-3.5 h-3.5" />
@@ -1076,6 +1242,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         onConfirm={runAction}
         onCancel={() => setPending(null)}
       />
+      {overlayPdfExpandido}
     </div>
   );
 }
