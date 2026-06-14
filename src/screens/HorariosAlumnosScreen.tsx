@@ -937,7 +937,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             onClick={() => { setVistaPrincipal("listados"); setPanelDerecho("listados"); }}
             className={
               "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
-              (vistaPrincipal === "listados"
+              (vistaPrincipal === ("listados" as VistaPrincipal)
                 ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
                 : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
             }
@@ -1008,7 +1008,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             onClick={() => { setVistaPrincipal("individuales"); setPanelDerecho("preview"); }}
             className={
               "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
-              (vistaPrincipal === "individuales"
+              (vistaPrincipal === ("individuales" as VistaPrincipal)
                 ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
                 : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
             }

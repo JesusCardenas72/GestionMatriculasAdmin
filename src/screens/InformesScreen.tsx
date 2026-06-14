@@ -2496,7 +2496,7 @@ export default function InformesScreen({ config }: Props) {
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
                   <p className="text-[11px] font-semibold text-emerald-700 mb-1">Columnas registradas ({formatoHorarios?.camposVisibles.length ?? 0}):</p>
                   <p className="text-[11px] text-emerald-600">
-                    {(formatoHorarios?.camposVisibles ?? []).map(k => CAMPO_MAP.get(k)?.label ?? k).join(' · ')}
+                    {(formatoHorarios?.camposVisibles ?? []).map(k => CAMPO_MAP.get(k as CampoKey)?.label ?? k).join(' · ')}
                   </p>
                 </div>
                 <p className="text-xs text-slate-500">
@@ -2551,13 +2551,13 @@ export default function InformesScreen({ config }: Props) {
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                   <p className="text-[11px] text-slate-500 font-semibold mb-1">Formato guardado ({modalFormatoMismatch.camposGuardados.length} columnas):</p>
                   <p className="text-[11px] text-slate-700">
-                    {modalFormatoMismatch.camposGuardados.map(k => CAMPO_MAP.get(k)?.label ?? k).join(' · ')}
+                    {modalFormatoMismatch.camposGuardados.map(k => CAMPO_MAP.get(k as CampoKey)?.label ?? k).join(' · ')}
                   </p>
                 </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                   <p className="text-[11px] text-amber-700 font-semibold mb-1">Informe actual ({modalFormatoMismatch.camposActuales.length} columnas):</p>
                   <p className="text-[11px] text-amber-700">
-                    {modalFormatoMismatch.camposActuales.map(k => CAMPO_MAP.get(k)?.label ?? k).join(' · ')}
+                    {modalFormatoMismatch.camposActuales.map(k => CAMPO_MAP.get(k as CampoKey)?.label ?? k).join(' · ')}
                   </p>
                 </div>
                 {(() => {
@@ -2567,8 +2567,8 @@ export default function InformesScreen({ config }: Props) {
                   const sobran = modalFormatoMismatch.camposActuales.filter(k => !guardados.has(k));
                   return (faltan.length > 0 || sobran.length > 0) ? (
                     <div className="text-[11px] text-slate-500 space-y-0.5">
-                      {faltan.length > 0 && <p>Faltan en el informe actual: <span className="font-medium text-red-600">{faltan.map(k => CAMPO_MAP.get(k)?.label ?? k).join(', ')}</span></p>}
-                      {sobran.length > 0 && <p>Columnas extra en el informe actual: <span className="font-medium text-amber-600">{sobran.map(k => CAMPO_MAP.get(k)?.label ?? k).join(', ')}</span></p>}
+                      {faltan.length > 0 && <p>Faltan en el informe actual: <span className="font-medium text-red-600">{faltan.map(k => CAMPO_MAP.get(k as CampoKey)?.label ?? k).join(', ')}</span></p>}
+                      {sobran.length > 0 && <p>Columnas extra en el informe actual: <span className="font-medium text-amber-600">{sobran.map(k => CAMPO_MAP.get(k as CampoKey)?.label ?? k).join(', ')}</span></p>}
                     </div>
                   ) : (
                     <p className="text-[11px] text-slate-500">Las columnas son las mismas pero en distinto orden.</p>
