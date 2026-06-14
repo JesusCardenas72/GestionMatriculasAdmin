@@ -51,6 +51,8 @@ import {
 import { buildHtmlInforme } from '../utils/pdfInforme';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion } from '../utils/fusionHorarios';
+import { obtenerValoresHorario, actualizarHorariosStore } from '../utils/horariosPersistencia';
+import type { HorariosCursoData } from '../../electron/horarios-data-store';
 
 interface Props {
   config: AppConfig;
@@ -321,6 +323,7 @@ export default function InformesScreen({ config }: Props) {
     opciones: OpcionesHorario;
     profesores: string[];
     fileName: string;
+    crudas: import('../utils/fusionHorarios').FilaCrudaHorario[];
   } | null>(null);
 
   // Previsualización CSV profesores (modal)
@@ -955,9 +958,24 @@ export default function InformesScreen({ config }: Props) {
           );
           return;
         }
-        setFusionPendiente({ resultado, opciones, profesores, fileName: sel.fileName });
+        setFusionPendiente({ resultado, opciones, profesores, fileName: sel.fileName, crudas });
         setShowHorariosConfig(false);
         return;
+      }
+
+      // Modo normal: intentar auto-rellenar desde el store de horarios
+      let valoresHorario: Array<Record<string, string> | null> | undefined;
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      if (storeData.entries.length > 0) {
+        const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
+          resultados,
+          storeData.entries,
+          matriculas,
+        );
+        if (conservadas + heredadas > 0) {
+          valoresHorario = vh;
+          console.log(`[Horarios] Auto-relleno: ${conservadas} conservados, ${heredadas} heredados del store`);
+        }
       }
 
       const base64 = await generarExcelHorarios(
@@ -965,6 +983,7 @@ export default function InformesScreen({ config }: Props) {
         camposVisibles,
         profesores,
         opciones,
+        valoresHorario,
       );
       await window.adminAPI.informe.exportar({
         contenidoBase64: base64,
@@ -995,7 +1014,12 @@ export default function InformesScreen({ config }: Props) {
         nombreArchivo: `${informe.nombre} - Horarios (fusionado)`,
         extension: 'xlsx',
       });
-      if (exportado !== null) setFusionPendiente(null);
+      if (exportado !== null) {
+        const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+        actualizarHorariosStore(storeData, fusionPendiente.crudas, 'carga_excel', fusionPendiente.fileName);
+        await window.adminAPI.horarios.data.guardar(curso, storeData);
+        setFusionPendiente(null);
+      }
     } finally {
       setHorariosGenerando(false);
     }

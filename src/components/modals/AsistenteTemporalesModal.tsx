@@ -39,6 +39,8 @@ import {
 } from "../../utils/fusionTemporales";
 import { fusionarHorarios, parseHorariosExcelCrudo } from "../../utils/fusionHorarios";
 import { generarExcelHorarios, type OpcionesHorario } from "../../utils/excelHorarios";
+import { obtenerValoresHorario, actualizarHorariosStore } from "../../utils/horariosPersistencia";
+import type { HorariosCursoData } from "../../../electron/horarios-data-store";
 import { norm, parseHorariosExcel } from "../../utils/horarioExcel";
 import { buildHorarioHtml } from "../../utils/horarioTemplate";
 import { buildHorarioEmailHtml } from "../../utils/horarioEmailTemplate";
@@ -349,6 +351,7 @@ export function AsistenteTemporalesModal({
                 <Paso5Ejecutar curso={curso} matriculas={matriculas} actualizar={actualizar} disabled={isSoloLectura} />
               ) : pasoActual === 6 ? (
                 <Paso6Fusionado
+                  curso={curso}
                   matriculas={matriculas}
                   fechaFusionadoGenerado={vista.fechaFusionadoGenerado}
                   disabled={isSoloLectura}
@@ -801,7 +804,22 @@ function ModalGenerarHorariosAsistente({
         congelarHasta: hCongelar ? hCongelarHasta : null,
         insertarTras: hInsertarTras,
       };
-      const base64 = await generarExcelHorarios(filas, campos, profesores, opciones);
+
+      let valoresHorario: Array<Record<string, string> | null> | undefined;
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      if (storeData.entries.length > 0) {
+        const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
+          filas,
+          storeData.entries,
+          matriculas,
+        );
+        if (conservadas + heredadas > 0) {
+          valoresHorario = vh;
+          console.log(`[Asistente Paso2] Auto-relleno: ${conservadas} conservados, ${heredadas} heredados`);
+        }
+      }
+
+      const base64 = await generarExcelHorarios(filas, campos, profesores, opciones, valoresHorario);
       const exportado = await window.adminAPI.informe.exportar({
         contenidoBase64: base64,
         nombreArchivo: `Horarios ${curso.replace("/", "-")} — ${informeSel.nombre}`,
@@ -1406,11 +1424,13 @@ function Paso5Ejecutar({
 
 /** Paso 6: generar el Excel fusionado a partir del Excel relleno por los profesores. */
 function Paso6Fusionado({
+  curso,
   matriculas,
   fechaFusionadoGenerado,
   disabled,
   onGenerado,
 }: {
+  curso: string;
   matriculas: MatriculaLocal[];
   fechaFusionadoGenerado: string | null;
   disabled: boolean;
@@ -1485,6 +1505,9 @@ function Paso6Fusionado({
         extension: "xlsx",
       });
       if (exportado !== null) {
+        const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+        actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
+        await window.adminAPI.horarios.data.guardar(curso, storeData);
         onGenerado(new Date().toISOString());
         setMensaje(
           `Excel fusionado generado: ${resultado.conservadas} horario(s) conservados y ${resultado.heredadas} heredados por alumnos reales.` +

@@ -7,6 +7,9 @@ import {
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { parseHorariosExcel } from "../utils/horarioExcel";
+import { parseHorariosExcelCrudo } from "../utils/fusionHorarios";
+import { actualizarHorariosStore } from "../utils/horariosPersistencia";
+import type { HorariosCursoData } from "../../electron/horarios-data-store";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
 import { buildListadoHtml, type VersionListado } from "../utils/horarioListadoTemplate";
 import { buildHorarioEmailHtml } from "../utils/horarioEmailTemplate";
@@ -14,6 +17,7 @@ import { enviarEmailHorario } from "../api/horarios";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ResultadoEnvio } from "../horarios/types";
 import { buildCursoLabel } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
+import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
 
 interface Props {
   config: AppConfig;
@@ -89,6 +93,9 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
   const [resultadoEnvio, setResultadoEnvio] = useState<ResultadoEnvio[] | null>(null);
+
+  // Modal de historial de horarios
+  const [showHistorialHorariosModal, setShowHistorialHorariosModal] = useState(false);
 
   const alumnosParaEnviar = useRef<string[]>([]);
 
@@ -177,6 +184,12 @@ export default function HorariosAlumnosScreen({ config }: Props) {
       setCargando(true);
       const res = await parseHorariosExcel(sel.base64, sel.fileName);
       const alumnosEnriquecidos = enriquecerEmails(res.alumnos);
+
+      const crudas = await parseHorariosExcelCrudo(sel.base64);
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      const resultado = actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
+      await window.adminAPI.horarios.data.guardar(curso, storeData);
+      console.log(`[Horarios] Store actualizado: +${resultado.anadidas} ~${resultado.actualizadas} -${resultado.eliminadas}`);
 
       if (carga && carga.alumnos.length > 0) {
         const existentes = new Set(carga.alumnos.map(a => a.clave));
@@ -693,6 +706,13 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             <History className="w-4 h-4" />
             Historial de envíos {campanyas.length > 0 && `(${campanyas.length})`}
           </button>
+          <button
+            onClick={() => setShowHistorialHorariosModal(true)}
+            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] text-sm font-medium transition"
+          >
+            <Clock className="w-4 h-4" />
+            Historial de horarios
+          </button>
         </div>
       </div>
       )}
@@ -795,6 +815,14 @@ export default function HorariosAlumnosScreen({ config }: Props) {
           resultado={resultadoEnvio}
           onConfirmar={confirmarEnvio}
           onCerrar={cerrarModal}
+        />
+      )}
+
+      {/* Modal de historial de horarios */}
+      {showHistorialHorariosModal && (
+        <HistorialHorariosModal
+          curso={curso}
+          onClose={() => setShowHistorialHorariosModal(false)}
         />
       )}
     </div>

@@ -61,6 +61,13 @@ import {
 } from "./cursos-store";
 import { loadCursoContext, saveCursoContext } from "./curso-context-store";
 import {
+  horariosDataObtener,
+  horariosDataGuardar,
+  horariosDataExportarHistorial,
+  horariosDataImportarHistorial,
+  type HorariosCursoData,
+} from "./horarios-data-store";
+import {
   temporalesGetAsistente,
   temporalesGetConfig,
   temporalesSetAsistente,
@@ -285,6 +292,48 @@ function registerIpcHandlers() {
     clearHorariosExcelPath();
   });
 
+  ipcMain.handle("horarios:leerExcelGuardado", async () => {
+    const savedPath = getHorariosExcelPath();
+    if (!savedPath || !fs.existsSync(savedPath)) return null;
+    try {
+      const buf = fs.readFileSync(savedPath);
+      return { fileName: path.basename(savedPath), base64: buf.toString("base64"), path: savedPath };
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle("horarios:data:obtener", (_e, curso: string) => {
+    return horariosDataObtener(curso);
+  });
+
+  ipcMain.handle("horarios:data:guardar", (_e, curso: string, data: HorariosCursoData) => {
+    horariosDataGuardar(curso, data);
+  });
+
+  ipcMain.handle("horarios:data:exportar", (_e, curso: string) => {
+    return horariosDataExportarHistorial(curso);
+  });
+
+  ipcMain.handle("horarios:data:importar", (_e, curso: string, json: { curso: string; snapshots: any[] }) => {
+    return horariosDataImportarHistorial(curso, json);
+  });
+
+  ipcMain.handle(
+    "archivo:seleccionar",
+    async (_e, extensiones: string[]): Promise<{ fileName: string; base64: string; path: string } | null> => {
+      const res = await dialog.showOpenDialog({
+        title: "Selecciona un archivo",
+        filters: [{ name: "Archivos", extensions: extensiones }],
+        properties: ["openFile"],
+      });
+      if (res.canceled || res.filePaths.length === 0) return null;
+      const file = res.filePaths[0];
+      const buf = fs.readFileSync(file);
+      return { fileName: path.basename(file), base64: buf.toString("base64"), path: file };
+    },
+  );
+
   // ── Horarios: seleccionar Excel relleno desde el asistente (paso 3) ───────
   // Abre diálogo sin guardar la ruta global (se gestiona desde el estado del asistente).
   ipcMain.handle(
@@ -336,14 +385,16 @@ function registerIpcHandlers() {
 
   ipcMain.handle(
     "informe:exportar",
-    async (_e, payload: { contenidoBase64: string; nombreArchivo: string; extension: "csv" | "xlsx" | "html" }): Promise<string | null> => {
+    async (_e, payload: { contenidoBase64: string; nombreArchivo: string; extension: "csv" | "xlsx" | "html" | "json" }): Promise<string | null> => {
       const { contenidoBase64, nombreArchivo, extension } = payload;
       const filters =
         extension === "xlsx"
           ? [{ name: "Excel", extensions: ["xlsx"] }]
           : extension === "html"
             ? [{ name: "HTML", extensions: ["html"] }]
-            : [{ name: "CSV", extensions: ["csv"] }];
+            : extension === "json"
+              ? [{ name: "JSON", extensions: ["json"] }]
+              : [{ name: "CSV", extensions: ["csv"] }];
       const safe = nombreArchivo.replace(/[\\/:*?"<>|]/g, "_");
       const res = await dialog.showSaveDialog({
         title: "Exportar informe",

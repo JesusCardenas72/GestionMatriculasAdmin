@@ -35,6 +35,8 @@ import {
   ordenarComoExcel,
 } from "../utils/fusionTemporales";
 import { generarExcelHorarios } from "../utils/excelHorarios";
+import { actualizarHorariosStore } from "../utils/horariosPersistencia";
+import type { HorariosCursoData } from "../../electron/horarios-data-store";
 import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
 import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
 import type { AppConfig } from "../../electron/config-store";
@@ -450,6 +452,9 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
         extension: "xlsx",
       });
       if (exportado !== null) {
+        const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+        actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
+        await window.adminAPI.horarios.data.guardar(curso, storeData);
         setMensaje(
           `Excel fusionado generado: ${resultado.conservadas} horario(s) conservados y ${resultado.heredadas} heredados por alumnos reales.` +
             (resultado.sinHorario.length > 0 ? ` ${resultado.sinHorario.length} asignatura(s) quedan sin horario.` : ""),

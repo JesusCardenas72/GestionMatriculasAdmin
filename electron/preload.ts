@@ -124,9 +124,11 @@ const adminAPI = {
     exportar: (payload: {
       contenidoBase64: string;
       nombreArchivo: string;
-      extension: "csv" | "xlsx" | "html";
+      extension: "csv" | "xlsx" | "html" | "json";
     }): Promise<string | null> =>
       ipcRenderer.invoke("informe:exportar", payload),
+    seleccionarArchivo: (extensiones: string[]): Promise<{ fileName: string; base64: string; path: string } | null> =>
+      ipcRenderer.invoke("archivo:seleccionar", extensiones),
   },
   horarios: {
     profesoresGuardados: (): Promise<{ path: string | null; profesores: string[] }> =>
@@ -147,6 +149,18 @@ const adminAPI = {
       ipcRenderer.invoke("horarios:seleccionarExcelRelleno"),
     leerExcelDesdeRuta: (filePath: string): Promise<{ fileName: string; base64: string; path: string } | null> =>
       ipcRenderer.invoke("horarios:leerExcelDesdeRuta", filePath),
+    leerExcelGuardado: (): Promise<{ fileName: string; base64: string; path: string } | null> =>
+      ipcRenderer.invoke("horarios:leerExcelGuardado"),
+    data: {
+      obtener: (curso: string): Promise<any> =>
+        ipcRenderer.invoke("horarios:data:obtener", curso),
+      guardar: (curso: string, data: any): Promise<void> =>
+        ipcRenderer.invoke("horarios:data:guardar", curso, data),
+      exportar: (curso: string): Promise<{ curso: string; snapshots: any[] }> =>
+        ipcRenderer.invoke("horarios:data:exportar", curso),
+      importar: (curso: string, json: { curso: string; snapshots: any[] }): Promise<{ importados: number }> =>
+        ipcRenderer.invoke("horarios:data:importar", curso, json),
+    },
     campanyas: {
       listar: (): Promise<CampanyaEnvio[]> =>
         ipcRenderer.invoke("horarios:campanyas:listar"),
