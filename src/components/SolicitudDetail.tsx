@@ -152,6 +152,12 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   const [pdfOriginRect, setPdfOriginRect] = useState<{ top: number; left: number; right: number; bottom: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
+  // Marca temporal del último ↑/↓ con el PDF ampliado. Si el cambio de solicitud
+  // ocurre justo después, mantenemos la vista expandida y solo cambiamos el PDF.
+  // Usamos una marca de tiempo (no un booleano) para que una pulsación en el
+  // primer/último elemento —que no cambia de solicitud— no deje el indicador
+  // activado y haga que un clic posterior conserve la ampliación por error.
+  const keepPdfExpandedAtRef = useRef(0);
   const [localPdfBase64, setLocalPdfBase64] = useState<string | null>(null);
   const [addAsignaturaId, setAddAsignaturaId] = useState("");
   const [addEstado, setAddEstado] = useState<EstadoAsignatura>(ESTADO_ASIGNATURA.MATRICULADA);
@@ -168,8 +174,15 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     setShowAdd(false);
     setAsigSaved(false);
     setLocalPdfBase64(null);
-    setPdfPhase("idle");
-    setPdfOriginRect(null);
+    const navegacionReciente = Date.now() - keepPdfExpandedAtRef.current < 1000;
+    keepPdfExpandedAtRef.current = 0;
+    if (navegacionReciente) {
+      // Navegación ↑/↓ con el PDF ampliado: conservamos la vista expandida;
+      // el PDF de la nueva solicitud se recarga solo (usePdf depende de rowId).
+    } else {
+      setPdfPhase("idle");
+      setPdfOriginRect(null);
+    }
   }, [solicitud.rowId]);
 
   const pdfQuery = usePdf(config, solicitud.rowId, solicitud.cursoEscolar ?? undefined);
@@ -456,6 +469,13 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      // Esc cierra la vista ampliada del PDF (si no hay un cuadro de impresión abierto).
+      if (e.key === "Escape" && pdfPhase === "open" && !showPrintModal) {
+        e.preventDefault();
+        setPdfPhase("exiting");
+        setTimeout(() => { setPdfPhase("idle"); setPdfOriginRect(null); }, 750);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === "p" && !showPrintModal) {
         e.preventDefault();
         setShowPrintModal(true);
@@ -482,14 +502,21 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         }
         return;
       }
-      // Cualquier flecha sin Ctrl mientras el PDF está expandido → colapsar y dejar navegar
+      // Flechas sin Ctrl mientras el PDF está expandido.
       if (pdfPhase === "open" && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         const tag = (document.activeElement as HTMLElement | null)?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        // ↑/↓: mantener el PDF ampliado y mostrar el de la solicitud anterior/siguiente.
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          keepPdfExpandedAtRef.current = Date.now();
+          // sin preventDefault — la lista cambia de solicitud; el PDF sigue expandido
+          return;
+        }
+        // ←/→ (sin Ctrl): colapsar y dejar que cambie de pestaña.
         setShowPrintModal(false);
         setPdfPhase("exiting");
         setTimeout(() => { setPdfPhase("idle"); setPdfOriginRect(null); }, 750);
-        // no preventDefault — deja que la navegación de lista/pestañas continúe
+        // no preventDefault — deja que la navegación de pestañas continúe
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -673,7 +700,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
           </span>
         </div>
         <span className="text-xs select-none" style={{ color: "var(--tc-ink-mute)" }}>
-          Shift+← para cerrar
+          ↑/↓ cambia de solicitud · Esc o Ctrl+← para cerrar
         </span>
       </div>
       <div className="flex-1 min-h-0">

@@ -167,8 +167,16 @@ export default function AyudaModal({ open, onClose }: Props) {
               label="Cerrar vista expandida del PDF"
             />
             <ShortcutRow
-              keys={<><Kbd>↑</Kbd><span className="mx-0.5 text-[10px]" style={{ color: "var(--tc-ink-mute)" }}>/</span><Kbd>↓</Kbd><span className="mx-0.5 text-[10px]" style={{ color: "var(--tc-ink-mute)" }}>/</span><Kbd><ArrowLeft className="w-3 h-3" /></Kbd><span className="mx-0.5 text-[10px]" style={{ color: "var(--tc-ink-mute)" }}>/</span><Kbd><ArrowRight className="w-3 h-3" /></Kbd></>}
-              label="Cerrar vista expandida y navegar"
+              keys={<><Kbd>↑</Kbd><span className="mx-0.5 text-[10px]" style={{ color: "var(--tc-ink-mute)" }}>/</span><Kbd>↓</Kbd></>}
+              label="Ver el PDF de la solicitud anterior/siguiente (sigue ampliado)"
+            />
+            <ShortcutRow
+              keys={<><Kbd><ArrowLeft className="w-3 h-3" /></Kbd><span className="mx-0.5 text-[10px]" style={{ color: "var(--tc-ink-mute)" }}>/</span><Kbd><ArrowRight className="w-3 h-3" /></Kbd></>}
+              label="Cerrar vista ampliada y cambiar de pestaña"
+            />
+            <ShortcutRow
+              keys={<><Kbd>Esc</Kbd></>}
+              label="Cerrar la vista ampliada del PDF"
             />
           </Section>
 

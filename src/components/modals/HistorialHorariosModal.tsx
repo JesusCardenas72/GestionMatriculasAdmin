@@ -10,12 +10,18 @@ import {
   Plus,
   Minus,
   RefreshCw,
+  Eye,
+  CheckCircle2,
 } from "lucide-react";
 import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
 
 interface Props {
   curso: string;
   onClose: () => void;
+  /** Abre el estado de un snapshot en la app. `esActual` indica si es la última carga. */
+  onActivar: (snapshot: HorariosSnapshot, esActual: boolean) => void;
+  /** Id del snapshot que está abierto ahora mismo; `null` = la carga actual (la última). */
+  activoId: string | null;
 }
 
 const ACCION_LABELS: Record<HorariosSnapshot["accion"], string> = {
@@ -39,19 +45,22 @@ const ACCION_COLORS: Record<HorariosSnapshot["accion"], string> = {
   importacion: "text-purple-500 bg-purple-50 border-purple-200",
 };
 
-export function HistorialHorariosModal({ curso, onClose }: Props) {
+export function HistorialHorariosModal({ curso, onClose, onActivar, activoId }: Props) {
   const [data, setData] = useState<HorariosCursoData | null>(null);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
   const [importando, setImportando] = useState(false);
   const [restaurando, setRestaurando] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
+  const [seleccionId, setSeleccionId] = useState<string | null>(null);
 
   const cargar = async () => {
     setCargando(true);
     try {
       const d = await window.adminAPI.horarios.data.obtener(curso);
       setData(d);
+      const masReciente = [...d.snapshots].sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+      setSeleccionId(activoId ?? masReciente?.id ?? null);
     } finally {
       setCargando(false);
     }
@@ -151,6 +160,16 @@ export function HistorialHorariosModal({ curso, onClose }: Props) {
     ? [...data.snapshots].sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     : [];
 
+  // La carga "actual" es la más reciente (primera tras ordenar por fecha desc).
+  const idActual = snapshotsOrdenados[0]?.id ?? null;
+
+  const handleAbrir = () => {
+    const snap = snapshotsOrdenados.find((s) => s.id === seleccionId);
+    if (!snap) return;
+    onActivar(snap, snap.id === idActual);
+    onClose();
+  };
+
   return (
     <div
       className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
@@ -218,10 +237,27 @@ export function HistorialHorariosModal({ curso, onClose }: Props) {
                 const Icon = ACCION_ICONS[snap.accion];
                 const colorClass = ACCION_COLORS[snap.accion];
                 const fecha = new Date(snap.timestamp);
+                const esActual = snap.id === idActual;
+                const estaSeleccionado = snap.id === seleccionId;
+                const estaActivo = activoId === null ? esActual : activoId === snap.id;
                 return (
                   <div
+                    role="button"
+                    tabIndex={0}
                     key={snap.id}
-                    className="rounded-xl border border-slate-200 bg-white p-3 hover:border-slate-300 transition"
+                    onClick={() => setSeleccionId(snap.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSeleccionId(snap.id);
+                      }
+                    }}
+                    className={
+                      "w-full text-left rounded-xl border p-3 transition cursor-pointer " +
+                      (estaSeleccionado
+                        ? "border-[var(--tc-primary,#6366f1)] ring-2 ring-[var(--tc-primary,#6366f1)]/30 bg-indigo-50/40"
+                        : "border-slate-200 bg-white hover:border-slate-300")
+                    }
                   >
                     <div className="flex items-start gap-3">
                       <div
@@ -230,13 +266,24 @@ export function HistorialHorariosModal({ curso, onClose }: Props) {
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-sm font-semibold text-slate-700">
                             {ACCION_LABELS[snap.accion]}
                           </span>
                           <span className="text-xs text-slate-400">
                             {fecha.toLocaleDateString("es-ES")} {fecha.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
                           </span>
+                          {esActual && (
+                            <span className="px-1.5 py-px rounded-full text-[9px] font-bold border bg-emerald-100 text-emerald-700 border-emerald-200">
+                              ACTUAL
+                            </span>
+                          )}
+                          {estaActivo && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded-full text-[9px] font-bold border bg-indigo-100 text-indigo-700 border-indigo-200">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              ABIERTO AHORA
+                            </span>
+                          )}
                         </div>
                         {snap.fileName && (
                           <p className="text-xs text-slate-500 truncate mb-1.5">
@@ -274,15 +321,15 @@ export function HistorialHorariosModal({ curso, onClose }: Props) {
                       </div>
                       <div className="shrink-0 flex items-center gap-1">
                         <button
-                          onClick={() => handleRestaurar(snap)}
+                          onClick={(e) => { e.stopPropagation(); handleRestaurar(snap); }}
                           disabled={restaurando !== null}
-                          title="Restaurar este estado"
+                          title="Restaurar este estado (sobrescribe los horarios actuales)"
                           className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-40 transition"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleEliminar(snap.id)}
+                          onClick={(e) => { e.stopPropagation(); handleEliminar(snap.id); }}
                           disabled={eliminando !== null}
                           title="Eliminar del historial"
                           className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition"
@@ -298,13 +345,30 @@ export function HistorialHorariosModal({ curso, onClose }: Props) {
           )}
         </div>
 
-        <div className="flex items-center justify-end px-5 py-3 border-t border-slate-100 bg-slate-50/60 shrink-0">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            Cerrar
-          </button>
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-slate-100 bg-slate-50/60 shrink-0">
+          <span className="text-xs text-slate-400">
+            {seleccionId
+              ? seleccionId === idActual
+                ? "Seleccionada la carga actual (la más reciente)."
+                : "Se abrirá esta carga como Horario Histórico."
+              : "Selecciona una carga para abrirla en la app."}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAbrir}
+              disabled={!seleccionId}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg bg-[var(--tc-primary,#6366f1)] hover:opacity-90 disabled:opacity-40 transition-colors"
+            >
+              <Eye className="w-4 h-4" />
+              Abrir en la app
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>

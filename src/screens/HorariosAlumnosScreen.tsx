@@ -3,13 +3,14 @@ import {
   CalendarClock, FileUp, Loader2, Download, Printer, AlertCircle,
   Search, Trash2, Mail, History, CheckSquare, Square, Send, X, Clock,
   CheckCircle2, XCircle, ClipboardList, FileCode2, Ghost, Filter, ListChecks,
+  RotateCcw,
 } from "lucide-react";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { parseHorariosExcel, extraerCamposInforme } from "../utils/horarioExcel";
 import { parseHorariosExcelCrudo } from "../utils/fusionHorarios";
 import { actualizarHorariosStore, construirCargaDesdeStore } from "../utils/horariosPersistencia";
-import type { HorariosCursoData } from "../../electron/horarios-data-store";
+import type { HorariosCursoData, HorariosSnapshot } from "../../electron/horarios-data-store";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
 import { buildListadoHtml, type VersionListado } from "../utils/horarioListadoTemplate";
 import { buildHorarioEmailHtml } from "../utils/horarioEmailTemplate";
@@ -104,6 +105,18 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   // Modal de historial de horarios
   const [showHistorialHorariosModal, setShowHistorialHorariosModal] = useState(false);
+
+  /**
+   * Snapshot histórico abierto actualmente. `null` significa que se está viendo
+   * la carga actual (la más reciente). Cuando hay un histórico abierto se muestra
+   * un aviso fijo en la pestaña Horarios y un botón para volver a la carga actual.
+   */
+  const [historicoActivo, setHistoricoActivo] = useState<{
+    id: string;
+    timestamp: string;
+    fileName?: string;
+    accion: HorariosSnapshot["accion"];
+  } | null>(null);
 
   // Popup: formato detectado automáticamente al cargar un Excel
   const [modalFormatoDetectado, setModalFormatoDetectado] = useState<{
@@ -250,6 +263,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   const handleCargar = async () => {
     setError(null);
+    setHistoricoActivo(null);
     try {
       const sel = await window.adminAPI.horarios.cargarExcelRelleno();
       if (!sel) return;
@@ -340,7 +354,46 @@ export default function HorariosAlumnosScreen({ config }: Props) {
     setSelectedClave(null);
     setSeleccionados(new Set());
     setError(null);
+    setHistoricoActivo(null);
   };
+
+  /**
+   * Abre en la app el estado guardado de un snapshot del historial. Si es la
+   * carga más reciente (`esActual`), se vuelve al modo normal; si no, se entra en
+   * modo "Horario Histórico" (solo lectura visual) con el aviso correspondiente.
+   */
+  const activarSnapshot = useCallback((snapshot: HorariosSnapshot, esActual: boolean) => {
+    const cargaSnap = construirCargaDesdeStore({
+      curso,
+      entries: snapshot.entries,
+      snapshots: [],
+      lastUpdated: null,
+    });
+    const alumnos = enriquecerEmails(cargaSnap.alumnos);
+    setCarga({ ...cargaSnap, alumnos });
+    setSelectedClave(alumnos[0]?.clave ?? null);
+    setSeleccionados(new Set());
+    setError(null);
+    setHistoricoActivo(
+      esActual
+        ? null
+        : { id: snapshot.id, timestamp: snapshot.timestamp, fileName: snapshot.fileName, accion: snapshot.accion },
+    );
+  }, [curso, enriquecerEmails]);
+
+  /** Vuelve a la carga actual (la más reciente guardada en el almacén). */
+  const volverAlActual = useCallback(async () => {
+    try {
+      const storeData = await window.adminAPI.horarios.data.obtener(curso);
+      const cargaStore = construirCargaDesdeStore(storeData);
+      const alumnos = enriquecerEmails(cargaStore.alumnos);
+      setCarga(alumnos.length > 0 ? { ...cargaStore, alumnos } : null);
+      setSelectedClave(alumnos[0]?.clave ?? null);
+      setSeleccionados(new Set());
+    } finally {
+      setHistoricoActivo(null);
+    }
+  }, [curso, enriquecerEmails]);
 
   const alumnosFiltrados = useMemo(() => {
     if (!carga) return [];
@@ -628,7 +681,36 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
   // ── Con datos ──────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {historicoActivo && (
+        <div className="shrink-0 flex items-center gap-3 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-amber-800">
+          <History className="w-4 h-4 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-bold">Horario Histórico</span>
+            <span className="text-sm">
+              {" "}— Carga del{" "}
+              {new Date(historicoActivo.timestamp).toLocaleDateString("es-ES", {
+                day: "numeric", month: "long", year: "numeric",
+              })}{" "}
+              {new Date(historicoActivo.timestamp).toLocaleTimeString("es-ES", {
+                hour: "2-digit", minute: "2-digit",
+              })}
+              {historicoActivo.fileName ? ` · ${historicoActivo.fileName}` : ""}
+            </span>
+            <p className="text-[11px] text-amber-600 leading-tight">
+              Estás viendo una carga anterior. Los cambios y envíos deben hacerse sobre la carga actual.
+            </p>
+          </div>
+          <button
+            onClick={volverAlActual}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Volver a la carga actual
+          </button>
+        </div>
+      )}
+      <div className="flex-1 flex overflow-hidden">
       {vistaPrincipal !== "listados" ? (
       <ResizableColumns
         id="horarios"
@@ -1031,6 +1113,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
         <ListadosPanel alumnos={carga.alumnos} anio={anio} />
       </div>
       )}
+      </div>
 
       {/* Modal de envío */}
       {showEnviarModal && (
@@ -1053,6 +1136,8 @@ export default function HorariosAlumnosScreen({ config }: Props) {
         <HistorialHorariosModal
           curso={curso}
           onClose={() => setShowHistorialHorariosModal(false)}
+          onActivar={activarSnapshot}
+          activoId={historicoActivo?.id ?? null}
         />
       )}
 
