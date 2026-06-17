@@ -10,6 +10,8 @@ export interface ProfesoresPreview {
   columnaDetectada: string;
   totalProfesores: number;
   muestraProfesores: string[];
+  nuevos: number;
+  duplicados: number;
 }
 
 const adminAPI = {
@@ -51,7 +53,7 @@ const adminAPI = {
       { name: string; displayName: string; isDefault: boolean }[]
     > => ipcRenderer.invoke("pdf:getImpresoras"),
     printConOpciones: (payload: {
-      html: string;
+      base64: string;
       impresora?: string;
       paginas?: string;
       dosCaras?: "simplex" | "longEdge" | "shortEdge";
@@ -149,8 +151,12 @@ const adminAPI = {
       ipcRenderer.invoke("horarios:seleccionarProfesoresCsv"),
     profesoresPrevisualizarCsv: (): Promise<ProfesoresPreview | null> =>
       ipcRenderer.invoke("horarios:profesoresPrevisualizarCsv"),
-    profesoresConfirmarCsv: (csvPath: string): Promise<{ path: string; profesores: string[] } | null> =>
+    profesoresConfirmarCsv: (
+      csvPath: string,
+    ): Promise<{ path: string; profesores: string[]; agregados: number; duplicados: number } | null> =>
       ipcRenderer.invoke("horarios:profesoresConfirmarCsv", csvPath),
+    profesoresGuardar: (lista: string[]): Promise<{ profesores: string[] }> =>
+      ipcRenderer.invoke("horarios:profesoresGuardar", lista),
     cargarExcelRelleno: (): Promise<{ fileName: string; base64: string; path: string } | null> =>
       ipcRenderer.invoke("horarios:cargarExcelRelleno"),
     obtenerExcelPath: (): Promise<string | null> =>

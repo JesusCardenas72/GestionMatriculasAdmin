@@ -6,28 +6,25 @@ import {
   CalendarClock,
   CheckCircle,
   ChevronDown,
+  Download,
   FileSpreadsheet,
   HelpCircle,
   Layers,
   Link2,
   Link2Off,
-  Plus,
   Trash2,
   UserCheck,
+  Users,
   X,
 } from "lucide-react";
 import type { MatriculaLocal } from "../api/types";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
-import { getEspecialidades } from "../data/catalogoLocal";
 import {
-  crearTemporales,
-  crearTemporalesNominales,
   nombreVisibleTemporal,
   planSustituciones,
 } from "../utils/temporales";
-import { parseArchivoTemporales } from "../utils/importTemporales";
 import { fusionarHorarios, parseHorariosExcelCrudo } from "../utils/fusionHorarios";
 import {
   camposDesdeExcelHorarios,
@@ -40,8 +37,6 @@ import type { HorariosCursoData } from "../../electron/horarios-data-store";
 import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
 import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
 import type { AppConfig } from "../../electron/config-store";
-
-const CURSOS_OPCIONES = ["EE1", "EE2", "EE3", "EE4", "EP1", "EP2", "EP3", "EP4", "EP5", "EP6"];
 
 type EstadoTemporal = "pendiente" | "vinculado" | "sustituido";
 type ModoAgrupacion = "especialidad" | "curso" | "ninguna";
@@ -68,14 +63,8 @@ const ESTADO_BADGE: Record<EstadoTemporal, { label: string; style: React.CSSProp
 export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
-  const { matriculas, isLoading, actualizar, eliminar, guardarLote } = useLocalMatriculas(curso);
+  const { matriculas, isLoading, actualizar, eliminar } = useLocalMatriculas(curso);
 
-  const [formCurso, setFormCurso] = useState("EE1");
-  const [formEspecialidad, setFormEspecialidad] = useState("");
-  const [formCantidad, setFormCantidad] = useState(1);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +74,20 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const [isFusionando, setIsFusionando] = useState(false);
   const [showAyuda, setShowAyuda] = useState(false);
   const [showGuia, setShowGuia] = useState(false);
+  const [showProfesoresMenu, setShowProfesoresMenu] = useState(false);
+  const profesoresMenuRef = useRef<HTMLDivElement>(null);
+  const [showProfesoresPreview, setShowProfesoresPreview] = useState(false);
+  const [profesoresPreview, setProfesoresPreview] = useState<{
+    path: string;
+    columnaDetectada: string;
+    totalProfesores: number;
+    muestraProfesores: string[];
+    nuevos: number;
+    duplicados: number;
+  } | null>(null);
+  const [showProfesoresLista, setShowProfesoresLista] = useState(false);
+  const [profesoresLista, setProfesoresLista] = useState<string[]>([]);
+  const [profesoresListaCargando, setProfesoresListaCargando] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,12 +108,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     setHoveredId(null);
   };
 
-  const especialidades = useMemo(() => getEspecialidades(), []);
-
-  useEffect(() => {
-    if (!formEspecialidad && especialidades.length > 0) setFormEspecialidad(especialidades[0]);
-  }, [especialidades, formEspecialidad]);
-
   useEffect(() => {
     window.adminAPI.temporales
       .getConfig(curso)
@@ -120,6 +117,17 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
       })
       .catch(() => {});
   }, [curso]);
+
+  useEffect(() => {
+    if (!showProfesoresMenu) return;
+    const onClick = (e: MouseEvent) => {
+      if (profesoresMenuRef.current && !profesoresMenuRef.current.contains(e.target as Node)) {
+        setShowProfesoresMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [showProfesoresMenu]);
 
   const temporales = useMemo(
     () => matriculas.filter((m) => m.esTemporal),
@@ -270,77 +278,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     }
     return combinaciones.size > 1;
   }, [temporales]);
-
-  const handleCrear = async () => {
-    setError(null);
-    setMensaje(null);
-    if (!formEspecialidad || formCantidad < 1) return;
-    setIsCreating(true);
-    try {
-      const nuevos = crearTemporales(curso, formCurso, formEspecialidad, formCantidad, matriculas);
-      if (nuevos[0]?.asignaturas.length === 0) {
-        setError(
-          `El catálogo no tiene asignaturas para ${formEspecialidad} ${formCurso}. Revisa el curso y la especialidad.`,
-        );
-        return;
-      }
-      await guardarLote(nuevos);
-      setMensaje(
-        `Creado${nuevos.length > 1 ? "s" : ""} ${nuevos.length} alumno${nuevos.length > 1 ? "s" : ""} fantasma de ${formEspecialidad} ${formCurso}.`,
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron crear los alumnos fantasma.");
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleImportar = async (file: File) => {
-    setError(null);
-    setMensaje(null);
-    setIsImporting(true);
-    try {
-      const data = await file.arrayBuffer();
-      const { filas, errores: erroresParse } = await parseArchivoTemporales(file.name, data);
-      const { creados, errores: erroresCreacion } = crearTemporalesNominales(curso, filas, matriculas);
-      const avisos = [...erroresParse, ...erroresCreacion];
-
-      if (creados.length === 0) {
-        setError(
-          avisos.length > 0
-            ? `No se ha podido importar ningún alumno:\n${avisos.join("\n")}`
-            : "El archivo no contiene filas de alumnos.",
-        );
-        return;
-      }
-
-      const MAX_DETALLE = 15;
-      const detalle = creados
-        .slice(0, MAX_DETALLE)
-        .map((t) => `• ${t.apellidos}, ${t.nombre} — ${t.especialidad} ${t.ensenanzaCurso}`)
-        .join("\n");
-      const masDetalle = creados.length > MAX_DETALLE ? `\n…y ${creados.length - MAX_DETALLE} más` : "";
-      const avisoTxt = avisos.length > 0 ? `\n\nSe descartarán ${avisos.length} fila(s):\n${avisos.join("\n")}` : "";
-      if (
-        !window.confirm(
-          `Se van a crear ${creados.length} alumno(s) fantasma con el sufijo _Temp:\n\n${detalle}${masDetalle}${avisoTxt}\n\n¿Continuar?`,
-        )
-      )
-        return;
-
-      await guardarLote(creados);
-      setMensaje(
-        `Importados ${creados.length} alumno(s) fantasma desde "${file.name}".` +
-          (avisos.length > 0 ? ` Se descartaron ${avisos.length} fila(s).` : ""),
-      );
-      if (avisos.length > 0) setError(`Filas descartadas:\n${avisos.join("\n")}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
-    } finally {
-      setIsImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
 
   const handleEliminar = async (t: MatriculaLocal) => {
     const real = vinculadosPor.get(t.localId);
@@ -497,6 +434,49 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     setMensaje(`Eliminados ${temporales.length} alumno(s) fantasma.`);
   };
 
+  const handleCargarProfesores = async () => {
+    setShowProfesoresMenu(false);
+    setError(null);
+    setMensaje(null);
+    const preview = await window.adminAPI.horarios.profesoresPrevisualizarCsv();
+    if (preview) {
+      setProfesoresPreview(preview);
+      setShowProfesoresPreview(true);
+    }
+  };
+
+  const handleConfirmarProfesores = async () => {
+    if (!profesoresPreview) return;
+    const result = await window.adminAPI.horarios.profesoresConfirmarCsv(profesoresPreview.path);
+    setShowProfesoresPreview(false);
+    setProfesoresPreview(null);
+    if (result) {
+      const partes = [`${result.agregados} profesor(es) añadido(s)`];
+      if (result.duplicados > 0) partes.push(`${result.duplicados} duplicado(s) omitido(s)`);
+      setMensaje(`${partes.join(", ")}. Total en la lista: ${result.profesores.length}.`);
+    }
+  };
+
+  const handleVerProfesorado = async () => {
+    setShowProfesoresMenu(false);
+    setError(null);
+    setMensaje(null);
+    setProfesoresListaCargando(true);
+    setShowProfesoresLista(true);
+    try {
+      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+      setProfesoresLista(profesores);
+    } finally {
+      setProfesoresListaCargando(false);
+    }
+  };
+
+  const handleGuardarProfesorado = async () => {
+    const result = await window.adminAPI.horarios.profesoresGuardar(profesoresLista);
+    setShowProfesoresLista(false);
+    setMensaje(`Lista de profesorado guardada: ${result.profesores.length} profesor(es).`);
+  };
+
   const handleGuardarFecha = async (valor: string) => {
     setFechaProgramada(valor);
     await window.adminAPI.temporales.setConfig(curso, {
@@ -518,6 +498,36 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
               antes de que el alumnado se matricule. Aparecen en el Excel de horarios como
               «PDTE. N — Especialidad Curso» con fondo naranja.
             </p>
+          </div>
+          <div className="relative shrink-0" ref={profesoresMenuRef}>
+            <button
+              onClick={() => setShowProfesoresMenu((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
+            >
+              <Users className="w-4 h-4" />
+              Profesorado
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showProfesoresMenu ? "rotate-180" : ""}`} />
+            </button>
+            {showProfesoresMenu && (
+              <div className="absolute right-0 mt-1 w-56 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg py-1 z-20">
+                {!isSoloLectura && (
+                  <button
+                    onClick={handleCargarProfesores}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] transition-colors text-left"
+                  >
+                    <Download className="w-4 h-4 text-[var(--tc-ink-soft)]" />
+                    Cargar profesorado
+                  </button>
+                )}
+                <button
+                  onClick={handleVerProfesorado}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] transition-colors text-left"
+                >
+                  <Users className="w-4 h-4 text-[var(--tc-ink-soft)]" />
+                  Ver profesorado
+                </button>
+              </div>
+            )}
           </div>
           <button
             onClick={() => setShowGuia(true)}
@@ -547,90 +557,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="whitespace-pre-line">{error}</span>
-          </div>
-        )}
-
-        {/* Alta */}
-        {!isSoloLectura && (
-          <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
-            <h2 className="text-sm font-semibold text-[var(--tc-ink)] mb-3">Añadir alumnos fantasma</h2>
-            <div className="grid grid-cols-[1fr_2fr_120px_auto] gap-3 items-end">
-              <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
-                Curso
-                <select
-                  value={formCurso}
-                  onChange={(e) => setFormCurso(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
-                >
-                  {CURSOS_OPCIONES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
-                Especialidad
-                <select
-                  value={formEspecialidad}
-                  onChange={(e) => setFormEspecialidad(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
-                >
-                  {especialidades.map((esp) => (
-                    <option key={esp} value={esp}>{esp}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
-                Nº de alumnos
-                <input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={formCantidad}
-                  onChange={(e) => setFormCantidad(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
-                  className="h-9 w-full rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
-                />
-              </label>
-              <button
-                onClick={handleCrear}
-                disabled={isCreating || !formEspecialidad}
-                className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50 whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" />
-                {isCreating ? "Creando…" : "Crear alumnos fantasma"}
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-[var(--tc-ink-mute)]">
-              Las asignaturas se asignan automáticamente según el catálogo del curso y la especialidad.
-            </p>
-
-            {/* Importación desde archivo */}
-            <div className="mt-4 pt-4 border-t border-[var(--tc-border-soft)]">
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isImporting}
-                  className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-semibold text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50 transition-colors"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  {isImporting ? "Importando…" : "Importar desde Excel o CSV"}
-                </button>
-                <p className="text-xs text-[var(--tc-ink-mute)] flex-1 min-w-[240px]">
-                  El archivo debe tener las columnas <strong>Apellidos</strong>, <strong>Nombre</strong>,{" "}
-                  <strong>Grado/Curso</strong> (EE1–EE4, EP1–EP6) y <strong>Especialidad</strong>. Se crean
-                  alumnos fantasma con el sufijo <strong>_Temp</strong> en nombre y apellidos.
-                </p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.csv,.txt"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleImportar(f);
-                }}
-              />
-            </div>
           </div>
         )}
 
@@ -909,6 +835,236 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
         />
       )}
       {showAyuda && <AyudaModal onCerrar={() => setShowAyuda(false)} onSaberMas={() => { setShowAyuda(false); setShowGuia(true); }} />}
+
+      {showProfesoresPreview && profesoresPreview && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setShowProfesoresPreview(false)}
+        >
+          <div
+            className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <FileSpreadsheet className="w-5 h-5 shrink-0 text-emerald-500" />
+                <h3 className="text-sm font-bold text-[var(--tc-ink)]">Previsualización del profesorado</h3>
+              </div>
+              <button
+                onClick={() => setShowProfesoresPreview(false)}
+                className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4">
+              <div className="bg-[var(--tc-bg)] rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--tc-ink-mute)]">Archivo:</span>
+                  <span className="text-[var(--tc-ink)] font-medium truncate ml-2" title={profesoresPreview.path}>
+                    {profesoresPreview.path.split(/[\\/]/).pop()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--tc-ink-mute)]">Columna detectada:</span>
+                  <span className="text-[var(--tc-ink)] font-medium">{profesoresPreview.columnaDetectada}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--tc-ink-mute)]">Total profesores:</span>
+                  <span className="text-[var(--tc-ink)] font-semibold">{profesoresPreview.totalProfesores}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--tc-ink-mute)]">Nuevos a añadir:</span>
+                  <span className="text-emerald-600 font-semibold">{profesoresPreview.nuevos}</span>
+                </div>
+                {profesoresPreview.duplicados > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--tc-ink-mute)]">Ya en la lista (se omiten):</span>
+                    <span className="text-amber-600 font-semibold">{profesoresPreview.duplicados}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs text-[var(--tc-ink-mute)] mb-2">
+                  Profesores detectados ({profesoresPreview.muestraProfesores.length}):
+                </p>
+                <div className="bg-[var(--tc-bg)] rounded-lg p-3 max-h-48 overflow-y-auto">
+                  {profesoresPreview.muestraProfesores.length === 0 ? (
+                    <p className="text-xs text-[var(--tc-ink-mute)] italic">No se encontraron profesores en el archivo.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {profesoresPreview.muestraProfesores.map((nombre, idx) => (
+                        <li key={idx} className="text-xs text-[var(--tc-ink)]">
+                          <span className="text-[var(--tc-ink-mute)] mr-2">{idx + 1}.</span>
+                          {nombre}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-[var(--tc-border)] shrink-0 bg-[var(--tc-bg)]">
+              <button
+                onClick={() => setShowProfesoresPreview(false)}
+                className="px-3.5 py-2 text-sm font-semibold text-[var(--tc-ink-soft)] rounded-lg hover:bg-[var(--tc-bg-panel)] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarProfesores}
+                disabled={profesoresPreview.nuevos === 0}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                {profesoresPreview.nuevos === 0
+                  ? "Ya cargados"
+                  : `Añadir ${profesoresPreview.nuevos} profesor(es)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfesoresLista && (
+        <ProfesoresListaModal
+          lista={profesoresLista}
+          setLista={setProfesoresLista}
+          cargando={profesoresListaCargando}
+          soloLectura={isSoloLectura}
+          onCerrar={() => setShowProfesoresLista(false)}
+          onGuardar={handleGuardarProfesorado}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Modal de listado de profesorado: consultar, editar y eliminar ────────────
+
+function ProfesoresListaModal({
+  lista,
+  setLista,
+  cargando,
+  soloLectura,
+  onCerrar,
+  onGuardar,
+}: {
+  lista: string[];
+  setLista: React.Dispatch<React.SetStateAction<string[]>>;
+  cargando: boolean;
+  soloLectura: boolean;
+  onCerrar: () => void;
+  onGuardar: () => void;
+}) {
+  const editarNombre = (idx: number, valor: string) =>
+    setLista((prev) => prev.map((n, i) => (i === idx ? valor : n)));
+  const eliminarNombre = (idx: number) =>
+    setLista((prev) => prev.filter((_, i) => i !== idx));
+  const eliminarTodos = () => {
+    if (lista.length === 0) return;
+    if (window.confirm(`¿Eliminar TODO el profesorado (${lista.length})? Esta acción se aplica al guardar.`)) {
+      setLista([]);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Users className="w-5 h-5 shrink-0 text-[var(--tc-primary)]" />
+            <h3 className="text-sm font-bold text-[var(--tc-ink)]">
+              Profesorado {!cargando && `(${lista.length})`}
+            </h3>
+          </div>
+          <button
+            onClick={onCerrar}
+            className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 overflow-y-auto">
+          {cargando ? (
+            <p className="text-sm text-[var(--tc-ink-mute)] py-8 text-center">Cargando…</p>
+          ) : lista.length === 0 ? (
+            <p className="text-sm text-[var(--tc-ink-mute)] py-8 text-center italic">
+              No hay profesorado cargado. Usa «Cargar profesorado» para importarlo.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {lista.map((nombre, idx) => (
+                <li key={idx} className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--tc-ink-mute)] w-6 text-right shrink-0">{idx + 1}.</span>
+                  {soloLectura ? (
+                    <span className="flex-1 text-sm text-[var(--tc-ink)] truncate">{nombre}</span>
+                  ) : (
+                    <>
+                      <input
+                        value={nombre}
+                        onChange={(e) => editarNombre(idx, e.target.value)}
+                        className="flex-1 h-8 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--tc-primary-border)]"
+                      />
+                      <button
+                        onClick={() => eliminarNombre(idx)}
+                        title="Eliminar"
+                        className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!soloLectura && (
+          <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-[var(--tc-border)] shrink-0 bg-[var(--tc-bg)]">
+            <button
+              onClick={eliminarTodos}
+              disabled={lista.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Eliminar todos
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onCerrar}
+                className="px-3.5 py-2 text-sm font-semibold text-[var(--tc-ink-soft)] rounded-lg hover:bg-[var(--tc-bg-panel)] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={onGuardar}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[var(--tc-primary)] text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-colors shadow-sm"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Guardar cambios
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

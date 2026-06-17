@@ -26,9 +26,9 @@ import {
 } from "./presets-store";
 import {
   profesoresGuardados,
-  leerProfesoresDeCsv,
-  setProfesoresCsvPath,
-  previsualizarProfesoresDeCsv,
+  agregarProfesoresDeArchivo,
+  guardarProfesores,
+  previsualizarProfesoresDeArchivo,
   type ProfesoresPreview,
   getHorariosExcelPath,
   setHorariosExcelPath,
@@ -294,21 +294,25 @@ function registerIpcHandlers() {
     "horarios:profesoresPrevisualizarCsv",
     async (): Promise<ProfesoresPreview | null> => {
       const res = await dialog.showOpenDialog({
-        title: "Selecciona el CSV de profesorado",
-        filters: [{ name: "CSV", extensions: ["csv"] }],
+        title: "Selecciona el CSV o Excel de profesorado",
+        filters: [
+          { name: "CSV o Excel", extensions: ["csv", "xlsx"] },
+          { name: "CSV", extensions: ["csv"] },
+          { name: "Excel", extensions: ["xlsx"] },
+        ],
         properties: ["openFile"],
       });
       if (res.canceled || res.filePaths.length === 0) return null;
-      return previsualizarProfesoresDeCsv(res.filePaths[0]);
+      return previsualizarProfesoresDeArchivo(res.filePaths[0]);
     },
   );
   ipcMain.handle(
     "horarios:profesoresConfirmarCsv",
-    async (_e, csvPath: string): Promise<{ path: string; profesores: string[] } | null> => {
-      const profesores = leerProfesoresDeCsv(csvPath);
-      setProfesoresCsvPath(csvPath);
-      return { path: csvPath, profesores };
-    },
+    async (_e, csvPath: string) => agregarProfesoresDeArchivo(csvPath),
+  );
+  ipcMain.handle(
+    "horarios:profesoresGuardar",
+    (_e, lista: string[]) => guardarProfesores(lista),
   );
 
   // ── Horarios: seleccionar el Excel YA RELLENO por los profesores ──────────
@@ -614,19 +618,31 @@ function registerIpcHandlers() {
     }
   });
 
-  function parsearPaginasParaElectron(
-    str: string,
-  ): { from: number; to: number }[] | undefined {
+  // Convierte una expresión de páginas ("1,2", "1-3,5") en una lista de índices
+  // de página (base 0), en el orden indicado y sin duplicados. Devuelve undefined
+  // si no hay nada que filtrar (= imprimir todas). No usamos pageRanges de
+  // Electron porque solo respeta el primer rango; en su lugar filtramos el PDF.
+  function parsearPaginasAIndices(str: string): number[] | undefined {
     if (!str.trim()) return undefined;
-    const rangos: { from: number; to: number }[] = [];
+    const indices: number[] = [];
+    const vistos = new Set<number>();
     for (const parte of str.split(",")) {
       const segmentos = parte.trim().split("-");
       const a = parseInt(segmentos[0].trim(), 10);
       if (isNaN(a) || a < 1) continue;
       const b = segmentos.length > 1 ? parseInt(segmentos[1].trim(), 10) : a;
-      rangos.push({ from: a - 1, to: (isNaN(b) ? a : b) - 1 });
+      const desde = isNaN(b) ? a : b;
+      const lo = Math.min(a, desde);
+      const hi = Math.max(a, desde);
+      for (let p = lo; p <= hi; p++) {
+        const idx = p - 1;
+        if (!vistos.has(idx)) {
+          vistos.add(idx);
+          indices.push(idx);
+        }
+      }
     }
-    return rangos.length > 0 ? rangos : undefined;
+    return indices.length > 0 ? indices : undefined;
   }
 
   ipcMain.handle(
@@ -634,59 +650,153 @@ function registerIpcHandlers() {
     async (
       _e,
       payload: {
-        html: string;
+        base64: string;
         impresora?: string;
         paginas?: string;
         dosCaras?: "simplex" | "longEdge" | "shortEdge";
         copias?: number;
       },
     ): Promise<{ success: boolean; error?: string }> => {
-      const printWin = new BrowserWindow({
-        show: false,
-        webPreferences: {
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true,
-        },
-      });
+      // Recibimos el PDF ya generado por el renderer (@react-pdf/renderer), que
+      // pagina correctamente en varias hojas. NO usamos la plantilla HTML con
+      // `zoom`, porque printToPDF la colapsaba a una sola página.
+      let printWin: BrowserWindow | null = null;
+      let tmpPath: string | undefined;
 
       const cleanup = () => {
         try {
-          if (!printWin.isDestroyed()) printWin.destroy();
+          if (printWin && !printWin.isDestroyed()) printWin.destroy();
         } catch {
           /* empty */
         }
+        if (tmpPath) {
+          try {
+            fs.unlinkSync(tmpPath);
+          } catch {
+            /* empty */
+          }
+        }
       };
 
+      let pdfBuffer: Buffer;
       try {
-        const dataUrl =
-          "data:text/html;charset=utf-8;base64," +
-          Buffer.from(payload.html, "utf-8").toString("base64");
-        await printWin.loadURL(dataUrl);
+        pdfBuffer = Buffer.from(payload.base64, "base64");
       } catch (err) {
         cleanup();
         return { success: false, error: (err as Error).message };
       }
 
-      const pageRanges = payload.paginas
-        ? parsearPaginasParaElectron(payload.paginas)
+      // Si el usuario pidió páginas concretas, filtramos el PDF nosotros mismos
+      // (pdf-lib) en lugar de usar pageRanges de Electron, que solo respeta el
+      // primer rango. Así funcionan también las páginas sueltas no contiguas.
+      const indices = payload.paginas
+        ? parsearPaginasAIndices(payload.paginas)
         : undefined;
+      try {
+        const { PDFDocument } = await import("pdf-lib");
+        const src = await PDFDocument.load(pdfBuffer);
+        const total = src.getPageCount();
+        console.log(
+          `[PRINT] PDF generado: ${total} pág. | solicitado: "${payload.paginas ?? "(todas)"}" | índices:`,
+          indices,
+        );
+        if (indices) {
+          const validos = indices.filter((i) => i >= 0 && i < total);
+          if (validos.length > 0) {
+            const out = await PDFDocument.create();
+            const copiadas = await out.copyPages(src, validos);
+            copiadas.forEach((p) => out.addPage(p));
+            pdfBuffer = Buffer.from(await out.save());
+            console.log(
+              `[PRINT] Tras filtrar: ${out.getPageCount()} pág. (índices válidos:`,
+              validos,
+              ")",
+            );
+          } else {
+            console.log("[PRINT] Ningún índice válido; se imprime el PDF completo.");
+          }
+        }
+      } catch (err) {
+        cleanup();
+        return { success: false, error: (err as Error).message };
+      }
+
+      try {
+        tmpPath = path.join(
+          app.getPath("temp"),
+          `print_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`,
+        );
+        fs.writeFileSync(tmpPath, pdfBuffer);
+
+        // Importante: el visor PDF de Chromium solo renderiza (y por tanto solo
+        // imprime) todas las páginas si la ventana está realmente pintada. En una
+        // ventana oculta (show:false) suele imprimir solo la 1ª. La creamos
+        // visible pero fuera de pantalla y transparente para que pinte sin molestar.
+        printWin = new BrowserWindow({
+          show: false,
+          x: -32000,
+          y: -32000,
+          width: 820,
+          height: 1100,
+          frame: false,
+          skipTaskbar: true,
+          focusable: false,
+          opacity: 0,
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            plugins: true,
+            backgroundThrottling: false,
+          },
+        });
+        await printWin.loadFile(tmpPath);
+        printWin.showInactive();
+      } catch (err) {
+        cleanup();
+        return { success: false, error: (err as Error).message };
+      }
 
       return await new Promise((resolve) => {
+        // El PDF ya contiene solo las páginas elegidas, así que imprimimos todo
+        // (sin pageRanges).
         const options: Electron.WebContentsPrintOptions = {
           silent: true,
           printBackground: true,
           ...(payload.impresora ? { deviceName: payload.impresora } : {}),
-          ...(pageRanges ? { pageRanges } : {}),
           ...(payload.dosCaras ? { duplexMode: payload.dosCaras } : {}),
           ...(payload.copias && payload.copias > 1
             ? { copies: payload.copias }
             : {}),
         };
-        printWin.webContents.print(options, (success, failureReason) => {
-          cleanup();
-          resolve({ success, error: success ? undefined : failureReason });
-        });
+
+        // El callback de webContents.print() sobre un PDF cargado en el visor de
+        // Chromium NO siempre se dispara, lo que dejaría la promesa colgada (y el
+        // botón en "Enviando…" para siempre). Resolvemos una sola vez, ya sea por
+        // el callback o por un margen de seguridad, y limpiamos con un pequeño
+        // retraso para que el trabajo termine de enviarse a la cola de impresión.
+        let settled = false;
+        const finish = (success: boolean, error?: string) => {
+          if (settled) return;
+          settled = true;
+          setTimeout(cleanup, 1500);
+          resolve({ success, error });
+        };
+
+        // El visor PDF de Chromium se carga de forma asíncrona tras loadFile; le
+        // damos un margen para que termine de renderizar antes de imprimir.
+        setTimeout(() => {
+          if (!printWin || printWin.isDestroyed()) {
+            finish(false, "Ventana de impresión cerrada");
+            return;
+          }
+          printWin.webContents.print(options, (success, failureReason) => {
+            finish(success, success ? undefined : failureReason);
+          });
+        }, 800);
+
+        // Fallback: si el callback no llega (quirk del visor PDF), damos por
+        // enviado el trabajo tras un margen razonable para no colgar la UI.
+        setTimeout(() => finish(true), 6000);
       });
     },
   );

@@ -440,21 +440,16 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   }
 
   async function handleImprimirConOpciones(paginas: string, dosCaras: boolean) {
+    // Imprimimos exactamente el PDF que se está mostrando en el visor (el de
+    // Dataverse o el local de respaldo), que ya viene paginado en varias hojas.
+    if (!pdfBase64) {
+      console.error("No hay PDF disponible para imprimir");
+      return;
+    }
     setIsGeneratingPdf(true);
     try {
-      const { solicitudToPdfProps } = await import("../pdf/buildMatriculaPdf");
-      const { buildMatriculaPdfHtml } = await import("../utils/pdfMatricula");
-      const asigs = (asigItems ?? []).filter((i) => !i.deleted).map((i) => ({
-        rowId: i.rowId,
-        nombre: i.nombre,
-        estado: i.estado,
-        asignaturaId: i.asignaturaId,
-        observaciones: i.observaciones,
-      }));
-      const props = solicitudToPdfProps(solicitud, asigs);
-      const html = buildMatriculaPdfHtml(props);
       const result = await window.adminAPI.pdf.printConOpciones({
-        html,
+        base64: pdfBase64,
         paginas: paginas || undefined,
         dosCaras: dosCaras ? "longEdge" : "simplex",
       });
