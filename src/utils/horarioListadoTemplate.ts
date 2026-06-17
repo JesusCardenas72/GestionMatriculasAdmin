@@ -182,7 +182,7 @@ export function buildListadoHtml(
   const idxProf = (p: string) => profesoresUnicos.indexOf(p);
 
   const selectProfHtml = profesoresUnicos.length > 0
-    ? `<select id="filtro-profesor" class="select-prof">
+    ? `<select id="filtro-profesor" class="select-prof" data-tip-title="Filtrar por profesor" data-tip="Selecciona un profesor para ver solo los grupos que imparte. Elige «Todos los profesores» para quitar el filtro.">
         <option value="-1">Todos los profesores</option>
         ${profesoresUnicos.map((p, i) => `<option value="${i}">${esc(p)}</option>`).join('')}
       </select>`
@@ -191,7 +191,7 @@ export function buildListadoHtml(
   const indiceHtml = grupos
     .map(
       (g, i) =>
-        `<button class="toc-item" data-asig="${i}" type="button"><span class="toc-name">${esc(g.asignatura)}</span><span class="toc-count">${g.total}</span></button>`,
+        `<button class="toc-item" data-asig="${i}" type="button" data-tip-title="Filtrar por asignatura" data-tip="Haz clic para ver solo los alumnos de «${esc(g.asignatura)}». Haz clic de nuevo para quitar el filtro."><span class="toc-name">${esc(g.asignatura)}</span><span class="toc-count">${g.total}</span></button>`,
     )
     .join('');
 
@@ -231,11 +231,11 @@ ${esProfes ? `  <td class="chk-cell"><input type="checkbox" class="chk-alumno" d
                 .join('\n');
 
               const chkGrupoHtml = esProfes
-                ? `<input type="checkbox" class="chk-grupo" id="chk-${sgId}" data-sg="${sgId}" onclick="event.stopPropagation()">`
+                ? `<input type="checkbox" class="chk-grupo" id="chk-${sgId}" data-sg="${sgId}" onclick="event.stopPropagation()" data-tip-title="Seleccionar grupo completo" data-tip="Marca o desmarca todos los alumnos de este grupo para copiar sus emails con el botón «Copiar email».">`
                 : '';
 
               return `<div class="subgrupo nivel-grupo is-collapsed" id="${sgId}" data-prof-idx="${idxProf(sg.profesor)}">
-  <div class="sub-titulo" data-toggle="sub">${chkGrupoHtml}<span class="chevron"></span><span class="sub-text">${subTituloBase}${horariosHtml}${resto} <span class="sub-count">(${sg.alumnos.length})</span></span></div>
+  <div class="sub-titulo" data-toggle="sub" data-tip-title="Expandir / Contraer grupo" data-tip="Haz clic para mostrar u ocultar la lista de alumnos de este grupo.">${chkGrupoHtml}<span class="chevron"></span><span class="sub-text">${subTituloBase}${horariosHtml}${resto} <span class="sub-count">(${sg.alumnos.length})</span></span></div>
   <div class="tabla-wrap">
   <table>
     <thead><tr>${esProfes ? '<th class="chk-cell"></th>' : ''}<th class="num">#</th><th>Nombre completo</th><th>Especialidad</th>${
@@ -250,14 +250,14 @@ ${esProfes ? `  <td class="chk-cell"><input type="checkbox" class="chk-alumno" d
             .join('\n');
 
           return `<div class="curso nivel-curso">
-  <div class="curso-titulo" data-toggle="curso"><span class="chevron"></span><span class="curso-text">${esc(labelCurso(cu.curso))} <span class="curso-cod">${esc(cu.curso)}</span></span></div>
+  <div class="curso-titulo" data-toggle="curso" data-tip-title="Expandir / Contraer curso" data-tip="Haz clic para mostrar u ocultar los grupos de este curso."><span class="chevron"></span><span class="curso-text">${esc(labelCurso(cu.curso))} <span class="curso-cod">${esc(cu.curso)}</span></span></div>
   <div class="curso-body">${subHtml}</div>
 </div>`;
         })
         .join('\n');
 
       return `<section class="asignatura" id="asig-${i}">
-  <div class="asig-titulo" data-toggle="asig"><span class="chevron"></span><span class="asig-nombre">${esc(g.asignatura)}</span><span class="asig-total">${g.total} alumno${g.total !== 1 ? 's' : ''}</span></div>
+  <div class="asig-titulo" data-toggle="asig" data-tip-title="Expandir / Contraer asignatura" data-tip="Haz clic para mostrar u ocultar todos los cursos y grupos de esta asignatura."><span class="chevron"></span><span class="asig-nombre">${esc(g.asignatura)}</span><span class="asig-total">${g.total} alumno${g.total !== 1 ? 's' : ''}</span></div>
   <div class="asig-body">
   ${cursosHtml}
   </div>
@@ -394,10 +394,46 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .modal-cerrar:hover{opacity:.85;}
 
 @media print{
-  .modal-overlay{display:none !important;}
+  .modal-overlay,.modal-ayuda-ov,.float-tip,.btn-ayuda{display:none !important;}
   .chk-cell,.chk-alumno,.chk-grupo,.btn-copiar{display:none !important;}
 }
 .tabla-wrap{padding:0 0 0 20px;}
+
+/* ── Tooltip flotante ────────────────────────────────────────────────────── */
+.float-tip{position:fixed;z-index:200;pointer-events:none;background:#2d241d;color:#fff;border-radius:10px;padding:0;max-width:240px;box-shadow:0 4px 20px rgba(45,36,29,.4);opacity:0;transition:opacity .12s;font-family:var(--font);overflow:hidden;}
+.float-tip.vis{opacity:1;}
+.float-tip-head{padding:8px 12px 6px;border-bottom:1px solid rgba(255,255,255,.1);}
+.float-tip-title{font-size:11px;font-weight:700;letter-spacing:.3px;line-height:1.3;}
+.float-tip-body{padding:6px 12px 9px;font-size:11px;opacity:.8;line-height:1.5;}
+
+/* ── Botón Ayuda ─────────────────────────────────────────────────────────── */
+.btn-ayuda{font-family:var(--font);font-size:13px;padding:8px 14px;border:1.5px solid var(--primary);border-radius:10px;background:var(--primary-tint);color:var(--primary);cursor:pointer;white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:6px;font-weight:600;transition:background .12s,color .12s;}
+.btn-ayuda:hover{background:var(--primary);color:#fff;}
+.btn-ayuda svg{stroke:currentColor;flex-shrink:0;}
+
+/* ── Modal Ayuda ─────────────────────────────────────────────────────────── */
+.modal-ayuda-ov{position:fixed;inset:0;background:rgba(45,36,29,.5);z-index:150;display:flex;align-items:center;justify-content:center;padding:24px;}
+.modal-ayuda-box{background:var(--card);border-radius:18px;width:min(540px,100%);box-shadow:0 8px 40px rgba(45,36,29,.25);display:flex;flex-direction:column;max-height:88vh;}
+.modal-ayuda-head{display:flex;align-items:center;gap:12px;padding:22px 24px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.modal-ayuda-ico{width:40px;height:40px;border-radius:12px;background:var(--primary-tint);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--primary);}
+.modal-ayuda-htxt h2{font-family:var(--display);font-size:18px;color:var(--ink);margin:0 0 2px;}
+.modal-ayuda-htxt p{font-size:12px;color:var(--ink-mute);margin:0;}
+.modal-ayuda-x{margin-left:auto;width:32px;height:32px;border-radius:8px;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);font-size:18px;display:flex;align-items:center;justify-content:center;transition:background .12s;}
+.modal-ayuda-x:hover{background:var(--border-soft);}
+.modal-ayuda-body{overflow-y:auto;padding:18px 24px;display:flex;flex-direction:column;gap:12px;}
+.aitem{display:flex;gap:12px;padding:13px;border-radius:12px;border:1px solid transparent;}
+.aitem-ico{width:36px;height:36px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.aitem h3{font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink);margin:0 0 4px;}
+.aitem p{font-size:12px;color:var(--ink-soft);margin:0;line-height:1.6;}
+.aitem.blue{background:#eff6ff;border-color:#bfdbfe;}.aitem.blue .aitem-ico{background:#dbeafe;color:#1d4ed8;}
+.aitem.amber{background:#fffbeb;border-color:#fde68a;}.aitem.amber .aitem-ico{background:#fef3c7;color:#d97706;}
+.aitem.teal{background:#f0fdfa;border-color:#a7f3d0;}.aitem.teal .aitem-ico{background:#ccfbf1;color:#0d9488;}
+.aitem.violet{background:#f5f3ff;border-color:#ddd6fe;}.aitem.violet .aitem-ico{background:#ede9fe;color:#7c3aed;}
+.aitem.emerald{background:#f0fdf4;border-color:#bbf7d0;}.aitem.emerald .aitem-ico{background:#dcfce7;color:#16a34a;}
+.aitem.slate{background:#f8fafc;border-color:#e2e8f0;}.aitem.slate .aitem-ico{background:#e2e8f0;color:#475569;}
+.modal-ayuda-foot{display:flex;justify-content:flex-end;padding:14px 24px 20px;border-top:1px solid var(--border);flex-shrink:0;}
+.modal-ayuda-ok{font-family:var(--font);font-size:13px;padding:9px 24px;border:none;border-radius:10px;background:var(--primary);color:#fff;cursor:pointer;font-weight:600;transition:opacity .12s;}
+.modal-ayuda-ok:hover{opacity:.85;}
 
 /* Cabeceras plegables: cursor + chevron */
 [data-toggle]{cursor:pointer;user-select:none;}
@@ -446,11 +482,14 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
 
   <div class="buscador">
     <div class="buscador-inner">
-      <input id="busqueda" type="search" placeholder="Buscar alumno por nombre…" autocomplete="off">
-      <button id="limpiar" class="limpiar" type="button">Limpiar</button>
+      <input id="busqueda" type="search" placeholder="Buscar alumno por nombre…" autocomplete="off"
+        data-tip-title="Buscador de alumnos"
+        data-tip="Escribe cualquier parte del nombre para filtrar la lista en tiempo real. Las secciones con resultados se expanden automáticamente.">
+      <button id="limpiar" class="limpiar" type="button" data-tip-title="Limpiar búsqueda" data-tip="Borra el texto del buscador y muestra el listado completo de nuevo.">Limpiar</button>
       ${selectProfHtml}
-      ${esProfes ? '<button id="btn-copiar-email" class="btn-copiar" type="button" disabled>Copiar email</button>' : ''}
-      <button id="btn-toggle-todo" type="button">Expandir todo</button>
+      ${esProfes ? `<button id="btn-copiar-email" class="btn-copiar" type="button" disabled data-tip-title="Copiar emails al portapapeles" data-tip="Selecciona alumnos con las casillas y pulsa aquí para copiar sus emails, listos para pegar en el campo CCO de Outlook.">Copiar email</button>` : ''}
+      <button id="btn-toggle-todo" type="button" data-tip-title="Expandir / Contraer todo" data-tip="Despliega o contrae todas las asignaturas, cursos y grupos de una sola vez.">Expandir todo</button>
+      <button id="btn-ayuda" class="btn-ayuda" type="button" data-tip-title="Guía de uso" data-tip="Abre la guía completa con la explicación de todos los elementos interactivos de esta vista."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>Ayuda</button>
       <span id="contador" class="contador"></span>
     </div>
   </div>
@@ -477,6 +516,52 @@ ${esProfes ? `
     </div>
   </div>
 </div>` : ''}
+
+<div id="ftip" class="float-tip"><div class="float-tip-head"><div class="float-tip-title" id="ftip-title"></div></div><div class="float-tip-body" id="ftip-body"></div></div>
+
+<div id="modal-ayuda" class="modal-ayuda-ov" style="display:none">
+  <div class="modal-ayuda-box">
+    <div class="modal-ayuda-head">
+      <div class="modal-ayuda-ico">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>
+      </div>
+      <div class="modal-ayuda-htxt">
+        <h2>Listados por Asignaturas</h2>
+        <p>Guía de uso · ${esProfes ? 'versión profesorado' : 'versión alumnado'}</p>
+      </div>
+      <button class="modal-ayuda-x" id="ayuda-x" title="Cerrar">✕</button>
+    </div>
+    <div class="modal-ayuda-body">
+      <div class="aitem blue">
+        <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg></div>
+        <div><h3>¿Qué muestra esta página?</h3><p>Agrupa a todos los alumnos por <strong>asignatura → curso → grupo</strong> para ver de un vistazo quién asiste a cada clase, sin revisar los horarios alumno a alumno.${esProfes ? ' Esta versión incluye datos de contacto del profesorado.' : ''}</p></div>
+      </div>
+      <div class="aitem amber">
+        <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+        <div><h3>Buscador de alumnos</h3><p>Escribe cualquier parte del nombre para filtrar en tiempo real. Las secciones que contienen resultados se expanden automáticamente. El botón <strong>Limpiar</strong> restaura el listado completo.</p></div>
+      </div>
+      <div class="aitem teal">
+        <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+        <div><h3>Cápsulas de asignatura</h3><p>Haz clic en el nombre de una asignatura para ver solo sus alumnos y ocultar el resto. Haz clic de nuevo en la misma cápsula para quitar el filtro y volver al listado completo.</p></div>
+      </div>
+      <div class="aitem slate">
+        <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg></div>
+        <div><h3>Expandir / Contraer</h3><p>El botón <strong>Expandir todo / Contraer todo</strong> abre o cierra todas las secciones de una sola vez. También puedes hacer clic en cualquier cabecera individual (la flecha ▸) para expandir o contraer solo esa asignatura, curso o grupo.</p></div>
+      </div>${esProfes ? `
+      <div class="aitem violet">
+        <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <div><h3>Filtro por profesor</h3><p>El desplegable te permite ver solo los grupos que imparte un profesor concreto. Elige <em>«Todos los profesores»</em> para quitar el filtro y mostrar todos los grupos de nuevo.</p></div>
+      </div>
+      <div class="aitem emerald">
+        <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+        <div><h3>Selección y copia de emails</h3><p>Usa las <strong>casillas de verificación</strong> para seleccionar alumnos (o el checkbox del encabezado del grupo para marcarlos todos). El botón <strong>Copiar email</strong> copia los emails seleccionados al portapapeles separados por punto y coma, listos para pegar en el campo <em>CCO</em> de Outlook.</p></div>
+      </div>` : ''}
+    </div>
+    <div class="modal-ayuda-foot">
+      <button class="modal-ayuda-ok" id="ayuda-ok">Entendido</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -690,6 +775,46 @@ ${esProfes ? `
       if (modal && e.target === modal) modal.style.display = 'none';
     });
   }
+})();
+
+// ── Tooltip flotante ─────────────────────────────────────────────────────────
+(function(){
+  var ftip = document.getElementById('ftip');
+  var ftipT = document.getElementById('ftip-title');
+  var ftipB = document.getElementById('ftip-body');
+  if (!ftip || !ftipT || !ftipB) return;
+  function posTip(e){
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var x = e.clientX + 16, y = e.clientY + 16;
+    if (x + 256 > vw) x = e.clientX - 256;
+    if (y + 100 > vh) y = e.clientY - 100;
+    ftip.style.left = Math.max(8, x) + 'px';
+    ftip.style.top  = Math.max(8, y) + 'px';
+  }
+  document.querySelectorAll('[data-tip-title]').forEach(function(el){
+    el.addEventListener('mouseenter', function(e){
+      ftipT.textContent = el.getAttribute('data-tip-title') || '';
+      ftipB.textContent = el.getAttribute('data-tip') || '';
+      ftip.classList.add('vis');
+      posTip(e);
+    });
+    el.addEventListener('mousemove', posTip);
+    el.addEventListener('mouseleave', function(){ ftip.classList.remove('vis'); });
+  });
+})();
+
+// ── Modal Ayuda ───────────────────────────────────────────────────────────────
+(function(){
+  var modal = document.getElementById('modal-ayuda');
+  function abrir(){ if (modal) modal.style.display = 'flex'; }
+  function cerrar(){ if (modal) modal.style.display = 'none'; }
+  var btn = document.getElementById('btn-ayuda');
+  var xb  = document.getElementById('ayuda-x');
+  var okb = document.getElementById('ayuda-ok');
+  if (btn) btn.addEventListener('click', abrir);
+  if (xb)  xb.addEventListener('click', cerrar);
+  if (okb) okb.addEventListener('click', cerrar);
+  if (modal) modal.addEventListener('click', function(e){ if (e.target === modal) cerrar(); });
 })();
 </script>
 </body>

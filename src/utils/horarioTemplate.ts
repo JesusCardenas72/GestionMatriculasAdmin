@@ -70,7 +70,7 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
   const nDias = new Set(conMin.map(({ c }) => c.dia)).size;
 
   const asigGridHtml = asigResumen.map(([nombre, minutos]) => `
-    <div class="asig-row ${colorMap.get(nombre) ?? PALETA[0]}">
+    <div class="asig-row ${colorMap.get(nombre) ?? PALETA[0]}" data-subj="${esc(nombre)}">
       <span class="asig-nombre">${esc(nombre)}</span>
       <span class="asig-horas">${fmtMin(minutos)}</span>
     </div>`).join('');
@@ -236,7 +236,11 @@ body{font-family:var(--display);color:var(--ink);min-height:100vh;
 .meta-val.wide{flex:1;}
 .meta-sep{width:1px;height:16px;background:var(--border);align-self:center;flex-shrink:0;}
 .asig-panel-title{font-family:var(--font);font-size:10px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;}
-.asig-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;border:1px solid transparent;}
+.asig-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 10px;border-radius:6px;border:1px solid transparent;cursor:pointer;user-select:none;
+  transition:transform .18s cubic-bezier(.22,1,.36,1),box-shadow .18s ease,opacity .18s ease,filter .18s ease;}
+.asig-row:hover{filter:brightness(1.03);}
+.asig-row.selected{transform:translateY(-3px);box-shadow:0 4px 12px rgba(45,36,29,.14),0 8px 24px rgba(45,36,29,.10);filter:brightness(1.05);}
+.asig-bottom.has-selection .asig-row:not(.selected){opacity:.38;filter:saturate(.5);}
 .asig-nombre{font-family:var(--display);font-size:13px;color:var(--ink);line-height:1.3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .asig-horas{font-family:var(--font);font-size:12px;font-weight:700;color:var(--primary);white-space:nowrap;flex-shrink:0;}
 .asig-total{font-family:var(--font);font-size:10px;color:var(--ink-mute);white-space:nowrap;}
@@ -250,15 +254,20 @@ td.time{background:var(--bg-panel);font-family:var(--display);font-size:12px;col
 td.cell{height:90px;background:var(--bg);vertical-align:top;padding:0;overflow:visible;}
 /* Notes — position variants */
 .note{position:absolute;left:9px;right:9px;border-radius:4px;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:3px;padding:6px 8px;cursor:pointer;
+  align-items:center;justify-content:center;gap:3px;padding:6px 8px;cursor:pointer;overflow:hidden;
   box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 -1px 0 rgba(0,0,0,.06) inset,1px 2px 0 rgba(0,0,0,.06),2px 4px 8px rgba(0,0,0,.14);
-  background-image:linear-gradient(150deg,rgba(255,255,255,.25) 0%,transparent 50%);z-index:2;transition:box-shadow .16s,transform .16s;}
+  background-image:linear-gradient(150deg,rgba(255,255,255,.25) 0%,transparent 50%);z-index:2;transition:box-shadow .18s,transform .18s,filter .18s;}
 .note:hover{z-index:20;filter:brightness(1.03);box-shadow:0 1px 0 rgba(255,255,255,.35) inset,3px 6px 2px rgba(0,0,0,.05),5px 10px 24px rgba(0,0,0,.18);}
+.note.selected{z-index:30;transform:rotate(0deg) translate(0,0) translateY(-3px) !important;box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 4px 8px rgba(0,0,0,.10),0 8px 24px rgba(0,0,0,.18) !important;filter:brightness(1.06);}
+.tt-wrap.has-selection .note:not(.selected){opacity:.35;filter:saturate(.45);}
 .note.pos-full{top:8px;bottom:8px;}
 .note.pos-top{top:8px;height:calc(50% - 12px);}
 .note.pos-bottom{top:calc(50% + 4px);bottom:8px;}
-.note .n-time{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;line-height:1;}
-.note .n-subj{font-family:var(--display);font-size:14px;text-align:center;line-height:1.15;color:var(--ink);}
+.note .n-time{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;line-height:1;transition:font-size .18s;}
+.note .n-subj{font-family:var(--display);font-size:14px;font-weight:400;text-align:center;line-height:1.2;color:var(--ink);
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;transition:font-size .18s,font-weight .18s;}
+.note.selected .n-time{font-size:11px;}
+.note.selected .n-subj{font-size:16px;font-weight:700;-webkit-line-clamp:3;}
 .n-info{background-color:var(--info-bg);border:1px solid var(--info-border);}
 .n-olive{background-color:var(--olive-tint);border:1px solid var(--olive-border);}
 .n-warn{background-color:var(--warn-bg);border:1px solid var(--warn-border);}
@@ -318,11 +327,7 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
     <div class="doc-meta">
       <div class="meta-row">
         <span class="meta-label">Alumno</span>
-        <span class="meta-val wide">${esc(alumno.nombre) || '—'}</span>
-      </div>
-      <div class="meta-row">
-        <span class="meta-label">Curso</span>
-        <span class="meta-val" style="min-width:200px;">${esc(buildCursoLabel(alumno.ensenanzaCurso, alumno.especialidad)) || '—'}</span>
+        <span class="meta-val wide">${esc(alumno.nombre) || '—'}${buildCursoLabel(alumno.ensenanzaCurso, alumno.especialidad) ? ` — ${esc(buildCursoLabel(alumno.ensenanzaCurso, alumno.especialidad))}` : ''}</span>
       </div>
     </div>
   </div>
@@ -365,6 +370,29 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
   var overlay=document.getElementById('modal-overlay');
   var colorMap={'n-info':'#e1eaee','n-olive':'#e8ecd4','n-warn':'#fae0bf','n-violet':'#e8dde6','n-tint':'#fbe7dc','n-pink':'#fadcd5'};
   function set(id,v){document.getElementById(id).textContent=v||'—';}
+  var asigBottom=document.querySelector('.asig-bottom');
+  var ttWrap=document.querySelector('.tt-wrap');
+  function clearSelection(){
+    document.querySelectorAll('.asig-row').forEach(function(r){r.classList.remove('selected');});
+    document.querySelectorAll('.note').forEach(function(n){n.classList.remove('selected');});
+    if(asigBottom)asigBottom.classList.remove('has-selection');
+    if(ttWrap)ttWrap.classList.remove('has-selection');
+  }
+  document.querySelectorAll('.asig-row').forEach(function(row){
+    row.addEventListener('click',function(){
+      var wasSelected=row.classList.contains('selected');
+      clearSelection();
+      if(!wasSelected){
+        var subj=row.dataset.subj;
+        row.classList.add('selected');
+        document.querySelectorAll('.note[data-subj]').forEach(function(n){
+          if(n.dataset.subj===subj)n.classList.add('selected');
+        });
+        if(asigBottom)asigBottom.classList.add('has-selection');
+        if(ttWrap)ttWrap.classList.add('has-selection');
+      }
+    });
+  });
   document.querySelectorAll('.note[data-subj]').forEach(function(note){
     note.addEventListener('click',function(){
       var d=note.dataset;

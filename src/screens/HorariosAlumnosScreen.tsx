@@ -84,6 +84,7 @@ export default function HorariosAlumnosScreen({ config }: Props) {
   const [soloNuevos, setSoloNuevos] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
+  const [descargandoHtml, setDescargandoHtml] = useState(false);
   const [panelDerecho, setPanelDerecho] = useState<PanelDerecho>("preview");
   const [vistaPrincipal, setVistaPrincipal] = useState<VistaPrincipal>("individuales");
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
@@ -123,6 +124,8 @@ export default function HorariosAlumnosScreen({ config }: Props) {
     campos: string[];
     presetNombre: string;
   } | null>(null);
+
+  const [tooltipEnvio, setTooltipEnvio] = useState<{ x: number; y: number; tipo: 'seleccionados' | 'todos' } | null>(null);
 
   const alumnosParaEnviar = useRef<string[]>([]);
 
@@ -464,6 +467,22 @@ export default function HorariosAlumnosScreen({ config }: Props) {
       if (!res.success && res.error) setError(res.error);
     } finally {
       setGenerandoPdf(false);
+    }
+  };
+
+  const handleDescargarHtml = async () => {
+    if (!seleccionado) return;
+    setDescargandoHtml(true);
+    try {
+      const base64 = btoa(unescape(encodeURIComponent(html)));
+      const nombre = `Horario ${seleccionado.nombre}`.replace(/[\\/:*?"<>|]/g, "_");
+      await window.adminAPI.informe.exportar({
+        contenidoBase64: base64,
+        nombreArchivo: nombre,
+        extension: "html",
+      });
+    } finally {
+      setDescargandoHtml(false);
     }
   };
 
@@ -859,6 +878,9 @@ export default function HorariosAlumnosScreen({ config }: Props) {
             {nSeleccionados > 0 && (
               <button
                 onClick={() => abrirModalEnvio([...seleccionados])}
+                onMouseEnter={(e) => setTooltipEnvio({ x: e.clientX, y: e.clientY, tipo: 'seleccionados' })}
+                onMouseMove={(e) => setTooltipEnvio(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : prev)}
+                onMouseLeave={() => setTooltipEnvio(null)}
                 className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--tc-primary-tint)] text-[var(--tc-primary)] text-xs font-medium hover:opacity-80 transition"
               >
                 <Send className="w-3.5 h-3.5" />
@@ -972,6 +994,9 @@ export default function HorariosAlumnosScreen({ config }: Props) {
         <div className="p-3 border-t border-[var(--tc-border)] space-y-1.5">
           <button
             onClick={() => abrirModalEnvio(carga.alumnos.filter(a => a.email && !esFantasma(a)).map(a => a.clave))}
+            onMouseEnter={(e) => setTooltipEnvio({ x: e.clientX, y: e.clientY, tipo: 'todos' })}
+            onMouseMove={(e) => setTooltipEnvio(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : prev)}
+            onMouseLeave={() => setTooltipEnvio(null)}
             disabled={alumnosConEmail === 0}
             className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
           >
@@ -1035,12 +1060,12 @@ export default function HorariosAlumnosScreen({ config }: Props) {
               <>
                 <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between">
                   <span className="text-sm font-medium text-[var(--tc-ink)] truncate">
-                    Horario de {seleccionado.nombre}
+                    {seleccionado.nombre} — {buildCursoLabel(seleccionado.ensenanzaCurso, seleccionado.especialidad)}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleImprimirPdf}
-                      disabled={imprimiendo || generandoPdf}
+                      disabled={imprimiendo || generandoPdf || descargandoHtml}
                       className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
                     >
                       {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
@@ -1048,11 +1073,19 @@ export default function HorariosAlumnosScreen({ config }: Props) {
                     </button>
                     <button
                       onClick={handleDescargarPdf}
-                      disabled={generandoPdf || imprimiendo}
+                      disabled={generandoPdf || imprimiendo || descargandoHtml}
                       className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
                     >
                       {generandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                       Descargar PDF
+                    </button>
+                    <button
+                      onClick={handleDescargarHtml}
+                      disabled={descargandoHtml || generandoPdf || imprimiendo}
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+                    >
+                      {descargandoHtml ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode2 className="w-4 h-4" />}
+                      Descargar HTML
                     </button>
                   </div>
                 </div>
@@ -1114,6 +1147,41 @@ export default function HorariosAlumnosScreen({ config }: Props) {
       </div>
       )}
       </div>
+
+      {/* Tooltip de envío */}
+      {tooltipEnvio && (
+        <div
+          className="fixed z-[9999] pointer-events-none w-56 rounded-xl bg-[var(--tc-ink)] text-white shadow-2xl overflow-hidden"
+          style={{ left: tooltipEnvio.x + 16, top: tooltipEnvio.y + 16 }}
+        >
+          <div className="px-3.5 pt-3 pb-1.5 border-b border-white/10">
+            <p className="text-[11px] font-bold tracking-wide">
+              {tooltipEnvio.tipo === 'seleccionados' ? 'Enviar seleccionados' : 'Enviar a todos'}
+            </p>
+          </div>
+          <div className="px-3.5 py-2.5 space-y-1">
+            {tooltipEnvio.tipo === 'seleccionados' ? (
+              <>
+                <p className="text-[11px] leading-snug opacity-75">
+                  Abre el modal para enviar horarios por email a los {nSeleccionados} alumno{nSeleccionados !== 1 ? 's' : ''} que has seleccionado.
+                </p>
+                <p className="text-[10px] leading-snug opacity-60">
+                  Se excluyen automáticamente los alumnos sin email o plazas fantasma.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] leading-snug opacity-75">
+                  Envía los horarios por email a todos los {alumnosConEmail} alumno{alumnosConEmail !== 1 ? 's' : ''} con email registrado.
+                </p>
+                <p className="text-[10px] leading-snug opacity-60">
+                  Se excluyen automáticamente las plazas fantasma.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal de envío */}
       {showEnviarModal && (
@@ -1189,12 +1257,13 @@ export default function HorariosAlumnosScreen({ config }: Props) {
 
 /**
  * Panel de listados de alumnado agrupados por Asignatura → Curso → Grupo/Aula/Profesor.
- * Vista previa en pantalla (con buscador) + exportación a HTML autónomo e impresión.
+ * Vista previa en pantalla + exportación a HTML autónomo e impresión.
  */
 function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: string }) {
   const [version, setVersion] = useState<VersionListado>("alumnos");
   const [exportando, setExportando] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
+  const [tooltip, setTooltip] = useState<{ title: string; lines: string[]; x: number; y: number } | null>(null);
 
   const html = useMemo(
     () => buildListadoHtml(alumnos, anio, version),
@@ -1227,17 +1296,34 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
     }
   };
 
+  /** Genera los handlers de tooltip para un elemento concreto. */
+  const tip = (title: string, lines: string[]) => ({
+    onMouseEnter: (e: React.MouseEvent) => setTooltip({ title, lines, x: e.clientX, y: e.clientY }),
+    onMouseMove: (e: React.MouseEvent) =>
+      setTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : prev),
+    onMouseLeave: () => setTooltip(null),
+  });
+
   return (
     <>
+      {/* ── Barra superior ────────────────────────────────────────────────── */}
       <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <span className="text-sm font-medium text-[var(--tc-ink)] whitespace-nowrap">
             Listados por asignatura
           </span>
+
           {/* Conmutador de versión */}
           <div className="flex items-center bg-[var(--tc-bg-panel)] rounded-lg p-0.5">
             <button
               onClick={() => setVersion("alumnos")}
+              {...tip(
+                "Vista Alumnado",
+                [
+                  "Muestra todos los alumnos cargados agrupados por asignatura, curso y grupo.",
+                  "Para cada alumno aparece su nombre, enseñanza y datos de contacto.",
+                ],
+              )}
               className={
                 "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
                 (version === "alumnos"
@@ -1249,6 +1335,13 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
             </button>
             <button
               onClick={() => setVersion("profesores")}
+              {...tip(
+                "Vista Profesorado",
+                [
+                  "El mismo listado pero orientado al profesorado.",
+                  "Incluye email y teléfono de contacto del profesor asignado a cada clase.",
+                ],
+              )}
               className={
                 "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
                 (version === "profesores"
@@ -1259,24 +1352,41 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
               Profesorado
             </button>
           </div>
+
           {version === "profesores" && (
             <span className="text-[11px] text-amber-600 whitespace-nowrap hidden lg:inline">
               incluye email y teléfono
             </span>
           )}
         </div>
+
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleImprimir}
             disabled={imprimiendo || exportando}
+            {...tip(
+              "Imprimir listado",
+              [
+                "Abre el diálogo de impresión del sistema operativo.",
+                "Desde ahí puedes imprimir en papel o elegir «Guardar como PDF».",
+              ],
+            )}
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
           >
             {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
             Imprimir
           </button>
+
           <button
             onClick={handleExportarHtml}
             disabled={exportando || imprimiendo}
+            {...tip(
+              "Generar HTML",
+              [
+                "Guarda el listado completo como archivo .html autónomo.",
+                "Puedes abrirlo en cualquier navegador, compartirlo por correo o archivarlo sin necesidad de la app.",
+              ],
+            )}
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
           >
             {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode2 className="w-4 h-4" />}
@@ -1284,6 +1394,25 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
           </button>
         </div>
       </div>
+
+      {/* ── Tooltip flotante ──────────────────────────────────────────────── */}
+      {tooltip && (
+        <div
+          className="fixed z-[9999] pointer-events-none w-56 rounded-xl bg-[var(--tc-ink)] text-white shadow-2xl overflow-hidden"
+          style={{ left: tooltip.x + 16, top: tooltip.y + 16 }}
+        >
+          <div className="px-3.5 pt-3 pb-1.5 border-b border-white/10">
+            <p className="text-[11px] font-bold tracking-wide">{tooltip.title}</p>
+          </div>
+          <div className="px-3.5 py-2.5 space-y-1">
+            {tooltip.lines.map((l, i) => (
+              <p key={i} className="text-[11px] leading-snug opacity-75">{l}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Vista previa ─────────────────────────────────────────────────── */}
       <iframe
         key={version}
         title="Listados por asignatura"
