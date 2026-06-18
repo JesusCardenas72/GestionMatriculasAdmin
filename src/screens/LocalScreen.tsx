@@ -713,6 +713,7 @@ export default function LocalScreen({ config }: Props) {
             <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
             <LocalList
               data={matriculas}
+              curso={curso}
               isLoading={isLoading || isFetching}
               isSyncing={isSyncing}
               selectedId={selected?.localId ?? null}
