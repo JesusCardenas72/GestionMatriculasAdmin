@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.2.3] - 2026-06-18
+
+### Cambiado
+
+- **Navegación con flechas ←/→**: la secuencia ahora incluye la pestaña **Alumnado Fantasma** al final, además de seguir accesible desde el menú de Configuración.
+
+---
+
 ## [1.2.2] - 2026-06-14
 
 ### Añadido

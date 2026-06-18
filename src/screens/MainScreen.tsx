@@ -35,13 +35,14 @@ const TIPO_BADGE: Record<string, string> = {
   historico: "bg-slate-100 text-slate-500",
 };
 
-// Pestañas navegables con flechas ←/→. "temporales" se excluye a propósito:
-// se accede desde el menú de Configuración, no desde la barra superior.
+// Pestañas navegables con flechas ←/→. "temporales" (Alumnado Fantasma) se
+// incluye al final aunque se acceda también desde el menú de Configuración.
 const ALL_TABS: ActiveTab[] = [
   ...TABS.map((t) => t.estado as ActiveTab),
   "local",
   "informes",
   "horarios",
+  "temporales",
 ];
 
 export default function MainScreen({ config }: Props) {
