@@ -20,6 +20,15 @@ export default defineConfig({
     electron({
       main: {
         entry: "electron/main.ts",
+        vite: {
+          build: {
+            rollupOptions: {
+              // pdf-to-printer localiza su binario (SumatraPDF.exe) por ruta
+              // relativa; debe cargarse desde node_modules, no empaquetarse.
+              external: ["pdf-to-printer"],
+            },
+          },
+        },
       },
       preload: {
         input: "electron/preload.ts",

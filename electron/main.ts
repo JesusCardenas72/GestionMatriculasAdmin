@@ -61,6 +61,14 @@ import {
 } from "./cursos-store";
 import { loadCursoContext, saveCursoContext } from "./curso-context-store";
 import {
+  listarContenidoDisponible,
+  crearBackup,
+  leerManifest,
+  restaurarBackup,
+  type BackupSeleccion,
+  type RestauracionModo,
+} from "./backup-store";
+import {
   horariosDataObtener,
   horariosDataGuardar,
   horariosDataExportarHistorial,
@@ -207,6 +215,43 @@ function registerIpcHandlers() {
     const parsed = JSON.parse(json) as AppConfig;
     saveConfig(parsed);
     return parsed;
+  });
+
+  // ── Copia de seguridad completa (Fase 1: guardar) ──
+  ipcMain.handle("backup:inventario", () => listarContenidoDisponible());
+  ipcMain.handle("backup:crear", async (_e, seleccion: BackupSeleccion) => {
+    const fecha = new Date().toISOString().split("T")[0];
+    const res = await dialog.showSaveDialog({
+      title: "Guardar copia de seguridad",
+      defaultPath: `copia-matriculas-${fecha}.gmbackup`,
+      filters: [{ name: "Copia de seguridad", extensions: ["gmbackup"] }],
+    });
+    if (res.canceled || !res.filePath) return null;
+    return crearBackup(seleccion, res.filePath, (p) =>
+      _e.sender.send("backup:progreso", { fase: "guardar", percent: p }),
+    );
+  });
+  ipcMain.handle("backup:inspeccionar", async () => {
+    const res = await dialog.showOpenDialog({
+      title: "Abrir copia de seguridad",
+      properties: ["openFile"],
+      filters: [{ name: "Copia de seguridad", extensions: ["gmbackup", "zip"] }],
+    });
+    if (res.canceled || !res.filePaths || res.filePaths.length === 0) return null;
+    const zipPath = res.filePaths[0];
+    const manifest = await leerManifest(zipPath);
+    return { zipPath, manifest };
+  });
+  ipcMain.handle(
+    "backup:restaurar",
+    (_e, zipPath: string, seleccion: BackupSeleccion, modo: RestauracionModo) =>
+      restaurarBackup(zipPath, seleccion, modo, (p) =>
+        _e.sender.send("backup:progreso", { fase: "restaurar", percent: p }),
+      ),
+  );
+  ipcMain.handle("app:relaunch", () => {
+    app.relaunch();
+    app.exit(0);
   });
 
   ipcMain.handle("local:listar", () => localListar());
@@ -798,6 +843,78 @@ function registerIpcHandlers() {
         // enviado el trabajo tras un margen razonable para no colgar la UI.
         setTimeout(() => finish(true), 6000);
       });
+    },
+  );
+
+  // Imprime un PDF ya existente (p. ej. el descargado de Dataverse) en silencio,
+  // aplicando el intervalo de páginas. Usa pdf-to-printer (SumatraPDF) porque
+  // webContents.print() no imprime de forma fiable un PDF ya renderizado.
+  ipcMain.handle(
+    "pdf:printPdfConOpciones",
+    async (
+      _e,
+      payload: {
+        base64: string;
+        fileName?: string;
+        impresora?: string;
+        paginas?: string;
+        dosCaras?: "simplex" | "longEdge" | "shortEdge";
+        copias?: number;
+      },
+    ): Promise<{ success: boolean; error?: string }> => {
+      const safe = (payload.fileName || "documento.pdf").replace(
+        /[\\/:*?"<>|]/g,
+        "_",
+      );
+      const tmpPath = path.join(
+        app.getPath("temp"),
+        `printpdf_${Date.now()}_${safe}`,
+      );
+
+      try {
+        fs.writeFileSync(tmpPath, Buffer.from(payload.base64, "base64"));
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
+
+      // Normaliza el intervalo al formato de SumatraPDF: "1-3,5" (1-based).
+      const pages = payload.paginas?.replace(/\s+/g, "") || undefined;
+
+      // Mapea la doble cara a las opciones de pdf-to-printer.
+      const side =
+        payload.dosCaras === "longEdge"
+          ? "duplex"
+          : payload.dosCaras === "shortEdge"
+            ? "duplexshort"
+            : "simplex";
+
+      try {
+        const ptp = (await import(
+          "pdf-to-printer"
+        )) as unknown as typeof import("pdf-to-printer") & {
+          default?: typeof import("pdf-to-printer");
+        };
+        const print = ptp.print ?? ptp.default?.print;
+        if (!print) throw new Error("pdf-to-printer no disponible");
+
+        await print(tmpPath, {
+          ...(payload.impresora ? { printer: payload.impresora } : {}),
+          ...(pages ? { pages } : {}),
+          side,
+          ...(payload.copias && payload.copias > 1
+            ? { copies: payload.copias }
+            : {}),
+        });
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      } finally {
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch {
+          /* empty */
+        }
+      }
     },
   );
 

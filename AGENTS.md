@@ -56,6 +56,14 @@
 - `AccordionBlock` and `AsignaturaGroup` in `SolicitudDetail.tsx` / `LocalDetail.tsx` accept a `forceOpen` prop for the "Contraer/Expandir todo" toggle.
 - List cards use `scale(1.04)` + elevated `z-index` on hover for an expand-over-neighbors effect. `LocalList.tsx` `StackedCardRow` swaps card z-order based on which card is selected.
 
+## LaunchGate (pantalla de bienvenida)
+- `src/screens/LaunchGate.tsx` — menú con dos botones: **Administrador** y **Solo Lectura**.
+- Foco inicial en "Administrador" al montar (vía `botonesRef.current[0]?.focus()` en un `useEffect`).
+- Navegación con flechas arriba/abajo + Enter para seleccionar.
+- Al entrar a la vista de clave, el campo de password tiene `autoFocus`.
+- **Auto-submit de la clave**: la clave esperada se carga al montar el componente (en el `useEffect` con `[]`, no al cambiar a vista clave). En cada `onChange`, si `v.trim()` coincide exactamente con `esperadaRef.current`, llama a `entrar("admin")` sin necesidad de pulsar Enter.
+- No se debe mover la carga de `esperadaRef` a un efecto dependiente de `vista` — debe seguir en el efecto de montaje para que esté disponible antes de que el usuario escriba.
+
 ## Gotchas
 - Do not add `nodeIntegration: true` or disable `contextIsolation`. The app relies on `contextIsolation` + preload bridge.
 - `vite-plugin-electron` handles HMR for the main process in dev; restarting the dev server is usually enough.
