@@ -341,12 +341,15 @@ export default function LocalDetail({
   function agregarAsig() {
     const asignatura = catalogoFiltrado.find((a) => String(a.codigo) === addCodigo);
     if (!asignatura) return;
+    const nivel = parseInt(asignatura.cursoNivel, 10);
+    const esCursoAnterior = !isNaN(nivel) && nivel < cursoActual;
+    const sufijoCurso = esCursoAnterior && asignatura.cursoDesc ? ` (${asignatura.cursoDesc})` : "";
     const nueva: AsignaturaEdit = {
       localId: crypto.randomUUID(),
       rowId: null,
       asignaturaId: null,
       codigo: asignatura.codigo,
-      nombre: asignatura.descripcion || asignatura.abreviatura,
+      nombre: `${asignatura.descripcion || asignatura.abreviatura}${sufijoCurso}`,
       estado: addEstado,
       observaciones: null,
       horario: null,

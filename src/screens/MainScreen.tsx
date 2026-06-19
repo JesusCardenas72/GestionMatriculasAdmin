@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useSustitucionProgramada } from "../hooks/useSustitucionProgramada";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle, DatabaseBackup, FolderOpen } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
@@ -25,6 +25,9 @@ import ConexionModal from "../components/modals/ConexionModal";
 import CursosModal from "../components/modals/CursosModal";
 import BorrarModal from "../components/modals/BorrarModal";
 import AyudaModal from "../components/modals/AyudaModal";
+import CopiaSeguridadModal from "../components/modals/CopiaSeguridadModal";
+import RestaurarCopiaModal from "../components/modals/RestaurarCopiaModal";
+import type { BackupManifest } from "../../electron/backup-store";
 
 interface Props {
   config: AppConfig;
@@ -36,13 +39,14 @@ const TIPO_BADGE: Record<string, string> = {
   historico: "bg-slate-100 text-slate-500",
 };
 
-// Pestañas navegables con flechas ←/→. "temporales" se excluye a propósito:
-// se accede desde el menú de Configuración, no desde la barra superior.
+// Pestañas navegables con flechas ←/→. "temporales" (Alumnado Fantasma) se
+// incluye al final aunque se acceda también desde el menú de Configuración.
 const ALL_TABS: ActiveTab[] = [
   ...TABS.map((t) => t.estado as ActiveTab),
   "local",
   "informes",
   "horarios",
+  "temporales",
 ];
 
 export default function MainScreen({ config }: Props) {
@@ -60,10 +64,21 @@ export default function MainScreen({ config }: Props) {
   const [cursosModalOpen, setCursosModalOpen] = useState(false);
   const [borrarModalOpen, setBorrarModalOpen] = useState(false);
   const [ayudaModalOpen, setAyudaModalOpen] = useState(false);
+  const [copiaModalOpen, setCopiaModalOpen] = useState(false);
+  const [restaurarData, setRestaurarData] = useState<{ zipPath: string; manifest: BackupManifest } | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(
     () => (document.documentElement.getAttribute("data-theme") as "light" | "dark") ?? "light",
   );
   const settingsMenuRef = useRef<HTMLDivElement>(null);
+
+  async function handleAbrirCopia() {
+    try {
+      const res = await window.adminAPI.backup.inspeccionar();
+      if (res) setRestaurarData(res);
+    } catch (e) {
+      alert(`No se pudo abrir la copia: ${(e as Error).message}`);
+    }
+  }
 
   // Sincronizar el estado local del tema cuando cambia desde ConfigScreen
   useEffect(() => {
@@ -336,6 +351,32 @@ export default function MainScreen({ config }: Props) {
 
                 <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />
 
+                {/* Guardar copia de seguridad */}
+                <button
+                  onClick={() => { setSettingsMenuOpen(false); setCopiaModalOpen(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
+                >
+                  <DatabaseBackup className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Guardar copia de seguridad</p>
+                    <p className="text-xs text-[var(--tc-ink-mute)] leading-tight">Toda la información local en un archivo (total o por partes)</p>
+                  </div>
+                </button>
+
+                {/* Abrir copia de seguridad */}
+                <button
+                  onClick={() => { setSettingsMenuOpen(false); void handleAbrirCopia(); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
+                >
+                  <FolderOpen className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Abrir copia de seguridad</p>
+                    <p className="text-xs text-[var(--tc-ink-mute)] leading-tight">Restaurar datos desde un archivo (reemplazar o fusionar)</p>
+                  </div>
+                </button>
+
+                <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />
+
                 {/* Alumnado Fantasma */}
                 <button
                   onClick={() => { setSettingsMenuOpen(false); handleTabChange("temporales"); }}
@@ -478,6 +519,18 @@ export default function MainScreen({ config }: Props) {
         open={ayudaModalOpen}
         onClose={() => setAyudaModalOpen(false)}
       />
+
+      {copiaModalOpen && (
+        <CopiaSeguridadModal onClose={() => setCopiaModalOpen(false)} />
+      )}
+
+      {restaurarData && (
+        <RestaurarCopiaModal
+          zipPath={restaurarData.zipPath}
+          manifest={restaurarData.manifest}
+          onClose={() => setRestaurarData(null)}
+        />
+      )}
     </div>
   );
 }

@@ -15,9 +15,15 @@ export default function LaunchGate() {
   const [focoIdx, setFocoIdx] = useState(0);
   const botonesRef = useRef<(HTMLButtonElement | null)[]>([]);
   const [versionApp, setVersionApp] = useState(__APP_VERSION__);
+  const esperadaRef = useRef<string | null>(null);
 
   useEffect(() => {
     window.adminAPI.getVersion().then(setVersionApp).catch(() => {});
+    window.adminAPI.config.load().then((cfg) => {
+      esperadaRef.current = cfg?.adminPassword?.trim() || DEFAULT_ADMIN_PASSWORD;
+    }).catch(() => {
+      esperadaRef.current = DEFAULT_ADMIN_PASSWORD;
+    });
   }, []);
 
   useEffect(() => {
@@ -144,7 +150,13 @@ export default function LaunchGate() {
                 type="password"
                 autoFocus
                 value={clave}
-                onChange={(e) => setClave(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setClave(v);
+                    if (esperadaRef.current && v.trim() !== "" && v.trim() === esperadaRef.current) {
+                      entrar("admin");
+                    }
+                  }}
                 className="mt-1 w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2"
                 style={{
                   border: `1px solid ${error ? "var(--tc-danger-border)" : "var(--tc-border)"}`,

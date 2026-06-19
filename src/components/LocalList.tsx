@@ -8,6 +8,7 @@ import {
   Inbox,
   Loader2,
   RefreshCw,
+  Repeat,
   Search,
   Upload,
   X,
@@ -18,6 +19,38 @@ type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
 type RepetidorFilter = "all" | "repetidor" | "noRepetidor";
 type FantasmaFilter = "all" | "solo" | "quitar";
+type SustitucionFilter = "all" | "sinSust" | "yaSust";
+
+type SustitucionEstado = "sinSust" | "yaSust";
+
+function SustitucionBadge({ estado, compact }: { estado: SustitucionEstado; compact?: boolean }) {
+  const yaSust = estado === "yaSust";
+  const label = yaSust ? "Ya Sust." : "Sin Sust.";
+  if (compact) {
+    return (
+      <span
+        className={
+          "shrink-0 px-1 py-px rounded text-[9px] font-semibold " +
+          (yaSust ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")
+        }
+      >
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={
+        "shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold border " +
+        (yaSust
+          ? "bg-green-100 text-green-700 border-green-200"
+          : "bg-red-100 text-red-700 border-red-200")
+      }
+    >
+      {label}
+    </span>
+  );
+}
 
 const SORT_BUTTONS: { field: SortField; label: string }[] = [
   { field: "nombre", label: "Nombre" },
@@ -75,7 +108,7 @@ function groupPairs(data: MatriculaLocal[]): GroupedItem[] {
 
 // ── Tarjeta individual (single) ───────────────────────────────────────────────
 
-function renderCardContent(m: MatriculaLocal, selected: boolean) {
+function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: SustitucionEstado | null) {
   const numero = m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden) : null;
   const digits = numero ? numero.length : 1;
   const fontSize = digits >= 3 ? 28 : digits === 2 ? 36 : 40;
@@ -142,9 +175,7 @@ function renderCardContent(m: MatriculaLocal, selected: boolean) {
               {m.temporalEstado === "sustituido" ? "SUSTITUIDO" : "FANTASMA"}
             </span>
           )}
-          {!m.esTemporal && m.sustituyeATemporalId && (
-            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">SUSTITUYE</span>
-          )}
+          {sustEstado && <SustitucionBadge estado={sustEstado} />}
           {m.repetidor && (
             <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REPETIDOR</span>
           )}
@@ -166,9 +197,11 @@ interface SingleRowProps {
   m: MatriculaLocal;
   isSelected: boolean;
   onSelect: (m: MatriculaLocal) => void;
+  nuevoEstadoPorId: Map<string, SustitucionEstado>;
 }
 
-function SingleRow({ m, isSelected, onSelect }: SingleRowProps) {
+function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId }: SingleRowProps) {
+  const sustEstado = nuevoEstadoPorId.get(m.localId) ?? null;
   return (
     <button
       onClick={() => onSelect(m)}
@@ -201,6 +234,7 @@ function SingleRow({ m, isSelected, onSelect }: SingleRowProps) {
               {m.temporalEstado === "sustituido" ? "Sust." : "Fant."}
             </span>
           )}
+          {sustEstado && <SustitucionBadge estado={sustEstado} compact />}
           {m.ampliacion && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>Amp.</span>
           )}
@@ -216,7 +250,7 @@ function SingleRow({ m, isSelected, onSelect }: SingleRowProps) {
 
       {/* Full content */}
       <div className="loc-expanded">
-        {renderCardContent(m, isSelected)}
+        {renderCardContent(m, isSelected, sustEstado)}
       </div>
     </button>
   );
@@ -230,9 +264,10 @@ interface PairRowProps {
   original: MatriculaLocal;
   selectedId: string | null;
   onSelect: (m: MatriculaLocal) => void;
+  nuevoEstadoPorId: Map<string, SustitucionEstado>;
 }
 
-function PairRow({ ampliacion, original, selectedId, onSelect }: PairRowProps) {
+function PairRow({ ampliacion, original, selectedId, onSelect, nuevoEstadoPorId }: PairRowProps) {
   const OFFSET = 10;
   const ampSelected = ampliacion.localId === selectedId;
   const origSelected = original.localId === selectedId;
@@ -271,7 +306,7 @@ function PairRow({ ampliacion, original, selectedId, onSelect }: PairRowProps) {
           transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
         }}
       >
-        {renderCardContent(ampliacion, ampSelected)}
+        {renderCardContent(ampliacion, ampSelected, nuevoEstadoPorId.get(ampliacion.localId) ?? null)}
       </button>
 
       {/* Original (debajo, asomando) */}
@@ -299,7 +334,7 @@ function PairRow({ ampliacion, original, selectedId, onSelect }: PairRowProps) {
           transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), margin-top 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
         }}
       >
-        {renderCardContent(original, origSelected)}
+        {renderCardContent(original, origSelected, nuevoEstadoPorId.get(original.localId) ?? null)}
       </button>
     </div>
   );
@@ -314,6 +349,8 @@ interface Props {
   selectedId: string | null;
   onSelect: (m: MatriculaLocal) => void;
   onRefresh: () => void;
+  /** Curso escolar activo: para leer la «Fecha programada» del Asistente de Alumnos Fantasmas. */
+  curso: string;
 }
 
 export default function LocalList({
@@ -323,18 +360,36 @@ export default function LocalList({
   selectedId,
   onSelect,
   onRefresh,
+  curso,
 }: Props) {
   const [q, setQ] = useState("");
   const [filterEnsenanza, setFilterEnsenanza] = useState("");
   const [filterEspecialidad, setFilterEspecialidad] = useState("");
   const [filterRepetidor, setFilterRepetidor] = useState<RepetidorFilter>("all");
   const [filterFantasma, setFilterFantasma] = useState<FantasmaFilter>("all");
+  const [filterSustitucion, setFilterSustitucion] = useState<SustitucionFilter>("all");
   const [sort, setSort] = useState<{ field: SortField | null; dir: SortDir }>({
     field: null,
     dir: "desc",
   });
+  // «Fecha programada» del Asistente de Alumnos Fantasmas (YYYY-MM-DD): a partir de
+  // ella, las matrículas reales se consideran «nuevo alumnado».
+  const [fechaCorte, setFechaCorte] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const cfg = await window.adminAPI.temporales.getConfig(curso);
+        if (!cancelado) setFechaCorte(cfg.fechaProgramada ?? null);
+      } catch {
+        if (!cancelado) setFechaCorte(null);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [curso, data]);
 
   const { ensenanzas, especialidades } = useMemo(() => {
     const ensenanzas = [...new Set(data.map((m) => m.ensenanzaCurso).filter(Boolean))].sort();
@@ -349,6 +404,33 @@ export default function LocalList({
     return { ensenanzas, especialidades };
   }, [data, filterEnsenanza]);
 
+  // Estado del «nuevo alumnado»: matrículas reales recibidas en o después de la
+  // «Fecha programada» del Asistente (se usa `createdon`, la fecha de recepción de
+  // la matrícula, ya que `fechaInscripcion` suele venir vacía desde Dataverse).
+  // "yaSust" si su sustitución ya se ejecutó (el fantasma vinculado quedó
+  // "sustituido" o ya se eliminó tras la fusión); "sinSust" en caso contrario.
+  const nuevoEstadoPorId = useMemo(() => {
+    const map = new Map<string, SustitucionEstado>();
+    if (!fechaCorte) return map;
+
+    const fantasmaPorId = new Map<string, MatriculaLocal>();
+    for (const m of data) if (m.esTemporal) fantasmaPorId.set(m.localId, m);
+
+    for (const m of data) {
+      if (m.esTemporal) continue;
+      const recibida = (m.createdon ?? "").slice(0, 10);
+      if (!recibida || recibida < fechaCorte) continue; // recibida antes del corte → no es nuevo alumnado
+
+      let yaSust = false;
+      if (m.sustituyeATemporalId) {
+        const t = fantasmaPorId.get(m.sustituyeATemporalId);
+        yaSust = !t || t.temporalEstado === "sustituido";
+      }
+      map.set(m.localId, yaSust ? "yaSust" : "sinSust");
+    }
+    return map;
+  }, [data, fechaCorte]);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const result = data.filter((m) => {
@@ -358,6 +440,11 @@ export default function LocalList({
       if (filterRepetidor === "noRepetidor" && m.repetidor) return false;
       if (filterFantasma === "solo" && !m.esTemporal) return false;
       if (filterFantasma === "quitar" && m.esTemporal) return false;
+      if (filterSustitucion !== "all") {
+        const est = nuevoEstadoPorId.get(m.localId) ?? null;
+        if (filterSustitucion === "sinSust" && est !== "sinSust") return false;
+        if (filterSustitucion === "yaSust" && est !== "yaSust") return false;
+      }
       if (needle && !`${m.nombre} ${m.apellidos} ${m.dni}`.toLowerCase().includes(needle))
         return false;
       return true;
@@ -381,7 +468,7 @@ export default function LocalList({
           return sign * ((a.nOrden ?? Infinity) - (b.nOrden ?? Infinity));
       }
     });
-  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, sort]);
+  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, filterSustitucion, nuevoEstadoPorId, sort]);
 
   const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
@@ -474,8 +561,20 @@ export default function LocalList({
     });
   }
 
+  function handleSustitucionClick() {
+    setFilterSustitucion((prev) => {
+      if (prev === "all") return "sinSust";
+      if (prev === "sinSust") return "yaSust";
+      return "all";
+    });
+  }
+
   const hasFilters =
-    filterEnsenanza || filterEspecialidad || filterRepetidor !== "all" || filterFantasma !== "all";
+    filterEnsenanza ||
+    filterEspecialidad ||
+    filterRepetidor !== "all" ||
+    filterFantasma !== "all" ||
+    filterSustitucion !== "all";
 
   return (
     <div className="flex flex-col h-full">
@@ -567,7 +666,7 @@ export default function LocalList({
 
         {hasFilters && (
           <button
-            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); setFilterRepetidor("all"); setFilterFantasma("all"); }}
+            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); setFilterRepetidor("all"); setFilterFantasma("all"); setFilterSustitucion("all"); }}
             className="self-start text-xs text-[var(--tc-primary)] font-medium hover:underline"
           >
             Limpiar filtros
@@ -621,6 +720,22 @@ export default function LocalList({
             <Ghost className="w-3.5 h-3.5 shrink-0" />
             {filterFantasma === "solo" && "Solo"}
             {filterFantasma === "quitar" && "Quitar"}
+          </button>
+          <button
+            onClick={handleSustitucionClick}
+            title="Filtrar nuevo alumnado: Sin sustitución › Ya sustituidos › Mostrar todos"
+            className={
+              "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
+              (filterSustitucion === "sinSust"
+                ? "bg-[var(--tc-card)] shadow-sm text-red-600"
+                : filterSustitucion === "yaSust"
+                  ? "bg-[var(--tc-card)] shadow-sm text-green-600"
+                  : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            <Repeat className="w-3.5 h-3.5 shrink-0" />
+            {filterSustitucion === "sinSust" && "Sin Sust."}
+            {filterSustitucion === "yaSust" && "Ya Sust."}
           </button>
         </div>
 
@@ -684,6 +799,7 @@ export default function LocalList({
                       original={item.original}
                       selectedId={selectedId}
                       onSelect={onSelect}
+                      nuevoEstadoPorId={nuevoEstadoPorId}
                     />
                   </div>
                 );
@@ -709,6 +825,7 @@ export default function LocalList({
                     m={m}
                     isSelected={isSelected}
                     onSelect={onSelect}
+                    nuevoEstadoPorId={nuevoEstadoPorId}
                   />
                 </div>
               );

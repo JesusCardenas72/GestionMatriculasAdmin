@@ -4,6 +4,14 @@ import type { CursoConocido } from "./cursos-store";
 import type { ConfigInforme, MatriculaLocal } from "../src/api/types";
 import type { CampanyaEnvio } from "../src/horarios/types";
 import type { AsistenteTemporalesEstado, TemporalesCursoConfig } from "./temporales-store";
+import type {
+  BackupInventario,
+  BackupSeleccion,
+  BackupResumen,
+  BackupManifest,
+  RestauracionModo,
+  RestauracionResumen,
+} from "./backup-store";
 
 export interface ProfesoresPreview {
   path: string;
@@ -60,6 +68,39 @@ const adminAPI = {
       copias?: number;
     }): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke("pdf:printConOpciones", payload),
+    printPdfConOpciones: (payload: {
+      base64: string;
+      fileName?: string;
+      impresora?: string;
+      paginas?: string;
+      dosCaras?: "simplex" | "longEdge" | "shortEdge";
+      copias?: number;
+    }): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke("pdf:printPdfConOpciones", payload),
+  },
+  backup: {
+    inventario: (): Promise<BackupInventario> =>
+      ipcRenderer.invoke("backup:inventario"),
+    crear: (seleccion: BackupSeleccion): Promise<BackupResumen | null> =>
+      ipcRenderer.invoke("backup:crear", seleccion),
+    inspeccionar: (): Promise<{ zipPath: string; manifest: BackupManifest } | null> =>
+      ipcRenderer.invoke("backup:inspeccionar"),
+    restaurar: (
+      zipPath: string,
+      seleccion: BackupSeleccion,
+      modo: RestauracionModo,
+    ): Promise<RestauracionResumen> =>
+      ipcRenderer.invoke("backup:restaurar", zipPath, seleccion, modo),
+    onProgreso: (
+      cb: (data: { fase: "guardar" | "restaurar"; percent: number }) => void,
+    ): (() => void) => {
+      const listener = (_e: unknown, data: { fase: "guardar" | "restaurar"; percent: number }) => cb(data);
+      ipcRenderer.on("backup:progreso", listener);
+      return () => ipcRenderer.removeListener("backup:progreso", listener);
+    },
+  },
+  app: {
+    relaunch: (): Promise<void> => ipcRenderer.invoke("app:relaunch"),
   },
   local: {
     listar: (): Promise<MatriculaLocal[]> =>
