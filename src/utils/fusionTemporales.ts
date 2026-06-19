@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import type { EstadoTramite, FilaInforme, MatriculaLocal } from "../api/types";
+import type { AsignaturaLocal, EstadoTramite, FilaInforme, MatriculaLocal } from "../api/types";
 import { ESTADO } from "../api/types";
 import { CAMPOS_META, CAMPOS_ASIGNATURA, type CampoMeta } from "../data/informesConfig";
 import { norm, cellText } from "./horarioExcel";
@@ -100,21 +100,58 @@ function buildFila(m: MatriculaLocal, estado: EstadoTramite): FilaInforme {
 /**
  * Filas (alumno × asignatura) de las matrículas locales, igual que el modo
  * "Por asignaturas" de Informes: excluye los temporales ya sustituidos (su
- * lugar lo ocupa el alumno real) e incluye los temporales pendientes.
+ * lugar lo ocupa el alumno real). Los temporales vinculados a una matrícula
+ * real se sustituyen in situ: el alumno real ocupa la misma fila que el
+ * temporal, conservando la posición para que los datos de horario
+ * (Profesor…Salida 2) permanezcan alineados.
  */
 export function filasAsignaturaLocales(matriculas: MatriculaLocal[]): FilaInforme[] {
+  // Map: temporal localId → matrícula real vinculada
+  const realPorTemporal = new Map<string, MatriculaLocal>();
+  // Set: IDs de reales vinculados (no deben aparecer por separado)
+  const realesVinculados = new Set<string>();
+
+  for (const m of matriculas) {
+    if (!m.esTemporal && m.sustituyeATemporalId) {
+      realPorTemporal.set(m.sustituyeATemporalId, m);
+      realesVinculados.add(m.localId);
+    }
+  }
+
   const filas: FilaInforme[] = [];
   for (const m of matriculas) {
     if (m.esTemporal && m.temporalEstado === "sustituido") continue;
-    const base = buildFila(m, ESTADO.TRAMITADO);
+    // El real vinculado no aparece por separado; ocupa la fila de su temporal
+    if (!m.esTemporal && realesVinculados.has(m.localId)) continue;
+
+    // Si es un temporal vinculado, sustituir campos del informe por el alumno real
+    const real = m.esTemporal ? realPorTemporal.get(m.localId) : undefined;
+    const fuente = real ?? m;
+
+    const base = buildFila(fuente, ESTADO.TRAMITADO);
+    if (real) base.esTemporal = false;
+
+    // Mapa de asignaturas del real por nombre normalizado
+    let asigRealPorNombre: Map<string, AsignaturaLocal> | undefined;
+    if (real) {
+      asigRealPorNombre = new Map();
+      for (const a of real.asignaturas) {
+        asigRealPorNombre.set(norm(a.nombre), a);
+      }
+    }
+
     for (const a of m.asignaturas) {
+      // Si el real tiene asignatura con el mismo nombre, usar sus datos
+      const asigReal = asigRealPorNombre?.get(norm(a.nombre));
+      const asig = asigReal ?? a;
+
       filas.push({
         ...base,
         rowId: `${m.localId}|${a.localId}`,
-        asigNombre: a.nombre,
-        asigCodigo: a.codigo,
-        asigEstado: a.estado,
-        asigHorario: a.horario,
+        asigNombre: asig.nombre,
+        asigCodigo: asig.codigo,
+        asigEstado: asig.estado,
+        asigHorario: asig.horario,
       });
     }
   }

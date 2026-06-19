@@ -43,7 +43,7 @@ export default function GlobalSearch({ pools, onSelect }: Props) {
     const all: { estado: EstadoTramite; s: Solicitud }[] = [];
     for (const pool of pools) {
       for (const s of pool.data ?? []) {
-        const haystack = `${s.nombre} ${s.apellidos} ${s.dni} ${s.email ?? ""}`.toLowerCase();
+        const haystack = `${s.nOrden ?? ""} ${s.nombre} ${s.apellidos} ${s.dni} ${s.email ?? ""}`.toLowerCase();
         if (haystack.includes(needle)) all.push({ estado: pool.estado, s });
       }
     }
