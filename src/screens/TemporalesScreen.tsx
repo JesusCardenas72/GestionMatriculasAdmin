@@ -17,6 +17,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
 import type { MatriculaLocal } from "../api/types";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
@@ -490,7 +491,7 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
       <div className="w-full flex flex-col gap-6">
         {/* Cabecera */}
         <div className="flex items-center gap-3">
-          <img src="/AlumnadoFantasma.ico" alt="" className="h-[46px] w-auto shrink-0" />
+          <img src={alumnadoFantasmaIco} alt="" className="h-[46px] w-auto shrink-0" />
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold text-[var(--tc-ink)]">Alumnado Fantasma</h1>
             <p className="text-sm text-[var(--tc-ink-soft)]">
@@ -1098,7 +1099,7 @@ function AyudaModal({ onCerrar, onSaberMas }: { onCerrar: () => void; onSaberMas
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <img src="/AlumnadoFantasma.ico" alt="" className="w-5 h-5 shrink-0" />
+            <img src={alumnadoFantasmaIco} alt="" className="w-5 h-5 shrink-0" />
             <h3 className="text-sm font-bold text-[var(--tc-ink)]">Cómo funcionan los alumnos fantasma</h3>
           </div>
           <button

@@ -10,6 +10,7 @@ import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
 import TabBar, { type ActiveTab, TABS } from "../components/TabBar";
+import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
 import ErrorBoundary from "../components/ErrorBoundary";
 import SolicitudList from "../components/SolicitudList";
 import SolicitudDetail from "../components/SolicitudDetail";
@@ -340,7 +341,7 @@ export default function MainScreen({ config }: Props) {
                   onClick={() => { setSettingsMenuOpen(false); handleTabChange("temporales"); }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
                 >
-                  <img src="/AlumnadoFantasma.ico" alt="" className="w-4 h-4 shrink-0" />
+                  <img src={alumnadoFantasmaIco} alt="" className="w-4 h-4 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Alumnado Fantasma</p>
                   </div>

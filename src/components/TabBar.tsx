@@ -1,5 +1,6 @@
 import { LayoutGroup, motion } from "framer-motion";
-import { CalendarClock, CheckCircle, Clock, Eye, FileText, Ghost, HardDrive } from "lucide-react";
+import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
+import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive } from "lucide-react";
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
@@ -189,7 +190,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
               />
             )}
             <span className="relative z-10 flex items-center gap-1.5">
-              <Ghost className="w-4 h-4 shrink-0" />
+              <img src={alumnadoFantasmaIco} alt="" className="w-4 h-4 shrink-0" />
               {temporalesPendientes !== undefined && temporalesPendientes > 0 && (
                 <span
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
