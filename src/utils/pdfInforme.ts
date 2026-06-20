@@ -2,7 +2,6 @@ import type { FilaInforme } from '../api/types';
 import type { CampoMeta } from '../data/informesConfig';
 import { ESTADO_ASIGNATURA_LABELS, ESTADO_TRAMITE_LABELS } from '../data/informesConfig';
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
-import type { CampoKey } from '../api/types';
 
 function esc(s: string | null | undefined): string {
   if (s === null || s === undefined) return '';
@@ -40,11 +39,11 @@ export interface InformeParams {
   rows: FilaInforme[];
   orientacion?: 'portrait' | 'landscape';
   zoom?: number;
-  agruparPor?: CampoKey | null;
-  agruparPorMeta?: CampoMeta | null;
+  /** Niveles de agrupamiento anidados, en orden. */
+  agruparPorMetas?: CampoMeta[];
 }
 
-export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacion = 'landscape', zoom = 1, agruparPor, agruparPorMeta }: InformeParams): string {
+export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacion = 'landscape', zoom = 1, agruparPorMetas = [] }: InformeParams): string {
   const hoy = new Date().toLocaleDateString('es-ES', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -62,23 +61,32 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacio
   }
 
   let bodyRows: string;
-  if (agruparPor && agruparPorMeta) {
+  if (agruparPorMetas.length > 0) {
+    const niveles = agruparPorMetas;
     const groupedSections: string[] = [];
-    let lastGroupVal: string | null = null;
+    const lastVals: (string | null)[] = niveles.map(() => null);
     let groupRowIdx = 0;
     for (const s of rows) {
-      const groupVal = formatValor(s, agruparPorMeta);
-      if (groupVal !== lastGroupVal) {
-        // Count rows in this group
-        const count = rows.filter(r => formatValor(r, agruparPorMeta) === groupVal).length;
-        groupedSections.push(
-          `<tr class="group-header"><td colspan="${campos.length}">` +
-          `<span class="group-label">${esc(groupVal)}</span>` +
-          `<span class="group-count">${count} registro${count !== 1 ? 's' : ''}</span>` +
-          `</td></tr>`
-        );
-        lastGroupVal = groupVal;
+      // Primer nivel cuyo valor cambia respecto a la fila anterior.
+      let cambioDesde = -1;
+      for (let lvl = 0; lvl < niveles.length; lvl++) {
+        if (formatValor(s, niveles[lvl]) !== lastVals[lvl]) { cambioDesde = lvl; break; }
+      }
+      if (cambioDesde !== -1) {
         groupRowIdx = 0;
+        for (let lvl = cambioDesde; lvl < niveles.length; lvl++) {
+          const groupVal = formatValor(s, niveles[lvl]);
+          const count = rows.filter(r =>
+            niveles.slice(0, lvl + 1).every(m => formatValor(r, m) === formatValor(s, m)),
+          ).length;
+          lastVals[lvl] = groupVal;
+          groupedSections.push(
+            `<tr class="group-header lvl${Math.min(lvl, 2)}"><td colspan="${campos.length}" style="padding-left:${10 + lvl * 18}px">` +
+            `<span class="group-label">${esc(groupVal)}</span>` +
+            `<span class="group-count">${count} registro${count !== 1 ? 's' : ''}</span>` +
+            `</td></tr>`
+          );
+        }
       }
       groupedSections.push(buildDataRow(s, groupRowIdx % 2 === 1 ? ' class="alt"' : ''));
       groupRowIdx++;
@@ -135,6 +143,8 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacio
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  .group-header.lvl1 td { background: #3525cd; font-size: 8pt; border-top: 2px solid #1a1560; }
+  .group-header.lvl2 td { background: #e0e7ff; color: #1a1560; font-size: 8pt; border-top: 1px solid #c7d2fe; }
   .group-label { margin-right: 12px; }
   .group-count {
     font-size: 7pt;

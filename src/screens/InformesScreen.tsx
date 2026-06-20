@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  EyeOff,
   FileSpreadsheet,
   FileText,
   Filter,
@@ -73,6 +74,10 @@ function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
+// Ancho (px) por debajo del cual los iconos de acción de la cabecera se
+// colapsan en un menú de tres puntos para no invadir la columna contigua.
+const UMBRAL_COLAPSO_COL = 130;
+
 // Conserva el informe en el que se está trabajando entre cambios de pestaña.
 // La pantalla de Informes se monta/desmonta al cambiar de pestaña, así que sin
 // esto el estado local se reiniciaría a «--Personalizado--» (INFORME_VACIO).
@@ -134,16 +139,31 @@ function aplicarOrden(solicitudes: FilaInforme[], orden: { id: string; campo: Ca
   });
 }
 
+function describeFiltro(f: FiltroInforme): string {
+  const meta = CAMPO_MAP.get(f.campo);
+  const ops  = getOperadores(meta?.tipo ?? 'texto');
+  const op   = ops.find(o => o.key === f.operador) ?? ops[0];
+  const valorPart = op.needsValor && f.valor ? ` "${valorLabel(meta, f.valor)}"` : '';
+  return `${meta?.label ?? f.campo} ${op.label}${valorPart}`;
+}
+
+/** Etiqueta legible de un valor de filtro (traduce códigos de estado a su texto). */
+function valorLabel(meta: CampoMeta | undefined, valor: string): string {
+  if (!valor) return valor;
+  if (meta?.tipo === 'estado') return ESTADO_TRAMITE_LABELS[Number(valor)] ?? valor;
+  if (meta?.tipo === 'estado_asignatura') return ESTADO_ASIGNATURA_LABELS[Number(valor)] ?? valor;
+  return valor;
+}
+
 function describeFiltros(filtros: FiltroInforme[]): string {
-  return filtros
-    .map(f => {
-      const meta = CAMPO_MAP.get(f.campo);
-      const ops  = getOperadores(meta?.tipo ?? 'texto');
-      const op   = ops.find(o => o.key === f.operador) ?? ops[0];
-      const valorPart = op.needsValor && f.valor ? ` "${f.valor}"` : '';
-      return `${meta?.label ?? f.campo} ${op.label}${valorPart}`;
-    })
-    .join('; ');
+  return filtros.map(describeFiltro).join('; ');
+}
+
+/** Normaliza el campo `agruparPor` (string | array | null) a una lista ordenada
+ *  de niveles de agrupamiento. */
+function nivelesAgrupacion(agruparPor: ConfigInforme['agruparPor']): CampoKey[] {
+  if (!agruparPor) return [];
+  return Array.isArray(agruparPor) ? agruparPor : [agruparPor];
 }
 
 function buildNombreCompleto(apellidos: string, nombre: string): string {
@@ -309,7 +329,15 @@ export default function InformesScreen({ config }: Props) {
   const [previewZoom, setPreviewZoom] = useState(1);
 
   // UI state
-  const [showFilters, setShowFilters] = useState(false);
+  // Columna cuyo popover de filtro está abierto (null = ninguno).
+  const [filterPopoverCampo, setFilterPopoverCampo] = useState<CampoKey | null>(null);
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
+  // Columna cuyo menú de acciones (modo colapsado por estrechez) está abierto.
+  const [colMenuCampo, setColMenuCampo] = useState<CampoKey | null>(null);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+  // Cápsula de filtro (barra de resumen) cuyo popover de edición está abierto.
+  const [chipFiltroId, setChipFiltroId] = useState<string | null>(null);
+  const chipFiltroRef = useRef<HTMLDivElement>(null);
   const [showAddField, setShowAddField] = useState(false);
   const addFieldBtnRef = useRef<HTMLButtonElement>(null);
   const addFieldDropRef = useRef<HTMLDivElement>(null);
@@ -393,6 +421,68 @@ export default function InformesScreen({ config }: Props) {
     return () => document.removeEventListener('mousedown', onOutside);
   }, [showAddField]);
 
+  // Close column filter popover when clicking outside or pressing Esc
+  useEffect(() => {
+    if (!filterPopoverCampo) return;
+    function onOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (filterPopoverRef.current?.contains(target)) return;
+      // El botón-embudo de la cabecera lleva data-filter-funnel; ignorar sus clics
+      // (su propio onClick gestiona el toggle).
+      if ((target as HTMLElement).closest?.('[data-filter-funnel]')) return;
+      setFilterPopoverCampo(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setFilterPopoverCampo(null);
+    }
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [filterPopoverCampo]);
+
+  // Close column actions menu (collapsed mode) when clicking outside or Esc
+  useEffect(() => {
+    if (!colMenuCampo) return;
+    function onOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (colMenuRef.current?.contains(target)) return;
+      if ((target as HTMLElement).closest?.('[data-col-menu-btn]')) return;
+      setColMenuCampo(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setColMenuCampo(null);
+    }
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [colMenuCampo]);
+
+  // Close summary filter chip popover when clicking outside or Esc
+  useEffect(() => {
+    if (!chipFiltroId) return;
+    function onOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (chipFiltroRef.current?.contains(target)) return;
+      if ((target as HTMLElement).closest?.('[data-chip-filtro]')) return;
+      setChipFiltroId(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setChipFiltroId(null);
+    }
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [chipFiltroId]);
+
   // Close export menu when clicking outside
   useEffect(() => {
     if (!showExportMenu) return;
@@ -427,6 +517,57 @@ export default function InformesScreen({ config }: Props) {
     .map(k => CAMPO_MAP.get(k))
     .filter(Boolean) as CampoMeta[];
 
+  // Subset que realmente se muestra en la tabla (excluye los ocultados con el ojo)
+  const camposOcultos = informe.camposOcultos ?? [];
+  const camposEnTabla = camposVisibles.filter(c => !camposOcultos.includes(c.key));
+
+  // ── Separadores verticales de columna ─────────────────────────────────────
+  // En la cabecera la línea ES el propio handle de redimensionado (ver abajo),
+  // así coincide exactamente con el punto donde se cambia el ancho. Aquí solo
+  // queda el indicador de "columnas ocultas al inicio" (borde izquierdo).
+  const SEP_CAB_OCULTA = '6px solid rgba(220, 38, 38, 0.8)';
+  // Cuerpo (opcional, se activa desde el menú de tres puntos): línea fina.
+  const SEP_CUE_NORMAL = '1px solid rgba(245, 158, 11, 0.4)';
+  const SEP_CUE_OCULTA = '2px solid rgba(220, 38, 38, 0.6)';
+  const separadoresCuerpo = !!informe.separadoresCuerpo;
+
+  /** ¿Hay columnas ocultas justo después de esta columna visible (antes de la siguiente visible)? */
+  function hayOcultasTras(key: CampoKey): boolean {
+    const all = informe.camposVisibles;
+    const idx = all.indexOf(key);
+    if (idx === -1) return false;
+    let i = idx + 1;
+    let found = false;
+    while (i < all.length && camposOcultos.includes(all[i])) { found = true; i++; }
+    return found;
+  }
+
+  /** ¿Hay columnas ocultas antes de la primera columna visible? */
+  function hayOcultasAlInicio(): boolean {
+    const all = informe.camposVisibles;
+    let i = 0;
+    let found = false;
+    while (i < all.length && camposOcultos.includes(all[i])) { found = true; i++; }
+    return found;
+  }
+
+  /** Cabecera: solo el indicador de columnas ocultas al inicio (la línea
+   *  derecha de cada columna la dibuja el propio handle de redimensionado). */
+  function estiloSeparadorCabecera(esPrimera: boolean): React.CSSProperties {
+    if (esPrimera && hayOcultasAlInicio()) return { borderLeft: SEP_CAB_OCULTA };
+    return {};
+  }
+
+  /** Separador para una celda del CUERPO (solo si está activado en el menú). */
+  function estiloSeparadorCuerpo(key: CampoKey, esPrimera: boolean): React.CSSProperties {
+    if (!separadoresCuerpo) return {};
+    const s: React.CSSProperties = {
+      borderRight: hayOcultasTras(key) ? SEP_CUE_OCULTA : SEP_CUE_NORMAL,
+    };
+    if (esPrimera && hayOcultasAlInicio()) s.borderLeft = SEP_CUE_OCULTA;
+    return s;
+  }
+
   const camposDisponibles = camposDeModo(informe.modo).filter(
     c => !informe.camposVisibles.includes(c.key),
   );
@@ -450,10 +591,11 @@ export default function InformesScreen({ config }: Props) {
 
   const resultados = useMemo(() => {
     const filtered = aplicarFiltros(allRows, informe.filtros);
-    const orden = informe.agruparPor
+    const niveles = nivelesAgrupacion(informe.agruparPor);
+    const orden = niveles.length
       ? [
-          { id: '__group__', campo: informe.agruparPor, direccion: 'asc' as const },
-          ...informe.orden.filter(o => o.campo !== informe.agruparPor),
+          ...niveles.map(campo => ({ id: `__group_${campo}__`, campo, direccion: 'asc' as const })),
+          ...informe.orden.filter(o => !niveles.includes(o.campo)),
         ]
       : informe.orden;
     return aplicarOrden(filtered, orden);
@@ -465,7 +607,7 @@ export default function InformesScreen({ config }: Props) {
       | { type: 'col'; campo: CampoMeta; originalIdx: number }
       | { type: 'placeholder'; width: number };
 
-    const cols: ColItem[] = camposVisibles.map((c, i) => ({ type: 'col' as const, campo: c, originalIdx: i }));
+    const cols: ColItem[] = camposEnTabla.map((c, i) => ({ type: 'col' as const, campo: c, originalIdx: i }));
     if (!colDrag) return cols;
 
     const others = cols.filter(
@@ -478,7 +620,7 @@ export default function InformesScreen({ config }: Props) {
       { type: 'placeholder' as const, width: colDrag.width },
       ...others.slice(insertAt),
     ] as ColItem[];
-  }, [camposVisibles, colDrag, dropInsertIdx]);
+  }, [camposEnTabla, colDrag, dropInsertIdx]);
 
   // ── Handlers de configuración ─────────────────────────────────────────────
 
@@ -510,8 +652,9 @@ export default function InformesScreen({ config }: Props) {
         camposVisibles,
         filtros: prev.filtros.filter(f => validos.has(f.campo)),
         orden: prev.orden.filter(o => validos.has(o.campo)),
-        agruparPor: prev.agruparPor && validos.has(prev.agruparPor) ? prev.agruparPor : null,
+        agruparPor: nivelesAgrupacion(prev.agruparPor).filter(k => validos.has(k)),
         anchoColumnas,
+        camposOcultos: (prev.camposOcultos ?? []).filter(k => validos.has(k)),
       };
     });
   }
@@ -579,10 +722,26 @@ export default function InformesScreen({ config }: Props) {
       return {
         ...prev,
         camposVisibles: prev.camposVisibles.filter(k => k !== key),
+        camposOcultos: (prev.camposOcultos ?? []).filter(k => k !== key),
         orden: prev.orden.filter(o => o.campo !== key),
+        agruparPor: nivelesAgrupacion(prev.agruparPor).filter(k => k !== key),
         anchoColumnas: nextAnchos,
       };
     });
+  }
+
+  function ocultarCampo(key: CampoKey) {
+    setInforme(prev => ({
+      ...prev,
+      camposOcultos: [...new Set([...(prev.camposOcultos ?? []), key])],
+    }));
+  }
+
+  function mostrarCampo(key: CampoKey) {
+    setInforme(prev => ({
+      ...prev,
+      camposOcultos: (prev.camposOcultos ?? []).filter(k => k !== key),
+    }));
   }
 
   function addCampoInline(key: CampoKey) {
@@ -591,15 +750,31 @@ export default function InformesScreen({ config }: Props) {
     setShowAddField(false);
   }
 
-  function addFiltro() {
-    const defaultCampo = CAMPOS_META[0].key;
-    const meta = CAMPO_MAP.get(defaultCampo)!;
+  // ── Agrupamiento multinivel ───────────────────────────────────────────────
+  function addNivelAgrupacion(campo: CampoKey) {
+    setInforme(prev => {
+      const niveles = nivelesAgrupacion(prev.agruparPor);
+      if (niveles.includes(campo)) return prev;
+      return { ...prev, agruparPor: [...niveles, campo] };
+    });
+  }
+
+  function removeNivelAgrupacion(campo: CampoKey) {
+    setInforme(prev => ({
+      ...prev,
+      agruparPor: nivelesAgrupacion(prev.agruparPor).filter(k => k !== campo),
+    }));
+  }
+
+  // Añade un filtro con el campo ya fijado (usado desde el embudo de la columna).
+  function addFiltroParaCampo(campo: CampoKey) {
+    const meta = CAMPO_MAP.get(campo)!;
     const ops  = getOperadores(meta.tipo);
     setInforme(prev => ({
       ...prev,
       filtros: [
         ...prev.filtros,
-        { id: crypto.randomUUID(), campo: defaultCampo, operador: ops[0].key, valor: '' },
+        { id: crypto.randomUUID(), campo, operador: ops[0].key, valor: '' },
       ],
     }));
   }
@@ -622,6 +797,130 @@ export default function InformesScreen({ config }: Props) {
         return updated;
       }),
     }));
+  }
+
+  // Render del control de valor según el tipo de campo. Reutilizado por el
+  // popover de filtro de cada columna.
+  function renderValorInput(filtro: FiltroInforme, meta: CampoMeta) {
+    if (meta.tipo === 'estado') {
+      return (
+        <select
+          value={filtro.valor}
+          onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
+          className={selectCls + ' w-full'}
+        >
+          <option value="">— Seleccionar —</option>
+          {Object.entries(ESTADO_TRAMITE_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+      );
+    }
+    if (meta.tipo === 'estado_asignatura') {
+      return (
+        <select
+          value={filtro.valor}
+          onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
+          className={selectCls + ' w-full'}
+        >
+          <option value="">— Seleccionar —</option>
+          {Object.entries(ESTADO_ASIGNATURA_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+      );
+    }
+    if (meta.valorType === 'select_data') {
+      const opts = selectOptions.get(meta.key) ?? [];
+      return (
+        <select
+          value={filtro.valor}
+          onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
+          className={selectCls + ' w-full'}
+        >
+          <option value="">— Todos —</option>
+          {opts.length > 0
+            ? opts.map(v => <option key={v} value={v}>{v}</option>)
+            : <option disabled>{isLoading ? 'Cargando…' : 'Sin datos'}</option>
+          }
+        </select>
+      );
+    }
+    return (
+      <input
+        type={meta.tipo === 'numero' ? 'number' : 'text'}
+        value={filtro.valor}
+        onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
+        placeholder="Valor..."
+        className={selectCls + ' w-full'}
+      />
+    );
+  }
+
+  // Cuerpo del popover de filtro (cabecera, columna oculta y cápsula de resumen
+  // comparten exactamente el mismo contenido editable).
+  function renderFiltroPopoverBody(campoKey: CampoKey, onClose: () => void) {
+    const label = CAMPO_MAP.get(campoKey)?.label ?? campoKey;
+    const condiciones = informe.filtros.filter(f => f.campo === campoKey);
+    return (
+      <>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-slate-700">Filtrar: {label}</span>
+          <button
+            onClick={onClose}
+            className="p-0.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            title="Cerrar"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="flex flex-col gap-2">
+          {condiciones.length === 0 && (
+            <span className="text-[11px] text-slate-400">Sin condiciones.</span>
+          )}
+          {condiciones.map(filtro => {
+            const meta   = CAMPO_MAP.get(filtro.campo) ?? CAMPOS_META[0];
+            const ops    = getOperadores(meta.tipo);
+            const opMeta = ops.find(o => o.key === filtro.operador) ?? ops[0];
+            return (
+              <div
+                key={filtro.id}
+                className="flex flex-col gap-1 bg-amber-50/50 rounded-lg border border-amber-200/60 p-1.5"
+              >
+                <div className="flex gap-1 items-center">
+                  <select
+                    value={filtro.operador}
+                    onChange={e =>
+                      updateFiltro(filtro.id, { operador: e.target.value as FiltroInforme['operador'] })
+                    }
+                    className={selectCls + ' flex-1'}
+                  >
+                    {ops.map(op => (
+                      <option key={op.key} value={op.key}>{op.label}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => removeFiltro(filtro.id)}
+                    className={iconBtnCls + ' hover:bg-red-100 hover:text-red-600 text-slate-400'}
+                    title="Quitar condición"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {opMeta.needsValor && renderValorInput(filtro, meta)}
+              </div>
+            );
+          })}
+          <button
+            onClick={() => addFiltroParaCampo(campoKey)}
+            className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 transition-colors px-1 py-0.5 self-start"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Añadir condición
+          </button>
+        </div>
+      </>
+    );
   }
 
   // ── Ordenar por clic en cabecera (estilo Excel) ───────────────────────────
@@ -647,6 +946,25 @@ export default function InformesScreen({ config }: Props) {
     }
   }
 
+  /** Fija la dirección de orden de un campo (lo añade si aún no estaba ordenado).
+   *  Usado por las cápsulas de orden y por el menú colapsado de columna. */
+  function fijarOrdenCampo(campo: CampoKey, direccion: 'asc' | 'desc') {
+    setInforme(prev => {
+      const existe = prev.orden.some(o => o.campo === campo);
+      return {
+        ...prev,
+        orden: existe
+          ? prev.orden.map(o => (o.campo === campo ? { ...o, direccion } : o))
+          : [...prev.orden, { id: crypto.randomUUID(), campo, direccion }],
+      };
+    });
+  }
+
+  /** Quita un campo del orden (desde la X de la cápsula). */
+  function quitarOrden(campo: CampoKey) {
+    setInforme(prev => ({ ...prev, orden: prev.orden.filter(o => o.campo !== campo) }));
+  }
+
   // ── Column DnD ────────────────────────────────────────────────────────────
 
   // Mousedown sobre cualquier parte del título de la columna. Sólo se promueve
@@ -661,7 +979,7 @@ export default function InformesScreen({ config }: Props) {
     function onMove(ev: MouseEvent) {
       if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
       cleanup();
-      const key = camposVisibles[colIdx].key;
+      const key = camposEnTabla[colIdx].key;
       const th = thRefsMap.current.get(key);
       if (!th) return;
       const rect = th.getBoundingClientRect();
@@ -699,7 +1017,7 @@ export default function InformesScreen({ config }: Props) {
     const drag = colDrag;
 
     function computeInsertIdx(clientX: number): number {
-      const others = camposVisibles.filter((_, i) => i !== drag.colIdx);
+      const others = camposEnTabla.filter((_, i) => i !== drag.colIdx);
       let insert = 0;
       for (let i = 0; i < others.length; i++) {
         const el = thRefsMap.current.get(others[i].key);
@@ -720,9 +1038,21 @@ export default function InformesScreen({ config }: Props) {
     }
 
     function onUp() {
+      // Reordena dentro de camposVisibles usando las keys de camposEnTabla
+      const tableKeys = camposEnTabla.map(c => c.key);
+      const movedKey = tableKeys[drag.colIdx];
+      const othersKeys = tableKeys.filter(k => k !== movedKey);
+      const insertIdx = Math.min(dropInsertIdxRef.current, othersKeys.length);
+
       const arr = [...informe.camposVisibles];
-      const [moved] = arr.splice(drag.colIdx, 1);
-      arr.splice(Math.min(dropInsertIdxRef.current, arr.length), 0, moved);
+      arr.splice(arr.indexOf(movedKey), 1);
+      if (insertIdx === 0) {
+        const anchorKey = othersKeys[0];
+        arr.splice(anchorKey ? arr.indexOf(anchorKey) : arr.length, 0, movedKey);
+      } else {
+        const anchorKey = othersKeys[insertIdx - 1];
+        arr.splice(arr.indexOf(anchorKey) + 1, 0, movedKey);
+      }
       setInforme(prev => ({ ...prev, camposVisibles: arr }));
       setColDrag(null);
     }
@@ -757,10 +1087,27 @@ export default function InformesScreen({ config }: Props) {
     const startWidth = th.getBoundingClientRect().width;
     const startX = e.clientX;
     let currentWidth = startWidth;
+
+    // Congela el ancho actual de TODAS las columnas para que al redimensionar una
+    // las demás no se redistribuyan. El espacio sobrante lo absorbe la columna
+    // final (la del botón "+"), que se queda en automático.
+    const congelados: Partial<Record<CampoKey, number>> = { ...(informe.anchoColumnas ?? {}) };
+    let huboCambio = false;
+    for (const cm of camposEnTabla) {
+      if (congelados[cm.key] === undefined) {
+        const el = thRefsMap.current.get(cm.key);
+        if (el) {
+          congelados[cm.key] = Math.round(el.getBoundingClientRect().width);
+          huboCambio = true;
+        }
+      }
+    }
+    if (huboCambio) setInforme(prev => ({ ...prev, anchoColumnas: congelados }));
+
     setResizing({ key, width: startWidth });
 
     function onMove(ev: MouseEvent) {
-      currentWidth = Math.max(50, startWidth + (ev.clientX - startX));
+      currentWidth = Math.max(56, startWidth + (ev.clientX - startX));
       setResizing({ key, width: currentWidth });
     }
 
@@ -809,22 +1156,25 @@ export default function InformesScreen({ config }: Props) {
     return buildHtmlInforme({
       nombre: informe.nombre,
       filtrosDesc: describeFiltros(informe.filtros),
-      campos: camposVisibles,
+      campos: camposEnTabla,
       rows: resultados,
       orientacion: previewOrientacion,
       zoom: previewZoom,
-      agruparPor: informe.agruparPor,
-      agruparPorMeta: informe.agruparPor ? CAMPO_MAP.get(informe.agruparPor) : null,
+      agruparPorMetas: nivelesAgrupacion(informe.agruparPor)
+        .map(k => CAMPO_MAP.get(k))
+        .filter(Boolean) as CampoMeta[],
     });
-  }, [showPreview, previewOrientacion, previewZoom, informe.nombre, informe.filtros, camposVisibles, resultados]);
+  }, [showPreview, previewOrientacion, previewZoom, informe.nombre, informe.filtros, camposEnTabla, resultados]);
 
   // ── Exportar ──────────────────────────────────────────────────────────────
 
   function buildExportRows(): (string | number | boolean | null)[][] {
-    const header = camposVisibles.map(c => c.label);
-    const groupCampo = informe.agruparPor ? CAMPO_MAP.get(informe.agruparPor) : null;
+    const header = camposEnTabla.map(c => c.label);
+    const nivelesMeta = nivelesAgrupacion(informe.agruparPor)
+      .map(k => CAMPO_MAP.get(k))
+      .filter(Boolean) as CampoMeta[];
     const dataRows = resultados.map(s =>
-      camposVisibles.map(c => {
+      camposEnTabla.map(c => {
         const val = s[c.key as keyof FilaInforme];
         if (val === null || val === undefined) return '';
         if (c.tipo === 'booleano') return val ? 'Sí' : 'No';
@@ -839,14 +1189,21 @@ export default function InformesScreen({ config }: Props) {
         return val;
       }),
     );
-    if (groupCampo) {
+    if (nivelesMeta.length > 0) {
       const rows: (string | number | boolean | null)[][] = [header];
-      let lastGroupVal: string | null = null;
+      const lastVals: (string | null)[] = nivelesMeta.map(() => null);
       resultados.forEach((s, i) => {
-        const groupVal = formatCelda(s, groupCampo);
-        if (groupVal !== lastGroupVal) {
-          rows.push([groupVal, ...Array(camposVisibles.length - 1).fill('')]);
-          lastGroupVal = groupVal;
+        let cambioDesde = -1;
+        for (let lvl = 0; lvl < nivelesMeta.length; lvl++) {
+          if (formatCelda(s, nivelesMeta[lvl]) !== lastVals[lvl]) { cambioDesde = lvl; break; }
+        }
+        if (cambioDesde !== -1) {
+          for (let lvl = cambioDesde; lvl < nivelesMeta.length; lvl++) {
+            const val = formatCelda(s, nivelesMeta[lvl]);
+            lastVals[lvl] = val;
+            // Sangrado por nivel anteponiendo espacios para distinguir la jerarquía.
+            rows.push([`${'    '.repeat(lvl)}${val}`, ...Array(camposEnTabla.length - 1).fill('')]);
+          }
         }
         rows.push(dataRows[i]);
       });
@@ -888,7 +1245,7 @@ export default function InformesScreen({ config }: Props) {
     const ws = XLSX.utils.aoa_to_sheet(rows);
 
     // Ancho de columnas automático
-    const colWidths = camposVisibles.map(c => ({ wch: Math.max(c.label.length, 12) }));
+    const colWidths = camposEnTabla.map(c => ({ wch: Math.max(c.label.length, 12) }));
     ws['!cols'] = colWidths;
 
     const wb = XLSX.utils.book_new();
@@ -1003,7 +1360,7 @@ export default function InformesScreen({ config }: Props) {
 
     const base64 = await generarExcelHorarios(
       resultados,
-      camposVisibles,
+      camposEnTabla,
       profesores,
       opciones,
       valoresHorario,
@@ -1033,7 +1390,7 @@ export default function InformesScreen({ config }: Props) {
   // relleno por los profesores y conserva sus horarios en el nuevo Excel.
   function handleExportarHorarios(fusion = false) {
     setShowExportMenu(false);
-    if (camposVisibles.length === 0) {
+    if (camposEnTabla.length === 0) {
       window.alert(
         'No hay un informe apropiado para generar el Excel de horarios.\n' +
           'Añade al menos una columna visible en el informe.',
@@ -1058,7 +1415,7 @@ export default function InformesScreen({ config }: Props) {
     setHModoFusion(fusion);
     // Si hay un formato guardado, sus opciones son los valores por defecto.
     // Si no, se usan los valores clásicos (congelar hasta Especialidad, insertar antes de las 2 últimas).
-    const claves = camposVisibles.map(c => c.key);
+    const claves = camposEnTabla.map(c => c.key);
     if (formatoHorarios?.opciones) {
       const fo = formatoHorarios.opciones;
       setHCongelar(fo.congelar);
@@ -1069,8 +1426,8 @@ export default function InformesScreen({ config }: Props) {
         ? 'especialidad'
         : (claves[0] ?? null);
       const insertarDef =
-        camposVisibles.length >= 3
-          ? camposVisibles[camposVisibles.length - 3].key
+        camposEnTabla.length >= 3
+          ? camposEnTabla[camposEnTabla.length - 3].key
           : (claves[claves.length - 1] ?? null);
       setHCongelar(true);
       setHCongelarHasta(congelarDef);
@@ -1088,7 +1445,7 @@ export default function InformesScreen({ config }: Props) {
         congelarHasta: hCongelar ? hCongelarHasta : null,
         insertarTras: hInsertarTras,
       };
-      const currentKeys = camposVisibles.map(c => c.key);
+      const currentKeys = camposEnTabla.map(c => c.key);
 
       // Verificar coherencia de formato (o guardarlo si es la primera vez)
       const ok = await guardarOEnforzarFormato(currentKeys, opciones, hModoFusion);
@@ -1197,7 +1554,7 @@ export default function InformesScreen({ config }: Props) {
     try {
       const base64 = await generarExcelHorarios(
         resultados,
-        camposVisibles,
+        camposEnTabla,
         fusionPendiente.profesores,
         fusionPendiente.opciones,
         fusionPendiente.resultado.valoresHorario,
@@ -1276,27 +1633,12 @@ export default function InformesScreen({ config }: Props) {
               </span>
               <span className="text-slate-300">·</span>
               <span>
-                <span className="font-semibold text-[#1b1b24]">{camposVisibles.length}</span>
-                {' '}campo{camposVisibles.length !== 1 ? 's' : ''}
+                <span className="font-semibold text-[#1b1b24]">{camposEnTabla.length}</span>
+                {camposOcultos.length > 0 && (
+                  <span className="text-slate-400">/{camposVisibles.length}</span>
+                )}
+                {' '}campo{camposEnTabla.length !== 1 ? 's' : ''}
               </span>
-              {informe.filtros.length > 0 && (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span>
-                    <span className="font-semibold text-amber-600">{informe.filtros.length}</span>
-                    {' '}filtro{informe.filtros.length !== 1 ? 's' : ''} activo{informe.filtros.length !== 1 ? 's' : ''}
-                  </span>
-                </>
-              )}
-              {informe.agruparPor && (
-                <>
-                  <span className="text-slate-300">·</span>
-                  <span>
-                    agrupado por{' '}
-                    <span className="font-semibold text-[#1a1560]">{CAMPO_MAP.get(informe.agruparPor)?.label}</span>
-                  </span>
-                </>
-              )}
             </div>
           )}
           {/* Menú de acciones (tres puntos verticales) */}
@@ -1366,6 +1708,143 @@ export default function InformesScreen({ config }: Props) {
       {/* ── Barra de herramientas ──────────────────────────────────────────── */}
       <div className="bg-white rounded-t-2xl border border-[#c7c4d8] shadow-sm px-4 py-3 flex flex-wrap items-center gap-2 shrink-0">
 
+        {/* Tres puntos: nombre e informe preset */}
+        <div className="relative">
+          <button
+            ref={presetBtnRef}
+            onClick={() => setShowPresetMenu(v => !v)}
+            title="Nombre e informe preset"
+            aria-label="Nombre e informe preset"
+            className={
+              'flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ' +
+              (showPresetMenu
+                ? 'bg-[var(--tc-primary)] text-white border-[var(--tc-primary)]'
+                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700')
+            }
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+
+          {showPresetMenu && (
+            <div
+              ref={presetMenuRef}
+              className="absolute left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 min-w-[260px]"
+            >
+              {/* Nombre del informe */}
+              <div className="px-4 pt-3 pb-2.5">
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">
+                  Nombre del informe
+                </label>
+                <input
+                  type="text"
+                  value={informe.nombre}
+                  onChange={e => setInforme(prev => ({ ...prev, nombre: e.target.value }))}
+                  placeholder="Nombre del informe..."
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                />
+              </div>
+
+              <div className="h-px bg-slate-100" />
+
+              {/* Líneas de separación en el cuerpo de datos */}
+              <button
+                onClick={() => setInforme(prev => ({ ...prev, separadoresCuerpo: !prev.separadoresCuerpo }))}
+                className="w-full flex items-center justify-between gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                title="Mostrar las líneas verticales también entre los datos (en la cabecera se ven siempre)"
+              >
+                <span>Líneas de separación en los datos</span>
+                <span
+                  className={
+                    'relative inline-flex items-center w-8 h-[18px] rounded-full transition-colors shrink-0 ' +
+                    (separadoresCuerpo ? 'bg-[var(--tc-primary)]' : 'bg-slate-300')
+                  }
+                >
+                  <span
+                    className={
+                      'absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-all ' +
+                      (separadoresCuerpo ? 'left-[15px]' : 'left-0.5')
+                    }
+                  />
+                </span>
+              </button>
+
+              <div className="h-px bg-slate-100" />
+
+              {/* Acciones de preset */}
+              {isSavedPreset && (
+                <button
+                  onClick={() => { setShowPresetMenu(false); handleActualizarPreset(); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                >
+                  <Save className="w-4 h-4 shrink-0 text-slate-400" />
+                  <span>Actualizar</span>
+                </button>
+              )}
+              <button
+                onClick={() => { setShowPresetMenu(false); handleGuardarNuevoPreset(); }}
+                disabled={!informe.nombre.trim()}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4 shrink-0 text-slate-400" />
+                <span>{isSavedPreset || isPredefinidoFabrica ? 'Guardar como nuevo...' : 'Guardar preset...'}</span>
+              </button>
+
+              {isSavedPreset && (
+                <>
+                  <div className="h-px bg-slate-100 mx-3" />
+                  {esPredeterminadoUsuario ? (
+                    <button
+                      onClick={() => handleTogglePredeterminado(false)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                    >
+                      <Star className="w-4 h-4 shrink-0 text-amber-500 fill-amber-400" />
+                      <span>Quitar de predeterminados</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleTogglePredeterminado(true)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                    >
+                      <Star className="w-4 h-4 shrink-0 text-slate-400" />
+                      <span>Guardar como predeterminado</span>
+                    </button>
+                  )}
+                </>
+              )}
+
+              {(isSavedPreset || isPredefinidoFabrica) && (
+                <>
+                  <div className="h-px bg-slate-100 mx-3" />
+                  <button
+                    onClick={() => {
+                      setShowPresetMenu(false);
+                      if (isSavedPreset) handleEliminarPreset();
+                      else handleOcultarPredefinido();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0 text-red-400" />
+                    <span>{isSavedPreset ? 'Eliminar' : 'Eliminar de predefinidos'}</span>
+                  </button>
+                </>
+              )}
+
+              {ocultos.length > 0 && (
+                <>
+                  <div className="h-px bg-slate-100 mx-3" />
+                  <button
+                    onClick={() => { setShowPresetMenu(false); handleRestaurarPredefinidos(); }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
+                  >
+                    <RotateCcw className="w-4 h-4 shrink-0 text-slate-400" />
+                    <span>Restaurar predefinidos ({ocultos.length})</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Selector de informe base */}
         <select
           value={currentSelectId}
@@ -1418,140 +1897,46 @@ export default function InformesScreen({ config }: Props) {
           </button>
         </div>
 
-        {/* Nombre editable */}
-        <input
-          type="text"
-          value={informe.nombre}
-          onChange={e => setInforme(prev => ({ ...prev, nombre: e.target.value }))}
-          placeholder="Nombre del informe..."
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30 w-44"
-        />
-
-        {/* Acciones de preset */}
-        {isSavedPreset || isPredefinidoFabrica ? (
-          <div className="relative">
-            <button
-              ref={presetBtnRef}
-              onClick={() => setShowPresetMenu(v => !v)}
-              className="flex items-center gap-1 text-xs px-2.5 py-1.5 text-white rounded-lg transition-colors"
-              style={{ background: 'var(--tc-primary)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--tc-primary-dark)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--tc-primary)'; }}
-            >
-              <Save className="w-3 h-3" />
-              Preset
-              <ChevronDown className={`w-3 h-3 transition-transform ${showPresetMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showPresetMenu && (
-              <div
-                ref={presetMenuRef}
-                className="absolute left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[230px]"
-              >
-                {/* Actualizar: solo para presets guardados (no para los de fábrica) */}
-                {isSavedPreset && (
-                  <button
-                    onClick={() => { setShowPresetMenu(false); handleActualizarPreset(); }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
-                  >
-                    <Save className="w-4 h-4 shrink-0 text-slate-400" />
-                    <span>Actualizar</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => { setShowPresetMenu(false); handleGuardarNuevoPreset(); }}
-                  disabled={!informe.nombre.trim()}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-700"
-                >
-                  <Plus className="w-4 h-4 shrink-0 text-slate-400" />
-                  <span>Guardar como nuevo...</span>
-                </button>
-
-                {/* Marcar / quitar predeterminado: solo para presets guardados */}
-                {isSavedPreset && (
-                  <>
-                    <div className="h-px bg-slate-100 mx-3" />
-                    {esPredeterminadoUsuario ? (
-                      <button
-                        onClick={() => handleTogglePredeterminado(false)}
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                      >
-                        <Star className="w-4 h-4 shrink-0 text-amber-500 fill-amber-400" />
-                        <span>Quitar de predeterminados</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleTogglePredeterminado(true)}
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                      >
-                        <Star className="w-4 h-4 shrink-0 text-slate-400" />
-                        <span>Guardar como predeterminado</span>
-                      </button>
-                    )}
-                  </>
-                )}
-
-                <div className="h-px bg-slate-100 mx-3" />
-                <button
-                  onClick={() => {
-                    setShowPresetMenu(false);
-                    if (isSavedPreset) handleEliminarPreset();
-                    else handleOcultarPredefinido();
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4 shrink-0 text-red-400" />
-                  <span>{isSavedPreset ? 'Eliminar' : 'Eliminar de predefinidos'}</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={handleGuardarNuevoPreset}
-            disabled={!informe.nombre.trim()}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Save className="w-3.5 h-3.5" />
-            Guardar preset...
-          </button>
-        )}
-
-        {/* Restaurar predefinidos de fábrica ocultados */}
-        {ocultos.length > 0 && (
-          <button
-            onClick={handleRestaurarPredefinidos}
-            title="Restaurar los predefinidos de fábrica que has eliminado"
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Restaurar predefinidos ({ocultos.length})
-          </button>
-        )}
-
         <div className="flex-1 min-w-2" />
 
-        {/* Agrupar por */}
-        {camposVisibles.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-400 whitespace-nowrap">Agrupar por</span>
-            <select
-              value={informe.agruparPor ?? ''}
-              onChange={e =>
-                setInforme(prev => ({
-                  ...prev,
-                  agruparPor: (e.target.value as CampoKey) || null,
-                }))
-              }
-              className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-            >
-              <option value="">— Ninguno —</option>
-              {camposVisibles.map(c => (
-                <option key={c.key} value={c.key}>{c.label}</option>
+        {/* Agrupar por (multinivel) */}
+        {camposVisibles.length > 0 && (() => {
+          const niveles = nivelesAgrupacion(informe.agruparPor);
+          const disponibles = camposVisibles.filter(c => !niveles.includes(c.key));
+          return (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-slate-400 whitespace-nowrap">Agrupar por</span>
+              {niveles.map((k, i) => (
+                <span
+                  key={k}
+                  className="inline-flex items-center gap-1 bg-[#1a1560]/5 border border-[#1a1560]/20 rounded-lg pl-1.5 pr-0.5 py-1 text-xs text-[#1a1560]"
+                >
+                  <span className="font-bold text-[#1a1560]/50 tabular-nums">{i + 1}</span>
+                  <span className="font-medium">{CAMPO_MAP.get(k)?.label ?? k}</span>
+                  <button
+                    onClick={() => removeNivelAgrupacion(k)}
+                    className="p-0.5 rounded text-[#1a1560]/40 hover:text-red-600 hover:bg-red-100 transition-colors"
+                    title="Quitar nivel de agrupamiento"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
               ))}
-            </select>
-          </div>
-        )}
+              {disponibles.length > 0 && (
+                <select
+                  value=""
+                  onChange={e => { if (e.target.value) addNivelAgrupacion(e.target.value as CampoKey); }}
+                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                >
+                  <option value="">{niveles.length === 0 ? '— Ninguno —' : '+ Añadir nivel'}</option>
+                  {disponibles.map(c => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Auto-ajustar columnas (sólo si hay anchos manuales) */}
         {tieneAnchosManuales && (
@@ -1564,157 +1949,159 @@ export default function InformesScreen({ config }: Props) {
             Auto-ajustar
           </button>
         )}
-
-        {/* Filtros toggle */}
-        <button
-          onClick={() => setShowFilters(v => !v)}
-          className={
-            'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ' +
-            (showFilters || informe.filtros.length > 0
-              ? 'bg-amber-50 border-amber-300/60 text-amber-700'
-              : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-600')
-          }
-        >
-          <Filter className="w-3.5 h-3.5" />
-          Filtros
-          {informe.filtros.length > 0 && (
-            <span className="bg-amber-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-semibold">
-              {informe.filtros.length}
-            </span>
-          )}
-        </button>
       </div>
 
-      {/* ── Panel de filtros (colapsable) ─────────────────────────────────── */}
-      <AnimatePresence initial={false}>
-        {showFilters && (
-          <motion.div
-            key="filters"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="overflow-hidden shrink-0"
-          >
-            <div className="bg-amber-50/50 border-x border-b border-[#c7c4d8] px-4 py-3">
-              <div className="flex flex-wrap gap-2 items-start">
-                {informe.filtros.length === 0 && (
-                  <span className="text-xs text-slate-400 self-center">
-                    Sin filtros activos.
-                  </span>
-                )}
-
-                {informe.filtros.map(filtro => {
-                  const meta   = CAMPO_MAP.get(filtro.campo) ?? CAMPOS_META[0];
-                  const ops    = getOperadores(meta.tipo);
-                  const opMeta = ops.find(o => o.key === filtro.operador) ?? ops[0];
-                  const opts   = selectOptions.get(meta.key) ?? [];
-
-                  return (
-                    <div
-                      key={filtro.id}
-                      className="flex flex-col gap-1 bg-white rounded-lg border border-amber-200/60 p-2 shadow-sm"
-                      style={{ minWidth: 160 }}
-                    >
-                      <div className="flex gap-1 items-center">
-                        <select
-                          value={filtro.campo}
-                          onChange={e => updateFiltro(filtro.id, { campo: e.target.value as CampoKey })}
-                          className={selectCls + ' flex-1'}
-                        >
-                          {camposDeModo(informe.modo).map(c => (
-                            <option key={c.key} value={c.key}>{c.label}</option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => removeFiltro(filtro.id)}
-                          className={iconBtnCls + ' hover:bg-red-100 hover:text-red-600'}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <select
-                        value={filtro.operador}
-                        onChange={e =>
-                          updateFiltro(filtro.id, { operador: e.target.value as FiltroInforme['operador'] })
-                        }
-                        className={selectCls + ' w-full'}
-                      >
-                        {ops.map(op => (
-                          <option key={op.key} value={op.key}>{op.label}</option>
-                        ))}
-                      </select>
-
-                      {opMeta.needsValor && (
-                        meta.tipo === 'estado' ? (
-                          <select
-                            value={filtro.valor}
-                            onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
-                            className={selectCls + ' w-full'}
-                          >
-                            <option value="">— Seleccionar —</option>
-                            {Object.entries(ESTADO_TRAMITE_LABELS).map(([k, v]) => (
-                              <option key={k} value={k}>{v}</option>
-                            ))}
-                          </select>
-                        ) : meta.tipo === 'estado_asignatura' ? (
-                          <select
-                            value={filtro.valor}
-                            onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
-                            className={selectCls + ' w-full'}
-                          >
-                            <option value="">— Seleccionar —</option>
-                            {Object.entries(ESTADO_ASIGNATURA_LABELS).map(([k, v]) => (
-                              <option key={k} value={k}>{v}</option>
-                            ))}
-                          </select>
-                        ) : meta.valorType === 'select_data' ? (
-                          <select
-                            value={filtro.valor}
-                            onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
-                            className={selectCls + ' w-full'}
-                          >
-                            <option value="">— Todos —</option>
-                            {opts.length > 0
-                              ? opts.map(v => <option key={v} value={v}>{v}</option>)
-                              : <option disabled>{isLoading ? 'Cargando…' : 'Sin datos'}</option>
-                            }
-                          </select>
-                        ) : meta.tipo === 'numero' ? (
-                          <input
-                            type="number"
-                            value={filtro.valor}
-                            onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
-                            placeholder="Valor..."
-                            className={selectCls + ' w-full'}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={filtro.valor}
-                            onChange={e => updateFiltro(filtro.id, { valor: e.target.value })}
-                            placeholder="Valor..."
-                            className={selectCls + ' w-full'}
-                          />
-                        )
-                      )}
-                    </div>
-                  );
-                })}
-
-                <button
-                  onClick={addFiltro}
-                  className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 transition-colors self-center px-1 py-1"
+      {/* ── Resumen de filtros / orden / agrupamiento / campos ocultos ───────── */}
+      {(informe.filtros.length > 0 || informe.orden.length > 0 || nivelesAgrupacion(informe.agruparPor).length > 0 || camposOcultos.length > 0) && (
+        <div className="shrink-0 bg-amber-50/40 border-x border-b border-[#c7c4d8] px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
+          {/* Filtros, en su orden de creación */}
+          {informe.filtros.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-amber-700 uppercase tracking-wide flex items-center gap-1">
+                <Filter className="w-3 h-3" /> Filtros
+              </span>
+              {informe.filtros.map((f, i) => (
+                <span
+                  key={f.id}
+                  className="relative inline-flex items-center gap-1 bg-white border border-amber-200 rounded-full pl-1.5 pr-0.5 py-0.5 text-slate-700"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Añadir filtro
-                </button>
-              </div>
+                  <span className="text-amber-600/60 font-bold tabular-nums">{i + 1}.</span>
+                  <button
+                    data-chip-filtro
+                    onClick={() => setChipFiltroId(prev => (prev === f.id ? null : f.id))}
+                    className="hover:text-amber-700 transition-colors"
+                    title="Editar este filtro"
+                  >
+                    {describeFiltro(f)}
+                  </button>
+                  <button
+                    onClick={() => removeFiltro(f.id)}
+                    className="p-0.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-100 transition-colors"
+                    title="Quitar filtro"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+
+                  {chipFiltroId === f.id && (
+                    <div
+                      ref={chipFiltroRef}
+                      onMouseDown={e => e.stopPropagation()}
+                      className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-40 p-2.5 w-60 normal-case"
+                    >
+                      {renderFiltroPopoverBody(f.campo, () => setChipFiltroId(null))}
+                    </div>
+                  )}
+                </span>
+              ))}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+
+          {/* Orden — cápsula por campo: ▲ asc, ▼ desc y ✕ para quitar */}
+          {informe.orden.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-amber-700 uppercase tracking-wide">Orden</span>
+              {informe.orden.map((o, i) => {
+                const label = CAMPO_MAP.get(o.campo)?.label ?? o.campo;
+                return (
+                  <span
+                    key={o.id}
+                    className="inline-flex items-center gap-0.5 bg-white border border-amber-200 rounded-full pl-2 pr-0.5 py-0.5 text-slate-700"
+                  >
+                    {informe.orden.length > 1 && (
+                      <span className="text-amber-600/60 font-bold tabular-nums mr-0.5">{i + 1}.</span>
+                    )}
+                    <span className="mr-0.5">{label}</span>
+                    <button
+                      onClick={() => fijarOrdenCampo(o.campo, 'asc')}
+                      title="Orden ascendente"
+                      className={
+                        'p-0.5 rounded transition-colors ' +
+                        (o.direccion === 'asc'
+                          ? 'text-amber-700 bg-amber-100'
+                          : 'text-slate-300 hover:text-amber-600 hover:bg-amber-50')
+                      }
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => fijarOrdenCampo(o.campo, 'desc')}
+                      title="Orden descendente"
+                      className={
+                        'p-0.5 rounded transition-colors ' +
+                        (o.direccion === 'desc'
+                          ? 'text-amber-700 bg-amber-100'
+                          : 'text-slate-300 hover:text-amber-600 hover:bg-amber-50')
+                      }
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => quitarOrden(o.campo)}
+                      title="Quitar este orden"
+                      className="p-0.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-100 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Agrupamiento — cápsula por nivel con ✕ para quitar */}
+          {nivelesAgrupacion(informe.agruparPor).length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-amber-700 uppercase tracking-wide">Agrupado por</span>
+              {nivelesAgrupacion(informe.agruparPor).map((k, i) => (
+                <span
+                  key={k}
+                  className="inline-flex items-center gap-1 bg-white border border-[#1a1560]/20 rounded-full pl-2 pr-0.5 py-0.5 text-[#1a1560]"
+                >
+                  {nivelesAgrupacion(informe.agruparPor).length > 1 && (
+                    <span className="text-[#1a1560]/50 font-bold tabular-nums">{i + 1}.</span>
+                  )}
+                  <span className="font-medium">{CAMPO_MAP.get(k)?.label ?? k}</span>
+                  <button
+                    onClick={() => removeNivelAgrupacion(k)}
+                    title="Quitar este agrupamiento"
+                    className="p-0.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-100 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Campos ocultos — chip por cada uno; la X devuelve la columna a visible
+              en su posición original (coherente con la X de los filtros). */}
+          {camposOcultos.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+                <EyeOff className="w-3 h-3" /> Ocultos
+              </span>
+              {camposOcultos.map(k => {
+                const label = CAMPO_MAP.get(k)?.label ?? k;
+                return (
+                  <span
+                    key={k}
+                    className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-full pl-2 pr-0.5 py-0.5 text-slate-500"
+                  >
+                    <span>{label}</span>
+                    <button
+                      onClick={() => mostrarCampo(k)}
+                      title={`Volver a mostrar "${label}" en su sitio`}
+                      className="p-0.5 rounded-full text-slate-400 hover:text-amber-700 hover:bg-amber-100 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Tabla de resultados ───────────────────────────────────────────── */}
       <div className="flex-1 bg-white rounded-b-2xl border-x border-b border-[#c7c4d8] shadow-sm overflow-hidden flex flex-col">
@@ -1788,7 +2175,7 @@ export default function InformesScreen({ config }: Props) {
               )}
             </div>
           ) : (
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed' }}>
               <thead className="sticky top-0 z-20">
                 <tr className="bg-amber-50/70 border-b border-amber-100">
                   <AnimatePresence initial={false} mode="popLayout">
@@ -1819,6 +2206,22 @@ export default function InformesScreen({ config }: Props) {
                       const isDragging = colDrag?.colIdx === item.originalIdx;
                       const ordenEntry = informe.orden.find(o => o.campo === c.key);
                       const ordenIdx   = informe.orden.indexOf(ordenEntry!);
+                      const nFiltrosCol = informe.filtros.filter(f => f.campo === c.key).length;
+                      const popoverAbierto = filterPopoverCampo === c.key;
+                      const anchoCol = getAnchoColumna(c.key);
+                      const colapsado = anchoCol !== undefined && anchoCol < UMBRAL_COLAPSO_COL;
+                      const colMenuAbierto = colMenuCampo === c.key;
+
+                      // Popover de filtro (anclado al <th>, sirve para modo normal y colapsado)
+                      const filterPopoverJSX = popoverAbierto ? (
+                        <div
+                          ref={filterPopoverRef}
+                          onMouseDown={e => e.stopPropagation()}
+                          className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-40 p-2.5 w-60 normal-case"
+                        >
+                          {renderFiltroPopoverBody(c.key, () => setFilterPopoverCampo(null))}
+                        </div>
+                      ) : null;
 
                       return (
                         <motion.th
@@ -1832,9 +2235,10 @@ export default function InformesScreen({ config }: Props) {
                           style={{
                             position: 'relative',
                             width: getAnchoColumna(c.key),
+                            ...estiloSeparadorCabecera(item.originalIdx === 0),
                           }}
                           className={
-                            'group px-2 py-0 text-left whitespace-nowrap select-none transition-opacity duration-150 ' +
+                            'group px-2 py-0 text-left select-none transition-opacity duration-150 ' +
                             (isDragging ? 'opacity-0 ' : 'opacity-100 ')
                           }
                         >
@@ -1842,16 +2246,18 @@ export default function InformesScreen({ config }: Props) {
                             className="flex items-center gap-0.5 py-2 cursor-grab"
                             onMouseDown={e => handleColumnMouseDown(e, item.originalIdx)}
                           >
+                            {/* Grip — siempre visible */}
                             <span
-                              className="text-amber-600 hover:text-amber-800 transition-colors shrink-0 opacity-60 group-hover:opacity-100 pr-0.5"
+                              className="text-amber-600 hover:text-amber-800 transition-colors shrink-0 opacity-60 hover:opacity-100 pr-0.5"
                               title="Arrastrar para reordenar"
                             >
                               <GripVertical className="w-3 h-3" />
                             </span>
 
+                            {/* Etiqueta — se trunca; clic ordena */}
                             <button
                               onClick={() => handleClickSort(c.key)}
-                              className="flex items-center gap-1 group/sort text-xs font-semibold text-amber-700 uppercase tracking-wide hover:text-amber-800 transition-colors"
+                              className="text-xs font-semibold text-amber-700 uppercase tracking-wide hover:text-amber-800 transition-colors min-w-0 shrink overflow-hidden text-left"
                               title={
                                 ordenEntry
                                   ? ordenEntry.direccion === 'asc'
@@ -1860,46 +2266,203 @@ export default function InformesScreen({ config }: Props) {
                                   : 'Sin orden — clic para ordenar'
                               }
                             >
-                              <span>{c.label}</span>
-                              {ordenEntry ? (
-                                <span className="flex items-center gap-0.5">
-                                  {ordenEntry.direccion === 'asc'
-                                    ? <ChevronUp className="w-3.5 h-3.5" />
-                                    : <ChevronDown className="w-3.5 h-3.5" />
+                              <span className="truncate block">{c.label}</span>
+                            </button>
+
+                            {!colapsado ? (
+                              <>
+                                {/* Icono de orden — derecha, siempre visible si hay orden, hover si no */}
+                                {ordenEntry ? (
+                                  <button
+                                    onClick={() => handleClickSort(c.key)}
+                                    onMouseDown={e => e.stopPropagation()}
+                                    className="flex items-center gap-0.5 shrink-0 text-amber-600 hover:text-amber-800 transition-colors"
+                                    title={ordenEntry.direccion === 'asc' ? 'Ascendente — clic para descendente' : 'Descendente — clic para quitar orden'}
+                                  >
+                                    {ordenEntry.direccion === 'asc'
+                                      ? <ChevronUp className="w-3.5 h-3.5" />
+                                      : <ChevronDown className="w-3.5 h-3.5" />
+                                    }
+                                    {informe.orden.length > 1 && (
+                                      <span className="text-[10px] font-bold text-amber-600/50 leading-none">{ordenIdx + 1}</span>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleClickSort(c.key)}
+                                    onMouseDown={e => e.stopPropagation()}
+                                    className="shrink-0 p-0.5 rounded text-slate-400 opacity-50 hover:opacity-100 hover:text-amber-600 transition-opacity"
+                                    title="Sin orden — clic para ordenar"
+                                  >
+                                    <ChevronsUpDown className="w-3 h-3" />
+                                  </button>
+                                )}
+
+                                {/* Ojo — ocultar columna */}
+                                <button
+                                  onClick={() => ocultarCampo(c.key)}
+                                  onMouseDown={e => e.stopPropagation()}
+                                  className="shrink-0 p-0.5 rounded text-slate-400 opacity-50 hover:opacity-100 hover:text-slate-600 hover:bg-slate-100 transition-opacity cursor-pointer"
+                                  title="Ocultar columna"
+                                >
+                                  <EyeOff className="w-3 h-3" />
+                                </button>
+
+                                {/* Embudo de filtro */}
+                                <button
+                                  data-filter-funnel
+                                  onMouseDown={e => e.stopPropagation()}
+                                  onClick={() => {
+                                    if (popoverAbierto) {
+                                      setFilterPopoverCampo(null);
+                                    } else {
+                                      if (nFiltrosCol === 0) addFiltroParaCampo(c.key);
+                                      setFilterPopoverCampo(c.key);
+                                    }
+                                  }}
+                                  title={nFiltrosCol > 0 ? `${nFiltrosCol} filtro(s) en esta columna` : 'Filtrar esta columna'}
+                                  className={
+                                    'shrink-0 ml-0.5 p-0.5 rounded transition-colors cursor-pointer relative ' +
+                                    (nFiltrosCol > 0
+                                      ? 'text-amber-600 bg-amber-100 hover:bg-amber-200'
+                                      : 'text-slate-400 opacity-50 hover:opacity-100 hover:text-amber-600')
                                   }
-                                  {informe.orden.length > 1 && (
-                                    <span className="text-[10px] font-bold text-amber-600/50 leading-none">
-                                      {ordenIdx + 1}
+                                >
+                                  <Filter className="w-3 h-3" />
+                                  {nFiltrosCol > 1 && (
+                                    <span className="absolute -top-1 -right-1 bg-amber-600 text-white text-[8px] leading-none rounded-full w-3 h-3 flex items-center justify-center font-bold">
+                                      {nFiltrosCol}
                                     </span>
                                   )}
-                                </span>
-                              ) : (
-                                <ChevronsUpDown className="w-3 h-3 opacity-60 group-hover/sort:opacity-100 transition-opacity" />
-                              )}
-                            </button>
+                                </button>
 
-                            <button
-                              onClick={() => removeCampo(c.key)}
-                              onMouseDown={e => e.stopPropagation()}
-                              className="ml-0.5 p-0.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
-                              title="Eliminar columna"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
+                                {/* X — eliminar columna */}
+                                <button
+                                  onClick={() => removeCampo(c.key)}
+                                  onMouseDown={e => e.stopPropagation()}
+                                  className="ml-0.5 p-0.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-100 transition-colors cursor-pointer shrink-0"
+                                  title="Eliminar columna"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </>
+                            ) : (
+                              /* Columna estrecha: las acciones se pliegan en un menú de tres puntos */
+                              <div className="relative shrink-0 ml-auto">
+                                <button
+                                  data-col-menu-btn
+                                  onMouseDown={e => e.stopPropagation()}
+                                  onClick={() => setColMenuCampo(colMenuAbierto ? null : c.key)}
+                                  title="Acciones de columna"
+                                  className={
+                                    'relative p-0.5 rounded transition-colors cursor-pointer ' +
+                                    (colMenuAbierto ? 'bg-amber-100 text-amber-700' : 'text-slate-500 hover:text-amber-700 hover:bg-amber-100')
+                                  }
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                  {(ordenEntry || nFiltrosCol > 0) && (
+                                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  )}
+                                </button>
+
+                                {colMenuAbierto && (
+                                  <div
+                                    ref={colMenuRef}
+                                    onMouseDown={e => e.stopPropagation()}
+                                    className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-40 py-1 min-w-[190px] normal-case"
+                                  >
+                                    <button
+                                      onClick={() => { fijarOrdenCampo(c.key, 'asc'); setColMenuCampo(null); }}
+                                      className={
+                                        'w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ' +
+                                        (ordenEntry?.direccion === 'asc' ? 'bg-amber-50 text-amber-700' : 'text-slate-700 hover:bg-amber-50 hover:text-amber-700')
+                                      }
+                                    >
+                                      <ChevronUp className="w-4 h-4 shrink-0 text-amber-500" />
+                                      <span>Orden ascendente</span>
+                                    </button>
+                                    <button
+                                      onClick={() => { fijarOrdenCampo(c.key, 'desc'); setColMenuCampo(null); }}
+                                      className={
+                                        'w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ' +
+                                        (ordenEntry?.direccion === 'desc' ? 'bg-amber-50 text-amber-700' : 'text-slate-700 hover:bg-amber-50 hover:text-amber-700')
+                                      }
+                                    >
+                                      <ChevronDown className="w-4 h-4 shrink-0 text-amber-500" />
+                                      <span>Orden descendente</span>
+                                    </button>
+                                    {ordenEntry && (
+                                      <button
+                                        onClick={() => { quitarOrden(c.key); setColMenuCampo(null); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                      >
+                                        <ChevronsUpDown className="w-4 h-4 shrink-0 text-slate-400" />
+                                        <span>Quitar orden</span>
+                                      </button>
+                                    )}
+
+                                    <div className="h-px bg-slate-100 my-1" />
+
+                                    <button
+                                      onClick={() => {
+                                        setColMenuCampo(null);
+                                        if (nFiltrosCol === 0) addFiltroParaCampo(c.key);
+                                        setFilterPopoverCampo(c.key);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                    >
+                                      <Filter className="w-4 h-4 shrink-0 text-slate-400" />
+                                      <span>Filtrar{nFiltrosCol > 0 ? ` (${nFiltrosCol})` : '…'}</span>
+                                    </button>
+                                    <button
+                                      onClick={() => { ocultarCampo(c.key); setColMenuCampo(null); }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                    >
+                                      <EyeOff className="w-4 h-4 shrink-0 text-slate-400" />
+                                      <span>Ocultar columna</span>
+                                    </button>
+
+                                    <div className="h-px bg-slate-100 my-1" />
+
+                                    <button
+                                      onClick={() => { removeCampo(c.key); setColMenuCampo(null); }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                    >
+                                      <X className="w-4 h-4 shrink-0 text-red-400" />
+                                      <span>Eliminar columna</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
 
-                          {/* Resize handle */}
-                          <div
-                            onMouseDown={e => handleColumnResizeStart(e, c.key)}
-                            className={
-                              'absolute top-0 bottom-0 w-1.5 cursor-col-resize transition-colors ' +
-                              (resizing?.key === c.key
-                                ? 'bg-amber-500/70'
-                                : 'hover:bg-amber-400/50')
-                            }
-                            style={{ right: -3 }}
-                            title="Arrastrar para cambiar el ancho"
-                          />
+                          {filterPopoverJSX}
+
+                          {/* Resize handle = línea separadora (siempre visible).
+                              Doble ancho + rojizo cuando oculta columna(s) a su derecha. */}
+                          {(() => {
+                            const ocultaTras = hayOcultasTras(c.key);
+                            const activo = resizing?.key === c.key;
+                            return (
+                              <div
+                                onMouseDown={e => handleColumnResizeStart(e, c.key)}
+                                className={
+                                  'absolute top-0 bottom-0 cursor-col-resize transition-colors ' +
+                                  (ocultaTras
+                                    ? (activo ? 'bg-red-600' : 'bg-red-500/80 hover:bg-red-600')
+                                    : (activo ? 'bg-amber-600' : 'bg-amber-500/70 hover:bg-amber-500'))
+                                }
+                                style={{
+                                  width: ocultaTras ? 6 : 4,
+                                  right: ocultaTras ? -3 : -2,
+                                }}
+                                title={ocultaTras
+                                  ? 'Hay columna(s) oculta(s) aquí — arrastrar para cambiar el ancho'
+                                  : 'Arrastrar para cambiar el ancho'}
+                              />
+                            );
+                          })()}
                         </motion.th>
                       );
                     })}
@@ -1975,42 +2538,62 @@ export default function InformesScreen({ config }: Props) {
                 {resultados.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={camposVisibles.length + 1}
+                      colSpan={camposEnTabla.length + 1}
                       className="text-center text-slate-400 text-sm py-16"
                     >
                       No hay registros con los filtros aplicados
                     </td>
                   </tr>
                 ) : (() => {
-                  const groupCampo = informe.agruparPor ? CAMPO_MAP.get(informe.agruparPor) : null;
-                  let lastGroupVal: string | null = null;
+                  const niveles = nivelesAgrupacion(informe.agruparPor)
+                    .map(k => CAMPO_MAP.get(k))
+                    .filter(Boolean) as CampoMeta[];
+                  const lastVals: (string | null)[] = niveles.map(() => null);
                   let groupRowIdx = 0;
+                  // Color de la cabecera según la profundidad del nivel.
+                  const nivelClase = (lvl: number) =>
+                    lvl === 0 ? 'bg-[#1a1560] text-white'
+                    : lvl === 1 ? 'bg-[#3525cd] text-white'
+                    : 'bg-indigo-100 text-[#1a1560]';
+                  const nivelLabelClase = (lvl: number) =>
+                    lvl === 0 ? 'text-[13px] font-bold' : 'text-[12px] font-bold';
                   return resultados.flatMap((s, i) => {
                     const rows: React.ReactNode[] = [];
-                    if (groupCampo) {
-                      const groupVal = formatCelda(s, groupCampo);
-                      if (groupVal !== lastGroupVal) {
-                        const count = resultados.filter(r => formatCelda(r, groupCampo) === groupVal).length;
-                        lastGroupVal = groupVal;
+                    if (niveles.length > 0) {
+                      // Primer nivel cuyo valor cambia respecto a la fila anterior.
+                      let cambioDesde = -1;
+                      for (let lvl = 0; lvl < niveles.length; lvl++) {
+                        if (formatCelda(s, niveles[lvl]) !== lastVals[lvl]) { cambioDesde = lvl; break; }
+                      }
+                      if (cambioDesde !== -1) {
                         groupRowIdx = 0;
-                        rows.push(
-                          <tr key={`group-${i}`} className="bg-[#1a1560] select-none">
-                            <td
-                              colSpan={camposVisibles.length + 1}
-                              className="px-4 py-2.5"
-                            >
-                              <span className="text-white font-bold text-[13px] tracking-wide uppercase">
-                                {groupVal}
-                              </span>
-                              <span className="ml-3 text-white/50 text-[11px] font-normal normal-case tracking-normal">
-                                {count} registro{count !== 1 ? 's' : ''}
-                              </span>
-                            </td>
-                          </tr>
-                        );
+                        for (let lvl = cambioDesde; lvl < niveles.length; lvl++) {
+                          const val = formatCelda(s, niveles[lvl]);
+                          // Recuento de filas que coinciden en los niveles 0..lvl.
+                          const count = resultados.filter(r =>
+                            niveles.slice(0, lvl + 1).every(m => formatCelda(r, m) === formatCelda(s, m)),
+                          ).length;
+                          lastVals[lvl] = val;
+                          rows.push(
+                            <tr key={`group-${lvl}-${i}`} className={nivelClase(lvl) + ' select-none'}>
+                              <td
+                                colSpan={camposEnTabla.length + 1}
+                                className="py-2"
+                                style={{ paddingLeft: 16 + lvl * 20, paddingRight: 16 }}
+                              >
+                                <span className={nivelLabelClase(lvl) + ' tracking-wide uppercase'}>
+                                  {val}
+                                </span>
+                                <span className="ml-3 text-[11px] font-normal normal-case tracking-normal opacity-60">
+                                  {count} registro{count !== 1 ? 's' : ''}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        }
                       }
                     }
-                    const parity = groupCampo ? groupRowIdx++ : i;
+                    const parity = niveles.length > 0 ? groupRowIdx++ : i;
                     rows.push(
                       <tr
                         key={s.rowId}
@@ -2019,13 +2602,14 @@ export default function InformesScreen({ config }: Props) {
                           (parity % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')
                         }
                       >
-                        {camposVisibles.map(c => {
+                        {camposEnTabla.map((c, ci) => {
                           const val     = formatCelda(s, c);
                           const isTrue  = c.tipo === 'booleano' && val === 'Sí';
                           const isFalse = c.tipo === 'booleano' && val === 'No';
                           return (
                             <td
                               key={c.key}
+                              style={estiloSeparadorCuerpo(c.key, ci === 0)}
                               className={
                                 'px-3 py-2 text-sm ' +
                                 (isTrue  ? 'text-emerald-700 font-medium' :
@@ -2062,7 +2646,7 @@ export default function InformesScreen({ config }: Props) {
           <div className="flex items-center gap-1 px-2 py-2 bg-white shadow-xl rounded-lg border border-amber-300/40 ring-1 ring-amber-100 opacity-90">
             <GripVertical className="w-3 h-3 text-slate-400 shrink-0" />
             <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide truncate">
-              {camposVisibles[colDrag.colIdx]?.label}
+              {camposEnTabla[colDrag.colIdx]?.label}
             </span>
           </div>
         </div>
@@ -2167,7 +2751,7 @@ export default function InformesScreen({ config }: Props) {
                       disabled={!hCongelar}
                       className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white disabled:bg-slate-50 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     >
-                      {camposVisibles.map(c => (
+                      {camposEnTabla.map(c => (
                         <option key={c.key} value={c.key}>{c.label}</option>
                       ))}
                     </select>
@@ -2197,7 +2781,7 @@ export default function InformesScreen({ config }: Props) {
                       className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     >
                       <option value="__inicio__">Al principio (antes de todas las columnas)</option>
-                      {camposVisibles.map(c => (
+                      {camposEnTabla.map(c => (
                         <option key={c.key} value={c.key}>Después de: {c.label}</option>
                       ))}
                     </select>

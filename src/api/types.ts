@@ -240,11 +240,18 @@ export interface ConfigInforme {
   camposVisibles: CampoKey[];
   filtros: FiltroInforme[];
   orden: OrdenInforme[];
-  agruparPor?: CampoKey | null;
+  /** Agrupamiento. Admite varios niveles anidados (en orden). Se acepta también
+   *  un único `CampoKey` por compatibilidad con configuraciones antiguas. */
+  agruparPor?: CampoKey | CampoKey[] | null;
   /** 'alumno' (una fila por alumno, por defecto) o 'asignatura' (una fila por alumno × asignatura) */
   modo?: 'alumno' | 'asignatura';
   /** Anchos manuales por columna en píxeles. Si no se indica, se calcula automáticamente. */
   anchoColumnas?: Partial<Record<CampoKey, number>>;
+  /** Campos configurados pero temporalmente ocultos de la vista de tabla. */
+  camposOcultos?: CampoKey[];
+  /** Mostrar líneas verticales de separación también en el cuerpo de datos
+   *  (en la cabecera se muestran siempre). */
+  separadoresCuerpo?: boolean;
 }
 
 // ── Matrículas locales (store JSON) ──────────────────────────────────────────
