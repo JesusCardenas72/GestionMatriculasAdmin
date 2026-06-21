@@ -119,25 +119,27 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
           {/* Sección 3: Excel horarios */}
           <Seccion
             n={3}
-            titulo="Generar el Excel de horarios"
+            titulo="Generar el Excel de horarios (sustituye y fusiona)"
             abierta={seccionAbierta === 3}
             onClick={() => toggleSeccion(3)}
           >
             <ol className="list-decimal list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-1 mb-3">
-              <li>Ve a <strong>Informes</strong> y pon el informe en modo <strong>«Por asignaturas»</strong></li>
-              <li>Si aún no lo has hecho, carga la lista de profesores: <strong>«Cargar profesores (CSV)…»</strong></li>
-              <li>Usa <strong>«Generar Excel Horarios»</strong></li>
+              <li>En el <strong>paso 2 del asistente</strong>, pulsa <strong>«Generar Excel de horarios»</strong></li>
+              <li>Elige un informe guardado <strong>«Por asignaturas»</strong> y, si falta, carga la lista de profesores</li>
             </ol>
-            <div className="rounded bg-orange-50 border border-orange-200 p-2 text-[12px] text-orange-900">
+            <div className="rounded bg-orange-50 border border-orange-200 p-2 text-[12px] text-orange-900 mb-2">
               ✓ Los alumnos fantasma salen con <strong>fondo naranja</strong><br />
               ✓ Los profesores rellenan el horario (profesor, aula, día, horas) usando desplegables
+            </div>
+            <div className="rounded bg-green-50 border border-green-200 p-2 text-[12px] text-green-900">
+              Cada vez que generas el Excel, los alumnos fantasma que ya tengan una <strong>matrícula real vinculada</strong> (en Local) se <strong>sustituyen</strong> por ella y <strong>heredan su horario</strong>. Las clases que ya rellenó el profesorado se <strong>conservan intactas</strong>. No hay un paso aparte de «ejecutar» ni de «fusionar».
             </div>
           </Seccion>
 
           {/* Sección 4: Vincular */}
           <Seccion
             n={4}
-            titulo="Vincular cada matrícula real con su alumno fantasma"
+            titulo="Vincular cada matrícula real con su alumno fantasma (en Local)"
             abierta={seccionAbierta === 4}
             onClick={() => toggleSeccion(4)}
           >
@@ -148,85 +150,40 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
               <li>Elige el alumno fantasma (solo muestra los pendientes del mismo curso y especialidad)</li>
             </ol>
             <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[12px] text-blue-900 mt-3">
-              El alumno fantasma pasa a estado <span className="font-bold text-blue-600">Vinculado</span>
+              El alumno fantasma pasa a estado <span className="font-bold text-blue-600">Vinculado</span>. Se convierte en <span className="font-bold text-slate-500">Sustituido</span> al generar el Excel del paso 2.
+            </div>
+            <div className="rounded bg-amber-50 border border-amber-200 p-2 text-[12px] text-amber-900 mt-2 flex gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>El selector solo aparece dentro del <strong>rango de fechas</strong> que fijes en el paso 1 («Mostrar selector desde … hasta»). Fuera de ese rango no se muestra; puedes cambiar las fechas cuando quieras.</span>
             </div>
           </Seccion>
 
-          {/* Sección 5: Ejecutar */}
+          {/* Sección 5: Cargar el Excel relleno e historial */}
           <Seccion
             n={5}
-            titulo="Ejecutar las sustituciones"
+            titulo="Cargar el Excel relleno e historial de horarios"
             abierta={seccionAbierta === 5}
             onClick={() => toggleSeccion(5)}
           >
-            <div className="space-y-3">
-              <div>
-                <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">Manual</h4>
-                <p className="text-[13px] text-[var(--tc-ink-soft)]">En la pestaña <strong>Alumnado Fantasma</strong>, pulsa <strong>«Ejecutar sustituciones (N)»</strong>. Cada alumno fantasma pasa a estado <span className="font-bold text-slate-500">Sustituido</span>.</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">Programada</h4>
-                <p className="text-[13px] text-[var(--tc-ink-soft)]">Fija una <strong>fecha</strong>: la primera vez que se abra la app desde esa fecha, ejecutará automáticamente.</p>
-              </div>
-              <div className="rounded bg-amber-50 border border-amber-200 p-2 text-[12px] text-amber-900 flex gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span><strong>Importante:</strong> ejecutar la sustitución NO borra el alumno fantasma. Debe seguir existiendo para el paso 6.</span>
-              </div>
+            <p className="text-[13px] text-[var(--tc-ink-soft)] mb-2">
+              Cuando los profesores te devuelvan el Excel relleno, cárgalo en el <strong>paso 3 del asistente</strong> (o en <strong>Horarios → Horarios Individuales</strong>) con <strong>«Cargar otro Excel»</strong>. Cada carga te pide un <strong>nombre</strong> para saber qué asignaturas ya llevan horario.
+            </p>
+            <ul className="list-disc list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-1">
+              <li>Todas las cargas quedan en el <strong>Historial de horarios</strong>, con su nombre (editable), día, hora y resumen de cambios.</li>
+              <li>El paso 3 muestra además el <strong>historial de envíos</strong> de email realizados.</li>
+              <li>Puedes repetir el ciclo: cada nuevo Excel relleno se añade al historial sin borrar lo anterior.</li>
+            </ul>
+            <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[12px] text-blue-900 mt-3">
+              El envío de horarios por email se hace desde <strong>Horarios → Horarios Individuales</strong> (etiquetas <strong>NUEVO</strong> y <strong>FANTASMA</strong>, filtros y selección por grupo).
             </div>
           </Seccion>
 
-          {/* Sección 6: Fusión */}
+          {/* Sección 6: Memoria automática + histórico */}
           <Seccion
             n={6}
-            titulo="Generar el Excel fusionado"
+            titulo="Memoria automática de horarios e histórico"
             abierta={seccionAbierta === 6}
             onClick={() => toggleSeccion(6)}
-          >
-            <div className="space-y-3">
-              <p className="text-[13px] text-[var(--tc-ink-soft)]">
-                El Excel relleno por los profesores + las sustituciones ejecutadas = <strong>un Excel nuevo, correcto y listo</strong>.
-              </p>
-              <div className="border-l-4 border-green-400 pl-3 py-1">
-                <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">Desde la pestaña Alumnado Fantasma (recomendado)</h4>
-                <p className="text-[13px] text-[var(--tc-ink-soft)]">Pulsa <strong>«Generar Excel fusionado»</strong> (se activa cuando hay sustituidos). Verás un resumen y confirmas.</p>
-              </div>
-              <div className="border-l-4 border-purple-400 pl-3 py-1">
-                <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">Qué contiene el Excel fusionado</h4>
-                <ul className="text-[13px] text-[var(--tc-ink-soft)] space-y-1">
-                  <li>✓ <strong>Alumnos que ya estaban:</strong> sus filas con horarios sin modificar</li>
-                  <li>✓ <strong>Alumnos fantasma sustituidos:</strong> datos del alumno real, heredan horario, <strong>sin fondo naranja</strong></li>
-                  <li>✓ <strong>Alumnos fantasma pendientes:</strong> siguen igual, en naranja</li>
-                </ul>
-              </div>
-            </div>
-          </Seccion>
-
-          {/* Sección 7: Limpieza */}
-          <Seccion
-            n={7}
-            titulo="Limpieza y envío"
-            abierta={seccionAbierta === 7}
-            onClick={() => toggleSeccion(7)}
-          >
-            <ol className="list-decimal list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-2">
-              <li><strong>Solo después</strong> de generar el Excel fusionado, pulsa <strong>«Eliminar sustituidos»</strong></li>
-              <li>En <strong>Horarios → Horarios Individuales</strong>, los alumnos NUEVOS tienen etiqueta naranja <strong>NUEVO</strong> y las plazas fantasma sin matricular, una etiqueta <strong>FANTASMA</strong></li>
-              <li>Pulsa <strong>«Filtros»</strong> para acotar la lista: <strong>fantasma</strong> (todos / solo / ocultos), <strong>sin enviar / ya enviados</strong>, <strong>con / sin email</strong> y por <strong>curso o especialidad</strong></li>
-              <li>Con el filtro puesto, usa <strong>«Sel. filtrados con email»</strong> o el botón <strong>«Enviar a filtrados»</strong> para mandar el horario solo a ese grupo</li>
-              <li>Cuando lleguen las matrículas reales y se sustituyan los fantasma, usa <strong>«Sel. sin enviar con email»</strong>: marca solo a quienes aún no recibieron el horario y ya tienen correo (los que en el primer envío quedaron fuera por no tener email)</li>
-              <li>Cada alumno indica si ya recibió el correo y cuándo. En <strong>«Historial de envíos» → «Resumen global»</strong> ves de un vistazo a quién se ha enviado y a quién falta</li>
-            </ol>
-            <div className="rounded bg-blue-50 border border-blue-200 p-2 text-[12px] text-blue-900 mt-3">
-              Las plazas <strong>fantasma</strong> y los alumnos <strong>sin email</strong> nunca reciben correo: la app los excluye automáticamente del envío.
-            </div>
-          </Seccion>
-
-          {/* Sección 8: Memoria automática + histórico */}
-          <Seccion
-            n={8}
-            titulo="Memoria automática de horarios e histórico"
-            abierta={seccionAbierta === 8}
-            onClick={() => toggleSeccion(8)}
           >
             <p className="text-[13px] text-[var(--tc-ink-soft)] mb-3">
               La app <strong>recuerda sola</strong> todos los horarios. Cada vez que generas o cargas un Excel de horarios, guarda internamente lo que han rellenado los profesores (por curso escolar). Así, al generar un Excel nuevo, <strong>los horarios ya conocidos se rellenan automáticamente</strong> y los alumnos fantasma sustituidos <strong>heredan</strong> el horario de su plaza.
@@ -244,9 +201,10 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
 
             <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">El histórico de cambios</h4>
             <p className="text-[13px] text-[var(--tc-ink-soft)] mb-2">
-              En la pestaña <strong>Horarios</strong>, el botón <strong>«Historial de horarios»</strong> abre la lista de todos los cambios, con <strong>día y hora</strong>. Cada entrada indica cuántos horarios se añadieron, cambiaron o se quedaron igual, y de qué archivo venían.
+              El <strong>Historial de horarios</strong> está en el <strong>paso 3 del asistente</strong> (siempre visible) y también en <strong>Horarios → «Historial de horarios»</strong>. Lista todos los cambios con <strong>día y hora</strong>, su <strong>nombre</strong> (editable en ambos sitios) y cuántos horarios se añadieron, cambiaron o se quedaron igual.
             </p>
             <ul className="list-disc list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-1">
+              <li><strong>Nombre:</strong> edítalo con el lápiz para saber qué asignaturas llevan horario en cada carga.</li>
               <li><strong>Exportar / Importar:</strong> guarda el histórico en un archivo o tráelo de otro equipo (no duplica lo que ya tengas).</li>
               <li><strong>Restaurar:</strong> vuelve al estado de cualquier momento anterior. Se crea una entrada nueva de «Restauración» (no se pierde nada).</li>
               <li><strong>Eliminar:</strong> borra una entrada concreta del histórico si ya no la necesitas.</li>
@@ -263,26 +221,22 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
               Orden correcto (chuleta)
             </h3>
             <div className="space-y-1 text-[12px] font-medium text-[var(--tc-ink)]">
-              <div>1. Crear alumnos fantasma (manual o importar)</div>
-              <div>2. Generar Excel horarios (→ profesores)</div>
-              <div>3. Profesores rellenan (fuera de la app)</div>
-              <div>4. Llegan matrículas (Local → Datos Personales)</div>
-              <div>5. Ejecutar sustituciones</div>
-              <div>6. Generar Excel fusionado ← ANTES de limpiar</div>
-              <div>7. Eliminar sustituidos</div>
-              <div>8. Enviar horarios a nuevos</div>
+              <div><strong>Paso 1.</strong> Crear alumnos fantasma (manual o importar) y fijar el rango de fechas del selector en Local</div>
+              <div><strong>Paso 2.</strong> Generar el Excel de horarios (→ profesores). Cada vez sustituye los fantasma ya vinculados por su matrícula real, heredando su horario</div>
+              <div><strong>Paso 3.</strong> Cargar el Excel que devuelven los profesores. Cada carga queda en el historial con su nombre</div>
+              <div className="text-[var(--tc-ink-soft)]">Entre medias (en Local): vincula cada matrícula real con su alumno fantasma</div>
             </div>
-            <div className="mt-3 text-[12px] font-bold text-red-600 border-t border-[var(--tc-primary)] pt-2">
-              Regla de oro: nunca borres alumnos fantasma sustituidos antes de generar el Excel fusionado.
+            <div className="mt-3 text-[12px] font-medium text-[var(--tc-ink-soft)] border-t border-[var(--tc-primary)] pt-2">
+              El ciclo es continuo: según llegan matrículas, vuelves a vincular y a generar el Excel del paso 2; cada Excel relleno que cargues añade una entrada al historial del paso 3.
             </div>
           </div>
 
           {/* Problemas frecuentes */}
           <Seccion
-            n={9}
+            n={7}
             titulo="Problemas frecuentes"
-            abierta={seccionAbierta === 9}
-            onClick={() => toggleSeccion(9)}
+            abierta={seccionAbierta === 7}
+            onClick={() => toggleSeccion(7)}
           >
             <div className="space-y-2">
               <Problema
@@ -293,27 +247,22 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
               <Problema
                 síntoma="Creo que faltan horarios que ya tenía"
                 causa="Quizá restauraste un estado anterior, o un Excel viejo cambió un dato"
-                solución="Abre «Historial de horarios» en la pestaña Horarios y restaura el estado de la fecha que quieras. Cargar un Excel NO borra horarios de otros alumnos."
+                solución="Abre «Historial de horarios» (paso 3 del asistente o pestaña Horarios) y restaura el estado de la fecha que quieras. Cargar un Excel NO borra horarios de otros alumnos."
               />
               <Problema
                 síntoma="El desplegable no aparece en Local"
-                causa="No hay alumnos fantasma pendientes del mismo curso + especialidad"
-                solución="Comprueba que coinciden exactamente; crea el alumno fantasma si falta"
+                causa="La fecha de hoy está fuera del rango fijado en el paso 1, o no hay alumnos fantasma pendientes del mismo curso + especialidad"
+                solución="Revisa el rango «Mostrar selector desde … hasta» del paso 1 y que coincidan curso y especialidad; crea el alumno fantasma si falta"
               />
               <Problema
-                síntoma="«Ejecutar sustituciones» está desactivado"
-                causa="Ningún alumno fantasma vinculado"
-                solución="Vincula primero desde la ficha Local"
-              />
-              <Problema
-                síntoma="«Generar Excel fusionado» está desactivado"
-                causa="Ningún alumno fantasma sustituido aún"
-                solución="Ejecuta antes las sustituciones"
+                síntoma="El alumno real no hereda el horario del fantasma"
+                causa="No se vinculó la matrícula real con su alumno fantasma antes de generar el Excel del paso 2"
+                solución="Vincula en Local («Sustituye al alumno fantasma») y vuelve a generar el Excel del paso 2"
               />
               <Problema
                 síntoma="«No se ha cargado la lista de profesores»"
                 causa="Falta el CSV de profesores"
-                solución="Informes → «Cargar profesores (CSV)…»"
+                solución="Cárgalo desde el propio paso 2 o en Informes → «Cargar profesores (CSV)…»"
               />
             </div>
           </Seccion>
@@ -324,7 +273,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
             <div>
               <h4 className="text-sm font-semibold text-green-900 mb-1">Consejo</h4>
               <p className="text-[13px] text-green-800">
-                Los ciclos se pueden repetir: si después llegan más matrículas, vincula → ejecuta → genera fusionado de nuevo. La app memoriza la ruta del Excel: siempre carga el más reciente que tengan los profesores.
+                Los ciclos se pueden repetir: si después llegan más matrículas, vincúlalas en Local y vuelve a generar el Excel del paso 2 (sustituye y fusiona en un solo paso). Cada Excel relleno que cargues se añade al historial del paso 3 con su nombre.
               </p>
             </div>
           </div>

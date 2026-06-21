@@ -1,7 +1,7 @@
 import type { MatriculaLocal } from "../api/types";
 import type { AsistenteTemporalesEstado } from "../../electron/temporales-store";
 
-export const TOTAL_PASOS_ASISTENTE = 8;
+export const TOTAL_PASOS_ASISTENTE = 3;
 
 export interface ContadoresTemporales {
   nTemporales: number;
@@ -32,32 +32,19 @@ export function contarTemporales(matriculas: MatriculaLocal[]): ContadoresTempor
 
 /**
  * ¿Está cumplido el requisito del paso `n` del asistente? (lo que permite
- * avanzar al siguiente). Detección automática salvo el paso 3, que depende
- * del check manual guardado. El paso 8 nunca se marca solo: es el final.
+ * avanzar al siguiente). Detección automática. El paso 3 (último) nunca se
+ * marca solo: es el final del flujo continuo.
  */
 export function pasoHecho(
   n: number,
   contadores: ContadoresTemporales,
-  estado: Pick<
-    AsistenteTemporalesEstado,
-    "excelProfesoresRecibido" | "fechaExcelGenerado" | "fechaFusionadoGenerado"
-  >,
+  estado: Pick<AsistenteTemporalesEstado, "fechaExcelGenerado">,
 ): boolean {
   switch (n) {
     case 1:
       return contadores.nTemporales > 0;
     case 2:
       return estado.fechaExcelGenerado != null;
-    case 3:
-      return estado.excelProfesoresRecibido;
-    case 4:
-      return contadores.nVinculados > 0 || contadores.nSustituidos > 0;
-    case 5:
-      return contadores.nSustituidos > 0;
-    case 6:
-      return estado.fechaFusionadoGenerado != null;
-    case 7:
-      return estado.fechaFusionadoGenerado != null && contadores.nSustituidos === 0;
     default:
       return false;
   }
@@ -66,10 +53,7 @@ export function pasoHecho(
 /** Primer paso cuyo requisito no está cumplido: hasta ahí puede navegar el usuario. */
 export function primerPasoNoHecho(
   contadores: ContadoresTemporales,
-  estado: Pick<
-    AsistenteTemporalesEstado,
-    "excelProfesoresRecibido" | "fechaExcelGenerado" | "fechaFusionadoGenerado"
-  >,
+  estado: Pick<AsistenteTemporalesEstado, "fechaExcelGenerado">,
 ): number {
   for (let n = 1; n <= TOTAL_PASOS_ASISTENTE; n++) {
     if (!pasoHecho(n, contadores, estado)) return n;

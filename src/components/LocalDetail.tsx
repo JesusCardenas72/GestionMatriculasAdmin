@@ -155,6 +155,27 @@ export default function LocalDetail({
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [showInlinePdf, setShowInlinePdf] = useState(true);
 
+  // Rango de fechas (Asistente de Alumnado Fantasma) durante el cual se muestra
+  // el selector «Sustituye al alumno fantasma». Fuera del rango no aparece.
+  // null/null = sin límites → siempre visible (retrocompatible).
+  const [selectorVisible, setSelectorVisible] = useState(true);
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const cfg = await window.adminAPI.temporales.getConfig(curso);
+        const hoy = new Date().toISOString().slice(0, 10);
+        const desde = cfg.selectorDesde;
+        const hasta = cfg.selectorHasta;
+        const visible = (!desde || hoy >= desde) && (!hasta || hoy <= hasta);
+        if (!cancelado) setSelectorVisible(visible);
+      } catch {
+        if (!cancelado) setSelectorVisible(true);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [curso]);
+
   // Clave con la que se guarda el fichero PDF:
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
   //   - localId si es un registro puramente local (ampliación sin subir, etc.)
@@ -773,8 +794,9 @@ export default function LocalDetail({
                 onBlur={() => saveForm()}
                 disabled={readOnly}
               />
-              {/* Vínculo con alumno fantasma (mismo curso y especialidad) */}
-              {!m.esTemporal &&
+              {/* Vínculo con alumno fantasma (mismo curso y especialidad).
+                  Solo visible dentro del rango de fechas fijado en el asistente. */}
+              {!m.esTemporal && selectorVisible &&
                 (() => {
                   const candidatos = temporalesPendientes.filter(
                     (t) =>

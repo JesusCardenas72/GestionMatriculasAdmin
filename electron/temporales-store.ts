@@ -7,10 +7,24 @@ import path from "node:path";
  * por curso escolar. Pequeño almacén JSON en userData.
  */
 export interface TemporalesCursoConfig {
-  /** Fecha (YYYY-MM-DD) a partir de la cual la app ejecuta las sustituciones al arrancar. */
+  /**
+   * @deprecated Ya no se auto-ejecutan sustituciones al arrancar; la sustitución
+   * se aplica al generar el Excel de horarios (paso 2 del asistente). Se conserva
+   * por compatibilidad con configuraciones antiguas.
+   */
   fechaProgramada: string | null;
-  /** ISO timestamp de la última ejecución automática o manual. */
+  /** @deprecated ISO timestamp de la última ejecución (ya no se usa). */
   ultimaEjecucion: string | null;
+  /**
+   * Fecha (YYYY-MM-DD) desde la cual aparece el selector «Sustituye al alumno
+   * fantasma» en la pestaña Local. null = sin límite inferior.
+   */
+  selectorDesde: string | null;
+  /**
+   * Fecha (YYYY-MM-DD) hasta la cual aparece el selector «Sustituye al alumno
+   * fantasma» en la pestaña Local. null = sin límite superior.
+   */
+  selectorHasta: string | null;
 }
 
 /**
@@ -63,13 +77,21 @@ export function temporalesGetConfig(curso: string): TemporalesCursoConfig {
   return {
     fechaProgramada: entrada?.fechaProgramada ?? null,
     ultimaEjecucion: entrada?.ultimaEjecucion ?? null,
+    selectorDesde: entrada?.selectorDesde ?? null,
+    selectorHasta: entrada?.selectorHasta ?? null,
   };
 }
 
 export function temporalesSetConfig(curso: string, cfg: TemporalesCursoConfig): void {
   const all = readConfig();
   // Se conserva el estado del asistente, que se guarda con su propia función.
-  all[curso] = { ...all[curso], fechaProgramada: cfg.fechaProgramada, ultimaEjecucion: cfg.ultimaEjecucion };
+  all[curso] = {
+    ...all[curso],
+    fechaProgramada: cfg.fechaProgramada,
+    ultimaEjecucion: cfg.ultimaEjecucion,
+    selectorDesde: cfg.selectorDesde,
+    selectorHasta: cfg.selectorHasta,
+  };
   writeConfig(all);
 }
 
@@ -79,7 +101,12 @@ export function temporalesGetAsistente(curso: string): AsistenteTemporalesEstado
 
 export function temporalesSetAsistente(curso: string, estado: AsistenteTemporalesEstado | null): void {
   const all = readConfig();
-  const previa = all[curso] ?? { fechaProgramada: null, ultimaEjecucion: null };
+  const previa = all[curso] ?? {
+    fechaProgramada: null,
+    ultimaEjecucion: null,
+    selectorDesde: null,
+    selectorHasta: null,
+  };
   all[curso] = { ...previa, asistente: estado };
   writeConfig(all);
 }

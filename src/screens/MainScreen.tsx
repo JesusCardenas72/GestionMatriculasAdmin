@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
-import { useSustitucionProgramada } from "../hooks/useSustitucionProgramada";
 import { useQueryClient } from "@tanstack/react-query";
 import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle, DatabaseBackup, FolderOpen } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
@@ -173,9 +172,6 @@ export default function MainScreen({ config }: Props) {
   }, [q1.data?.solicitudes, q2.data?.solicitudes, q3.data?.solicitudes]);
 
   usePdfBackgroundSync(config, curso, todasLasSolicitudes);
-
-  // Sustitución de temporales programada por fecha (se ejecuta al arrancar si toca)
-  const sustitucion = useSustitucionProgramada(curso);
 
   // Memorizar la transformación para no recalcular en cada render
   const currentSolicitudes = useMemo<Solicitud[] | undefined>(() => {
@@ -418,18 +414,6 @@ export default function MainScreen({ config }: Props) {
       {readOnly && (
         <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-7 py-2 text-xs text-amber-700 font-medium">
           Curso histórico {curso} — solo lectura. Accede al detalle de una matrícula para forzar edición.
-        </div>
-      )}
-
-      {sustitucion.mensaje && (
-        <div className="shrink-0 bg-orange-50 border-b border-orange-200 px-7 py-2 text-xs text-orange-700 font-medium flex items-center gap-3">
-          <span className="flex-1">{sustitucion.mensaje}</span>
-          <button
-            onClick={sustitucion.descartar}
-            className="shrink-0 font-bold hover:underline"
-          >
-            Entendido
-          </button>
         </div>
       )}
 

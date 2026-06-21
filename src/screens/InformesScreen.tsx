@@ -1140,6 +1140,43 @@ export default function InformesScreen({ config }: Props) {
     setInforme(prev => ({ ...prev, anchoColumnas: {} }));
   }
 
+  function handleAutoAjustarColumna(key: CampoKey) {
+    const campo = CAMPO_MAP.get(key);
+    if (!campo) return;
+
+    const el = document.createElement("span");
+    el.style.position = "absolute";
+    el.style.visibility = "hidden";
+    el.style.whiteSpace = "nowrap";
+    el.style.fontFamily = "ui-sans-serif, system-ui, sans-serif";
+    document.body.appendChild(el);
+
+    function measure(text: string, size: number, weight: string): number {
+      el.style.fontSize = `${size}px`;
+      el.style.fontWeight = weight;
+      el.textContent = text;
+      return el.offsetWidth;
+    }
+
+    const headerW = measure(campo.label.toUpperCase(), 12, "600");
+    let maxDataW = 0;
+    for (const fila of resultados) {
+      const w = measure(formatCelda(fila, campo), 14, "400");
+      if (w > maxDataW) maxDataW = w;
+    }
+
+    document.body.removeChild(el);
+
+    const HEADER_CHROME = 42;
+    const DATA_PADDING = 28;
+    const anchoFinal = Math.max(80, Math.ceil(Math.max(headerW + HEADER_CHROME, maxDataW + DATA_PADDING)));
+
+    setInforme(prev => ({
+      ...prev,
+      anchoColumnas: { ...(prev.anchoColumnas ?? {}), [key]: anchoFinal },
+    }));
+  }
+
   // Devuelve el ancho a aplicar al <th> (en px) o undefined si va en automático.
   function getAnchoColumna(key: CampoKey): number | undefined {
     if (resizing?.key === key) return resizing.width;
@@ -2447,6 +2484,7 @@ export default function InformesScreen({ config }: Props) {
                             return (
                               <div
                                 onMouseDown={e => handleColumnResizeStart(e, c.key)}
+                                onDoubleClick={() => handleAutoAjustarColumna(c.key)}
                                 className={
                                   'absolute top-0 bottom-0 cursor-col-resize transition-colors ' +
                                   (ocultaTras
@@ -2459,7 +2497,7 @@ export default function InformesScreen({ config }: Props) {
                                 }}
                                 title={ocultaTras
                                   ? 'Hay columna(s) oculta(s) aquí — arrastrar para cambiar el ancho'
-                                  : 'Arrastrar para cambiar el ancho'}
+                                  : 'Doble clic para auto-ajustar · Arrastrar para cambiar el ancho'}
                               />
                             );
                           })()}

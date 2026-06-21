@@ -372,7 +372,7 @@ export default function LocalList({
     field: null,
     dir: "desc",
   });
-  // «Fecha programada» del Asistente de Alumnos Fantasmas (YYYY-MM-DD): a partir de
+  // Fecha «desde» del Asistente de Alumnos Fantasmas (YYYY-MM-DD): a partir de
   // ella, las matrículas reales se consideran «nuevo alumnado».
   const [fechaCorte, setFechaCorte] = useState<string | null>(null);
 
@@ -383,7 +383,7 @@ export default function LocalList({
     (async () => {
       try {
         const cfg = await window.adminAPI.temporales.getConfig(curso);
-        if (!cancelado) setFechaCorte(cfg.fechaProgramada ?? null);
+        if (!cancelado) setFechaCorte(cfg.selectorDesde ?? cfg.fechaProgramada ?? null);
       } catch {
         if (!cancelado) setFechaCorte(null);
       }

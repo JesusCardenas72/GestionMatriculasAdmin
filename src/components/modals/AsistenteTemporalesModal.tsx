@@ -14,10 +14,8 @@ import {
   Play,
   Plus,
   RefreshCw,
-  Send,
   Trash2,
   Upload,
-  UserCheck,
   X,
 } from "lucide-react";
 import type { ConfigInforme, MatriculaLocal } from "../../api/types";
@@ -27,25 +25,16 @@ import { CAMPO_MAP, INFORMES_PREDEFINIDOS, type CampoMeta } from "../../data/inf
 import {
   crearTemporales,
   crearTemporalesNominales,
-  esTemporalPendiente,
-  nombreVisibleTemporal,
   planSustituciones,
 } from "../../utils/temporales";
 import { parseArchivoTemporales } from "../../utils/importTemporales";
-import {
-  camposDesdeExcelHorarios,
-  filasAsignaturaLocales,
-  ordenarComoExcel,
-} from "../../utils/fusionTemporales";
-import { fusionarHorarios, parseHorariosExcelCrudo } from "../../utils/fusionHorarios";
+import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
+import { parseHorariosExcelCrudo } from "../../utils/fusionHorarios";
 import { generarExcelHorarios, type OpcionesHorario } from "../../utils/excelHorarios";
 import { obtenerValoresHorario, actualizarHorariosStore } from "../../utils/horariosPersistencia";
 import type { HorariosCursoData } from "../../../electron/horarios-data-store";
-import { norm, parseHorariosExcel } from "../../utils/horarioExcel";
-import { buildHorarioHtml } from "../../utils/horarioTemplate";
-import { buildHorarioEmailHtml } from "../../utils/horarioEmailTemplate";
-import { enviarEmailHorario } from "../../api/horarios";
-import type { CampanyaEnvio, ResultadoEnvio } from "../../horarios/types";
+import type { CampanyaEnvio } from "../../horarios/types";
+import { HistorialHorariosContenido } from "./HistorialHorariosContenido";
 import type { AppConfig } from "../../../electron/config-store";
 import { useAppMode } from "../../contexts/AppModeProvider";
 import {
@@ -59,11 +48,8 @@ import {
   TOTAL_PASOS_ASISTENTE as TOTAL_PASOS,
 } from "../../utils/asistenteTemporales";
 
-type Bloque = "PREPARACIÓN" | "CICLO DE SUSTITUCIONES" | "FINAL";
-
 interface PasoDef {
   n: number;
-  bloque: Bloque;
   titulo: string;
   descripcion: string;
   /** Qué falta para poder darlo por hecho (estilo «Problemas frecuentes» de la guía). */
@@ -73,7 +59,6 @@ interface PasoDef {
 const PASOS: PasoDef[] = [
   {
     n: 1,
-    bloque: "PREPARACIÓN",
     titulo: "Crear los alumnos fantasma",
     descripcion:
       "Crea una plaza por cada alumno previsto: a mano («PDTE. N» por curso y especialidad) o importando un Excel/CSV con nombres provisionales (sufijo _Temp). Puedes combinar ambas formas y crear más tandas cuando quieras.",
@@ -81,78 +66,36 @@ const PASOS: PasoDef[] = [
   },
   {
     n: 2,
-    bloque: "PREPARACIÓN",
     titulo: "Generar el Excel de horarios",
     descripcion:
-      "Genera el Excel que circulará entre los profesores. Los alumnos fantasma salen con fondo naranja y los profesores les ponen horario como a cualquier alumno.",
+      "Genera el Excel que circulará entre los profesores. Los alumnos fantasma salen con fondo naranja y los profesores les ponen horario como a cualquier alumno. Cada vez que lo generas, los alumnos fantasma ya vinculados a una matrícula real se sustituyen por ella heredando su horario; las clases que ya rellenó el profesorado se mantienen intactas.",
     requisito: "Aún no se ha generado el Excel de horarios desde el asistente.",
   },
   {
     n: 3,
-    bloque: "PREPARACIÓN",
     titulo: "Los profesores rellenan el Excel",
     descripcion:
-      "Este paso ocurre fuera de la aplicación: los profesores rellenan profesor, aula, día y horas usando los desplegables. Marca la casilla cuando tengas el Excel de vuelta.",
-    requisito: "Marca la casilla «Ya tengo el Excel relleno» cuando los profesores te lo devuelvan.",
-  },
-  {
-    n: 4,
-    bloque: "CICLO DE SUSTITUCIONES",
-    titulo: "Vincular matrículas reales",
-    descripcion:
-      "Según van llegando las matrículas de verdad, empareja cada una con su alumno fantasma pendiente (mismo curso y especialidad). No hace falta vincular todos para seguir: los rezagados caerán en la siguiente ronda.",
-    requisito: "No hay ningún alumno fantasma vinculado: vincula al menos una matrícula real para continuar.",
-  },
-  {
-    n: 5,
-    bloque: "CICLO DE SUSTITUCIONES",
-    titulo: "Ejecutar las sustituciones",
-    descripcion:
-      "El alumno real ocupa el lugar de su alumno fantasma en los informes. Puedes ejecutarlas ahora o dejar fijada una fecha para que la app lo haga sola al arrancar.",
-    requisito: "Ninguna sustitución ejecutada aún en esta ronda.",
-  },
-  {
-    n: 6,
-    bloque: "CICLO DE SUSTITUCIONES",
-    titulo: "Generar el Excel fusionado",
-    descripcion:
-      "Junta el Excel relleno por los profesores con las sustituciones: un Excel nuevo donde los alumnos reales heredan el horario de su alumno fantasma. Regla de oro: nunca borres alumnos fantasma sustituidos antes de este paso.",
-    requisito: "Aún no se ha generado el Excel fusionado en esta ronda.",
-  },
-  {
-    n: 7,
-    bloque: "CICLO DE SUSTITUCIONES",
-    titulo: "Eliminar los sustituidos",
-    descripcion:
-      "Con el Excel fusionado ya generado y comprobado, borra los alumnos fantasma consumidos. Al terminar, si quedan alumnos fantasma pendientes podrás empezar otra ronda.",
-    requisito: "Todavía quedan alumnos fantasma sustituidos por eliminar.",
-  },
-  {
-    n: 8,
-    bloque: "FINAL",
-    titulo: "Enviar horarios a los nuevos",
-    descripcion:
-      "Los alumnos que sustituyeron a un alumno fantasma llevan la etiqueta NUEVO en Horarios Individuales. Envíales su horario por email.",
+      "Los profesores rellenan profesor, aula, día y horas usando los desplegables. Cuando te devuelvan el Excel, cárgalo aquí: cada carga queda registrada en el historial con el nombre que le pongas. Puedes ir cargando tantas versiones como rondas de horarios haya.",
     requisito: "",
   },
 ];
 
 export function AsistenteTemporalesModal({
   curso,
-  config,
   onCerrar,
   onVerGuia,
   embedded = false,
 }: {
   curso: string;
-  config: AppConfig;
+  /** @deprecated Ya no se usa (el envío de emails se hace desde Horarios Individuales). */
+  config?: AppConfig;
   onCerrar: () => void;
   onVerGuia: () => void;
   /** Si es true, se muestra incrustado en la página (sin ventana flotante). */
   embedded?: boolean;
 }) {
   const { isSoloLectura } = useAppMode();
-  const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar, eliminar } = useLocalMatriculas(curso);
+  const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar } = useLocalMatriculas(curso);
   const { estado, isLoading: cargandoEstado, iniciar, guardar, reiniciar } =
     useAsistenteTemporales(curso);
 
@@ -168,7 +111,7 @@ export function AsistenteTemporalesModal({
   const pasoActual = isSoloLectura && pasoSL !== null ? pasoSL : vista.pasoActual;
 
   const contadores = useMemo(() => contarTemporales(matriculas), [matriculas]);
-  const { nTemporales, nVinculados, nSustituidos, nPendientes } = contadores;
+  const { nTemporales } = contadores;
 
   const pasoHecho = (n: number): boolean => pasoHechoFn(n, contadores, vista);
   const maxAccesible = primerPasoNoHecho(contadores, vista);
@@ -185,7 +128,7 @@ export function AsistenteTemporalesModal({
   const handleReiniciar = async () => {
     if (
       !window.confirm(
-        "¿Reiniciar el asistente?\n\nSolo se olvida el progreso del asistente (paso actual, ronda y casillas). Los alumnos fantasma y las matrículas NO se tocan.",
+        "¿Reiniciar el asistente?\n\nSolo se olvida el progreso del asistente (vuelve al paso 1). Los alumnos fantasma, las matrículas y los horarios NO se tocan.",
       )
     )
       return;
@@ -199,8 +142,6 @@ export function AsistenteTemporalesModal({
 
   const contadorDe = (n: number): string | null => {
     if (n === 1 && nTemporales > 0) return String(nTemporales);
-    if (n === 4 && nTemporales > 0) return `${nVinculados + nSustituidos}/${nVinculados + nSustituidos + nPendientes}`;
-    if ((n === 5 || n === 7) && nSustituidos > 0) return String(nSustituidos);
     return null;
   };
 
@@ -242,22 +183,13 @@ export function AsistenteTemporalesModal({
         <div className={`flex overflow-hidden ${embedded ? "h-[480px]" : "flex-1 min-h-[420px]"}`}>
           {/* Columna de pasos */}
           <div className="w-[min(35%,280px)] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-bg-panel)] p-3 flex flex-col gap-0.5 overflow-y-auto">
-            {PASOS.map((p, i) => {
-              const nuevoBloque = i === 0 || PASOS[i - 1].bloque !== p.bloque;
+            {PASOS.map((p) => {
               const esHecho = pasoHecho(p.n) && p.n !== pasoActual;
               const esActual = p.n === pasoActual;
               const bloqueado = p.n > maxAccesible;
               const contador = contadorDe(p.n);
               return (
                 <div key={p.n}>
-                  {nuevoBloque && (
-                    <div className="px-2 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-[var(--tc-ink-mute)]">
-                      {p.bloque}
-                      {p.bloque === "CICLO DE SUSTITUCIONES" && (
-                        <span className="text-[var(--tc-primary)]"> · RONDA {vista.ronda}</span>
-                      )}
-                    </div>
-                  )}
                   <button
                     onClick={() => irAPaso(p.n)}
                     disabled={bloqueado}
@@ -327,67 +259,19 @@ export function AsistenteTemporalesModal({
                   curso={curso}
                   matriculas={matriculas}
                   guardarLote={guardarLote}
-                  actualizar={actualizar}
-                  eliminar={eliminar}
                   disabled={isSoloLectura}
                 />
               ) : pasoActual === 2 ? (
                 <Paso2ExcelHorarios
                   curso={curso}
                   matriculas={matriculas}
+                  actualizar={actualizar}
                   fechaExcelGenerado={vista.fechaExcelGenerado}
                   disabled={isSoloLectura}
                   onGenerado={(fecha) => void guardar({ fechaExcelGenerado: fecha })}
                 />
               ) : pasoActual === 3 ? (
-                <Paso3ProfesoresRellenan
-                  ruta={vista.excelProfesoresRuta}
-                  recibido={vista.excelProfesoresRecibido}
-                  disabled={isSoloLectura}
-                  onRutaCambiada={(ruta) => void guardar({ excelProfesoresRuta: ruta })}
-                  onRecibidoCambiado={(v) => void guardar({ excelProfesoresRecibido: v })}
-                />
-              ) : pasoActual === 4 ? (
-                <Paso4Vincular matriculas={matriculas} actualizar={actualizar} disabled={isSoloLectura} />
-              ) : pasoActual === 5 ? (
-                <Paso5Ejecutar curso={curso} matriculas={matriculas} actualizar={actualizar} disabled={isSoloLectura} />
-              ) : pasoActual === 6 ? (
-                <Paso6Fusionado
-                  curso={curso}
-                  matriculas={matriculas}
-                  fechaFusionadoGenerado={vista.fechaFusionadoGenerado}
-                  disabled={isSoloLectura}
-                  onGenerado={(fecha) => void guardar({ fechaFusionadoGenerado: fecha })}
-                />
-              ) : pasoActual === 7 ? (
-                <Paso7Limpiar
-                  matriculas={matriculas}
-                  eliminar={eliminar}
-                  disabled={isSoloLectura}
-                  fusionadoGenerado={vista.fechaFusionadoGenerado != null}
-                  ronda={vista.ronda}
-                  onNuevaRonda={() =>
-                    void guardar({ ronda: vista.ronda + 1, pasoActual: 4, fechaFusionadoGenerado: null })
-                  }
-                  onIrAlFinal={() => irAPaso(8)}
-                />
-              ) : pasoActual === 8 ? (
-                <Paso8Enviar
-                  curso={curso}
-                  matriculas={matriculas}
-                  config={config}
-                  disabled={isSoloLectura}
-                  onTerminar={async () => {
-                    if (
-                      !window.confirm(
-                        "¿Dar por terminado el proceso de este curso?\n\nEl asistente olvidará su progreso (los datos no se tocan). La próxima vez empezará desde el paso 1.",
-                      )
-                    )
-                      return;
-                    await reiniciar();
-                    onCerrar();
-                  }}
-                />
+                <Paso3ProfesoresRellenan curso={curso} disabled={isSoloLectura} />
               ) : null}
 
               {!hecho && paso.requisito && (
@@ -462,15 +346,11 @@ function Paso1Crear({
   curso,
   matriculas,
   guardarLote,
-  actualizar,
-  eliminar,
   disabled,
 }: {
   curso: string;
   matriculas: MatriculaLocal[];
   guardarLote: (nuevas: MatriculaLocal[]) => Promise<void>;
-  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
-  eliminar: (localId: string) => Promise<void>;
   disabled: boolean;
 }) {
   const especialidades = useMemo(() => getEspecialidades(), []);
@@ -482,156 +362,47 @@ function Paso1Crear({
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Estado de sustitución
-  const [fechaProgramada, setFechaProgramada] = useState("");
-  const [ultimaEjecucion, setUltimaEjecucion] = useState<string | null>(null);
-  const [isEjecutando, setIsEjecutando] = useState(false);
-  const [isFusionando, setIsFusionando] = useState(false);
+  // Rango de fechas durante el cual aparece el selector «Sustituye al alumno
+  // fantasma» en la pestaña Local. Las fechas obsoletas (fechaProgramada,
+  // ultimaEjecucion) ya no se usan, pero se conservan al guardar.
+  const [selectorDesde, setSelectorDesde] = useState("");
+  const [selectorHasta, setSelectorHasta] = useState("");
+  const obsoletasRef = useRef<{ fechaProgramada: string | null; ultimaEjecucion: string | null }>({
+    fechaProgramada: null,
+    ultimaEjecucion: null,
+  });
 
   useEffect(() => {
     window.adminAPI.temporales
       .getConfig(curso)
       .then((cfg) => {
-        setFechaProgramada(cfg.fechaProgramada ?? "");
-        setUltimaEjecucion(cfg.ultimaEjecucion);
+        setSelectorDesde(cfg.selectorDesde ?? "");
+        setSelectorHasta(cfg.selectorHasta ?? "");
+        obsoletasRef.current = {
+          fechaProgramada: cfg.fechaProgramada,
+          ultimaEjecucion: cfg.ultimaEjecucion,
+        };
       })
       .catch(() => {});
   }, [curso]);
 
-  const temporales = useMemo(() => matriculas.filter((m) => m.esTemporal), [matriculas]);
-
-  const vinculadosPor = useMemo(() => {
-    const mapa = new Map<string, MatriculaLocal>();
-    for (const m of matriculas) {
-      if (!m.esTemporal && m.sustituyeATemporalId) mapa.set(m.sustituyeATemporalId, m);
-    }
-    return mapa;
-  }, [matriculas]);
-
-  const nVinculados = temporales.filter(
-    (t) => vinculadosPor.has(t.localId) && t.temporalEstado !== "sustituido",
-  ).length;
-  const nSustituidos = temporales.filter((t) => t.temporalEstado === "sustituido").length;
-
-  const handleEjecutarSustituciones = async () => {
-    const parejas = planSustituciones(matriculas);
-    if (parejas.length === 0) return;
-    const detalle = parejas
-      .map((p) => `• ${nombreVisibleTemporal(p.temporal)} → ${p.real.apellidos}, ${p.real.nombre}`)
-      .join("\n");
-    if (!window.confirm(`Se van a realizar ${parejas.length} sustitución(es):\n\n${detalle}\n\n¿Continuar?`)) return;
-    setIsEjecutando(true);
-    setError(null);
-    try {
-      for (const p of parejas) {
-        await actualizar(p.temporal.localId, {
-          temporalEstado: "sustituido",
-          sustituidoPorLocalId: p.real.localId,
-        });
-      }
-      const ahora = new Date().toISOString();
-      await window.adminAPI.temporales.setConfig(curso, {
-        fechaProgramada: fechaProgramada || null,
-        ultimaEjecucion: ahora,
-      });
-      setUltimaEjecucion(ahora);
-      setMensaje(
-        `${parejas.length} sustitución(es) realizadas. Recuerda generar el Excel fusionado desde el paso 6 del asistente o desde Informes.`,
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron ejecutar las sustituciones.");
-    } finally {
-      setIsEjecutando(false);
-    }
-  };
-
-  const handleGuardarFecha = async (valor: string) => {
-    setFechaProgramada(valor);
+  const guardarRango = async (desde: string, hasta: string) => {
     await window.adminAPI.temporales.setConfig(curso, {
-      fechaProgramada: valor || null,
-      ultimaEjecucion,
+      fechaProgramada: obsoletasRef.current.fechaProgramada,
+      ultimaEjecucion: obsoletasRef.current.ultimaEjecucion,
+      selectorDesde: desde || null,
+      selectorHasta: hasta || null,
     });
   };
 
-  const handleGenerarExcelFusionado = async () => {
-    setError(null);
-    setMensaje(null);
-    setIsFusionando(true);
-    try {
-      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
-      if (profesores.length === 0) {
-        setError(
-          "No se ha cargado la lista de profesores. Usa «Cargar profesores (CSV)…» en el menú de acciones de Informes antes de generar el Excel.",
-        );
-        return;
-      }
-      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
-      if (!sel) return;
-      const crudas = await parseHorariosExcelCrudo(sel.base64);
-      const { campos, insertarTras, desconocidas } = await camposDesdeExcelHorarios(sel.base64);
-      const tieneEspecialidad = campos.some((c) => c.key === "especialidad");
-      const filas = ordenarComoExcel(filasAsignaturaLocales(matriculas), crudas, matriculas);
-      const resultado = fusionarHorarios(filas, crudas, matriculas);
-      if (resultado.conservadas + resultado.heredadas === 0) {
-        setError(
-          "El Excel cargado no contiene ningún horario que coincida con los alumnos actuales. " +
-            "Comprueba que es el Excel de horarios relleno por los profesores.",
-        );
-        return;
-      }
-
-      const lineas = [
-        `Se va a generar un Excel nuevo a partir de "${sel.fileName}":`,
-        "",
-        `• ${resultado.conservadas} horario(s) se conservan tal cual.`,
-        `• ${resultado.heredadas} horario(s) pasan del alumno fantasma a su alumno real.`,
-      ];
-      if (resultado.sinHorario.length > 0)
-        lineas.push(`• ${resultado.sinHorario.length} asignatura(s) de alumnos nuevos quedan sin horario.`);
-      if (resultado.huerfanas.length > 0)
-        lineas.push(`• ${resultado.huerfanas.length} fila(s) con horario del Excel no encajan con ningún alumno actual y no se trasladan.`);
-      if (desconocidas.length > 0)
-        lineas.push(`• Columnas no reconocidas que no se incluirán: ${desconocidas.join(", ")}.`);
-      lineas.push("", "¿Generar y guardar el Excel fusionado?");
-      if (!window.confirm(lineas.join("\n"))) return;
-
-      const base64 = await generarExcelHorarios(filas, campos, profesores, {
-        congelar: true,
-        congelarHasta: tieneEspecialidad ? "especialidad" : (campos[0]?.key ?? null),
-        insertarTras,
-      }, resultado.valoresHorario);
-      const nombreBase = sel.fileName.replace(/\.xlsx$/i, "");
-      const exportado = await window.adminAPI.informe.exportar({
-        contenidoBase64: base64,
-        nombreArchivo: `${nombreBase} (fusionado)`,
-        extension: "xlsx",
-      });
-      if (exportado !== null) {
-        const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-        actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
-        await window.adminAPI.horarios.data.guardar(curso, storeData);
-        setMensaje(
-          `Excel fusionado generado: ${resultado.conservadas} horario(s) conservados y ${resultado.heredadas} heredados por alumnos reales.` +
-            (resultado.sinHorario.length > 0 ? ` ${resultado.sinHorario.length} asignatura(s) quedan sin horario.` : ""),
-        );
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar el Excel fusionado.");
-    } finally {
-      setIsFusionando(false);
-    }
+  const handleDesdeCambiada = async (valor: string) => {
+    setSelectorDesde(valor);
+    await guardarRango(valor, selectorHasta);
   };
 
-  const handleLimpiarSustituidos = async () => {
-    const sustituidos = temporales.filter((t) => t.temporalEstado === "sustituido");
-    if (sustituidos.length === 0) return;
-    if (
-      !window.confirm(
-        `¿Eliminar los ${sustituidos.length} alumnos fantasma ya sustituidos?\n\nHazlo solo cuando ya hayas generado el Excel fusionado: la fusión los necesita para localizar las clases de los profesores.`,
-      )
-    )
-      return;
-    for (const t of sustituidos) await eliminar(t.localId);
+  const handleHastaCambiada = async (valor: string) => {
+    setSelectorHasta(valor);
+    await guardarRango(selectorDesde, valor);
   };
 
   const handleCrear = async () => {
@@ -789,63 +560,40 @@ function Paso1Crear({
       {mensaje && <MensajeOk texto={mensaje} />}
       {error && <MensajeError texto={error} />}
 
-      {/* Sustitución por alumnado real */}
+      {/* Sustitución por alumnado real: rango de fechas del selector en Local */}
       {!disabled && (
-        <div className="bg-[var(--tc-bg-panel)] rounded-xl border border-[var(--tc-border)] p-4 mt-2">
-          <h3 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">Sustitución por alumnado real</h3>
-          <p className="text-xs text-[var(--tc-ink-soft)] mb-3">
-            Vincula cada matrícula nueva con su alumno fantasma desde la pestaña Local (selector «Sustituye al
-            alumno fantasma» en Datos Personales, debajo de Provincia). Después ejecuta la sustitución aquí,
-            o programa una fecha para que la app la haga sola al arrancar. Por último, genera el Excel
-            fusionado con el botón de abajo o desde Informes («Fusión Actualización Nuevo Alumnado»).
+        <div className="bg-[var(--tc-bg-panel)] rounded-xl border border-[var(--tc-border)] px-3 py-2.5 mt-1">
+          <div className="flex items-center gap-1.5 mb-1">
+            <CalendarClock className="w-3.5 h-3.5 text-[var(--tc-ink-soft)]" />
+            <h3 className="text-[13px] font-semibold text-[var(--tc-ink)]">Sustitución por alumnado real</h3>
+          </div>
+          <p className="text-[11px] text-[var(--tc-ink-soft)] leading-snug mb-2">
+            Indica el rango de fechas durante el cual aparecerá en la pestaña Local (Datos Personales, debajo
+            de Provincia) el selector «Sustituye al alumno fantasma». Fuera de ese rango el selector no se
+            muestra; puedes cambiar las fechas cuando quieras. Vincula ahí cada matrícula real con su alumno
+            fantasma: la sustitución y la fusión se aplican al generar el Excel de horarios (paso 2).
           </p>
-          <div className="flex flex-wrap items-end gap-3 w-full">
-            <button
-              onClick={handleEjecutarSustituciones}
-              disabled={isEjecutando || nVinculados === 0}
-              className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50 whitespace-nowrap"
-              title={nVinculados === 0 ? "No hay alumnos fantasma vinculados a matrículas reales" : undefined}
-            >
-              <UserCheck className="w-4 h-4" />
-              {isEjecutando ? "Ejecutando…" : `Ejecutar sustituciones (${nVinculados})`}
-            </button>
-            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)] flex-1 min-w-[200px]">
-              Fecha programada (opcional)
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-0.5 text-[11px] font-medium text-[var(--tc-ink-soft)]">
+              Mostrar selector desde
               <input
                 type="date"
-                value={fechaProgramada}
-                onChange={(e) => handleGuardarFecha(e.target.value)}
-                className="h-9 w-full rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
+                value={selectorDesde}
+                max={selectorHasta || undefined}
+                onChange={(e) => void handleDesdeCambiada(e.target.value)}
+                className="h-8 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
               />
             </label>
-            <button
-              onClick={handleGenerarExcelFusionado}
-              disabled={isFusionando || nSustituidos === 0}
-              className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-semibold text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50 transition-colors whitespace-nowrap"
-              title={
-                nSustituidos === 0
-                  ? "Primero ejecuta alguna sustitución: el Excel fusionado se genera a partir de los alumnos fantasma ya sustituidos"
-                  : "Genera el Excel de horarios con los alumnos reales en el lugar de sus alumnos fantasma, conservando los horarios de los profesores"
-              }
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              {isFusionando ? "Generando…" : "Generar Excel fusionado"}
-            </button>
-            {nSustituidos > 0 && (
-              <button
-                onClick={handleLimpiarSustituidos}
-                className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-medium text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)] whitespace-nowrap"
-              >
-                <Trash2 className="w-4 h-4" />
-                Eliminar sustituidos ({nSustituidos})
-              </button>
-            )}
-          </div>
-          <div className="mt-2 flex items-center gap-2 text-xs text-[var(--tc-ink-mute)]">
-            <CalendarClock className="w-3.5 h-3.5" />
-            {ultimaEjecucion
-              ? `Última ejecución: ${new Date(ultimaEjecucion).toLocaleString("es-ES")}`
-              : "Aún no se ha ejecutado ninguna sustitución en este curso."}
+            <label className="flex flex-col gap-0.5 text-[11px] font-medium text-[var(--tc-ink-soft)]">
+              … hasta
+              <input
+                type="date"
+                value={selectorHasta}
+                min={selectorDesde || undefined}
+                onChange={(e) => void handleHastaCambiada(e.target.value)}
+                className="h-8 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
+              />
+            </label>
           </div>
         </div>
       )}
@@ -857,12 +605,14 @@ function Paso1Crear({
 function Paso2ExcelHorarios({
   curso,
   matriculas,
+  actualizar,
   fechaExcelGenerado,
   disabled,
   onGenerado,
 }: {
   curso: string;
   matriculas: MatriculaLocal[];
+  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
   fechaExcelGenerado: string | null;
   disabled: boolean;
   onGenerado: (fechaIso: string) => void;
@@ -896,11 +646,16 @@ function Paso2ExcelHorarios({
         <ModalGenerarHorariosAsistente
           curso={curso}
           matriculas={matriculas}
+          actualizar={actualizar}
           onClose={() => setShowGenerar(false)}
-          onGenerado={(fechaIso, nFilas) => {
+          onGenerado={(fechaIso, nFilas, nSust) => {
             onGenerado(fechaIso);
             setMensaje(
-              `Excel de horarios generado con ${nFilas} fila(s). Los alumnos fantasma van con fondo naranja. Ya puedes hacérselo llegar a los profesores.`,
+              `Excel de horarios generado con ${nFilas} fila(s). Los alumnos fantasma van con fondo naranja.` +
+                (nSust > 0
+                  ? ` ${nSust} alumno(s) fantasma se han sustituido por su matrícula real heredando su horario.`
+                  : "") +
+                " Ya puedes hacérselo llegar a los profesores.",
             );
           }}
         />
@@ -917,13 +672,15 @@ function Paso2ExcelHorarios({
 function ModalGenerarHorariosAsistente({
   curso,
   matriculas,
+  actualizar,
   onClose,
   onGenerado,
 }: {
   curso: string;
   matriculas: MatriculaLocal[];
+  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
   onClose: () => void;
-  onGenerado: (fechaIso: string, nFilas: number) => void;
+  onGenerado: (fechaIso: string, nFilas: number, nSustituidos: number) => void;
 }) {
   const [presets, setPresets] = useState<ConfigInforme[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -1013,7 +770,32 @@ function ModalGenerarHorariosAsistente({
         setError("No se ha cargado la lista de profesores. Cierra esta ventana y usa «Cargar profesores (CSV)…».");
         return;
       }
-      const filas = filasAsignaturaLocales(matriculas);
+
+      // Antes de generar, ejecutar la sustitución de los alumnos fantasma que ya
+      // tienen una matrícula real vinculada (selector «Sustituye al alumno
+      // fantasma» en Local). El alumno real ocupa su lugar y hereda su horario;
+      // las clases que ya rellenó el profesorado se conservan intactas.
+      const parejas = planSustituciones(matriculas);
+      let matriculasGen = matriculas;
+      if (parejas.length > 0) {
+        const cambios = new Map<string, Partial<MatriculaLocal>>();
+        for (const p of parejas) {
+          await actualizar(p.temporal.localId, {
+            temporalEstado: "sustituido",
+            sustituidoPorLocalId: p.real.localId,
+          });
+          cambios.set(p.temporal.localId, {
+            temporalEstado: "sustituido",
+            sustituidoPorLocalId: p.real.localId,
+          });
+        }
+        // Reflejar la sustitución en una copia local para generar con el estado ya actualizado.
+        matriculasGen = matriculas.map((m) =>
+          cambios.has(m.localId) ? { ...m, ...cambios.get(m.localId) } : m,
+        );
+      }
+
+      const filas = filasAsignaturaLocales(matriculasGen);
       if (filas.length === 0) {
         setError("No hay ningún alumno fantasma con asignaturas en este curso: no hay nada que poner en el Excel.");
         return;
@@ -1030,7 +812,7 @@ function ModalGenerarHorariosAsistente({
         const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
           filas,
           storeData.entries,
-          matriculas,
+          matriculasGen,
         );
         if (conservadas + heredadas > 0) {
           valoresHorario = vh;
@@ -1045,7 +827,7 @@ function ModalGenerarHorariosAsistente({
         extension: "xlsx",
       });
       if (exportado !== null) {
-        onGenerado(new Date().toISOString(), filas.length);
+        onGenerado(new Date().toISOString(), filas.length, parejas.length);
         onClose();
       }
     } catch (e) {
@@ -1238,908 +1020,165 @@ function ModalGenerarHorariosAsistente({
 }
 
 /**
- * Paso 3: los profesores rellenan el Excel. Permite seleccionar el archivo
- * Excel devuelto por los profesores, mantenerlo linkado (recordar la ruta)
- * o cargar otro distinto.
+ * Paso 3: los profesores rellenan el Excel y, al devolverlo, se carga aquí.
+ * Cada carga queda registrada en el historial con el nombre que se le ponga.
+ * Incluye, ya visible, todo el «Historial de horarios» y el historial de
+ * envíos de email (lectura), sin tener que pulsar ningún botón.
  */
 function Paso3ProfesoresRellenan({
-  ruta,
-  recibido,
-  disabled,
-  onRutaCambiada,
-  onRecibidoCambiado,
-}: {
-  ruta: string | null;
-  recibido: boolean;
-  disabled: boolean;
-  onRutaCambiada: (ruta: string | null) => void;
-  onRecibidoCambiado: (v: boolean) => void;
-}) {
-  const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ultimoCargado, setUltimoCargado] = useState<string | null>(null);
-
-  const handleSeleccionar = async () => {
-    setError(null);
-    setOcupado(true);
-    try {
-      const sel = await window.adminAPI.horarios.seleccionarExcelRelleno();
-      if (sel) {
-        onRutaCambiada(sel.path);
-        setUltimoCargado(sel.fileName);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const handleDesvincular = () => {
-    onRutaCambiada(null);
-    setUltimoCargado(null);
-  };
-
-  const handleLinkear = async () => {
-    setError(null);
-    setOcupado(true);
-    try {
-      const sel = await window.adminAPI.horarios.seleccionarExcelRelleno();
-      if (sel) {
-        onRutaCambiada(sel.path);
-        setUltimoCargado(sel.fileName);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const nombreArchivo = ruta ? ruta.split("\\").pop()?.split("/").pop() ?? ruta : null;
-
-  return (
-    <div className="flex flex-col gap-3">
-      {/* Selección / estado del archivo */}
-      <div className="rounded-xl border border-[var(--tc-border)] p-4 flex flex-col gap-3">
-        {!ruta ? (
-          <>
-            <p className="text-[13px] text-[var(--tc-ink-soft)] leading-relaxed">
-              Los profesores te devuelven el Excel con los horarios rellenos. Selecciona ese archivo
-              para vincularlo al asistente. Puedes mantenerlo linkado (el asistente recordará la ruta)
-              o cargar otro distinto cada vez.
-            </p>
-            <div>
-              <button
-                onClick={handleSeleccionar}
-                disabled={disabled || ocupado}
-                className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                <Upload className="w-4 h-4" />
-                {ocupado ? "Leyendo archivo…" : "Seleccionar Excel relleno…"}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2.5">
-              <FileSpreadsheet className="w-5 h-5 shrink-0 text-emerald-600" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[var(--tc-ink)] truncate" title={ruta}>
-                  {nombreArchivo}
-                </p>
-                <p className="text-[11px] text-[var(--tc-ink-mute)] truncate" title={ruta}>
-                  {ruta}
-                </p>
-              </div>
-              <span className="text-[11px] font-semibold text-emerald-600 shrink-0">Linkado</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleLinkear}
-                disabled={disabled || ocupado}
-                className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-3 text-xs font-semibold text-[var(--tc-ink-soft)] hover:bg-[var(--tc-card)] disabled:opacity-50 transition-colors"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                {ocupado ? "Leyendo…" : "Cambiar archivo…"}
-              </button>
-              <button
-                onClick={handleDesvincular}
-                disabled={disabled}
-                className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-3 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-                Desvincular
-              </button>
-            </div>
-            {ultimoCargado && (
-              <p className="text-[12px] text-emerald-700">
-                Archivo cargado correctamente: {ultimoCargado}
-              </p>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Check de confirmación */}
-      <label className="flex items-center gap-2.5 text-sm text-[var(--tc-ink)] cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={recibido}
-          disabled={disabled}
-          onChange={(e) => onRecibidoCambiado(e.target.checked)}
-          className="w-4 h-4 accent-[var(--tc-primary)]"
-        />
-        Ya tengo el Excel relleno por los profesores
-      </label>
-
-      {error && <MensajeError texto={error} />}
-    </div>
-  );
-}
-
-/**
- * Paso 4: tabla de vinculación temporal ↔ matrícula real. Misma operación que
- * el selector «Sustituye al alumno fantasma» de la ficha Local, pero vista
- * desde el alumno fantasma y con todos los pendientes juntos. Es bidireccional: lo
- * vinculado aquí se ve en Local y viceversa.
- */
-function Paso4Vincular({
-  matriculas,
-  actualizar,
-  disabled,
-}: {
-  matriculas: MatriculaLocal[];
-  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
-  disabled: boolean;
-}) {
-  const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  /** localId de temporal → matrícula real vinculada a él. */
-  const vinculadoPor = useMemo(() => {
-    const mapa = new Map<string, MatriculaLocal>();
-    for (const m of matriculas) {
-      if (!m.esTemporal && m.sustituyeATemporalId) mapa.set(m.sustituyeATemporalId, m);
-    }
-    return mapa;
-  }, [matriculas]);
-
-  const temporales = useMemo(
-    () =>
-      matriculas
-        .filter(esTemporalPendiente)
-        .sort(
-          (a, b) =>
-            `${a.especialidad ?? ""} ${a.ensenanzaCurso}`.localeCompare(
-              `${b.especialidad ?? ""} ${b.ensenanzaCurso}`,
-              "es",
-            ) || (a.temporalNumero ?? 0) - (b.temporalNumero ?? 0),
-        ),
-    [matriculas],
-  );
-
-  /** Matrículas reales que puede elegir un alumno fantasma: mismo curso y especialidad, sin otro vínculo. */
-  const candidatasDe = (t: MatriculaLocal): MatriculaLocal[] =>
-    matriculas
-      .filter(
-        (m) =>
-          !m.esTemporal &&
-          m.ensenanzaCurso === t.ensenanzaCurso &&
-          (m.especialidad ?? "") === (t.especialidad ?? "") &&
-          (!m.sustituyeATemporalId || m.sustituyeATemporalId === t.localId),
-      )
-      .sort((a, b) => `${a.apellidos}, ${a.nombre}`.localeCompare(`${b.apellidos}, ${b.nombre}`, "es"));
-
-  const handleVincular = async (t: MatriculaLocal, realId: string) => {
-    setError(null);
-    setOcupado(true);
-    try {
-      const actual = vinculadoPor.get(t.localId);
-      if (actual && actual.localId !== realId) {
-        await actualizar(actual.localId, { sustituyeATemporalId: null });
-      }
-      if (realId && actual?.localId !== realId) {
-        await actualizar(realId, { sustituyeATemporalId: t.localId });
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar el vínculo.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  if (temporales.length === 0) {
-    return (
-      <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
-        No hay alumnos fantasma pendientes de vincular en este curso.
-      </p>
-    );
-  }
-
-  const nVinculados = temporales.filter((t) => vinculadoPor.has(t.localId)).length;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-xl border border-[var(--tc-border)] overflow-hidden">
-        <div className="grid grid-cols-2 gap-2 px-3 py-2 bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)]">
-          <span>Alumno fantasma pendiente</span>
-          <span>Matrícula real que lo sustituye</span>
-        </div>
-        <div className="max-h-[260px] overflow-y-auto">
-          {temporales.map((t) => {
-            const candidatas = candidatasDe(t);
-            const vinculada = vinculadoPor.get(t.localId);
-            return (
-              <div
-                key={t.localId}
-                className="grid grid-cols-2 gap-2 items-center px-3 py-2 border-t border-[var(--tc-border-soft)]"
-              >
-                <span
-                  className={`text-sm truncate ${vinculada ? "text-[var(--tc-ink-soft)]" : "font-medium text-orange-700"}`}
-                  title={nombreVisibleTemporal(t)}
-                >
-                  {nombreVisibleTemporal(t)}
-                </span>
-                {candidatas.length === 0 && !vinculada ? (
-                  <span className="text-[11px] italic text-[var(--tc-ink-mute)]">
-                    Sin matrículas compatibles todavía
-                  </span>
-                ) : (
-                  <select
-                    value={vinculada?.localId ?? ""}
-                    disabled={disabled || ocupado}
-                    onChange={(e) => void handleVincular(t, e.target.value)}
-                    className="h-8 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-xs text-[var(--tc-ink)] min-w-0"
-                  >
-                    <option value="">— Sin asignar —</option>
-                    {candidatas.map((m) => (
-                      <option key={m.localId} value={m.localId}>
-                        {m.apellidos}, {m.nombre}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <p className="text-[11px] text-[var(--tc-ink-mute)]">
-        {nVinculados} de {temporales.length} vinculados. Solo se ofrecen matrículas del mismo curso y
-        especialidad sin otro vínculo. No hace falta vincularlos todos: los que falten caerán en la
-        siguiente ronda.
-      </p>
-      {error && <MensajeError texto={error} />}
-    </div>
-  );
-}
-
-/** Paso 5: ejecutar las sustituciones de los alumnos fantasma vinculados, con fecha programada opcional. */
-function Paso5Ejecutar({
   curso,
-  matriculas,
-  actualizar,
   disabled,
 }: {
   curso: string;
-  matriculas: MatriculaLocal[];
-  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
   disabled: boolean;
-}) {
-  const [fechaProgramada, setFechaProgramada] = useState("");
-  const [ultimaEjecucion, setUltimaEjecucion] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const [mensaje, setMensaje] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.adminAPI.temporales
-      .getConfig(curso)
-      .then((cfg) => {
-        setFechaProgramada(cfg.fechaProgramada ?? "");
-        setUltimaEjecucion(cfg.ultimaEjecucion);
-      })
-      .catch(() => {});
-  }, [curso]);
-
-  const parejas = useMemo(() => planSustituciones(matriculas), [matriculas]);
-
-  const handleEjecutar = async () => {
-    if (parejas.length === 0) return;
-    const detalle = parejas
-      .map((p) => `• ${nombreVisibleTemporal(p.temporal)} → ${p.real.apellidos}, ${p.real.nombre}`)
-      .join("\n");
-    if (!window.confirm(`Se van a realizar ${parejas.length} sustitución(es):\n\n${detalle}\n\n¿Continuar?`)) return;
-    setOcupado(true);
-    setError(null);
-    try {
-      for (const p of parejas) {
-        await actualizar(p.temporal.localId, {
-          temporalEstado: "sustituido",
-          sustituidoPorLocalId: p.real.localId,
-        });
-      }
-      const ahora = new Date().toISOString();
-      await window.adminAPI.temporales.setConfig(curso, {
-        fechaProgramada: fechaProgramada || null,
-        ultimaEjecucion: ahora,
-      });
-      setUltimaEjecucion(ahora);
-      setMensaje(`${parejas.length} sustitución(es) realizadas. Siguiente paso: generar el Excel fusionado.`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron ejecutar las sustituciones.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const handleGuardarFecha = async (valor: string) => {
-    setFechaProgramada(valor);
-    await window.adminAPI.temporales.setConfig(curso, {
-      fechaProgramada: valor || null,
-      ultimaEjecucion,
-    });
-  };
-
-  return (
-    <div className="flex flex-col gap-3">
-      {parejas.length > 0 && (
-        <div className="rounded-xl border border-[var(--tc-border)] overflow-hidden">
-          <div className="px-3 py-2 bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)]">
-            Sustituciones preparadas
-          </div>
-          <div className="max-h-[180px] overflow-y-auto">
-            {parejas.map((p) => (
-              <div
-                key={p.temporal.localId}
-                className="flex items-center gap-2 px-3 py-1.5 border-t border-[var(--tc-border-soft)] text-xs"
-              >
-                <span className="text-orange-700 font-medium truncate">{nombreVisibleTemporal(p.temporal)}</span>
-                <ArrowRight className="w-3.5 h-3.5 shrink-0 text-[var(--tc-ink-mute)]" />
-                <span className="text-[var(--tc-ink)] truncate">
-                  {p.real.apellidos}, {p.real.nombre}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!disabled && (
-        <div className="flex flex-wrap items-end gap-3">
-          <button
-            onClick={handleEjecutar}
-            disabled={ocupado || parejas.length === 0}
-            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-            title={parejas.length === 0 ? "No hay alumnos fantasma vinculados pendientes de ejecutar" : undefined}
-          >
-            <UserCheck className="w-4 h-4" />
-            {ocupado ? "Ejecutando…" : `Ejecutar sustituciones (${parejas.length})`}
-          </button>
-          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)]">
-            Fecha programada (opcional)
-            <input
-              type="date"
-              value={fechaProgramada}
-              onChange={(e) => void handleGuardarFecha(e.target.value)}
-              className="h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
-            />
-          </label>
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 text-[11px] text-[var(--tc-ink-mute)]">
-        <CalendarClock className="w-3.5 h-3.5" />
-        {ultimaEjecucion
-          ? `Última ejecución: ${new Date(ultimaEjecucion).toLocaleString("es-ES")}`
-          : "Aún no se ha ejecutado ninguna sustitución en este curso."}
-      </div>
-      {mensaje && <MensajeOk texto={mensaje} />}
-      {error && <MensajeError texto={error} />}
-    </div>
-  );
-}
-
-/** Paso 6: generar el Excel fusionado a partir del Excel relleno por los profesores. */
-function Paso6Fusionado({
-  curso,
-  matriculas,
-  fechaFusionadoGenerado,
-  disabled,
-  onGenerado,
-}: {
-  curso: string;
-  matriculas: MatriculaLocal[];
-  fechaFusionadoGenerado: string | null;
-  disabled: boolean;
-  onGenerado: (fechaIso: string) => void;
 }) {
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const nSustituidos = useMemo(
-    () => matriculas.filter((m) => m.esTemporal && m.temporalEstado === "sustituido").length,
-    [matriculas],
-  );
-
-  const handleGenerar = async () => {
-    setError(null);
-    setMensaje(null);
-    setOcupado(true);
-    try {
-      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
-      if (profesores.length === 0) {
-        setError("No se ha cargado la lista de profesores (paso 2). Cárgala antes de generar el Excel.");
-        return;
-      }
-      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
-      if (!sel) return; // el usuario canceló
-      const crudas = await parseHorariosExcelCrudo(sel.base64);
-      const { campos, insertarTras, desconocidas } = await camposDesdeExcelHorarios(sel.base64);
-      const tieneEspecialidad = campos.some((c) => c.key === "especialidad");
-      const filas = ordenarComoExcel(filasAsignaturaLocales(matriculas), crudas, matriculas);
-      const resultado = fusionarHorarios(filas, crudas, matriculas);
-      if (resultado.conservadas + resultado.heredadas === 0) {
-        setError(
-          "El Excel cargado no contiene ningún horario que coincida con los alumnos actuales. " +
-            "Comprueba que es el Excel de horarios relleno por los profesores.",
-        );
-        return;
-      }
-
-      const lineas = [
-        `Se va a generar un Excel nuevo a partir de "${sel.fileName}":`,
-        "",
-        `• ${resultado.conservadas} horario(s) se conservan tal cual.`,
-        `• ${resultado.heredadas} horario(s) pasan del alumno fantasma a su alumno real.`,
-      ];
-      if (resultado.sinHorario.length > 0)
-        lineas.push(`• ${resultado.sinHorario.length} asignatura(s) de alumnos nuevos quedan sin horario.`);
-      if (resultado.huerfanas.length > 0)
-        lineas.push(
-          `• ${resultado.huerfanas.length} fila(s) con horario del Excel no encajan con ningún alumno actual y no se trasladan.`,
-        );
-      if (desconocidas.length > 0)
-        lineas.push(`• Columnas no reconocidas que no se incluirán: ${desconocidas.join(", ")}.`);
-      lineas.push("", "¿Generar y guardar el Excel fusionado?");
-      if (!window.confirm(lineas.join("\n"))) return;
-
-      const base64 = await generarExcelHorarios(
-        filas,
-        campos,
-        profesores,
-        {
-          congelar: true,
-          congelarHasta: tieneEspecialidad ? "especialidad" : (campos[0]?.key ?? null),
-          insertarTras,
-        },
-        resultado.valoresHorario,
-      );
-      const nombreBase = sel.fileName.replace(/\.xlsx$/i, "");
-      const exportado = await window.adminAPI.informe.exportar({
-        contenidoBase64: base64,
-        nombreArchivo: `${nombreBase} (fusionado)`,
-        extension: "xlsx",
-      });
-      if (exportado !== null) {
-        const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-        actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
-        await window.adminAPI.horarios.data.guardar(curso, storeData);
-        onGenerado(new Date().toISOString());
-        setMensaje(
-          `Excel fusionado generado: ${resultado.conservadas} horario(s) conservados y ${resultado.heredadas} heredados por alumnos reales.` +
-            (resultado.sinHorario.length > 0 ? ` ${resultado.sinHorario.length} asignatura(s) quedan sin horario.` : ""),
-        );
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar el Excel fusionado.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
-        Regla de oro: nunca borres los alumnos fantasma sustituidos antes de generar este Excel.
-      </div>
-
-      {!disabled && (
-        <div>
-          <button
-            onClick={handleGenerar}
-            disabled={ocupado || nSustituidos === 0}
-            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-            title={nSustituidos === 0 ? "Primero ejecuta alguna sustitución (paso 5)" : undefined}
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            {ocupado ? "Generando…" : "Generar Excel fusionado"}
-          </button>
-        </div>
-      )}
-
-      {fechaFusionadoGenerado && (
-        <p className="text-[12px] text-emerald-700">
-          Excel fusionado generado el {new Date(fechaFusionadoGenerado).toLocaleString("es-ES")}.
-        </p>
-      )}
-      {mensaje && <MensajeOk texto={mensaje} />}
-      {error && <MensajeError texto={error} />}
-    </div>
-  );
-}
-
-/** Paso 7: eliminar los alumnos fantasma ya sustituidos y decidir si empieza otra ronda. */
-function Paso7Limpiar({
-  matriculas,
-  eliminar,
-  disabled,
-  fusionadoGenerado,
-  ronda,
-  onNuevaRonda,
-  onIrAlFinal,
-}: {
-  matriculas: MatriculaLocal[];
-  eliminar: (localId: string) => Promise<void>;
-  disabled: boolean;
-  fusionadoGenerado: boolean;
-  ronda: number;
-  onNuevaRonda: () => void;
-  onIrAlFinal: () => void;
-}) {
-  const [ocupado, setOcupado] = useState(false);
-  const [mensaje, setMensaje] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const sustituidos = useMemo(
-    () => matriculas.filter((m) => m.esTemporal && m.temporalEstado === "sustituido"),
-    [matriculas],
-  );
-  const nPendientes = useMemo(
-    () => matriculas.filter(esTemporalPendiente).length,
-    [matriculas],
-  );
-  const limpiezaHecha = fusionadoGenerado && sustituidos.length === 0;
-
-  const handleEliminar = async () => {
-    if (sustituidos.length === 0) return;
-    if (
-      !window.confirm(
-        `¿Eliminar los ${sustituidos.length} alumnos fantasma ya sustituidos?\n\nEl Excel fusionado ya está generado, así que es seguro borrarlos.`,
-      )
-    )
-      return;
-    setOcupado(true);
-    setError(null);
-    try {
-      for (const t of sustituidos) await eliminar(t.localId);
-      setMensaje(`Alumnos fantasma sustituidos eliminados.`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron eliminar los alumnos fantasma.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-3">
-      {!disabled && sustituidos.length > 0 && (
-        <div>
-          <button
-            onClick={handleEliminar}
-            disabled={ocupado || !fusionadoGenerado}
-            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-            title={!fusionadoGenerado ? "Genera antes el Excel fusionado (paso 6)" : undefined}
-          >
-            <Trash2 className="w-4 h-4" />
-            {ocupado ? "Eliminando…" : `Eliminar sustituidos (${sustituidos.length})`}
-          </button>
-        </div>
-      )}
-
-      {limpiezaHecha && (
-        <div className="rounded-xl border border-[var(--tc-border)] bg-[var(--tc-bg-panel)] p-4 flex flex-col gap-3">
-          {nPendientes > 0 ? (
-            <>
-              <p className="text-sm text-[var(--tc-ink)]">
-                Limpieza hecha, pero quedan <strong>{nPendientes} alumno(s) fantasma pendiente(s)</strong> esperando
-                su matrícula real. Cuando lleguen más matrículas, repite el ciclo con otra ronda.
-              </p>
-              {!disabled && (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={onNuevaRonda}
-                    className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    Empezar Ronda {ronda + 1}
-                  </button>
-                  <button
-                    onClick={onIrAlFinal}
-                    className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-card)] transition-colors"
-                  >
-                    Ir al paso final de todos modos
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-[var(--tc-ink)]">
-              No queda ningún alumno fantasma pendiente: el ciclo de sustituciones está completo. Continúa al paso
-              final para enviar los horarios a los alumnos nuevos.
-            </p>
-          )}
-        </div>
-      )}
-
-      {mensaje && <MensajeOk texto={mensaje} />}
-      {error && <MensajeError texto={error} />}
-    </div>
-  );
-}
-
-/**
- * Paso 8: enviar el horario por email a los alumnos NUEVO (matrículas reales
- * que sustituyeron a un alumno fantasma y aún no recibieron campaña). Reutiliza el
- * envío de Horarios Individuales: PDF + email vía Flow, registrado en una
- * campaña para que la pestaña Horarios lo refleje igual.
- */
-function Paso8Enviar({
-  curso,
-  matriculas,
-  config,
-  disabled,
-  onTerminar,
-}: {
-  curso: string;
-  matriculas: MatriculaLocal[];
-  config: AppConfig;
-  disabled: boolean;
-  onTerminar: () => Promise<void>;
-}) {
-  const anio = `Curso ${curso}`;
+  const [reloadToken, setReloadToken] = useState(0);
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
-  const [seleccion, setSeleccion] = useState<Set<string> | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
-  const [mensaje, setMensaje] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const [campanyasCargadas, setCampanyasCargadas] = useState(false);
 
   useEffect(() => {
     window.adminAPI.horarios.campanyas
       .listar()
       .then(setCampanyas)
-      .catch(() => {})
-      .finally(() => setCampanyasCargadas(true));
-  }, []);
+      .catch(() => {});
+  }, [reloadToken]);
 
-  /** Matrículas reales que sustituyeron a un alumno fantasma (etiqueta NUEVO en Horarios). */
-  const nuevos = useMemo(
-    () =>
-      matriculas
-        .filter((m) => !m.esTemporal && m.sustituyeATemporalId)
-        .sort((a, b) => `${a.apellidos}, ${a.nombre}`.localeCompare(`${b.apellidos}, ${b.nombre}`, "es")),
-    [matriculas],
-  );
-
-  /** Nombres (normalizados) con al menos un envío correcto en cualquier campaña. */
-  const enviados = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of campanyas) {
-      for (const r of c.alumnos) if (r.estado === "ok") set.add(norm(r.nombre));
-    }
-    return set;
-  }, [campanyas]);
-
-  const nombreDe = (m: MatriculaLocal) => `${m.apellidos}, ${m.nombre}`;
-  const yaEnviado = (m: MatriculaLocal) => enviados.has(norm(nombreDe(m)));
-
-  // Selección inicial: los nuevos que aún no han recibido el email.
-  useEffect(() => {
-    if (seleccion !== null || !campanyasCargadas || nuevos.length === 0) return;
-    setSeleccion(new Set(nuevos.filter((m) => !yaEnviado(m)).map((m) => m.localId)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nuevos, enviados, campanyasCargadas]);
-
-  const sel = seleccion ?? new Set<string>();
-  const toggle = (localId: string) =>
-    setSeleccion((prev) => {
-      const s = new Set(prev ?? []);
-      if (s.has(localId)) s.delete(localId);
-      else s.add(localId);
-      return s;
-    });
-
-  const handleEnviar = async () => {
+  const handleCargar = async () => {
     setError(null);
     setMensaje(null);
-    if (!config.urlEnviarEmailHorario) {
-      setError("No está configurada la URL del Flow AdminEnviarEmailHorario. Añádela en Configuración.");
-      return;
-    }
-    const destinatarios = nuevos.filter((m) => sel.has(m.localId));
-    if (destinatarios.length === 0) {
-      setError("No hay ningún alumno seleccionado.");
-      return;
-    }
-    const sinEmail = destinatarios.filter((m) => !(m.email ?? "").trim());
-    setOcupado(true);
     try {
-      // El horario de cada alumno sale del Excel fusionado: se pide elegirlo.
-      const selExcel = await window.adminAPI.horarios.cargarExcelRelleno();
-      if (!selExcel) return; // el usuario canceló
-      const res = await parseHorariosExcel(selExcel.base64, selExcel.fileName);
-      const porNombre = new Map(res.alumnos.map((a) => [norm(a.nombre), a]));
-
-      const listos: { m: MatriculaLocal; alumno: (typeof res.alumnos)[number] }[] = [];
-      const sinHorario: string[] = [];
-      for (const m of destinatarios) {
-        if (!(m.email ?? "").trim()) continue;
-        const alumno = porNombre.get(norm(nombreDe(m)));
-        if (alumno) listos.push({ m, alumno });
-        else sinHorario.push(nombreDe(m));
-      }
-      if (listos.length === 0) {
-        setError(
-          "Ninguno de los seleccionados aparece con horario en ese Excel. Comprueba que es el Excel fusionado más reciente.",
-        );
-        return;
-      }
-
-      const lineas = [
-        `Se va a enviar el horario por email a ${listos.length} alumno(s) desde "${selExcel.fileName}".`,
-      ];
-      if (sinHorario.length > 0)
-        lineas.push(`\nSin horario en el Excel (no se envían): ${sinHorario.join(", ")}.`);
-      if (sinEmail.length > 0)
-        lineas.push(`\nSin email registrado (no se envían): ${sinEmail.map(nombreDe).join(", ")}.`);
-      lineas.push("\n¿Continuar?");
-      if (!window.confirm(lineas.join("\n"))) return;
-
-      setProgreso({ actual: 0, total: listos.length });
-      const resultados: ResultadoEnvio[] = [];
-      for (let i = 0; i < listos.length; i++) {
-        const { m, alumno } = listos[i];
-        const conEmail = { ...alumno, email: (m.email ?? "").trim() || alumno.email };
-        setProgreso({ actual: i + 1, total: listos.length });
-        try {
-          const horarioHtml = buildHorarioHtml(conEmail, anio);
-          const emailHtml = buildHorarioEmailHtml(conEmail, anio);
-          const pdfRes = await window.adminAPI.pdf.generarBase64(horarioHtml, true);
-          if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "PDF no generado");
-          const nombreBase = `Horario ${conEmail.nombre}`.replace(/[\\/:*?"<>|]/g, "_");
-          const htmlBase64 = btoa(unescape(encodeURIComponent(horarioHtml)));
-          await enviarEmailHorario(config, {
-            email: conEmail.email,
-            nombre: conEmail.nombre,
-            emailHtml,
-            pdfBase64: pdfRes.base64,
-            pdfNombre: `${nombreBase}.pdf`,
-            htmlBase64,
-            htmlNombre: `${nombreBase}.html`,
-          });
-          resultados.push({ clave: conEmail.clave, nombre: conEmail.nombre, email: conEmail.email, estado: "ok" });
-        } catch (err) {
-          resultados.push({
-            clave: conEmail.clave,
-            nombre: conEmail.nombre,
-            email: conEmail.email,
-            estado: "error",
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
-      const campanya: CampanyaEnvio = {
-        id: crypto.randomUUID(),
-        nombre: `Asistente — horarios a nuevos (${new Date().toLocaleDateString("es-ES")})`,
-        descripcion: "Envío realizado desde el asistente de Alumnado Fantasma.",
-        fecha: new Date().toISOString(),
-        alumnos: resultados,
-      };
-      await window.adminAPI.horarios.campanyas.guardar(campanya);
-      setCampanyas(await window.adminAPI.horarios.campanyas.listar());
-      setSeleccion(null); // se recalcula con los nuevos envíos
-
-      const ok = resultados.filter((r) => r.estado === "ok").length;
-      const fallos = resultados.length - ok;
-      setMensaje(
-        `Enviados ${ok} horario(s) por email.` +
-          (fallos > 0 ? ` ${fallos} envío(s) fallaron: revisa el historial en Horarios Individuales.` : ""),
+      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
+      if (!sel) return;
+      const nombre = window.prompt(
+        "Pon un nombre a esta carga (para saber qué asignaturas llevan ya horario):",
+        sel.fileName.replace(/\.xlsx$/i, ""),
       );
+      if (nombre === null) return; // el usuario canceló
+      setOcupado(true);
+      const crudas = await parseHorariosExcelCrudo(sel.base64);
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      const resultado = actualizarHorariosStore(storeData, crudas, "carga_excel", sel.fileName, nombre);
+      await window.adminAPI.horarios.data.guardar(curso, storeData);
+      setReloadToken((t) => t + 1);
+      if (resultado.snapshot) {
+        setMensaje(
+          `Cargado «${nombre || sel.fileName}»: +${resultado.anadidas} añadidas, ~${resultado.actualizadas} actualizadas.`,
+        );
+      } else {
+        setMensaje("El Excel no aportó horarios nuevos (todo coincidía con lo ya cargado).");
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron enviar los horarios.");
+      setError(e instanceof Error ? e.message : "No se pudo cargar el Excel.");
     } finally {
       setOcupado(false);
-      setProgreso(null);
+    }
+  };
+
+  const handleBorrar = async () => {
+    setError(null);
+    setMensaje(null);
+    if (
+      !window.confirm(
+        "¿Borrar todos los horarios cargados actualmente?\n\nLas cargas anteriores siguen en el historial y puedes restaurarlas desde ahí.",
+      )
+    )
+      return;
+    try {
+      setOcupado(true);
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      storeData.entries = [];
+      storeData.lastUpdated = new Date().toISOString();
+      await window.adminAPI.horarios.data.guardar(curso, storeData);
+      setReloadToken((t) => t + 1);
+      setMensaje("Horarios cargados borrados. El historial se conserva.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron borrar los horarios.");
+    } finally {
+      setOcupado(false);
     }
   };
 
   return (
     <div className="flex flex-col gap-3">
-      {nuevos.length === 0 ? (
-        <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
-          No hay alumnos nuevos por sustitución en este curso.
-        </p>
-      ) : (
-        <div className="rounded-xl border border-[var(--tc-border)] overflow-hidden">
-          <div className="px-3 py-2 bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)]">
-            Alumnos nuevos (por sustitución)
-          </div>
-          <div className="max-h-[200px] overflow-y-auto">
-            {nuevos.map((m) => {
-              const enviado = yaEnviado(m);
-              return (
-                <label
-                  key={m.localId}
-                  className="flex items-center gap-2.5 px-3 py-1.5 border-t border-[var(--tc-border-soft)] text-xs cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={sel.has(m.localId)}
-                    disabled={disabled || ocupado}
-                    onChange={() => toggle(m.localId)}
-                    className="w-3.5 h-3.5 accent-[var(--tc-primary)]"
-                  />
-                  <span className="flex-1 min-w-0 truncate text-[var(--tc-ink)]">{nombreDe(m)}</span>
-                  <span className="text-[var(--tc-ink-mute)] truncate max-w-[180px]">
-                    {(m.email ?? "").trim() || "sin email"}
-                  </span>
-                  {enviado && (
-                    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                      <Mail className="w-3 h-3" />
-                      Enviado
-                    </span>
-                  )}
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {!disabled && nuevos.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3">
+      {!disabled && (
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={handleEnviar}
-            disabled={ocupado || sel.size === 0}
-            className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+            onClick={handleCargar}
+            disabled={ocupado}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
           >
-            <Send className="w-4 h-4" />
-            {progreso
-              ? `Enviando ${progreso.actual} de ${progreso.total}…`
-              : ocupado
-                ? "Un momento…"
-                : `Enviar horarios (${sel.size})`}
+            <Upload className="w-4 h-4" />
+            {ocupado ? "Cargando…" : "Cargar otro Excel"}
           </button>
-          <p className="text-[11px] text-[var(--tc-ink-mute)] flex-1 min-w-[200px]">
-            Se te pedirá el Excel fusionado: de ahí sale el horario de cada alumno. El envío queda
-            registrado como campaña en Horarios Individuales.
-          </p>
+          <button
+            onClick={handleBorrar}
+            disabled={ocupado}
+            title="Borrar todos los horarios cargados"
+            className="px-2.5 py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       )}
 
       {mensaje && <MensajeOk texto={mensaje} />}
       {error && <MensajeError texto={error} />}
 
-      {!disabled && (
-        <div className="pt-3 border-t border-[var(--tc-border-soft)]">
-          <button
-            onClick={() => void onTerminar()}
-            disabled={ocupado}
-            className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
-          >
-            <CheckCircle className="w-4 h-4" />
-            Dar por terminado el proceso
-          </button>
+      {/* Historial de horarios (cargas y generaciones de Excel), siempre visible */}
+      <div className="rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] p-3">
+        <div className="flex items-center gap-1.5 mb-1">
+          <CalendarClock className="w-3.5 h-3.5 text-[var(--tc-ink-soft)]" />
+          <h3 className="text-[13px] font-semibold text-[var(--tc-ink)]">
+            Historial de horarios — Curso {curso}
+          </h3>
         </div>
-      )}
+        <div className="h-[300px] flex flex-col">
+          <HistorialHorariosContenido curso={curso} reloadToken={reloadToken} />
+        </div>
+      </div>
+
+      {/* Historial de envíos de email (lectura) */}
+      <div className="rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Mail className="w-3.5 h-3.5 text-[var(--tc-ink-soft)]" />
+          <h3 className="text-[13px] font-semibold text-[var(--tc-ink)]">
+            Historial de envíos{campanyas.length > 0 ? ` (${campanyas.length})` : ""}
+          </h3>
+        </div>
+        {campanyas.length === 0 ? (
+          <p className="text-[12px] italic text-[var(--tc-ink-mute)]">
+            Aún no se ha enviado ningún horario por email. Los envíos se hacen desde Horarios Individuales.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-1.5 max-h-[180px] overflow-y-auto">
+            {[...campanyas]
+              .sort((a, b) => b.fecha.localeCompare(a.fecha))
+              .map((c) => {
+                const ok = c.alumnos.filter((r) => r.estado === "ok").length;
+                const fallos = c.alumnos.length - ok;
+                return (
+                  <div
+                    key={c.id}
+                    className="rounded-lg border border-[var(--tc-border-soft)] px-2.5 py-1.5"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[13px] font-medium text-[var(--tc-ink)] truncate">{c.nombre}</span>
+                      <span className="text-[11px] text-[var(--tc-ink-mute)]">
+                        {new Date(c.fecha).toLocaleString("es-ES")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] mt-0.5">
+                      <span className="text-emerald-600">{ok} enviados</span>
+                      {fallos > 0 && <span className="text-red-500">{fallos} con error</span>}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-

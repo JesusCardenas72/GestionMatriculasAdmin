@@ -31,6 +31,8 @@ export interface HorariosSnapshot {
   accion: "carga_excel" | "generacion_excel" | "restauracion" | "importacion";
   resumen: { anadidas: number; actualizadas: number; eliminadas: number; sinCambio: number };
   fileName?: string;
+  /** Nombre dado a la carga (p. ej. «1ª ronda Piano»), editable en el historial. */
+  nombre?: string;
   entries: HorariosEntry[];
 }
 

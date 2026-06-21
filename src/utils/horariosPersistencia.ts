@@ -74,6 +74,7 @@ export function actualizarHorariosStore(
   crudas: FilaCrudaHorario[],
   accion: HorariosSnapshot["accion"],
   fileName?: string,
+  nombre?: string,
 ): ResultadoActualizacion {
   const ahora = new Date().toISOString();
   // Map por clave: conserva el orden de inserción (existentes primero, nuevos al final).
@@ -138,6 +139,7 @@ export function actualizarHorariosStore(
     accion,
     resumen: { anadidas, actualizadas, eliminadas, sinCambio },
     fileName,
+    nombre: nombre?.trim() || undefined,
     entries: [...entriesNuevas],
   };
 

@@ -48,9 +48,7 @@ function matriculaBase(over: Partial<MatriculaLocal>): MatriculaLocal {
 }
 
 const sinChecks = {
-  excelProfesoresRecibido: false,
   fechaExcelGenerado: null,
-  fechaFusionadoGenerado: null,
 };
 
 describe("contarTemporales", () => {
@@ -81,28 +79,13 @@ describe("pasoHecho", () => {
     expect(pasoHecho(1, { ...vacio, nTemporales: 2, nPendientes: 2 }, sinChecks)).toBe(true);
   });
 
-  it("pasos 2 y 3 dependen del estado guardado", () => {
+  it("paso 2: hecho cuando se ha generado el Excel de horarios", () => {
     expect(pasoHecho(2, vacio, sinChecks)).toBe(false);
-    expect(pasoHecho(2, vacio, { ...sinChecks, fechaExcelGenerado: "2026-06-12" })).toBe(true);
-    expect(pasoHecho(3, vacio, sinChecks)).toBe(false);
-    expect(pasoHecho(3, vacio, { ...sinChecks, excelProfesoresRecibido: true })).toBe(true);
+    expect(pasoHecho(2, vacio, { fechaExcelGenerado: "2026-06-12" })).toBe(true);
   });
 
-  it("paso 4: hecho con vinculados o ya sustituidos", () => {
-    expect(pasoHecho(4, vacio, sinChecks)).toBe(false);
-    expect(pasoHecho(4, { ...vacio, nVinculados: 1 }, sinChecks)).toBe(true);
-    expect(pasoHecho(4, { ...vacio, nSustituidos: 1 }, sinChecks)).toBe(true);
-  });
-
-  it("paso 7: requiere fusionado generado y sustituidos eliminados", () => {
-    const conFusion = { ...sinChecks, fechaFusionadoGenerado: "2026-06-12" };
-    expect(pasoHecho(7, { ...vacio, nSustituidos: 2 }, conFusion)).toBe(false);
-    expect(pasoHecho(7, vacio, conFusion)).toBe(true);
-    expect(pasoHecho(7, vacio, sinChecks)).toBe(false);
-  });
-
-  it("paso 8 nunca se marca solo", () => {
-    expect(pasoHecho(8, vacio, { ...sinChecks, fechaFusionadoGenerado: "2026-06-12" })).toBe(false);
+  it("paso 3 (último) nunca se marca solo", () => {
+    expect(pasoHecho(3, vacio, { fechaExcelGenerado: "2026-06-12" })).toBe(false);
   });
 });
 
@@ -113,12 +96,9 @@ describe("primerPasoNoHecho", () => {
 
   it("avanza hasta el primer requisito sin cumplir", () => {
     const contadores = { nTemporales: 3, nVinculados: 1, nSustituidos: 0, nPendientes: 2 };
-    const estado = {
-      excelProfesoresRecibido: true,
-      fechaExcelGenerado: "2026-06-12",
-      fechaFusionadoGenerado: null,
-    };
-    // 1–4 hechos; el 5 (ejecutar sustituciones) aún no
-    expect(primerPasoNoHecho(contadores, estado)).toBe(5);
+    // Paso 1 hecho (hay temporales) pero falta generar el Excel (paso 2).
+    expect(primerPasoNoHecho(contadores, sinChecks)).toBe(2);
+    // Con el Excel generado, el primer paso no hecho es el 3 (último).
+    expect(primerPasoNoHecho(contadores, { fechaExcelGenerado: "2026-06-12" })).toBe(3);
   });
 });
