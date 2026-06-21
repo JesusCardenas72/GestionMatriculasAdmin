@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowDownAZ,
   ArrowUpAZ,
-  CalendarClock,
   CheckCircle,
   ChevronDown,
   Download,
@@ -22,19 +21,7 @@ import type { MatriculaLocal } from "../api/types";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
-import {
-  nombreVisibleTemporal,
-  planSustituciones,
-} from "../utils/temporales";
-import { fusionarHorarios, parseHorariosExcelCrudo } from "../utils/fusionHorarios";
-import {
-  camposDesdeExcelHorarios,
-  filasAsignaturaLocales,
-  ordenarComoExcel,
-} from "../utils/fusionTemporales";
-import { generarExcelHorarios } from "../utils/excelHorarios";
-import { actualizarHorariosStore } from "../utils/horariosPersistencia";
-import type { HorariosCursoData } from "../../electron/horarios-data-store";
+import { nombreVisibleTemporal } from "../utils/temporales";
 import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
 import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
 import type { AppConfig } from "../../electron/config-store";
@@ -68,11 +55,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
 
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const [fechaProgramada, setFechaProgramada] = useState<string>("");
-  const [ultimaEjecucion, setUltimaEjecucion] = useState<string | null>(null);
-  const [isEjecutando, setIsEjecutando] = useState(false);
-  const [isFusionando, setIsFusionando] = useState(false);
   const [showAyuda, setShowAyuda] = useState(false);
   const [showGuia, setShowGuia] = useState(false);
   const [showProfesoresMenu, setShowProfesoresMenu] = useState(false);
@@ -108,16 +90,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     hoverTimer.current = null;
     setHoveredId(null);
   };
-
-  useEffect(() => {
-    window.adminAPI.temporales
-      .getConfig(curso)
-      .then((cfg) => {
-        setFechaProgramada(cfg.fechaProgramada ?? "");
-        setUltimaEjecucion(cfg.ultimaEjecucion);
-      })
-      .catch(() => {});
-  }, [curso]);
 
   useEffect(() => {
     if (!showProfesoresMenu) return;
@@ -297,126 +269,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     await actualizar(real.localId, { sustituyeATemporalId: null });
   };
 
-  const handleEjecutarSustituciones = async () => {
-    const parejas = planSustituciones(matriculas);
-    if (parejas.length === 0) return;
-    const detalle = parejas
-      .map((p) => `• ${nombreVisibleTemporal(p.temporal)} → ${p.real.apellidos}, ${p.real.nombre}`)
-      .join("\n");
-    if (!window.confirm(`Se van a realizar ${parejas.length} sustitución(es):\n\n${detalle}\n\n¿Continuar?`)) return;
-    setIsEjecutando(true);
-    setError(null);
-    try {
-      for (const p of parejas) {
-        await actualizar(p.temporal.localId, {
-          temporalEstado: "sustituido",
-          sustituidoPorLocalId: p.real.localId,
-        });
-      }
-      const ahora = new Date().toISOString();
-      await window.adminAPI.temporales.setConfig(curso, {
-        fechaProgramada: fechaProgramada || null,
-        ultimaEjecucion: ahora,
-      });
-      setUltimaEjecucion(ahora);
-      setMensaje(
-        `${parejas.length} sustitución(es) realizadas. Recuerda generar el Excel fusionado desde Informes (Fusión Actualización Nuevo Alumnado).`,
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron ejecutar las sustituciones.");
-    } finally {
-      setIsEjecutando(false);
-    }
-  };
-
-  /**
-   * Genera el Excel de horarios fusionado partiendo del Excel vinculado
-   * (el mismo que se carga en Horarios): conserva los horarios que metieron
-   * los profesores, sustituye los alumnos fantasma ya ejecutados por los datos del
-   * alumno real (heredando su horario y sin fondo naranja) y deja los
-   * alumnos fantasma pendientes tal cual, manteniendo el orden de filas original.
-   */
-  const handleGenerarExcelFusionado = async () => {
-    setError(null);
-    setMensaje(null);
-    setIsFusionando(true);
-    try {
-      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
-      if (profesores.length === 0) {
-        setError(
-          "No se ha cargado la lista de profesores. Usa «Cargar profesores (CSV)…» en el menú de acciones de Informes antes de generar el Excel.",
-        );
-        return;
-      }
-      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
-      if (!sel) return; // el usuario canceló
-      const crudas = await parseHorariosExcelCrudo(sel.base64);
-      const { campos, insertarTras, desconocidas } = await camposDesdeExcelHorarios(sel.base64);
-      const tieneEspecialidad = campos.some((c) => c.key === "especialidad");
-      const filas = ordenarComoExcel(filasAsignaturaLocales(matriculas), crudas, matriculas);
-      const resultado = fusionarHorarios(filas, crudas, matriculas);
-      if (resultado.conservadas + resultado.heredadas === 0) {
-        setError(
-          "El Excel cargado no contiene ningún horario que coincida con los alumnos actuales. " +
-            "Comprueba que es el Excel de horarios relleno por los profesores.",
-        );
-        return;
-      }
-
-      const lineas = [
-        `Se va a generar un Excel nuevo a partir de "${sel.fileName}":`,
-        "",
-        `• ${resultado.conservadas} horario(s) se conservan tal cual.`,
-        `• ${resultado.heredadas} horario(s) pasan del alumno fantasma a su alumno real.`,
-      ];
-      if (resultado.sinHorario.length > 0)
-        lineas.push(`• ${resultado.sinHorario.length} asignatura(s) de alumnos nuevos quedan sin horario.`);
-      if (resultado.huerfanas.length > 0)
-        lineas.push(`• ${resultado.huerfanas.length} fila(s) con horario del Excel no encajan con ningún alumno actual y no se trasladan.`);
-      if (desconocidas.length > 0)
-        lineas.push(`• Columnas no reconocidas que no se incluirán: ${desconocidas.join(", ")}.`);
-      lineas.push("", "¿Generar y guardar el Excel fusionado?");
-      if (!window.confirm(lineas.join("\n"))) return;
-
-      const base64 = await generarExcelHorarios(filas, campos, profesores, {
-        congelar: true,
-        congelarHasta: tieneEspecialidad ? "especialidad" : (campos[0]?.key ?? null),
-        insertarTras,
-      }, resultado.valoresHorario);
-      const nombreBase = sel.fileName.replace(/\.xlsx$/i, "");
-      const exportado = await window.adminAPI.informe.exportar({
-        contenidoBase64: base64,
-        nombreArchivo: `${nombreBase} (fusionado)`,
-        extension: "xlsx",
-      });
-      if (exportado !== null) {
-        const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-        actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
-        await window.adminAPI.horarios.data.guardar(curso, storeData);
-        setMensaje(
-          `Excel fusionado generado: ${resultado.conservadas} horario(s) conservados y ${resultado.heredadas} heredados por alumnos reales.` +
-            (resultado.sinHorario.length > 0 ? ` ${resultado.sinHorario.length} asignatura(s) quedan sin horario.` : ""),
-        );
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo generar el Excel fusionado.");
-    } finally {
-      setIsFusionando(false);
-    }
-  };
-
-  const handleLimpiarSustituidos = async () => {
-    const sustituidos = temporales.filter((t) => t.temporalEstado === "sustituido");
-    if (sustituidos.length === 0) return;
-    if (
-      !window.confirm(
-        `¿Eliminar los ${sustituidos.length} alumnos fantasma ya sustituidos?\n\nHazlo solo cuando ya hayas generado el Excel fusionado: la fusión los necesita para localizar las clases de los profesores.`,
-      )
-    )
-      return;
-    for (const t of sustituidos) await eliminar(t.localId);
-  };
-
   const handleEliminarTodos = async () => {
     if (temporales.length === 0) return;
     const nVinc = nVinculados;
@@ -476,14 +328,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     const result = await window.adminAPI.horarios.profesoresGuardar(profesoresLista);
     setShowProfesoresLista(false);
     setMensaje(`Lista de profesorado guardada: ${result.profesores.length} profesor(es).`);
-  };
-
-  const handleGuardarFecha = async (valor: string) => {
-    setFechaProgramada(valor);
-    await window.adminAPI.temporales.setConfig(curso, {
-      fechaProgramada: valor || null,
-      ultimaEjecucion,
-    });
   };
 
   return (
@@ -558,67 +402,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="whitespace-pre-line">{error}</span>
-          </div>
-        )}
-
-        {/* Sustitución */}
-        {!isSoloLectura && (
-          <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
-            <h2 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">Sustitución por alumnado real</h2>
-            <p className="text-xs text-[var(--tc-ink-soft)] mb-3">
-              Vincula cada matrícula nueva con su alumno fantasma desde la pestaña Local (selector «Sustituye al
-              alumno fantasma» en Datos Personales, debajo de Provincia). Después ejecuta la sustitución aquí,
-              o programa una fecha para que la app la haga sola al arrancar. Por último, genera el Excel
-              fusionado con el botón de abajo o desde Informes («Fusión Actualización Nuevo Alumnado»).
-            </p>
-            <div className="flex flex-wrap items-end gap-3 w-full">
-              <button
-                onClick={handleEjecutarSustituciones}
-                disabled={isEjecutando || nVinculados === 0}
-                className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50 whitespace-nowrap"
-                title={nVinculados === 0 ? "No hay alumnos fantasma vinculados a matrículas reales" : undefined}
-              >
-                <UserCheck className="w-4 h-4" />
-                {isEjecutando ? "Ejecutando…" : `Ejecutar sustituciones (${nVinculados})`}
-              </button>
-              <label className="flex flex-col gap-1 text-xs font-medium text-[var(--tc-ink-soft)] flex-1 min-w-[200px]">
-                Fecha programada (opcional)
-                <input
-                  type="date"
-                  value={fechaProgramada}
-                  onChange={(e) => handleGuardarFecha(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)]"
-                />
-              </label>
-              <button
-                onClick={handleGenerarExcelFusionado}
-                disabled={isFusionando || nSustituidos === 0}
-                className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-semibold text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50 transition-colors whitespace-nowrap"
-                title={
-                  nSustituidos === 0
-                    ? "Primero ejecuta alguna sustitución: el Excel fusionado se genera a partir de los alumnos fantasma ya sustituidos"
-                    : "Genera el Excel de horarios con los alumnos reales en el lugar de sus alumnos fantasma, conservando los horarios de los profesores"
-                }
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                {isFusionando ? "Generando…" : "Generar Excel fusionado"}
-              </button>
-              {nSustituidos > 0 && (
-                <button
-                  onClick={handleLimpiarSustituidos}
-                  className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] px-4 text-sm font-medium text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)] whitespace-nowrap"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Eliminar sustituidos ({nSustituidos})
-                </button>
-              )}
-            </div>
-            <div className="mt-2 flex items-center gap-2 text-xs text-[var(--tc-ink-mute)]">
-              <CalendarClock className="w-3.5 h-3.5" />
-              {ultimaEjecucion
-                ? `Última ejecución: ${new Date(ultimaEjecucion).toLocaleString("es-ES")}`
-                : "Aún no se ha ejecutado ninguna sustitución en este curso."}
-            </div>
           </div>
         )}
 
