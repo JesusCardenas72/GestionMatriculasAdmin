@@ -92,6 +92,8 @@ interface Props {
   readOnly?: boolean;
   /** Alumnos fantasma pendientes del curso, para el selector "Sustituye a…" en matrículas reales. */
   temporalesPendientes?: MatriculaLocal[];
+  /** Todos los alumnos fantasma del curso (incluyendo sustituidos), para mostrar el nombre cuando ya fue sustituido. */
+  todosTemporales?: MatriculaLocal[];
   onSave: (changes: Partial<MatriculaLocal>) => void;
   onAmpliacion: () => void;
   onSubirNube: () => void;
@@ -133,6 +135,7 @@ export default function LocalDetail({
   yaTieneAmpliacion,
   readOnly = false,
   temporalesPendientes = [],
+  todosTemporales = [],
   onSave,
   onAmpliacion,
   onSubirNube,
@@ -803,7 +806,12 @@ export default function LocalDetail({
                       t.ensenanzaCurso === m.ensenanzaCurso &&
                       (t.especialidad ?? "") === (m.especialidad ?? ""),
                   );
-                  if (candidatos.length === 0 && !m.sustituyeATemporalId) return null;
+                  const temporalSustituido = m.sustituyeATemporalId
+                    ? todosTemporales.find(
+                        (t) => t.localId === m.sustituyeATemporalId && t.temporalEstado === "sustituido",
+                      )
+                    : undefined;
+                  if (candidatos.length === 0 && !m.sustituyeATemporalId && !temporalSustituido) return null;
                   return (
                     <div className="col-span-2">
                       <p
@@ -813,21 +821,32 @@ export default function LocalDetail({
                         Sustituye al alumno fantasma
                       </p>
                       <div className="flex items-center gap-2">
-                        <select
-                          value={m.sustituyeATemporalId ?? ""}
-                          disabled={readOnly}
-                          onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null })}
-                          className="text-sm py-1 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)] max-w-[320px]"
-                        >
-                          <option value="">— Ningún alumno fantasma —</option>
-                          {candidatos.map((t) => (
-                            <option key={t.localId} value={t.localId}>{nombreVisibleTemporal(t)}</option>
-                          ))}
-                        </select>
-                        {m.sustituyeATemporalId && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
-                            Pendiente de ejecutar en Alumnado Fantasma
-                          </span>
+                        {temporalSustituido ? (
+                          <>
+                            <span className="text-sm text-[var(--tc-ink)]">{nombreVisibleTemporal(temporalSustituido)}</span>
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
+                              SUSTITUIDO
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <select
+                              value={m.sustituyeATemporalId ?? ""}
+                              disabled={readOnly}
+                              onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null })}
+                              className="text-sm py-1 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)] max-w-[320px]"
+                            >
+                              <option value="">— Ningún alumno fantasma —</option>
+                              {candidatos.map((t) => (
+                                <option key={t.localId} value={t.localId}>{nombreVisibleTemporal(t)}</option>
+                              ))}
+                            </select>
+                            {m.sustituyeATemporalId && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                                Pendiente de ejecutar en Alumnado Fantasma
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

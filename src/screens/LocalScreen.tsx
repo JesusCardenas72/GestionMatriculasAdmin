@@ -680,6 +680,11 @@ export default function LocalScreen({ config }: Props) {
     );
   }, [matriculas, selected?.localId]);
 
+  const todosTemporales = useMemo(
+    () => matriculas.filter((m) => m.esTemporal),
+    [matriculas],
+  );
+
   const estadoPorRowId = new Map<string, EstadoTramite>();
   for (const s of pendienteTramitacionQuery.data?.solicitudes ?? []) {
     estadoPorRowId.set(s.rowId, ESTADO.PENDIENTE_TRAMITACION);
@@ -771,6 +776,7 @@ export default function LocalScreen({ config }: Props) {
                 yaTieneAmpliacion={yaTieneAmpliacion}
                 readOnly={isSoloLectura}
                 temporalesPendientes={temporalesPendientes}
+                todosTemporales={todosTemporales}
                 onSave={(changes) => void handleSaveEdit(changes)}
                 onAmpliacion={() => {
                   if (isSoloLectura || yaTieneAmpliacion) return;
