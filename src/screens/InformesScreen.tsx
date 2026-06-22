@@ -52,6 +52,7 @@ import { buildHtmlInforme } from '../utils/pdfInforme';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion } from '../utils/fusionHorarios';
 import { obtenerValoresHorario, actualizarHorariosStore } from '../utils/horariosPersistencia';
+import { asignaturasCursadas } from '../utils/repetidorSuelta';
 import type { HorariosCursoData, FormatoHorarios } from '../../electron/horarios-data-store';
 
 interface Props {
@@ -258,7 +259,7 @@ function buildFilasAsignatura(
     if (m.esTemporal && m.temporalEstado === "sustituido") continue; // ya reemplazado por el alumno real
     const estado = estadoByOrigen.get(m.origenRowId) ?? ESTADO.TRAMITADO;
     const base = localToSolicitud(m, estado);
-    for (const a of m.asignaturas) {
+    for (const a of asignaturasCursadas(m, m.asignaturas)) {
       filas.push({
         ...base,
         rowId: `${m.localId}|${a.localId}`,

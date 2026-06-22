@@ -4,6 +4,7 @@ import { ESTADO } from "../api/types";
 import { CAMPOS_META, CAMPOS_ASIGNATURA, type CampoMeta } from "../data/informesConfig";
 import { norm, cellText } from "./horarioExcel";
 import { nombreCompletoDe, prefijo, type FilaCrudaHorario } from "./fusionHorarios";
+import { asignaturasCursadas } from "./repetidorSuelta";
 
 /** Cabeceras de las 9 columnas de horario (no son campos del informe). */
 const HEADERS_HORARIO = new Set(
@@ -140,7 +141,7 @@ export function filasAsignaturaLocales(matriculas: MatriculaLocal[]): FilaInform
       }
     }
 
-    for (const a of m.asignaturas) {
+    for (const a of asignaturasCursadas(m, m.asignaturas)) {
       // Si el real tiene asignatura con el mismo nombre, usar sus datos
       const asigReal = asigRealPorNombre?.get(norm(a.nombre));
       const asig = asigReal ?? a;
