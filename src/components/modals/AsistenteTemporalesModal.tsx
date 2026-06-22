@@ -1070,6 +1070,16 @@ function Paso3ProfesoresRellenan({
     setError(null);
     setMensaje(null);
     try {
+      const savedPath = await window.adminAPI.horarios.obtenerExcelPath();
+      if (savedPath) {
+        const usarMismo = window.confirm(
+          `Ya hay un archivo Excel cargado anteriormente:\n${savedPath}\n\n¿Quieres cargar el mismo archivo?\n\n— Aceptar: cargar ese mismo.\n— Cancelar: elegir otro archivo.`,
+        );
+        if (!usarMismo) {
+          await window.adminAPI.horarios.eliminarExcelPath();
+        }
+      }
+
       const sel = await window.adminAPI.horarios.cargarExcelRelleno();
       if (!sel) return;
       const nombre = window.prompt(
