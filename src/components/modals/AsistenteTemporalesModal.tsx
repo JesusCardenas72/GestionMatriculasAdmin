@@ -157,7 +157,7 @@ export function AsistenteTemporalesModal({
       <div
         className={
           embedded
-            ? "bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm flex flex-col overflow-hidden"
+            ? "bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm flex flex-col overflow-hidden" + (embeddedFill ? " h-full" : "")
             : "bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden max-h-[92vh]"
         }
         onClick={embedded ? undefined : (e) => e.stopPropagation()}
