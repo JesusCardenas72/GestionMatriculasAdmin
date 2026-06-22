@@ -24,7 +24,7 @@ import { useAppMode } from "../contexts/AppModeProvider";
 import { nombreVisibleTemporal } from "../utils/temporales";
 import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
 import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
-import { Group, Panel, Separator } from "react-resizable-panels";
+
 import type { AppConfig } from "../../electron/config-store";
 
 type EstadoTemporal = "pendiente" | "vinculado" | "sustituido";
@@ -83,6 +83,8 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const [filtroEstado, setFiltroEstado] = useState<EstadoTemporal | null>(null);
   const [asistenteAbierto, setAsistenteAbierto] = useState(true);
   const [listaAbierto, setListaAbierto] = useState(true);
+  const [asistenteHeight, setAsistenteHeight] = useState<number | null>(null);
+  const tiradorRef = useRef<HTMLDivElement>(null);
 
   const handleHoverEnter = (id: string, e: React.MouseEvent) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -372,9 +374,42 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     setMensaje(`Lista de profesorado guardada: ${result.profesores.length} profesor(es).`);
   };
 
+  const handleTiradorMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const tirador = tiradorRef.current;
+    if (!tirador) return;
+    const container = tirador.parentElement;
+    if (!container) return;
+    const startY = e.clientY;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const diff = ev.clientY - startY;
+      const asistenteEl = container.firstElementChild as HTMLElement;
+      if (!asistenteEl) return;
+      const asistenteBottom = asistenteEl.getBoundingClientRect().bottom;
+      const newHeight = asistenteEl.getBoundingClientRect().height + diff;
+      if (newHeight < 60) return;
+      const containerBottom = container.getBoundingClientRect().bottom;
+      if (asistenteBottom + diff > containerBottom - 100) return;
+      setAsistenteHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <div className="w-full flex flex-col gap-6">
+      <div className="w-full flex flex-col gap-6 min-h-full">
         {/* Cabecera */}
         <div className="flex items-center gap-3">
           <img src={alumnadoFantasmaIco} alt="" className="h-[46px] w-auto shrink-0" />
@@ -425,9 +460,9 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
           </button>
         </div>
 
-        {/* Asistente guiado + Lista en paneles redimensionables */}
-        <Group orientation="vertical" className="!gap-0">
-          <Panel id="asistente" minSize={60}>
+        {/* Asistente guiado + Lista con tirador redimensionable */}
+        <div className="flex flex-col min-h-0 flex-1">
+          <div className="shrink-0" style={asistenteHeight ? { height: asistenteHeight } : undefined}>
             <AsistenteTemporalesModal
               embedded
               curso={curso}
@@ -437,16 +472,20 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
               collapsed={!asistenteAbierto}
               onToggleCollapse={() => setAsistenteAbierto(!asistenteAbierto)}
             />
-          </Panel>
+          </div>
 
-          <Separator className="group relative h-4 mx-0.5 flex items-center justify-center cursor-row-resize">
+          <div
+            ref={tiradorRef}
+            onMouseDown={handleTiradorMouseDown}
+            className="group relative h-4 my-1 flex items-center justify-center cursor-row-resize shrink-0 select-none"
+          >
             <div className="flex flex-col gap-0.5">
               <div className="h-0.5 w-6 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
               <div className="h-0.5 w-6 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
             </div>
-          </Separator>
+          </div>
 
-          <Panel id="lista" minSize={100}>
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <button
@@ -683,8 +722,8 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
                 </>
               )}
             </div>
-          </Panel>
-        </Group>
+          </div>
+        </div>
 
         {mensaje && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
