@@ -88,6 +88,7 @@ export function AsistenteTemporalesModal({
   embedded = false,
   collapsed,
   onToggleCollapse,
+  embeddedFill,
 }: {
   curso: string;
   /** @deprecated Ya no se usa (el envío de emails se hace desde Horarios Individuales). */
@@ -98,6 +99,8 @@ export function AsistenteTemporalesModal({
   embedded?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Si es true, el cuerpo se expande para llenar el contenedor en vez de usar altura fija. */
+  embeddedFill?: boolean;
 }) {
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar } = useLocalMatriculas(curso);
@@ -195,7 +198,7 @@ export function AsistenteTemporalesModal({
         </div>
 
         {!collapsed && (
-        <><div className={`flex overflow-hidden ${embedded ? "h-[480px]" : "flex-1 min-h-[420px]"}`}>
+        <><div className={`flex overflow-hidden ${embedded ? (embeddedFill ? "flex-1 min-h-0" : "h-[480px]") : "flex-1 min-h-[420px]"}`}>
           {/* Columna de pasos */}
           <div className="w-[min(35%,280px)] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-bg-panel)] p-3 flex flex-col gap-0.5 overflow-y-auto">
             {PASOS.map((p) => {

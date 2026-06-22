@@ -84,6 +84,7 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const [asistenteAbierto, setAsistenteAbierto] = useState(true);
   const [listaAbierto, setListaAbierto] = useState(true);
   const [asistenteHeight, setAsistenteHeight] = useState<number | null>(null);
+  const asistenteHeightRef = useRef<number | null>(null);
   const tiradorRef = useRef<HTMLDivElement>(null);
 
   const handleHoverEnter = (id: string, e: React.MouseEvent) => {
@@ -381,17 +382,16 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     const container = tirador.parentElement;
     if (!container) return;
     const startY = e.clientY;
+    const startH = container.firstElementChild?.getBoundingClientRect().height ?? 0;
 
     const onMouseMove = (ev: MouseEvent) => {
       const diff = ev.clientY - startY;
-      const asistenteEl = container.firstElementChild as HTMLElement;
-      if (!asistenteEl) return;
-      const asistenteBottom = asistenteEl.getBoundingClientRect().bottom;
-      const newHeight = asistenteEl.getBoundingClientRect().height + diff;
-      if (newHeight < 60) return;
-      const containerBottom = container.getBoundingClientRect().bottom;
-      if (asistenteBottom + diff > containerBottom - 100) return;
+      const newHeight = startH + diff;
+      if (newHeight < 100) return;
+      const containerRect = container.getBoundingClientRect();
+      if (newHeight > containerRect.height - 120) return;
       setAsistenteHeight(newHeight);
+      asistenteHeightRef.current = newHeight;
     };
 
     const onMouseUp = () => {
@@ -470,7 +470,11 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
               onCerrar={() => {}}
               onVerGuia={() => setShowGuia(true)}
               collapsed={!asistenteAbierto}
-              onToggleCollapse={() => setAsistenteAbierto(!asistenteAbierto)}
+              onToggleCollapse={() => {
+                setAsistenteAbierto(!asistenteAbierto);
+                setAsistenteHeight(null);
+              }}
+              embeddedFill={!!asistenteHeight}
             />
           </div>
 
