@@ -27,7 +27,7 @@ import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporal
 import type { AppConfig } from "../../electron/config-store";
 
 type EstadoTemporal = "pendiente" | "vinculado" | "sustituido";
-type ModoAgrupacion = "especialidad" | "curso" | "ninguna";
+type ModoAgrupacion = "especialidad" | "curso" | "estado" | "ninguna";
 type OrdenLista = "asc" | "desc";
 type OrdenarPor = "numero" | "curso" | "especialidad" | "apellidos";
 
@@ -79,6 +79,7 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const [ordenLista, setOrdenLista] = useState<OrdenLista>("asc");
   const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("numero");
   const [subAgrupar, setSubAgrupar] = useState(false);
+  const [filtroEstado, setFiltroEstado] = useState<EstadoTemporal | null>(null);
 
   const handleHoverEnter = (id: string, e: React.MouseEvent) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -129,6 +130,11 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
     return "pendiente";
   };
 
+  const temporalesFiltrados = useMemo(
+    () => (filtroEstado ? temporales.filter((t) => estadoDe(t) === filtroEstado) : temporales),
+    [temporales, filtroEstado],
+  );
+
   const compararCurso = (a: string, b: string): number => {
     const ordenEnsenanza = { EE: 0, EP: 1 };
     const matchA = a.match(/^([A-Z]{2})(\d+)/);
@@ -162,12 +168,53 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
 
   const grupos = useMemo((): GrupoAnidado[] => {
     if (modoAgrupacion === "ninguna") {
-      const lista = [...temporales].sort(compararTemporales);
+      const lista = [...temporalesFiltrados].sort(compararTemporales);
       return [{ titulo: "", subgrupos: [{ titulo: "", items: lista }], total: lista.length }];
     }
 
+    if (modoAgrupacion === "estado") {
+      const mapaEstado = new Map<EstadoTemporal, MatriculaLocal[]>();
+      for (const estado of ["pendiente", "vinculado", "sustituido"] as EstadoTemporal[]) {
+        mapaEstado.set(estado, []);
+      }
+      for (const t of temporalesFiltrados) {
+        mapaEstado.get(estadoDe(t))!.push(t);
+      }
+
+      const resultado: GrupoAnidado[] = [];
+      for (const estado of ["pendiente", "vinculado", "sustituido"] as EstadoTemporal[]) {
+        const items = mapaEstado.get(estado)!;
+        if (items.length === 0) continue;
+        const titulo = ESTADO_BADGE[estado].label;
+
+        if (subAgrupar) {
+          const mapaSub = new Map<string, MatriculaLocal[]>();
+          for (const t of items) {
+            const claveSub = `${t.especialidad ?? ""}|${t.ensenanzaCurso}`;
+            if (!mapaSub.has(claveSub)) mapaSub.set(claveSub, []);
+            mapaSub.get(claveSub)!.push(t);
+          }
+          const subgrupos: SubGrupo[] = [...mapaSub.entries()]
+            .map(([claveSub, subItems]) => ({
+              titulo: claveSub,
+              items: subItems.sort(compararTemporales),
+            }))
+            .sort((a, b) => a.titulo.localeCompare(b.titulo, "es"));
+
+          resultado.push({ titulo, subgrupos, total: items.length });
+        } else {
+          resultado.push({
+            titulo,
+            subgrupos: [{ titulo: "", items: items.sort(compararTemporales) }],
+            total: items.length,
+          });
+        }
+      }
+      return resultado;
+    }
+
     const mapaPrincipal = new Map<string, MatriculaLocal[]>();
-    for (const t of temporales) {
+    for (const t of temporalesFiltrados) {
       const clave = modoAgrupacion === "especialidad"
         ? (t.especialidad ?? "")
         : t.ensenanzaCurso;
@@ -243,14 +290,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const nVinculados = temporales.filter((t) => estadoDe(t) === "vinculado").length;
   const nSustituidos = temporales.filter((t) => t.temporalEstado === "sustituido").length;
   const nPendientes = temporales.length - nVinculados - nSustituidos;
-
-  const tieneMultiplesCursos = useMemo(() => {
-    const combinaciones = new Set<string>();
-    for (const t of temporales) {
-      combinaciones.add(`${t.especialidad ?? ""}|${t.ensenanzaCurso}`);
-    }
-    return combinaciones.size > 1;
-  }, [temporales]);
 
   const handleEliminar = async (t: MatriculaLocal) => {
     const real = vinculadosPor.get(t.localId);
@@ -408,91 +447,115 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
         {/* Lista */}
         <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <h2 className="text-sm font-semibold text-[var(--tc-ink)] flex-1">
-              Alumnos fantasma del curso {curso} ({temporales.length})
+            <h2 className="text-lg font-bold text-[var(--tc-ink)] whitespace-nowrap mr-auto">
+              Alumnos fantasma del curso {curso} ({temporalesFiltrados.length})
             </h2>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={ESTADO_BADGE.pendiente.style}>
+            <button
+              onClick={() => setFiltroEstado(filtroEstado === "pendiente" ? null : "pendiente")}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
+              style={{
+                ...ESTADO_BADGE.pendiente.style,
+                ...(filtroEstado === "pendiente" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.pendiente.style.color}` } : {}),
+              }}
+            >
               {nPendientes} pendiente{nPendientes === 1 ? "" : "s"}
-            </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={ESTADO_BADGE.vinculado.style}>
+            </button>
+            <button
+              onClick={() => setFiltroEstado(filtroEstado === "vinculado" ? null : "vinculado")}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
+              style={{
+                ...ESTADO_BADGE.vinculado.style,
+                ...(filtroEstado === "vinculado" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.vinculado.style.color}` } : {}),
+              }}
+            >
               {nVinculados} vinculado{nVinculados === 1 ? "" : "s"}
-            </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={ESTADO_BADGE.sustituido.style}>
+            </button>
+            <button
+              onClick={() => setFiltroEstado(filtroEstado === "sustituido" ? null : "sustituido")}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
+              style={{
+                ...ESTADO_BADGE.sustituido.style,
+                ...(filtroEstado === "sustituido" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.sustituido.style.color}` } : {}),
+              }}
+            >
               {nSustituidos} sustituido{nSustituidos === 1 ? "" : "s"}
-            </span>
-            {tieneMultiplesCursos && (
-              <div className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1 ml-2">
-                <Layers className="w-3.5 h-3.5 text-[var(--tc-ink-mute)]" />
-                <select
-                  value={modoAgrupacion}
-                  onChange={(e) => setModoAgrupacion(e.target.value as ModoAgrupacion)}
-                  className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none"
-                >
-                  <option value="especialidad">Por especialidad</option>
-                  <option value="curso">Por curso</option>
-                  <option value="ninguna">Sin agrupar</option>
-                </select>
-                <button
-                  onClick={() => setOrdenLista(ordenLista === "asc" ? "desc" : "asc")}
-                  title={ordenLista === "asc" ? "Orden descendente" : "Orden ascendente"}
-                  className="p-1 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)] transition-colors"
-                >
-                  {ordenLista === "asc" ? (
-                    <ArrowDownAZ className="w-4 h-4" />
-                  ) : (
-                    <ArrowUpAZ className="w-4 h-4" />
-                  )}
-                </button>
-                <select
-                  value={ordenarPor}
-                  onChange={(e) => setOrdenarPor(e.target.value as OrdenarPor)}
-                  className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none border-l border-[var(--tc-border)] pl-2"
-                  title="Ordenar por"
-                >
-                  <option value="numero">Nº</option>
-                  <option value="curso">Curso</option>
-                  <option value="especialidad">Especialidad</option>
-                  <option value="apellidos">Apellidos</option>
-                </select>
-              </div>
-            )}
-            {modoAgrupacion !== "ninguna" && tieneMultiplesCursos && (
-              <div className="inline-flex items-center rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
+            </button>
+
+            <div className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
+              <button
+                onClick={() => setOrdenLista(ordenLista === "asc" ? "desc" : "asc")}
+                title={ordenLista === "asc" ? "Orden descendente" : "Orden ascendente"}
+                className="p-1 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)] transition-colors"
+              >
+                {ordenLista === "asc" ? (
+                  <ArrowDownAZ className="w-4 h-4" />
+                ) : (
+                  <ArrowUpAZ className="w-4 h-4" />
+                )}
+              </button>
+              <select
+                value={ordenarPor}
+                onChange={(e) => setOrdenarPor(e.target.value as OrdenarPor)}
+                className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none"
+                title="Ordenar por"
+              >
+                <option value="numero">Nº</option>
+                <option value="curso">Curso</option>
+                <option value="especialidad">Especialidad</option>
+                <option value="apellidos">Apellidos</option>
+              </select>
+            </div>
+
+            <div className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
+              <Layers className="w-3.5 h-3.5 text-[var(--tc-ink-mute)]" />
+              <select
+                value={modoAgrupacion}
+                onChange={(e) => setModoAgrupacion(e.target.value as ModoAgrupacion)}
+                className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none"
+              >
+                <option value="especialidad">Por especialidad</option>
+                <option value="curso">Por curso</option>
+                <option value="estado">Por estado</option>
+                <option value="ninguna">Sin agrupar</option>
+              </select>
+              {modoAgrupacion !== "ninguna" && (
                 <button
                   onClick={() => setSubAgrupar(!subAgrupar)}
                   title={subAgrupar ? "Desactivar sub-agrupación" : "Activar sub-agrupación"}
-                  className={`p-1 rounded-lg transition-colors ${subAgrupar ? "text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]" : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)]"}`}
+                  className={`p-1 rounded-lg transition-colors border-l border-[var(--tc-border)] pl-2 ${subAgrupar ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]"}`}
                 >
                   <Layers className="w-4 h-4" />
                 </button>
-              </div>
-            )}
+              )}
+            </div>
+
             {grupos.length > 0 && (
-              <div className="inline-flex items-center rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
-                <button
-                  onClick={toggleAllGroups}
-                  title={expandedGroups.size === grupos.length ? "Contraer todos" : "Expandir todos"}
-                  className="p-1 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)] transition-colors"
-                >
-                  <ChevronDown className={`w-4 h-4 transition-transform ${expandedGroups.size === grupos.length ? "" : "-rotate-90"}`} />
-                </button>
-              </div>
+              <button
+                onClick={toggleAllGroups}
+                title={expandedGroups.size === grupos.length ? "Contraer todos" : "Expandir todos"}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-1 text-xs text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors whitespace-nowrap"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedGroups.size === grupos.length ? "" : "-rotate-90"}`} />
+                {expandedGroups.size === grupos.length ? "Contraer todo" : "Expandir todo"}
+              </button>
             )}
+
             {!isSoloLectura && temporales.length > 0 && (
               <button
                 onClick={handleEliminarTodos}
                 title="Eliminar todos los alumnos fantasma"
-                className="ml-2 p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-red-50 transition-colors"
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-1 text-xs text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
               >
                 <Trash2 className="w-4 h-4" />
+                Eliminar todos
               </button>
             )}
           </div>
           {isLoading ? (
             <p className="text-sm text-[var(--tc-ink-mute)]">Cargando…</p>
-          ) : temporales.length === 0 ? (
+          ) : temporalesFiltrados.length === 0 ? (
             <p className="text-sm text-[var(--tc-ink-mute)]">
-              No hay alumnos fantasma. Crea los que necesites con el formulario de arriba.
+              {filtroEstado ? "No hay alumnos que coincidan con el filtro." : "No hay alumnos fantasma. Crea los que necesites con el formulario de arriba."}
             </p>
           ) : (
             <div className="flex flex-col gap-4">
