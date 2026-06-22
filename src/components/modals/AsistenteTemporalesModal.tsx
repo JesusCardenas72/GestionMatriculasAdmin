@@ -264,14 +264,14 @@ export function AsistenteTemporalesModal({
 
           {/* Zona de trabajo */}
           <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              <h3 className="text-base font-semibold text-[var(--tc-ink)] mb-1.5">
+            <div className="flex-1 min-h-0 flex flex-col px-6 py-5 overflow-y-auto">
+              <h3 className="text-base font-semibold text-[var(--tc-ink)] mb-1.5 shrink-0">
                 Paso {paso.n} · {paso.titulo}
               </h3>
-              <p className="text-[13px] text-[var(--tc-ink-soft)] leading-relaxed mb-4">{paso.descripcion}</p>
+              <p className="text-[13px] text-[var(--tc-ink-soft)] leading-relaxed mb-4 shrink-0">{paso.descripcion}</p>
 
               {cargando ? (
-                <p className="text-sm text-[var(--tc-ink-mute)]">Cargando…</p>
+                <p className="text-sm text-[var(--tc-ink-mute)] shrink-0">Cargando…</p>
               ) : pasoActual === 1 ? (
                 <Paso1Crear
                   curso={curso}
@@ -289,11 +289,13 @@ export function AsistenteTemporalesModal({
                   onGenerado={(fecha) => void guardar({ fechaExcelGenerado: fecha })}
                 />
               ) : pasoActual === 3 ? (
-                <Paso3ProfesoresRellenan curso={curso} disabled={isSoloLectura} />
+                <div className="flex-1 min-h-0 flex flex-col gap-3">
+                  <Paso3ProfesoresRellenan curso={curso} disabled={isSoloLectura} />
+                </div>
               ) : null}
 
               {!hecho && paso.requisito && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 flex gap-2">
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 flex gap-2 shrink-0">
                   <Info className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{paso.requisito}</span>
                 </div>
@@ -1120,9 +1122,9 @@ function Paso3ProfesoresRellenan({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 flex-1 min-h-0">
       {!disabled && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={handleCargar}
             disabled={ocupado}
@@ -1146,14 +1148,14 @@ function Paso3ProfesoresRellenan({
       {error && <MensajeError texto={error} />}
 
       {/* Historial de horarios (cargas y generaciones de Excel), siempre visible */}
-      <div className="rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] p-3">
-        <div className="flex items-center gap-1.5 mb-1">
+      <div className="rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] p-3 flex flex-col flex-1 min-h-0">
+        <div className="flex items-center gap-1.5 mb-1 shrink-0">
           <CalendarClock className="w-3.5 h-3.5 text-[var(--tc-ink-soft)]" />
           <h3 className="text-[13px] font-semibold text-[var(--tc-ink)]">
             Historial de horarios — Curso {curso}
           </h3>
         </div>
-        <div className="h-[300px] flex flex-col">
+        <div className="flex-1 min-h-0 flex flex-col">
           <HistorialHorariosContenido curso={curso} reloadToken={reloadToken} />
         </div>
       </div>
