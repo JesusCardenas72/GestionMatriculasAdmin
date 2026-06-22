@@ -7,10 +7,9 @@ import {
 } from "lucide-react";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
-import { parseHorariosExcel, extraerCamposInforme } from "../utils/horarioExcel";
-import { parseHorariosExcelCrudo } from "../utils/fusionHorarios";
-import { actualizarHorariosStore, construirCargaDesdeStore } from "../utils/horariosPersistencia";
-import type { HorariosCursoData, HorariosSnapshot } from "../../electron/horarios-data-store";
+import { construirCargaDesdeStore } from "../utils/horariosPersistencia";
+import { cargarExcelHorarios } from "../utils/horariosCarga";
+import type { HorariosSnapshot } from "../../electron/horarios-data-store";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
 import { buildListadoHtml, type VersionListado } from "../utils/horarioListadoTemplate";
 import { buildHorarioEmailHtml } from "../utils/horarioEmailTemplate";
@@ -18,12 +17,15 @@ import { enviarEmailHorario } from "../api/horarios";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ResultadoEnvio } from "../horarios/types";
 import { buildCursoLabel } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
-import type { ConfigInforme, CampoKey } from "../api/types";
 import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
 import ResizableColumns from "../components/ResizableColumns";
 
 interface Props {
   config: AppConfig;
+  /** Id de snapshot a abrir nada más entrar (desde el historial del Asistente). */
+  snapshotPendiente?: string | null;
+  /** Se llama tras intentar abrir el snapshot pendiente, para limpiarlo. */
+  onSnapshotAbierto?: () => void;
 }
 
 type PanelDerecho = "preview" | "historial" | "listados";
@@ -70,7 +72,7 @@ function normNombre(s: string): string {
     .trim();
 }
 
-export default function HorariosAlumnosScreen({ config }: Props) {
+export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSnapshotAbierto }: Props) {
   const { curso } = useCursoContext();
   const anio = `Curso ${curso}`;
   const { matriculas: localMatriculas } = useLocalMatriculas(curso);
@@ -268,54 +270,13 @@ export default function HorariosAlumnosScreen({ config }: Props) {
     setError(null);
     setHistoricoActivo(null);
     try {
-      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
-      if (!sel) return;
       setCargando(true);
-      const res = await parseHorariosExcel(sel.base64, sel.fileName);
+      const cargado = await cargarExcelHorarios(curso);
+      if (!cargado) return;
+      const { carga: res, formatoDetectado } = cargado;
       const alumnosEnriquecidos = enriquecerEmails(res.alumnos);
 
-      const crudas = await parseHorariosExcelCrudo(sel.base64);
-      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-      const resultado = actualizarHorariosStore(storeData, crudas, 'carga_excel', sel.fileName);
-
-      // Si aún no hay formato registrado para este curso, detectarlo del Excel cargado
-      if (!storeData.formatoHorarios) {
-        const camposDetectados = await extraerCamposInforme(sel.base64);
-        if (camposDetectados.length > 0) {
-          // Detectar modo: si hay campos de asignatura → modo 'asignatura'
-          const asigKeys = new Set(['asigNombre', 'asigCodigo', 'asigEstado', 'asigHorario']);
-          const modo: 'asignatura' | 'alumno' = camposDetectados.some(k => asigKeys.has(k))
-            ? 'asignatura'
-            : 'alumno';
-
-          // Crear preset automáticamente en Informes
-          const nombrePreset = `Horarios ${curso}`;
-          const presetAuto: ConfigInforme = {
-            id: crypto.randomUUID(),
-            nombre: nombrePreset,
-            camposVisibles: camposDetectados as CampoKey[],
-            filtros: [],
-            orden: [],
-            agruparPor: null,
-            modo,
-            predefinido: false,
-          };
-          await window.adminAPI.presets.guardar(presetAuto);
-
-          storeData.formatoHorarios = {
-            camposVisibles: camposDetectados,
-            opciones: { congelar: true, congelarHasta: null, insertarTras: null },
-            creadoEn: new Date().toISOString(),
-            origen: 'carga_excel',
-            presetId: presetAuto.id,
-            presetNombre: presetAuto.nombre,
-          };
-          setModalFormatoDetectado({ campos: camposDetectados, presetNombre: nombrePreset });
-        }
-      }
-
-      await window.adminAPI.horarios.data.guardar(curso, storeData);
-      console.log(`[Horarios] Store actualizado: +${resultado.anadidas} ~${resultado.actualizadas} -${resultado.eliminadas}`);
+      if (formatoDetectado) setModalFormatoDetectado(formatoDetectado);
 
       if (carga && carga.alumnos.length > 0) {
         const existentes = new Set(carga.alumnos.map(a => a.clave));
@@ -383,6 +344,32 @@ export default function HorariosAlumnosScreen({ config }: Props) {
         : { id: snapshot.id, timestamp: snapshot.timestamp, fileName: snapshot.fileName, accion: snapshot.accion },
     );
   }, [curso, enriquecerEmails]);
+
+  /**
+   * Abre automáticamente el snapshot que llega desde el historial del Asistente
+   * («Abrir en la app»). Lo busca en el almacén, lo activa y avisa al padre para
+   * que limpie el id pendiente.
+   */
+  useEffect(() => {
+    if (!snapshotPendiente) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const storeData = await window.adminAPI.horarios.data.obtener(curso);
+        if (cancelado) return;
+        const ordenados = [...storeData.snapshots].sort((a, b) =>
+          b.timestamp.localeCompare(a.timestamp),
+        );
+        const snap = ordenados.find((s) => s.id === snapshotPendiente);
+        if (snap) activarSnapshot(snap, ordenados[0]?.id === snap.id);
+      } finally {
+        if (!cancelado) onSnapshotAbierto?.();
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [snapshotPendiente, curso, activarSnapshot, onSnapshotAbierto]);
 
   /** Vuelve a la carga actual (la más reciente guardada en el almacén). */
   const volverAlActual = useCallback(async () => {

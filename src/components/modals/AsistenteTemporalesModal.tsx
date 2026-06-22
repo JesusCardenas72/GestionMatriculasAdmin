@@ -30,9 +30,9 @@ import {
 } from "../../utils/temporales";
 import { parseArchivoTemporales } from "../../utils/importTemporales";
 import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
-import { parseHorariosExcelCrudo } from "../../utils/fusionHorarios";
 import { generarExcelHorarios, type OpcionesHorario } from "../../utils/excelHorarios";
-import { obtenerValoresHorario, actualizarHorariosStore } from "../../utils/horariosPersistencia";
+import { obtenerValoresHorario } from "../../utils/horariosPersistencia";
+import { cargarExcelHorarios } from "../../utils/horariosCarga";
 import type { HorariosCursoData } from "../../../electron/horarios-data-store";
 import type { CampanyaEnvio } from "../../horarios/types";
 import { HistorialHorariosContenido } from "./HistorialHorariosContenido";
@@ -89,6 +89,7 @@ export function AsistenteTemporalesModal({
   collapsed,
   onToggleCollapse,
   embeddedFill,
+  onAbrirHorario,
 }: {
   curso: string;
   /** @deprecated Ya no se usa (el envío de emails se hace desde Horarios Individuales). */
@@ -101,6 +102,8 @@ export function AsistenteTemporalesModal({
   onToggleCollapse?: () => void;
   /** Si es true, el cuerpo se expande para llenar el contenedor en vez de usar altura fija. */
   embeddedFill?: boolean;
+  /** Abre un snapshot del historial en la pestaña Horarios Individuales. */
+  onAbrirHorario?: (snapshotId: string) => void;
 }) {
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar } = useLocalMatriculas(curso);
@@ -290,7 +293,7 @@ export function AsistenteTemporalesModal({
                 />
               ) : pasoActual === 3 ? (
                 <div className="flex-1 min-h-0 flex flex-col gap-3">
-                  <Paso3ProfesoresRellenan curso={curso} disabled={isSoloLectura} />
+                  <Paso3ProfesoresRellenan curso={curso} disabled={isSoloLectura} onAbrirHorario={onAbrirHorario} />
                 </div>
               ) : null}
 
@@ -1049,9 +1052,11 @@ function ModalGenerarHorariosAsistente({
 function Paso3ProfesoresRellenan({
   curso,
   disabled,
+  onAbrirHorario,
 }: {
   curso: string;
   disabled: boolean;
+  onAbrirHorario?: (snapshotId: string) => void;
 }) {
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -1070,35 +1075,23 @@ function Paso3ProfesoresRellenan({
     setError(null);
     setMensaje(null);
     try {
-      const savedPath = await window.adminAPI.horarios.obtenerExcelPath();
-      if (savedPath) {
-        const usarMismo = window.confirm(
-          `Ya hay un archivo Excel cargado anteriormente:\n${savedPath}\n\n¿Quieres cargar el mismo archivo?\n\n— Aceptar: cargar ese mismo.\n— Cancelar: elegir otro archivo.`,
-        );
-        if (!usarMismo) {
-          await window.adminAPI.horarios.eliminarExcelPath();
-        }
-      }
-
-      const sel = await window.adminAPI.horarios.cargarExcelRelleno();
-      if (!sel) return;
-      const nombre = window.prompt(
-        "Pon un nombre a esta carga (para saber qué asignaturas llevan ya horario):",
-        sel.fileName.replace(/\.xlsx$/i, ""),
-      );
-      if (nombre === null) return; // el usuario canceló
       setOcupado(true);
-      const crudas = await parseHorariosExcelCrudo(sel.base64);
-      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-      const resultado = actualizarHorariosStore(storeData, crudas, "carga_excel", sel.fileName, nombre);
-      await window.adminAPI.horarios.data.guardar(curso, storeData);
+      // Misma lógica exacta que «Horarios → Cargar Excel de horarios».
+      const cargado = await cargarExcelHorarios(curso);
+      if (!cargado) return;
+      const { carga, resultado, formatoDetectado } = cargado;
       setReloadToken((t) => t + 1);
+      const avisoFormato = formatoDetectado
+        ? ` Se creó el preset «${formatoDetectado.presetNombre}» en Informes.`
+        : "";
       if (resultado.snapshot) {
         setMensaje(
-          `Cargado «${nombre || sel.fileName}»: +${resultado.anadidas} añadidas, ~${resultado.actualizadas} actualizadas.`,
+          `Cargado «${carga.fileName}»: +${resultado.anadidas} añadidas, ~${resultado.actualizadas} actualizadas.${avisoFormato}`,
         );
       } else {
-        setMensaje("El Excel no aportó horarios nuevos (todo coincidía con lo ya cargado).");
+        setMensaje(
+          `El Excel no aportó horarios nuevos (todo coincidía con lo ya cargado).${avisoFormato}`,
+        );
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cargar el Excel.");
@@ -1166,7 +1159,11 @@ function Paso3ProfesoresRellenan({
           </h3>
         </div>
         <div className="flex-1 min-h-0 flex flex-col">
-          <HistorialHorariosContenido curso={curso} reloadToken={reloadToken} />
+          <HistorialHorariosContenido
+            curso={curso}
+            reloadToken={reloadToken}
+            onActivar={onAbrirHorario ? (snap) => onAbrirHorario(snap.id) : undefined}
+          />
         </div>
       </div>
 

@@ -49,7 +49,14 @@ const ESTADO_BADGE: Record<EstadoTemporal, { label: string; style: React.CSSProp
   sustituido: { label: "Sustituido", style: { background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0" } },
 };
 
-export default function TemporalesScreen({ config }: { config: AppConfig }) {
+export default function TemporalesScreen({
+  config,
+  onAbrirHorario,
+}: {
+  config: AppConfig;
+  /** Abre un snapshot del historial de horarios en la pestaña Horarios Individuales. */
+  onAbrirHorario?: (snapshotId: string) => void;
+}) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading, actualizar, eliminar } = useLocalMatriculas(curso);
@@ -475,32 +482,36 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
                 setAsistenteHeight(null);
               }}
               embeddedFill={!!asistenteHeight}
+              onAbrirHorario={onAbrirHorario}
             />
           </div>
 
           <div
             ref={tiradorRef}
             onMouseDown={handleTiradorMouseDown}
-            className="group relative h-4 my-1 flex items-center justify-center cursor-row-resize shrink-0 select-none"
+            className="group relative h-6 my-1.5 flex items-center justify-center cursor-row-resize shrink-0 select-none hover:bg-[var(--tc-bg-panel)] rounded-lg transition-colors"
           >
-            <div className="flex flex-col gap-0.5">
-              <div className="h-0.5 w-6 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
-              <div className="h-0.5 w-6 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="flex flex-col gap-1">
+              <div className="h-0.5 w-8 rounded-2xl bg-[var(--tc-border)] opacity-30 group-hover:opacity-80 transition-all" />
+              <div className="h-0.5 w-8 rounded-2xl bg-[var(--tc-border)] opacity-30 group-hover:opacity-80 transition-all" />
             </div>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-2.5">
                 <button
                   onClick={() => setListaAbierto(!listaAbierto)}
-                  className="p-1 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)] transition-colors"
+                  className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition-colors"
                   title={listaAbierto ? "Contraer sección" : "Expandir sección"}
                 >
                   <ChevronDown className={`w-5 h-5 transition-transform ${listaAbierto ? "" : "-rotate-90"}`} />
                 </button>
-                <h2 className="text-lg font-bold text-[var(--tc-ink)] whitespace-nowrap">
-                  Alumnos fantasma del curso {curso} ({temporalesFiltrados.length})
+                <h2 className="font-display text-xl font-light text-[var(--tc-ink)] whitespace-nowrap tracking-tight">
+                  Alumnos fantasma del curso {curso}
+                  <span className="text-base text-[var(--tc-ink-soft)] ml-2 font-normal">
+                    {temporalesFiltrados.length}
+                  </span>
                 </h2>
                 <button
                   onClick={() => setFiltroEstado(filtroEstado === "pendiente" ? null : "pendiente")}
@@ -618,7 +629,7 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
                         {grupo.titulo && (
                           <button
                             onClick={() => toggleGroup(grupo.titulo)}
-                            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--tc-ink-mute)] mb-2 hover:text-[var(--tc-ink)] transition-colors"
+                            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--tc-ink-mute)] mb-2 hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] px-1.5 py-0.5 -ml-1.5 rounded-lg transition-colors"
                           >
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedGroups.has(grupo.titulo) ? "" : "-rotate-90"}`} />
                             {grupo.titulo}
@@ -678,7 +689,7 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
                                                 <button
                                                   onClick={() => handleDesvincular(t)}
                                                   title="Quitar vínculo"
-                                                  className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)]"
+                                                  className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition-colors"
                                                 >
                                                   <Link2Off className="w-4 h-4" />
                                                 </button>
@@ -686,7 +697,7 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
                                               <button
                                                 onClick={() => handleEliminar(t)}
                                                 title="Borrar alumno fantasma"
-                                                className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-[var(--tc-card)]"
+                                                className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-[var(--tc-bg-panel)] transition-colors"
                                               >
                                                 <Trash2 className="w-4 h-4" />
                                               </button>

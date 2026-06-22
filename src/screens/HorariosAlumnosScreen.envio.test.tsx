@@ -26,6 +26,7 @@ vi.mock("../contexts/CursoContextProvider", () => ({ useCursoContext: () => ({ c
 vi.mock("../hooks/useLocalMatriculas", () => ({ useLocalMatriculas: () => ({ matriculas: H.matriculas }) }));
 vi.mock("../utils/horarioExcel", () => ({
   parseHorariosExcel: vi.fn().mockResolvedValue({ fileName: "horarios.xlsx", alumnos: H.alumnos, incompletas: 0 }),
+  extraerCamposInforme: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("../utils/fusionHorarios", () => ({ parseHorariosExcelCrudo: vi.fn().mockResolvedValue([]) }));
 vi.mock("../utils/horariosPersistencia", () => ({

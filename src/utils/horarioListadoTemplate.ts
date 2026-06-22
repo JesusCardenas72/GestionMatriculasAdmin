@@ -36,6 +36,25 @@ function ordenCurso(curso: string): number {
   return (m[1] === 'EE' ? 0 : 100) + Number(m[2]);
 }
 
+/**
+ * Nombre base de la asignatura, sin el sufijo de curso entre paréntesis.
+ * Agrupa "Lenguaje Musical", "Lenguaje Musical (2º)", "Lenguaje Musical(3º)"…
+ * bajo la misma asignatura "Lenguaje Musical".
+ */
+function baseAsignatura(nombre: string): string {
+  return (nombre ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+/**
+ * Contenido del sufijo entre paréntesis de la asignatura: el curso del que el
+ * alumno está matriculado en esa asignatura pendiente. "" si no tiene sufijo.
+ * "Lenguaje Musical (2º)" → "2º".
+ */
+function sufijoCurso(nombre: string): string {
+  const m = /\(([^)]*)\)\s*$/.exec((nombre ?? '').trim());
+  return m ? m[1].trim() : '';
+}
+
 /** Etiqueta legible del curso: "1º Elemental", "3º Profesional"… */
 function labelCurso(curso: string): string {
   const m = /^(EE|EP)(\d+)/.exec(curso.trim().toUpperCase());
@@ -48,6 +67,10 @@ interface FilaListado {
   especialidad: string;
   email: string;
   telefono: string;
+  /** La asignatura traía sufijo de curso → el alumno la tiene pendiente. */
+  pendiente: boolean;
+  /** Curso del que está matriculado en la asignatura pendiente (texto del sufijo). */
+  cursoPendiente: string;
 }
 
 interface Tramo {
@@ -99,7 +122,9 @@ function agrupar(alumnos: HorarioAlumno[]): GrupoAsignatura[] {
 
   for (const a of alumnos) {
     for (const c of a.clases) {
-      const asig = c.asignatura.trim() || 'Sin asignatura';
+      const asig = baseAsignatura(c.asignatura) || 'Sin asignatura';
+      const cursoPend = sufijoCurso(c.asignatura);
+      const pendiente = cursoPend !== '';
       const curso = a.ensenanzaCurso.trim() || 'Sin curso';
       const subKey = `${c.grupo.trim()}|${c.aula.trim()}|${c.profesor.trim()}`;
       subMeta.set(subKey, { grupo: c.grupo.trim(), aula: c.aula.trim(), profesor: c.profesor.trim() });
@@ -122,6 +147,8 @@ function agrupar(alumnos: HorarioAlumno[]): GrupoAsignatura[] {
           especialidad: a.especialidad,
           email: a.email,
           telefono: a.telefono ?? '',
+          pendiente,
+          cursoPendiente: cursoPend,
         });
       }
     }
@@ -217,10 +244,10 @@ export function buildListadoHtml(
 
               const filas = sg.alumnos
                 .map(
-                  (al, n) => `<tr data-nombre="${esc(norm(al.nombre))}"${esProfes && al.email ? ` data-email="${esc(al.email)}"` : ''}>
+                  (al, n) => `<tr data-nombre="${esc(norm(al.nombre))}"${al.pendiente ? ' data-pendiente="1"' : ''}${esProfes && al.email ? ` data-email="${esc(al.email)}"` : ''}>
 ${esProfes ? `  <td class="chk-cell"><input type="checkbox" class="chk-alumno" data-sg="${sgId}"${al.email ? ` data-email="${esc(al.email)}"` : ''} onclick="event.stopPropagation()"></td>` : ''}
   <td class="num">${n + 1}</td>
-  <td class="nombre">${esc(al.nombre)}</td>
+  <td class="nombre">${esc(al.nombre)}${al.pendiente ? ` <span class="pendiente-tag">Pendiente${al.cursoPendiente ? ' de ' + esc(al.cursoPendiente) : ''}</span>` : ''}</td>
   <td>${esc(al.especialidad) || '—'}</td>${
     esProfes
       ? `\n  <td class="email">${esc(al.email) || '—'}</td>\n  <td class="tel">${esc(al.telefono) || '—'}</td>`
@@ -368,6 +395,13 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .select-prof:focus{border-color:var(--primary);}
 .select-prof.activo{border-color:var(--primary);color:var(--primary);background:var(--primary-tint);}
 
+/* Botón Solo pendientes */
+.btn-pend{font-family:var(--font);font-size:13px;padding:8px 16px;border:1.5px solid #fcd34d;
+  border-radius:10px;background:var(--card);color:#b45309;cursor:pointer;white-space:nowrap;flex-shrink:0;
+  font-weight:600;transition:background .12s,color .12s,border-color .12s;}
+.btn-pend:hover{border-color:#f59e0b;background:#fffbeb;}
+.btn-pend.activo{background:#f59e0b;border-color:#f59e0b;color:#fff;}
+
 /* Botón Copiar email */
 .btn-copiar{font-family:var(--font);font-size:13px;padding:8px 16px;
   border:1.5px solid var(--primary);border-radius:10px;
@@ -451,6 +485,9 @@ td{font-size:13.5px;padding:5px 12px;border-bottom:1px solid var(--border-soft);
 tbody tr:last-child td{border-bottom:none;}
 td.num,th.num{width:34px;color:var(--ink-mute);font-size:11.5px;text-align:right;padding-right:6px;}
 td.nombre{font-weight:600;}
+.pendiente-tag{display:inline-block;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:999px;padding:1px 8px;margin-left:8px;
+  vertical-align:middle;white-space:nowrap;}
 td.email{color:var(--azul);}
 td.tel{white-space:nowrap;}
 tbody.sin-result{display:none;}
@@ -487,6 +524,7 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
         data-tip="Escribe cualquier parte del nombre para filtrar la lista en tiempo real. Las secciones con resultados se expanden automáticamente.">
       <button id="limpiar" class="limpiar" type="button" data-tip-title="Limpiar búsqueda" data-tip="Borra el texto del buscador y muestra el listado completo de nuevo.">Limpiar</button>
       ${selectProfHtml}
+      ${esProfes ? `<button id="btn-pendientes" class="btn-pend" type="button" data-tip-title="Filtrar solo pendientes" data-tip="Muestra únicamente a los alumnos que tienen la asignatura pendiente de otro curso. Combínalo con las cápsulas de asignatura para sacar los pendientes de una asignatura concreta.">Solo pendientes</button>` : ''}
       ${esProfes ? `<button id="btn-copiar-email" class="btn-copiar" type="button" disabled data-tip-title="Copiar emails al portapapeles" data-tip="Selecciona alumnos con las casillas y pulsa aquí para copiar sus emails, listos para pegar en el campo CCO de Outlook.">Copiar email</button>` : ''}
       <button id="btn-toggle-todo" type="button" data-tip-title="Expandir / Contraer todo" data-tip="Despliega o contrae todas las asignaturas, cursos y grupos de una sola vez.">Expandir todo</button>
       <button id="btn-ayuda" class="btn-ayuda" type="button" data-tip-title="Guía de uso" data-tip="Abre la guía completa con la explicación de todos los elementos interactivos de esta vista."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>Ayuda</button>
@@ -577,8 +615,11 @@ ${esProfes ? `
   // true = todo contraído, false = todo expandido
   // Estado inicial: grupos contraídos, así que el botón ofrece "Expandir todo"
   var todoContraido = false;
-  // null = sin filtro, número = índice de la asignatura filtrada
-  var asigFiltrada = null;
+  // Conjunto de índices de asignaturas filtradas (vacío = sin filtro, multi-selección)
+  var asigSet = {};
+  function asigVacio(){ for (var k in asigSet) if (asigSet[k]) return false; return true; }
+  // true = mostrar solo alumnos con asignatura pendiente
+  var pendienteSolo = false;
   // -1 = sin filtro de profesor; ≥0 = índice en el array de profesores
   var profFiltrado = -1;
 
@@ -588,8 +629,8 @@ ${esProfes ? `
 
   function renderPlegado(){
     var buscando = !!norm(input.value);
-    // Con búsqueda o filtro de profesor activo → forzar expansión de lo que coincide
-    var forzarExpansion = buscando || profFiltrado >= 0;
+    // Con búsqueda, filtro de profesor o filtro de pendientes activo → forzar expansión de lo que coincide
+    var forzarExpansion = buscando || profFiltrado >= 0 || pendienteSolo;
     // Grupos (nivel 2)
     document.querySelectorAll('.subgrupo').forEach(function(sg){
       // Filtro por profesor (comparación numérica de índice)
@@ -616,7 +657,12 @@ ${esProfes ? `
       if (cb) cb.style.display = (cu.classList.contains('is-collapsed') && !forzarExpansion) ? 'none' : '';
     });
     // Asignaturas (nivel 0)
-    document.querySelectorAll('.asignatura').forEach(function(sec){
+    document.querySelectorAll('.asignatura').forEach(function(sec, idx){
+      // Filtro por cápsulas de asignatura (multi-selección): oculta las no seleccionadas
+      if (!asigVacio() && !asigSet[idx]) {
+        sec.style.display = 'none';
+        return;
+      }
       var hay = Array.prototype.some.call(
         sec.querySelectorAll('.curso'),
         function(cu){ return cu.style.display !== 'none'; }
@@ -631,20 +677,21 @@ ${esProfes ? `
     var q = norm(input.value);
     var visibles = 0;
     filas.forEach(function(tr){
-      var ok = !q || tr.getAttribute('data-nombre').indexOf(q) !== -1;
+      var ok = (!q || tr.getAttribute('data-nombre').indexOf(q) !== -1)
+            && (!pendienteSolo || tr.getAttribute('data-pendiente') === '1');
       tr.style.display = ok ? '' : 'none';
       if (ok) visibles++;
     });
-    // Filtro por asignatura: oculta las secciones que no corresponden
+    // Filtro por cápsulas de asignatura (multi-selección): oculta las no seleccionadas
     secciones.forEach(function(sec, idx){
-      if (asigFiltrada !== null && idx !== asigFiltrada) {
+      if (!asigVacio() && !asigSet[idx]) {
         sec.style.display = 'none';
       }
     });
     renderPlegado();
-    globalVacio.style.display = q && visibles === 0 ? 'block' : 'none';
+    globalVacio.style.display = (q || pendienteSolo) && visibles === 0 ? 'block' : 'none';
     limpiar.style.display = q ? 'inline-block' : 'none';
-    contador.textContent = q
+    contador.textContent = (q || pendienteSolo)
       ? visibles + ' de ' + total + ' registros'
       : total + ' registros';
   }
@@ -660,15 +707,25 @@ ${esProfes ? `
     });
   }
 
-  // Cápsulas de asignatura: filtro toggle
+  // Cápsulas de asignatura: filtro multi-selección (toggle individual)
   tocItems.forEach(function(btn){
     btn.addEventListener('click', function(){
       var idx = parseInt(btn.getAttribute('data-asig'), 10);
-      asigFiltrada = (asigFiltrada === idx) ? null : idx;
-      tocItems.forEach(function(b){ b.classList.toggle('activo', parseInt(b.getAttribute('data-asig'), 10) === asigFiltrada); });
+      asigSet[idx] = !asigSet[idx];
+      btn.classList.toggle('activo', !!asigSet[idx]);
       aplicar();
     });
   });
+
+  // Botón "Solo pendientes" (versión profesorado)
+  var btnPend = document.getElementById('btn-pendientes');
+  if (btnPend) {
+    btnPend.addEventListener('click', function(){
+      pendienteSolo = !pendienteSolo;
+      btnPend.classList.toggle('activo', pendienteSolo);
+      aplicar();
+    });
+  }
 
   // Clic en cabecera individual
   document.querySelectorAll('[data-toggle]').forEach(function(cab){

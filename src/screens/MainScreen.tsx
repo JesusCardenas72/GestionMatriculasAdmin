@@ -51,6 +51,8 @@ const ALL_TABS: ActiveTab[] = [
 export default function MainScreen({ config }: Props) {
   const [active, setActive] = useState<ActiveTab>(ESTADO.PENDIENTE_TRAMITACION);
   const [selected, setSelected] = useState<Solicitud | null>(null);
+  /** Snapshot del historial de horarios pendiente de abrir en la pestaña Horarios. */
+  const [horariosSnapshotPendiente, setHorariosSnapshotPendiente] = useState<string | null>(null);
   const [cursoModalOpen, setCursoModalOpen] = useState(false);
   const [versionApp, setVersionApp] = useState(__APP_VERSION__);
 
@@ -123,6 +125,13 @@ export default function MainScreen({ config }: Props) {
   const handleTabChange = (tab: ActiveTab) => {
     setActive(tab);
     setSelected(null);
+  };
+
+  /** Va a la pestaña Horarios y abre allí el snapshot indicado del historial. */
+  const abrirHorarioSnapshot = (snapshotId: string) => {
+    setSelected(null);
+    setHorariosSnapshotPendiente(snapshotId);
+    setActive("horarios");
   };
 
   const handleTabChangeRef = useRef(handleTabChange);
@@ -421,11 +430,15 @@ export default function MainScreen({ config }: Props) {
       {active === "local" ? (
         <LocalScreen config={config} />
       ) : active === "temporales" ? (
-        <TemporalesScreen config={config} />
+        <TemporalesScreen config={config} onAbrirHorario={abrirHorarioSnapshot} />
       ) : active === "informes" ? (
         <InformesScreen config={config} />
       ) : active === "horarios" ? (
-        <HorariosAlumnosScreen config={config} />
+        <HorariosAlumnosScreen
+          config={config}
+          snapshotPendiente={horariosSnapshotPendiente}
+          onSnapshotAbierto={() => setHorariosSnapshotPendiente(null)}
+        />
       ) : (
         <ResizableColumns
           id="solicitudes"
