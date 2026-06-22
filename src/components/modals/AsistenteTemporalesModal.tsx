@@ -6,6 +6,7 @@ import {
   BookOpen,
   CalendarClock,
   CheckCircle,
+  ChevronDown,
   Circle,
   FileSpreadsheet,
   Info,
@@ -85,6 +86,8 @@ export function AsistenteTemporalesModal({
   onCerrar,
   onVerGuia,
   embedded = false,
+  collapsed,
+  onToggleCollapse,
 }: {
   curso: string;
   /** @deprecated Ya no se usa (el envío de emails se hace desde Horarios Individuales). */
@@ -93,6 +96,8 @@ export function AsistenteTemporalesModal({
   onVerGuia: () => void;
   /** Si es true, se muestra incrustado en la página (sin ventana flotante). */
   embedded?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar } = useLocalMatriculas(curso);
@@ -155,7 +160,7 @@ export function AsistenteTemporalesModal({
         onClick={embedded ? undefined : (e) => e.stopPropagation()}
       >
         {/* Cabecera */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--tc-border)] shrink-0 gap-3 bg-gradient-to-r from-[var(--tc-primary-tint)] to-[var(--tc-bg-panel)]">
+        <div className="flex items-center justify-between px-6 py-4 shrink-0 gap-3 bg-gradient-to-r from-[var(--tc-primary-tint)] to-[var(--tc-bg-panel)]">
           <div className="flex items-center gap-3 min-w-0">
             <Play className="w-5 h-5 shrink-0 text-[var(--tc-primary)]" />
             <h2 className="text-lg font-bold text-[var(--tc-ink)] truncate">
@@ -163,6 +168,15 @@ export function AsistenteTemporalesModal({
             </h2>
           </div>
           <div className="flex items-center gap-3 shrink-0">
+            {onToggleCollapse && (
+              <button
+                onClick={onToggleCollapse}
+                className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
+                title={collapsed ? "Expandir sección" : "Contraer sección"}
+              >
+                <ChevronDown className={`w-5 h-5 transition-transform ${collapsed ? "" : "rotate-180"}`} />
+              </button>
+            )}
             {!isSoloLectura && (
               <span className="text-[11px] text-[var(--tc-ink-mute)]">Progreso guardado</span>
             )}
@@ -180,7 +194,8 @@ export function AsistenteTemporalesModal({
           </div>
         </div>
 
-        <div className={`flex overflow-hidden ${embedded ? "h-[480px]" : "flex-1 min-h-[420px]"}`}>
+        {!collapsed && (
+        <><div className={`flex overflow-hidden ${embedded ? "h-[480px]" : "flex-1 min-h-[420px]"}`}>
           {/* Columna de pasos */}
           <div className="w-[min(35%,280px)] shrink-0 border-r border-[var(--tc-border)] bg-[var(--tc-bg-panel)] p-3 flex flex-col gap-0.5 overflow-y-auto">
             {PASOS.map((p) => {
@@ -310,6 +325,7 @@ export function AsistenteTemporalesModal({
             </div>
           </div>
         </div>
+        </>)}
       </div>
   );
 

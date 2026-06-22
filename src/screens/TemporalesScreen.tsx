@@ -24,6 +24,7 @@ import { useAppMode } from "../contexts/AppModeProvider";
 import { nombreVisibleTemporal } from "../utils/temporales";
 import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
 import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import type { AppConfig } from "../../electron/config-store";
 
 type EstadoTemporal = "pendiente" | "vinculado" | "sustituido";
@@ -80,6 +81,8 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
   const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("numero");
   const [subAgrupar, setSubAgrupar] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<EstadoTemporal | null>(null);
+  const [asistenteAbierto, setAsistenteAbierto] = useState(true);
+  const [listaAbierto, setListaAbierto] = useState(true);
 
   const handleHoverEnter = (id: string, e: React.MouseEvent) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -422,14 +425,266 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
           </button>
         </div>
 
-        {/* Asistente guiado, incrustado en la propia pantalla (ya no es una ventana flotante). */}
-        <AsistenteTemporalesModal
-          embedded
-          curso={curso}
-          config={config}
-          onCerrar={() => {}}
-          onVerGuia={() => setShowGuia(true)}
-        />
+        {/* Asistente guiado + Lista en paneles redimensionables */}
+        <Group orientation="vertical" className="!gap-0">
+          <Panel id="asistente" minSize={60}>
+            <AsistenteTemporalesModal
+              embedded
+              curso={curso}
+              config={config}
+              onCerrar={() => {}}
+              onVerGuia={() => setShowGuia(true)}
+              collapsed={!asistenteAbierto}
+              onToggleCollapse={() => setAsistenteAbierto(!asistenteAbierto)}
+            />
+          </Panel>
+
+          <Separator className="group relative h-4 mx-0.5 flex items-center justify-center cursor-row-resize">
+            <div className="flex flex-col gap-0.5">
+              <div className="h-0.5 w-6 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
+              <div className="h-0.5 w-6 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </Separator>
+
+          <Panel id="lista" minSize={100}>
+            <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <button
+                  onClick={() => setListaAbierto(!listaAbierto)}
+                  className="p-1 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)] transition-colors"
+                  title={listaAbierto ? "Contraer sección" : "Expandir sección"}
+                >
+                  <ChevronDown className={`w-5 h-5 transition-transform ${listaAbierto ? "" : "-rotate-90"}`} />
+                </button>
+                <h2 className="text-lg font-bold text-[var(--tc-ink)] whitespace-nowrap">
+                  Alumnos fantasma del curso {curso} ({temporalesFiltrados.length})
+                </h2>
+                <button
+                  onClick={() => setFiltroEstado(filtroEstado === "pendiente" ? null : "pendiente")}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
+                  style={{
+                    ...ESTADO_BADGE.pendiente.style,
+                    ...(filtroEstado === "pendiente" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.pendiente.style.color}` } : {}),
+                  }}
+                >
+                  {nPendientes} pendiente{nPendientes === 1 ? "" : "s"}
+                </button>
+                <button
+                  onClick={() => setFiltroEstado(filtroEstado === "vinculado" ? null : "vinculado")}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
+                  style={{
+                    ...ESTADO_BADGE.vinculado.style,
+                    ...(filtroEstado === "vinculado" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.vinculado.style.color}` } : {}),
+                  }}
+                >
+                  {nVinculados} vinculado{nVinculados === 1 ? "" : "s"}
+                </button>
+                <button
+                  onClick={() => setFiltroEstado(filtroEstado === "sustituido" ? null : "sustituido")}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
+                  style={{
+                    ...ESTADO_BADGE.sustituido.style,
+                    ...(filtroEstado === "sustituido" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.sustituido.style.color}` } : {}),
+                  }}
+                >
+                  {nSustituidos} sustituido{nSustituidos === 1 ? "" : "s"}
+                </button>
+
+                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
+                  <button
+                    onClick={() => setOrdenLista(ordenLista === "asc" ? "desc" : "asc")}
+                    title={ordenLista === "asc" ? "Orden descendente" : "Orden ascendente"}
+                    className="p-1 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)] transition-colors"
+                  >
+                    {ordenLista === "asc" ? (
+                      <ArrowDownAZ className="w-4 h-4" />
+                    ) : (
+                      <ArrowUpAZ className="w-4 h-4" />
+                    )}
+                  </button>
+                  <select
+                    value={ordenarPor}
+                    onChange={(e) => setOrdenarPor(e.target.value as OrdenarPor)}
+                    className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none"
+                    title="Ordenar por"
+                  >
+                    <option value="numero">Nº</option>
+                    <option value="curso">Curso</option>
+                    <option value="especialidad">Especialidad</option>
+                    <option value="apellidos">Apellidos</option>
+                  </select>
+                </div>
+
+                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
+                  <Layers className="w-3.5 h-3.5 text-[var(--tc-ink-mute)]" />
+                  <select
+                    value={modoAgrupacion}
+                    onChange={(e) => setModoAgrupacion(e.target.value as ModoAgrupacion)}
+                    className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none"
+                  >
+                    <option value="especialidad">Por especialidad</option>
+                    <option value="curso">Por curso</option>
+                    <option value="estado">Por estado</option>
+                    <option value="ninguna">Sin agrupar</option>
+                  </select>
+                  {modoAgrupacion !== "ninguna" && (
+                    <button
+                      onClick={() => setSubAgrupar(!subAgrupar)}
+                      title={subAgrupar ? "Desactivar sub-agrupación" : "Activar sub-agrupación"}
+                      className={`p-1 rounded-lg transition-colors border-l border-[var(--tc-border)] pl-2 ${subAgrupar ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]"}`}
+                    >
+                      <Layers className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {grupos.length > 0 && (
+                  <button
+                    onClick={toggleAllGroups}
+                    title={expandedGroups.size === grupos.length ? "Contraer todos" : "Expandir todos"}
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-1 text-xs text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors whitespace-nowrap"
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedGroups.size === grupos.length ? "" : "-rotate-90"}`} />
+                    {expandedGroups.size === grupos.length ? "Contraer todo" : "Expandir todo"}
+                  </button>
+                )}
+
+                {!isSoloLectura && temporales.length > 0 && (
+                  <button
+                    onClick={handleEliminarTodos}
+                    title="Eliminar todos los alumnos fantasma"
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-1 text-xs text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar todos
+                  </button>
+                )}
+              </div>
+              {listaAbierto && (
+                <>
+                {isLoading ? (
+                  <p className="text-sm text-[var(--tc-ink-mute)]">Cargando…</p>
+                ) : temporalesFiltrados.length === 0 ? (
+                  <p className="text-sm text-[var(--tc-ink-mute)]">
+                    {filtroEstado ? "No hay alumnos que coincidan con el filtro." : "No hay alumnos fantasma. Crea los que necesites con el formulario de arriba."}
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {grupos.map((grupo) => (
+                      <div key={grupo.titulo || "sin-grupo"}>
+                        {grupo.titulo && (
+                          <button
+                            onClick={() => toggleGroup(grupo.titulo)}
+                            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--tc-ink-mute)] mb-2 hover:text-[var(--tc-ink)] transition-colors"
+                          >
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedGroups.has(grupo.titulo) ? "" : "-rotate-90"}`} />
+                            {grupo.titulo}
+                            <span className="text-[10px] font-normal">({grupo.total})</span>
+                          </button>
+                        )}
+                        {(grupo.titulo === "" || expandedGroups.has(grupo.titulo)) && (
+                          <div className="flex flex-col gap-3">
+                            {grupo.subgrupos.map((sub, subIdx) => (
+                              <div key={sub.titulo || subIdx} className={sub.titulo ? "ml-4" : ""}>
+                                {sub.titulo && (
+                                  <h4 className="text-[11px] font-medium text-[var(--tc-ink-soft)] mb-1.5 uppercase tracking-wide">
+                                    {sub.titulo}
+                                    <span className="text-[10px] font-normal ml-1">({sub.items.length})</span>
+                                  </h4>
+                                )}
+                                <div className="flex flex-col gap-1.5">
+                                  {sub.items.map((t) => {
+                                    const estado = estadoDe(t);
+                                    const real = vinculadosPor.get(t.localId);
+                                    const sustituto = t.sustituidoPorLocalId ? porLocalId.get(t.sustituidoPorLocalId) : null;
+                                    return (
+                                      <div
+                                        key={t.localId}
+                                        className="relative"
+                                        onMouseEnter={(e) => handleHoverEnter(t.localId, e)}
+                                        onMouseLeave={handleHoverLeave}
+                                      >
+                                        <div className="flex items-center gap-3 rounded-xl border border-[var(--tc-border-soft)] bg-[var(--tc-bg)] px-3 py-2">
+                                          <span className="text-sm font-medium text-[var(--tc-ink)] flex-1 min-w-0 truncate">
+                                            {nombreVisibleTemporal(t)}
+                                          </span>
+                                          <span className="text-xs text-[var(--tc-ink-mute)]">
+                                            {t.asignaturas.length} asig.
+                                          </span>
+                                          <span
+                                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                            style={ESTADO_BADGE[estado].style}
+                                          >
+                                            {ESTADO_BADGE[estado].label}
+                                          </span>
+                                          {estado === "vinculado" && real && (
+                                            <span className="text-xs text-[var(--tc-ink-soft)] flex items-center gap-1 min-w-0 truncate">
+                                              <Link2 className="w-3.5 h-3.5 shrink-0" />
+                                              {real.apellidos}, {real.nombre}
+                                            </span>
+                                          )}
+                                          {estado === "sustituido" && sustituto && (
+                                            <span className="text-xs text-[var(--tc-ink-soft)] flex items-center gap-1 min-w-0 truncate">
+                                              <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                                              {sustituto.apellidos}, {sustituto.nombre}
+                                            </span>
+                                          )}
+                                          {!isSoloLectura && (
+                                            <span className="flex items-center gap-1 shrink-0">
+                                              {estado === "vinculado" && (
+                                                <button
+                                                  onClick={() => handleDesvincular(t)}
+                                                  title="Quitar vínculo"
+                                                  className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)]"
+                                                >
+                                                  <Link2Off className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              <button
+                                                onClick={() => handleEliminar(t)}
+                                                title="Borrar alumno fantasma"
+                                                className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-[var(--tc-card)]"
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </button>
+                                            </span>
+                                          )}
+                                        </div>
+                                        {hoveredId === t.localId && t.asignaturas.length > 0 && hoverPos && (
+                                          <div
+                                            className="fixed z-50 mt-1 w-64 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg p-3"
+                                            style={{ left: hoverPos.x, top: hoverPos.y + 8 }}
+                                          >
+                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--tc-ink-mute)] mb-2">
+                                              Asignaturas para Horarios
+                                            </p>
+                                            <ul className="space-y-1">
+                                              {t.asignaturas.map((a) => (
+                                                <li key={a.localId} className="text-xs text-[var(--tc-ink-soft)] flex items-start gap-1.5">
+                                                  <span className="text-[var(--tc-primary)] mt-0.5">•</span>
+                                                  <span>{a.nombre}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                </>
+              )}
+            </div>
+          </Panel>
+        </Group>
 
         {mensaje && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
@@ -443,233 +698,6 @@ export default function TemporalesScreen({ config }: { config: AppConfig }) {
             <span className="whitespace-pre-line">{error}</span>
           </div>
         )}
-
-        {/* Lista */}
-        <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <h2 className="text-lg font-bold text-[var(--tc-ink)] whitespace-nowrap mr-auto">
-              Alumnos fantasma del curso {curso} ({temporalesFiltrados.length})
-            </h2>
-            <button
-              onClick={() => setFiltroEstado(filtroEstado === "pendiente" ? null : "pendiente")}
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
-              style={{
-                ...ESTADO_BADGE.pendiente.style,
-                ...(filtroEstado === "pendiente" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.pendiente.style.color}` } : {}),
-              }}
-            >
-              {nPendientes} pendiente{nPendientes === 1 ? "" : "s"}
-            </button>
-            <button
-              onClick={() => setFiltroEstado(filtroEstado === "vinculado" ? null : "vinculado")}
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
-              style={{
-                ...ESTADO_BADGE.vinculado.style,
-                ...(filtroEstado === "vinculado" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.vinculado.style.color}` } : {}),
-              }}
-            >
-              {nVinculados} vinculado{nVinculados === 1 ? "" : "s"}
-            </button>
-            <button
-              onClick={() => setFiltroEstado(filtroEstado === "sustituido" ? null : "sustituido")}
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
-              style={{
-                ...ESTADO_BADGE.sustituido.style,
-                ...(filtroEstado === "sustituido" ? { boxShadow: `0 0 0 2px ${ESTADO_BADGE.sustituido.style.color}` } : {}),
-              }}
-            >
-              {nSustituidos} sustituido{nSustituidos === 1 ? "" : "s"}
-            </button>
-
-            <div className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
-              <button
-                onClick={() => setOrdenLista(ordenLista === "asc" ? "desc" : "asc")}
-                title={ordenLista === "asc" ? "Orden descendente" : "Orden ascendente"}
-                className="p-1 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)] transition-colors"
-              >
-                {ordenLista === "asc" ? (
-                  <ArrowDownAZ className="w-4 h-4" />
-                ) : (
-                  <ArrowUpAZ className="w-4 h-4" />
-                )}
-              </button>
-              <select
-                value={ordenarPor}
-                onChange={(e) => setOrdenarPor(e.target.value as OrdenarPor)}
-                className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none"
-                title="Ordenar por"
-              >
-                <option value="numero">Nº</option>
-                <option value="curso">Curso</option>
-                <option value="especialidad">Especialidad</option>
-                <option value="apellidos">Apellidos</option>
-              </select>
-            </div>
-
-            <div className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 py-1">
-              <Layers className="w-3.5 h-3.5 text-[var(--tc-ink-mute)]" />
-              <select
-                value={modoAgrupacion}
-                onChange={(e) => setModoAgrupacion(e.target.value as ModoAgrupacion)}
-                className="text-xs py-0.5 px-1 bg-transparent text-[var(--tc-ink)] focus:outline-none"
-              >
-                <option value="especialidad">Por especialidad</option>
-                <option value="curso">Por curso</option>
-                <option value="estado">Por estado</option>
-                <option value="ninguna">Sin agrupar</option>
-              </select>
-              {modoAgrupacion !== "ninguna" && (
-                <button
-                  onClick={() => setSubAgrupar(!subAgrupar)}
-                  title={subAgrupar ? "Desactivar sub-agrupación" : "Activar sub-agrupación"}
-                  className={`p-1 rounded-lg transition-colors border-l border-[var(--tc-border)] pl-2 ${subAgrupar ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]"}`}
-                >
-                  <Layers className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {grupos.length > 0 && (
-              <button
-                onClick={toggleAllGroups}
-                title={expandedGroups.size === grupos.length ? "Contraer todos" : "Expandir todos"}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-1 text-xs text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors whitespace-nowrap"
-              >
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedGroups.size === grupos.length ? "" : "-rotate-90"}`} />
-                {expandedGroups.size === grupos.length ? "Contraer todo" : "Expandir todo"}
-              </button>
-            )}
-
-            {!isSoloLectura && temporales.length > 0 && (
-              <button
-                onClick={handleEliminarTodos}
-                title="Eliminar todos los alumnos fantasma"
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-1 text-xs text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
-              >
-                <Trash2 className="w-4 h-4" />
-                Eliminar todos
-              </button>
-            )}
-          </div>
-          {isLoading ? (
-            <p className="text-sm text-[var(--tc-ink-mute)]">Cargando…</p>
-          ) : temporalesFiltrados.length === 0 ? (
-            <p className="text-sm text-[var(--tc-ink-mute)]">
-              {filtroEstado ? "No hay alumnos que coincidan con el filtro." : "No hay alumnos fantasma. Crea los que necesites con el formulario de arriba."}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {grupos.map((grupo) => (
-                <div key={grupo.titulo || "sin-grupo"}>
-                  {grupo.titulo && (
-                    <button
-                      onClick={() => toggleGroup(grupo.titulo)}
-                      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--tc-ink-mute)] mb-2 hover:text-[var(--tc-ink)] transition-colors"
-                    >
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedGroups.has(grupo.titulo) ? "" : "-rotate-90"}`} />
-                      {grupo.titulo}
-                      <span className="text-[10px] font-normal">({grupo.total})</span>
-                    </button>
-                  )}
-                  {(grupo.titulo === "" || expandedGroups.has(grupo.titulo)) && (
-                    <div className="flex flex-col gap-3">
-                      {grupo.subgrupos.map((sub, subIdx) => (
-                        <div key={sub.titulo || subIdx} className={sub.titulo ? "ml-4" : ""}>
-                          {sub.titulo && (
-                            <h4 className="text-[11px] font-medium text-[var(--tc-ink-soft)] mb-1.5 uppercase tracking-wide">
-                              {sub.titulo}
-                              <span className="text-[10px] font-normal ml-1">({sub.items.length})</span>
-                            </h4>
-                          )}
-                          <div className="flex flex-col gap-1.5">
-                            {sub.items.map((t) => {
-                              const estado = estadoDe(t);
-                              const real = vinculadosPor.get(t.localId);
-                              const sustituto = t.sustituidoPorLocalId ? porLocalId.get(t.sustituidoPorLocalId) : null;
-                              return (
-                                <div
-                                  key={t.localId}
-                                  className="relative"
-                                  onMouseEnter={(e) => handleHoverEnter(t.localId, e)}
-                                  onMouseLeave={handleHoverLeave}
-                                >
-                                  <div className="flex items-center gap-3 rounded-xl border border-[var(--tc-border-soft)] bg-[var(--tc-bg)] px-3 py-2">
-                                    <span className="text-sm font-medium text-[var(--tc-ink)] flex-1 min-w-0 truncate">
-                                      {nombreVisibleTemporal(t)}
-                                    </span>
-                                    <span className="text-xs text-[var(--tc-ink-mute)]">
-                                      {t.asignaturas.length} asig.
-                                    </span>
-                                    <span
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                                      style={ESTADO_BADGE[estado].style}
-                                    >
-                                      {ESTADO_BADGE[estado].label}
-                                    </span>
-                                    {estado === "vinculado" && real && (
-                                      <span className="text-xs text-[var(--tc-ink-soft)] flex items-center gap-1 min-w-0 truncate">
-                                        <Link2 className="w-3.5 h-3.5 shrink-0" />
-                                        {real.apellidos}, {real.nombre}
-                                      </span>
-                                    )}
-                                    {estado === "sustituido" && sustituto && (
-                                      <span className="text-xs text-[var(--tc-ink-soft)] flex items-center gap-1 min-w-0 truncate">
-                                        <UserCheck className="w-3.5 h-3.5 shrink-0" />
-                                        {sustituto.apellidos}, {sustituto.nombre}
-                                      </span>
-                                    )}
-                                    {!isSoloLectura && (
-                                      <span className="flex items-center gap-1 shrink-0">
-                                        {estado === "vinculado" && (
-                                          <button
-                                            onClick={() => handleDesvincular(t)}
-                                            title="Quitar vínculo"
-                                            className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-card)]"
-                                          >
-                                            <Link2Off className="w-4 h-4" />
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={() => handleEliminar(t)}
-                                          title="Borrar alumno fantasma"
-                                          className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-[var(--tc-card)]"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
-                                      </span>
-                                    )}
-                                  </div>
-                                  {hoveredId === t.localId && t.asignaturas.length > 0 && hoverPos && (
-                                    <div
-                                      className="fixed z-50 mt-1 w-64 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg p-3"
-                                      style={{ left: hoverPos.x, top: hoverPos.y + 8 }}
-                                    >
-                                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--tc-ink-mute)] mb-2">
-                                        Asignaturas para Horarios
-                                      </p>
-                                      <ul className="space-y-1">
-                                        {t.asignaturas.map((a) => (
-                                          <li key={a.localId} className="text-xs text-[var(--tc-ink-soft)] flex items-start gap-1.5">
-                                            <span className="text-[var(--tc-primary)] mt-0.5">•</span>
-                                            <span>{a.nombre}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {showGuia && (
