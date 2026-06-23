@@ -315,6 +315,12 @@ export interface MatriculaLocal {
   sustituidoPorLocalId?: string | null;
   /** En matrículas reales: localId del temporal pendiente al que sustituirá */
   sustituyeATemporalId?: string | null;
+  /**
+   * En matrículas reales: true si el usuario ha revisado manualmente la
+   * discrepancia de nombre con su alumno fantasma vinculado y confirma que no
+   * hay error (oculta el aviso DISCREPANCIA). Se reinicia al cambiar el vínculo.
+   */
+  discrepanciaRevisada?: boolean;
 
   _pendienteSubida: boolean;
   _guardadoEn: string;

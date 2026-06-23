@@ -506,7 +506,18 @@ function registerIpcHandlers() {
       });
       if (res.canceled || !res.filePath) return null;
       const buf = Buffer.from(contenidoBase64, "base64");
-      fs.writeFileSync(res.filePath, buf);
+      try {
+        fs.writeFileSync(res.filePath, buf);
+      } catch (err) {
+        // En Windows, si el archivo destino está abierto (p.ej. en Excel) queda
+        // bloqueado y la escritura falla con EBUSY/EPERM/EACCES. Lo mapeamos a un
+        // sentinel que el preload traduce a un mensaje claro para el usuario.
+        const code = (err as NodeJS.ErrnoException)?.code;
+        if (code === "EBUSY" || code === "EPERM" || code === "EACCES") {
+          throw new Error("EXCEL_FILE_LOCKED");
+        }
+        throw err;
+      }
       return res.filePath;
     },
   );

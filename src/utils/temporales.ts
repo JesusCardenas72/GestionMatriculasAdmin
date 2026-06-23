@@ -155,6 +155,44 @@ export function nombreVisibleTemporal(t: Pick<MatriculaLocal, "nombre" | "apelli
   return a ? `${a}, ${t.nombre}` : t.nombre;
 }
 
+/** Quita todas las apariciones del sufijo `_Temp` de un texto. */
+function quitarSufijoTemporal(s: string): string {
+  return s.split(SUFIJO_TEMPORAL).join("");
+}
+
+/**
+ * Normaliza un nombre para compararlo de forma laxa: sin acentos, en minúsculas
+ * y sin separadores (espacios, guiones, comas…), de modo que apellidos compuestos
+ * como «García-López», «Garcia Lopez» o «GarcíaLópez» se consideren iguales.
+ */
+function normalizarParaComparar(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // elimina los diacríticos (acentos, diéresis…)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ""); // deja solo letras y dígitos (la ñ→n ya viene de NFD)
+}
+
+/**
+ * ¿Coinciden (o son muy parecidos) los nombres del alumno fantasma y de la
+ * matrícula real que lo sustituye/vincula? Ignora el sufijo `_Temp`, los acentos,
+ * los espacios y los guiones. Los temporales anónimos «PDTE. N» (sin apellidos)
+ * nunca generan discrepancia, porque no representan a una persona concreta.
+ */
+export function nombresTemporalRealCoinciden(
+  temporal: Pick<MatriculaLocal, "nombre" | "apellidos">,
+  real: Pick<MatriculaLocal, "nombre" | "apellidos">,
+): boolean {
+  // Sin apellidos en el temporal → es un «PDTE. N» anónimo: no se compara.
+  if (!(temporal.apellidos ?? "").trim()) return true;
+  const t = normalizarParaComparar(
+    quitarSufijoTemporal(`${temporal.apellidos ?? ""} ${temporal.nombre ?? ""}`),
+  );
+  const r = normalizarParaComparar(`${real.apellidos ?? ""} ${real.nombre ?? ""}`);
+  if (!t || !r) return true; // datos insuficientes → no marcamos discrepancia
+  return t === r;
+}
+
 /**
  * Crea temporales "con nombre" a partir de filas importadas de Excel/CSV.
  * Añade el sufijo `_Temp` a nombre y apellidos para distinguirlos a simple

@@ -92,6 +92,26 @@ Cuando un alumno se matricula de verdad:
 
 Para deshacer un vínculo: en la ficha elige «— Ningún temporal —», o usa el icono de desvincular en la pestaña Temporales.
 
+### Ver el alumno vinculado y romper la relación desde la ficha del fantasma
+
+Si abres la ficha de un **alumno fantasma** (pestaña Local), en **Datos Personales** verás con quién está relacionado:
+
+- **«Vinculado con»** *Apellidos, Nombre* (etiqueta azul `VINCULADO`) si aún no se ha ejecutado la sustitución, o
+- **«Sustituido por»** *Apellidos, Nombre* (etiqueta verde `SUSTITUIDO`) si ya se ejecutó.
+
+El botón **«Romper relación»** corta el vínculo por completo en un paso: el fantasma vuelve a **Pendiente** y la matrícula real se desvincula. Útil para rectificar un emparejamiento equivocado.
+
+### Aviso de discrepancia de nombre
+
+Cuando una matrícula real se vincula o sustituye a un fantasma importado con sufijo `_Temp`, la app compara los dos nombres de forma laxa: ignora el sufijo `_Temp`, los **acentos**, los **espacios** y los **guiones** (de modo que «García-López», «García López» y «GarcíaLópez» se consideran iguales). Los fantasmas anónimos «PDTE. N» (sin apellidos) no se comparan.
+
+Si los nombres **no coinciden**, aparece una cápsula violeta **DISCREPANCIA**:
+
+- En la **lista** de la izquierda (tanto en la fila del fantasma como en la de su matrícula real).
+- En la **ficha** de detalle de la derecha.
+
+Es un aviso de posible emparejamiento erróneo, no un bloqueo. Si lo revisas y compruebas que es correcto (por ejemplo, un cambio de apellidos legítimo), pulsa **«Marcar discrepancia como revisada»** en la ficha: el aviso desaparece de la lista y de la ficha. Siempre puedes **«Restaurar aviso»** después. La marca de revisada se reinicia automáticamente si cambias el vínculo o rompes la relación.
+
 ---
 
 ## 5. Ejecutar las sustituciones
@@ -104,6 +124,8 @@ En la pestaña **Temporales**, tarjeta «Sustitución por alumnado real»:
 A partir de este momento, en los informes el alumno real ocupa el lugar de su temporal (el temporal sustituido deja de aparecer).
 
 > **Importante**: ejecutar la sustitución NO borra el temporal. Debe seguir existiendo hasta generar el Excel fusionado (paso 6), porque la fusión lo necesita para localizar las clases que el profesor le puso.
+
+> **Deshacer una sustitución (rectificar un error)**: si vinculaste o sustituiste con el alumno equivocado, puedes retroceder. En la pestaña **Alumnado Fantasma**, sobre un temporal en estado **Sustituido**, pulsa el icono **«Deshacer sustitución»** (↩). El temporal vuelve a **Vinculado** (la matrícula real sigue apuntándolo); desde ahí, con «Quitar vínculo», lo dejas en **Pendiente**. También puedes deshacerlo desde la ficha del alumno real (**Local → Datos Personales → «Sustituye al alumno fantasma»**, botón **Deshacer** junto a la etiqueta SUSTITUIDO).
 
 ---
 
@@ -191,15 +213,17 @@ Las **columnas se mantienen en el mismo orden** que el Excel original y las fila
 - `temporalEstado: "pendiente" | "sustituido"`.
 - `sustituidoPorLocalId` — en temporales: `localId` de la matrícula real que lo sustituyó.
 - `sustituyeATemporalId` — en matrículas reales: `localId` del temporal pendiente vinculado.
+- `discrepanciaRevisada` — en matrículas reales: `true` si el usuario marcó como revisada la discrepancia de nombre con su fantasma vinculado (oculta el aviso `DISCREPANCIA`). Se reinicia al cambiar el vínculo o romper la relación.
 
 ### Archivos principales
 
 | Archivo | Responsabilidad |
 |---|---|
-| `src/utils/temporales.ts` | Crear temporales (manual `crearTemporales` y nominal `crearTemporalesNominales` con sufijo `_Temp`), `planSustituciones`, `nombreVisibleTemporal` |
+| `src/utils/temporales.ts` | Crear temporales (manual `crearTemporales` y nominal `crearTemporalesNominales` con sufijo `_Temp`), `planSustituciones`, `nombreVisibleTemporal`, `nombresTemporalRealCoinciden` (comparación laxa de nombres para el aviso DISCREPANCIA) |
 | `src/utils/importTemporales.ts` | Parser del Excel/CSV de importación (`parseArchivoTemporales`): cabeceras flexibles, validación de curso y especialidad contra el catálogo, errores por fila |
 | `src/screens/TemporalesScreen.tsx` | Pestaña Temporales: alta, importación, contadores, ejecutar sustituciones, fecha programada, «Generar Excel fusionado», modal de ayuda |
-| `src/components/LocalDetail.tsx` | Desplegable «Sustituye al alumno temporal» en Datos Personales (debajo de Provincia); aviso naranja en fichas de temporales |
+| `src/components/LocalDetail.tsx` | Desplegable «Sustituye al alumno temporal» en Datos Personales (debajo de Provincia); aviso naranja en fichas de temporales; bloque «Vinculado con»/«Sustituido por» con «Romper relación» en fichas de fantasma; cápsula `DISCREPANCIA` y botón «Marcar discrepancia como revisada» / «Restaurar aviso» |
+| `src/components/LocalList.tsx` | Lista de Matrículas Locales: filtro/etiqueta de estado del ciclo (Pendiente/Vinculado/Sustituido) y «Sin Estado» (matriculados antes de la fecha de corte del asistente); cápsula `DISCREPANCIA` en filas con nombre que no coincide (omitida si `discrepanciaRevisada`) |
 | `electron/temporales-store.ts` | Config por curso (IPC `temporales:*`): rango `selectorDesde`/`selectorHasta` que controla la visibilidad del selector «Sustituye al alumno fantasma» en Local. La sustitución se ejecuta al generar el Excel del paso 2 del asistente (ya no hay auto-ejecución al arrancar) |
 | `src/utils/excelHorarios.ts` | Generación del Excel de horarios; pinta en naranja las filas con `esTemporal`; acepta `valoresHorario` para re-inyectar horarios en la fusión |
 | `src/utils/fusionHorarios.ts` | `parseHorariosExcelCrudo` (lee el Excel relleno) y `fusionarHorarios` (casa horarios: directo por alumno+curso+especialidad+asignatura; herencia temporal→real vía `nombreCompletoDe(apellidos, nombre)`, compatible con PDTE y `_Temp`) |

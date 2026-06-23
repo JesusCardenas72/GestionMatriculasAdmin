@@ -5,6 +5,7 @@ import {
   esTemporalPendiente,
   nombreTemporal,
   nombreVisibleTemporal,
+  nombresTemporalRealCoinciden,
 } from "../temporales";
 import type { MatriculaLocal } from "../../api/types";
 
@@ -149,5 +150,34 @@ describe("esTemporalPendiente", () => {
     expect(esTemporalPendiente(matriculaBase({ esTemporal: true, temporalEstado: "pendiente" }))).toBe(true);
     expect(esTemporalPendiente(matriculaBase({ esTemporal: true, temporalEstado: "sustituido" }))).toBe(false);
     expect(esTemporalPendiente(matriculaBase({}))).toBe(false);
+  });
+});
+
+describe("nombresTemporalRealCoinciden", () => {
+  const temp = (apellidos: string, nombre: string) => ({ apellidos, nombre });
+
+  it("coinciden ignorando el sufijo _Temp", () => {
+    expect(nombresTemporalRealCoinciden(temp("García_Temp", "Ana_Temp"), temp("García", "Ana"))).toBe(true);
+  });
+
+  it("coinciden ignorando acentos", () => {
+    expect(nombresTemporalRealCoinciden(temp("Garcia_Temp", "Ana_Temp"), temp("García", "Aná"))).toBe(true);
+  });
+
+  it("coinciden con apellidos compuestos aunque cambien guiones/espacios", () => {
+    expect(
+      nombresTemporalRealCoinciden(temp("García López_Temp", "Ana_Temp"), temp("García-López", "Ana")),
+    ).toBe(true);
+    expect(
+      nombresTemporalRealCoinciden(temp("García-López_Temp", "Ana_Temp"), temp("Garcia Lopez", "Ana")),
+    ).toBe(true);
+  });
+
+  it("detecta discrepancia cuando los nombres son distintos", () => {
+    expect(nombresTemporalRealCoinciden(temp("García_Temp", "Ana_Temp"), temp("Pérez", "Juan"))).toBe(false);
+  });
+
+  it("los PDTE. anónimos (sin apellidos) nunca generan discrepancia", () => {
+    expect(nombresTemporalRealCoinciden(temp("", "PDTE. 1 — Piano EP1"), temp("Pérez", "Juan"))).toBe(true);
   });
 });

@@ -685,6 +685,30 @@ export default function LocalScreen({ config }: Props) {
     [matriculas],
   );
 
+  // Cuando la ficha seleccionada es un fantasma, la matrícula real que lo
+  // sustituyó (estado sustituido) o que lo tiene vinculado (pendiente de ejecutar).
+  const sustitutoRealSeleccionado = useMemo(() => {
+    if (!selected?.esTemporal) return null;
+    if (selected.temporalEstado === "sustituido" && selected.sustituidoPorLocalId) {
+      return matriculas.find((r) => r.localId === selected.sustituidoPorLocalId) ?? null;
+    }
+    return matriculas.find((r) => !r.esTemporal && r.sustituyeATemporalId === selected.localId) ?? null;
+  }, [selected, matriculas]);
+
+  const handleRomperRelacion = async (temporal: MatriculaLocal) => {
+    if (isSoloLectura) return;
+    const real =
+      temporal.temporalEstado === "sustituido" && temporal.sustituidoPorLocalId
+        ? matriculas.find((r) => r.localId === temporal.sustituidoPorLocalId)
+        : matriculas.find((r) => !r.esTemporal && r.sustituyeATemporalId === temporal.localId);
+    const quien = real ? `${real.apellidos}, ${real.nombre}` : "el alumno real";
+    if (!window.confirm(`¿Romper la relación entre este alumno fantasma y ${quien}? El fantasma volverá al estado «pendiente».`)) return;
+    if (real) await actualizar(real.localId, { sustituyeATemporalId: null, discrepanciaRevisada: false });
+    if (temporal.temporalEstado === "sustituido") {
+      await actualizar(temporal.localId, { temporalEstado: "pendiente", sustituidoPorLocalId: null });
+    }
+  };
+
   const estadoPorRowId = new Map<string, EstadoTramite>();
   for (const s of pendienteTramitacionQuery.data?.solicitudes ?? []) {
     estadoPorRowId.set(s.rowId, ESTADO.PENDIENTE_TRAMITACION);
@@ -778,6 +802,16 @@ export default function LocalScreen({ config }: Props) {
                 temporalesPendientes={temporalesPendientes}
                 todosTemporales={todosTemporales}
                 onSave={(changes) => void handleSaveEdit(changes)}
+                onRevertirSustitucion={(temporalId) => {
+                  if (isSoloLectura) return;
+                  void actualizar(temporalId, { temporalEstado: "pendiente", sustituidoPorLocalId: null });
+                }}
+                sustitutoReal={sustitutoRealSeleccionado}
+                onRomperRelacion={(temporal) => void handleRomperRelacion(temporal)}
+                onMarcarDiscrepanciaRevisada={(realLocalId, revisada) => {
+                  if (isSoloLectura) return;
+                  void actualizar(realLocalId, { discrepanciaRevisada: revisada });
+                }}
                 onAmpliacion={() => {
                   if (isSoloLectura || yaTieneAmpliacion) return;
                   setShowAmpliacion(true);

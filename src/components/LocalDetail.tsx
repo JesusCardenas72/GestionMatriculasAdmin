@@ -44,7 +44,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { ChevronDown, ChevronUp, Cloud, Download, FileText, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Cloud, Download, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -54,7 +54,7 @@ import {
   type MatriculaLocal,
 } from "../api/types";
 import { ensenanzaDesdeCode, getCatalogoLocal, getCatalogoParaCurso } from "../data/catalogoLocal";
-import { nombreVisibleTemporal } from "../utils/temporales";
+import { nombreVisibleTemporal, nombresTemporalRealCoinciden } from "../utils/temporales";
 import { EstadoBadge } from "./SolicitudDetail";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
@@ -95,6 +95,14 @@ interface Props {
   /** Todos los alumnos fantasma del curso (incluyendo sustituidos), para mostrar el nombre cuando ya fue sustituido. */
   todosTemporales?: MatriculaLocal[];
   onSave: (changes: Partial<MatriculaLocal>) => void;
+  /** Deshacer una sustitución ya ejecutada: el fantasma vuelve a estado «vinculado». */
+  onRevertirSustitucion?: (temporalId: string) => void;
+  /** Cuando la ficha es un fantasma, la matrícula real que lo sustituyó o lo tiene vinculado. */
+  sustitutoReal?: MatriculaLocal | null;
+  /** Romper por completo la relación fantasma ↔ real: el fantasma vuelve a «pendiente» y la real se desvincula. */
+  onRomperRelacion?: (temporal: MatriculaLocal) => void;
+  /** Marca/desmarca la discrepancia de nombre como revisada en la matrícula real indicada. */
+  onMarcarDiscrepanciaRevisada?: (realLocalId: string, revisada: boolean) => void;
   onAmpliacion: () => void;
   onSubirNube: () => void;
   onGenerarPdf: () => void;
@@ -137,6 +145,10 @@ export default function LocalDetail({
   temporalesPendientes = [],
   todosTemporales = [],
   onSave,
+  onRevertirSustitucion,
+  sustitutoReal,
+  onRomperRelacion,
+  onMarcarDiscrepanciaRevisada,
   onAmpliacion,
   onSubirNube,
   onGenerarPdf,
@@ -183,6 +195,25 @@ export default function LocalDetail({
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
   //   - localId si es un registro puramente local (ampliación sin subir, etc.)
   const pdfKey = m.rowId ?? m.localId;
+
+  // Discrepancia de nombres entre el alumno fantasma y la matrícula real
+  // vinculada/sustituta: si no coinciden (salvando sufijo _Temp, acentos,
+  // espacios y guiones) puede haberse emparejado a la persona equivocada.
+  // `revisada` indica que el usuario ya la verificó y confirmó que no es un error.
+  const discrepancia = useMemo<{ realLocalId: string; revisada: boolean } | null>(() => {
+    let temporal: MatriculaLocal | null = null;
+    let real: MatriculaLocal | null = null;
+    if (m.esTemporal) {
+      temporal = m;
+      real = sustitutoReal ?? null;
+    } else if (m.sustituyeATemporalId) {
+      temporal = todosTemporales.find((x) => x.localId === m.sustituyeATemporalId) ?? null;
+      real = m;
+    }
+    if (!temporal || !real) return null;
+    if (nombresTemporalRealCoinciden(temporal, real)) return null;
+    return { realLocalId: real.localId, revisada: !!real.discrepanciaRevisada };
+  }, [m, sustitutoReal, todosTemporales]);
 
   async function abrirVisorPdf() {
     if (pdfBase64Preview) {
@@ -506,7 +537,48 @@ export default function LocalDetail({
                   {m.temporalEstado === "sustituido" ? "Fantasma sustituido" : "Alumno fantasma"}
                 </span>
               )}
+              {discrepancia && !discrepancia.revisada && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+                  style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-bg)" }}
+                  title="El nombre del alumno fantasma no coincide con el de la matrícula real vinculada. Revisa el emparejamiento."
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  DISCREPANCIA
+                </span>
+              )}
             </div>
+
+            {/* Gestión de la discrepancia de nombre: marcar como revisada o restaurar el aviso. */}
+            {discrepancia && !readOnly && onMarcarDiscrepanciaRevisada && (
+              <div className="mb-2 flex items-center gap-2 text-xs">
+                {discrepancia.revisada ? (
+                  <>
+                    <span className="text-[var(--tc-ink-mute)] inline-flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" style={{ color: "var(--tc-violet-ink)" }} />
+                      Discrepancia de nombre revisada
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onMarcarDiscrepanciaRevisada(discrepancia.realLocalId, false)}
+                      className="text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] underline underline-offset-2"
+                    >
+                      Restaurar aviso
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onMarcarDiscrepanciaRevisada(discrepancia.realLocalId, true)}
+                    title="He comprobado el emparejamiento y es correcto: ocultar el aviso de discrepancia."
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition-colors"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Marcar discrepancia como revisada
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Nombre editable */}
             <div className="flex gap-2 mb-2">
@@ -827,13 +899,24 @@ export default function LocalDetail({
                             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
                               SUSTITUIDO
                             </span>
+                            {!readOnly && onRevertirSustitucion && (
+                              <button
+                                type="button"
+                                onClick={() => onRevertirSustitucion(temporalSustituido.localId)}
+                                title="Deshacer sustitución"
+                                className="inline-flex items-center gap-1 text-xs text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] px-1.5 py-0.5 rounded-lg hover:bg-[var(--tc-bg-panel)] transition-colors"
+                              >
+                                <Undo2 className="w-3.5 h-3.5" />
+                                Deshacer
+                              </button>
+                            )}
                           </>
                         ) : (
                           <>
                             <select
                               value={m.sustituyeATemporalId ?? ""}
                               disabled={readOnly}
-                              onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null })}
+                              onChange={(e) => onSave({ sustituyeATemporalId: e.target.value || null, discrepanciaRevisada: false })}
                               className="text-sm py-1 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-[var(--tc-ink)] max-w-[320px]"
                             >
                               <option value="">— Ningún alumno fantasma —</option>
@@ -852,6 +935,44 @@ export default function LocalDetail({
                     </div>
                   );
                 })()}
+
+              {/* Ficha de un fantasma: muestra el alumno real vinculado/sustituto
+                  y permite romper la relación para rectificar. */}
+              {m.esTemporal && sustitutoReal && (
+                <div className="col-span-2">
+                  <p
+                    className="text-xs uppercase tracking-wide mb-0.5"
+                    style={{ color: "var(--tc-ink-mute)" }}
+                  >
+                    {m.temporalEstado === "sustituido" ? "Sustituido por" : "Vinculado con"}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-[var(--tc-ink)]">
+                      {sustitutoReal.apellidos}, {sustitutoReal.nombre}
+                    </span>
+                    {m.temporalEstado === "sustituido" ? (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
+                        SUSTITUIDO
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                        VINCULADO
+                      </span>
+                    )}
+                    {!readOnly && onRomperRelacion && (
+                      <button
+                        type="button"
+                        onClick={() => onRomperRelacion(m)}
+                        title="Romper la relación con este alumno"
+                        className="inline-flex items-center gap-1 text-xs text-[var(--tc-ink-mute)] hover:text-red-600 px-1.5 py-0.5 rounded-lg hover:bg-[var(--tc-bg-panel)] transition-colors"
+                      >
+                        <Link2Off className="w-3.5 h-3.5" />
+                        Romper relación
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </AccordionBlock>
 

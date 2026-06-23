@@ -176,12 +176,25 @@ const adminAPI = {
       ipcRenderer.invoke("presets:mostrarPredefinido", id),
   },
   informe: {
-    exportar: (payload: {
+    exportar: async (payload: {
       contenidoBase64: string;
       nombreArchivo: string;
       extension: "csv" | "xlsx" | "html" | "json";
-    }): Promise<string | null> =>
-      ipcRenderer.invoke("informe:exportar", payload),
+    }): Promise<string | null> => {
+      try {
+        return await ipcRenderer.invoke("informe:exportar", payload);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // El archivo destino está abierto en Excel (u otro programa) y Windows lo
+        // tiene bloqueado. Lanzamos el mensaje limpio que verá el usuario.
+        if (/EXCEL_FILE_LOCKED|EBUSY|EPERM|EACCES|resource busy or locked/i.test(msg)) {
+          throw new Error(
+            "Tiene abierto el archivo Excel. No podemos guardar en nuevo archivo hasta que cierres el que está abierto.",
+          );
+        }
+        throw e;
+      }
+    },
     seleccionarArchivo: (extensiones: string[]): Promise<{ fileName: string; base64: string; path: string } | null> =>
       ipcRenderer.invoke("archivo:seleccionar", extensiones),
   },

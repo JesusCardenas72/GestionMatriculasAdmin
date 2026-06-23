@@ -9,7 +9,7 @@ import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
 import TabBar, { type ActiveTab, TABS } from "../components/TabBar";
-import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
+
 import ErrorBoundary from "../components/ErrorBoundary";
 import SolicitudList from "../components/SolicitudList";
 import SolicitudDetail from "../components/SolicitudDetail";
@@ -378,27 +378,6 @@ export default function MainScreen({ config }: Props) {
                     <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Abrir copia de seguridad</p>
                     <p className="text-xs text-[var(--tc-ink-mute)] leading-tight">Restaurar datos desde un archivo (reemplazar o fusionar)</p>
                   </div>
-                </button>
-
-                <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />
-
-                {/* Alumnado Fantasma */}
-                <button
-                  onClick={() => { setSettingsMenuOpen(false); handleTabChange("temporales"); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
-                >
-                  <img src={alumnadoFantasmaIco} alt="" className="w-4 h-4 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">Alumnado Fantasma</p>
-                  </div>
-                  {temporalesPendientes > 0 && (
-                    <span
-                      className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold shrink-0"
-                      style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }}
-                    >
-                      {temporalesPendientes}
-                    </span>
-                  )}
                 </button>
 
                 <div className="h-px my-1" style={{ background: "var(--tc-border-soft)" }} />

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   Ghost,
@@ -14,40 +15,38 @@ import {
   X,
 } from "lucide-react";
 import type { MatriculaLocal } from "../api/types";
+import { nombresTemporalRealCoinciden } from "../utils/temporales";
 
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
 type RepetidorFilter = "all" | "repetidor" | "noRepetidor";
 type FantasmaFilter = "all" | "solo" | "quitar";
-type SustitucionFilter = "all" | "sinSust" | "yaSust";
+type SustitucionFilter = "all" | "pendiente" | "vinculado" | "sustituido" | "sinEstado" | "discrepancia";
 
-type SustitucionEstado = "sinSust" | "yaSust";
+type SustitucionEstado = "pendiente" | "vinculado" | "sustituido" | "sinEstado";
+
+// Etiquetas y colores del ciclo de sustitución (alineados con la pestaña Temporales:
+// Pendiente=naranja, Vinculado=azul, Sustituido=gris; «Sin Estado»=gris neutro para
+// el alumnado matriculado antes de que arrancara el sistema de Alumnado Fantasma).
+const SUST_BADGE: Record<SustitucionEstado, { label: string; full: string; compact: string }> = {
+  pendiente: { label: "Pendiente", full: "bg-orange-100 text-orange-700 border-orange-200", compact: "bg-orange-100 text-orange-700" },
+  vinculado: { label: "Vinculado", full: "bg-blue-100 text-blue-700 border-blue-200", compact: "bg-blue-100 text-blue-700" },
+  sustituido: { label: "Sustituido", full: "bg-slate-100 text-slate-600 border-slate-200", compact: "bg-slate-100 text-slate-600" },
+  sinEstado: { label: "Sin Estado", full: "bg-gray-100 text-gray-500 border-gray-200", compact: "bg-gray-100 text-gray-500" },
+};
 
 function SustitucionBadge({ estado, compact }: { estado: SustitucionEstado; compact?: boolean }) {
-  const yaSust = estado === "yaSust";
-  const label = yaSust ? "Ya Sust." : "Sin Sust.";
+  const s = SUST_BADGE[estado];
   if (compact) {
     return (
-      <span
-        className={
-          "shrink-0 px-1 py-px rounded text-[9px] font-semibold " +
-          (yaSust ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")
-        }
-      >
-        {label}
+      <span className={"shrink-0 px-1 py-px rounded text-[9px] font-semibold " + s.compact}>
+        {s.label}
       </span>
     );
   }
   return (
-    <span
-      className={
-        "shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold border " +
-        (yaSust
-          ? "bg-green-100 text-green-700 border-green-200"
-          : "bg-red-100 text-red-700 border-red-200")
-      }
-    >
-      {label}
+    <span className={"shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold border " + s.full}>
+      {s.label}
     </span>
   );
 }
@@ -108,7 +107,7 @@ function groupPairs(data: MatriculaLocal[]): GroupedItem[] {
 
 // ── Tarjeta individual (single) ───────────────────────────────────────────────
 
-function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: SustitucionEstado | null) {
+function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: SustitucionEstado | null, discrepancia = false) {
   const numero = m.nOrden != null ? String(m._nOrdenDisplay ?? m.nOrden) : null;
   const digits = numero ? numero.length : 1;
   const fontSize = digits >= 3 ? 28 : digits === 2 ? 36 : 40;
@@ -175,7 +174,17 @@ function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: Sus
               {m.temporalEstado === "sustituido" ? "SUSTITUIDO" : "FANTASMA"}
             </span>
           )}
-          {sustEstado && <SustitucionBadge estado={sustEstado} />}
+          {sustEstado && sustEstado !== "sinEstado" && !m.esTemporal && <SustitucionBadge estado={sustEstado} />}
+          {discrepancia && (
+            <span
+              className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border"
+              style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-bg)" }}
+              title="El nombre del alumno fantasma no coincide con el de la matrícula real vinculada."
+            >
+              <AlertTriangle className="w-3 h-3" />
+              DISCREPANCIA
+            </span>
+          )}
           {m.repetidor && (
             <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REPETIDOR</span>
           )}
@@ -198,10 +207,12 @@ interface SingleRowProps {
   isSelected: boolean;
   onSelect: (m: MatriculaLocal) => void;
   nuevoEstadoPorId: Map<string, SustitucionEstado>;
+  discrepanciaPorId: Set<string>;
 }
 
-function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId }: SingleRowProps) {
+function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId, discrepanciaPorId }: SingleRowProps) {
   const sustEstado = nuevoEstadoPorId.get(m.localId) ?? null;
+  const discrepancia = discrepanciaPorId.has(m.localId);
   return (
     <button
       onClick={() => onSelect(m)}
@@ -234,7 +245,17 @@ function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId }: SingleRowProps
               {m.temporalEstado === "sustituido" ? "Sust." : "Fant."}
             </span>
           )}
-          {sustEstado && <SustitucionBadge estado={sustEstado} compact />}
+          {sustEstado && sustEstado !== "sinEstado" && !m.esTemporal && <SustitucionBadge estado={sustEstado} compact />}
+          {discrepancia && (
+            <span
+              className="shrink-0 inline-flex items-center gap-0.5 px-1 py-px rounded text-[9px] font-bold"
+              style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}
+              title="El nombre del alumno fantasma no coincide con el de la matrícula real vinculada."
+            >
+              <AlertTriangle className="w-2.5 h-2.5" />
+              Discr.
+            </span>
+          )}
           {m.ampliacion && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>Amp.</span>
           )}
@@ -250,7 +271,7 @@ function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId }: SingleRowProps
 
       {/* Full content */}
       <div className="loc-expanded">
-        {renderCardContent(m, isSelected, sustEstado)}
+        {renderCardContent(m, isSelected, sustEstado, discrepancia)}
       </div>
     </button>
   );
@@ -265,9 +286,10 @@ interface PairRowProps {
   selectedId: string | null;
   onSelect: (m: MatriculaLocal) => void;
   nuevoEstadoPorId: Map<string, SustitucionEstado>;
+  discrepanciaPorId: Set<string>;
 }
 
-function PairRow({ ampliacion, original, selectedId, onSelect, nuevoEstadoPorId }: PairRowProps) {
+function PairRow({ ampliacion, original, selectedId, onSelect, nuevoEstadoPorId, discrepanciaPorId }: PairRowProps) {
   const OFFSET = 10;
   const ampSelected = ampliacion.localId === selectedId;
   const origSelected = original.localId === selectedId;
@@ -306,7 +328,7 @@ function PairRow({ ampliacion, original, selectedId, onSelect, nuevoEstadoPorId 
           transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
         }}
       >
-        {renderCardContent(ampliacion, ampSelected, nuevoEstadoPorId.get(ampliacion.localId) ?? null)}
+        {renderCardContent(ampliacion, ampSelected, nuevoEstadoPorId.get(ampliacion.localId) ?? null, discrepanciaPorId.has(ampliacion.localId))}
       </button>
 
       {/* Original (debajo, asomando) */}
@@ -334,7 +356,7 @@ function PairRow({ ampliacion, original, selectedId, onSelect, nuevoEstadoPorId 
           transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), margin-top 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
         }}
       >
-        {renderCardContent(original, origSelected, nuevoEstadoPorId.get(original.localId) ?? null)}
+        {renderCardContent(original, origSelected, nuevoEstadoPorId.get(original.localId) ?? null, discrepanciaPorId.has(original.localId))}
       </button>
     </div>
   );
@@ -404,32 +426,67 @@ export default function LocalList({
     return { ensenanzas, especialidades };
   }, [data, filterEnsenanza]);
 
-  // Estado del «nuevo alumnado»: matrículas reales recibidas en o después de la
-  // «Fecha programada» del Asistente (se usa `createdon`, la fecha de recepción de
-  // la matrícula, ya que `fechaInscripcion` suele venir vacía desde Dataverse).
-  // "yaSust" si su sustitución ya se ejecutó (el fantasma vinculado quedó
-  // "sustituido" o ya se eliminó tras la fusión); "sinSust" en caso contrario.
+  // Estado del ciclo de sustitución por registro (refleja la pestaña Temporales):
+  //  · "pendiente"  → alumno temporal aún sin matrícula real vinculada.
+  //  · "vinculado"  → matrícula real ligada a un temporal pendiente (sustitución no ejecutada).
+  //  · "sustituido" → matrícula real cuyo temporal ya se sustituyó (o se eliminó tras la fusión).
+  //  · "sinEstado"  → alumnado real matriculado ANTES de la fecha de corte del Asistente
+  //                   (Paso 1, vía `createdon`): predatan el sistema de Alumnado Fantasma,
+  //                   por lo que no tienen ninguno de los estados del ciclo de sustitución.
+  // Los temporales vinculados/sustituidos no se clasifican: su estado lo representa la
+  // matrícula real correspondiente (y la tarjeta del temporal ya muestra «FANTASMA»/«SUSTITUIDO»).
   const nuevoEstadoPorId = useMemo(() => {
     const map = new Map<string, SustitucionEstado>();
-    if (!fechaCorte) return map;
 
     const fantasmaPorId = new Map<string, MatriculaLocal>();
-    for (const m of data) if (m.esTemporal) fantasmaPorId.set(m.localId, m);
+    const realPorTemporalId = new Map<string, MatriculaLocal>();
+    for (const m of data) {
+      if (m.esTemporal) fantasmaPorId.set(m.localId, m);
+      else if (m.sustituyeATemporalId) realPorTemporalId.set(m.sustituyeATemporalId, m);
+    }
 
+    // Temporales: "pendiente" solo si sigue pendiente y ninguna matrícula real lo vincula.
+    for (const m of data) {
+      if (!m.esTemporal || m.temporalEstado === "sustituido") continue;
+      if (!realPorTemporalId.has(m.localId)) map.set(m.localId, "pendiente");
+    }
+
+    // Matrículas reales.
     for (const m of data) {
       if (m.esTemporal) continue;
-      const recibida = (m.createdon ?? "").slice(0, 10);
-      if (!recibida || recibida < fechaCorte) continue; // recibida antes del corte → no es nuevo alumnado
-
-      let yaSust = false;
       if (m.sustituyeATemporalId) {
         const t = fantasmaPorId.get(m.sustituyeATemporalId);
-        yaSust = !t || t.temporalEstado === "sustituido";
+        const sustituido = !t || t.temporalEstado === "sustituido";
+        map.set(m.localId, sustituido ? "sustituido" : "vinculado");
+        continue;
       }
-      map.set(m.localId, yaSust ? "yaSust" : "sinSust");
+      // Sin vínculo: "Sin Estado" para el alumnado matriculado ANTES de la fecha de
+      // corte del Asistente (predatan el sistema de Alumnado Fantasma).
+      if (!fechaCorte) continue;
+      const recibida = (m.createdon ?? "").slice(0, 10);
+      if (!recibida || recibida >= fechaCorte) continue;
+      map.set(m.localId, "sinEstado");
     }
     return map;
   }, [data, fechaCorte]);
+
+  // localIds (tanto del fantasma como de la matrícula real) cuyos nombres no
+  // coinciden en una pareja vinculada/sustituida: posible emparejamiento erróneo.
+  const discrepanciaPorId = useMemo(() => {
+    const set = new Set<string>();
+    const fantasmaPorId = new Map<string, MatriculaLocal>();
+    for (const m of data) if (m.esTemporal) fantasmaPorId.set(m.localId, m);
+    for (const m of data) {
+      if (m.esTemporal || !m.sustituyeATemporalId) continue;
+      if (m.discrepanciaRevisada) continue; // ya revisada manualmente: no se avisa
+      const t = fantasmaPorId.get(m.sustituyeATemporalId);
+      if (t && !nombresTemporalRealCoinciden(t, m)) {
+        set.add(m.localId);
+        set.add(t.localId);
+      }
+    }
+    return set;
+  }, [data]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -440,10 +497,11 @@ export default function LocalList({
       if (filterRepetidor === "noRepetidor" && m.repetidor) return false;
       if (filterFantasma === "solo" && !m.esTemporal) return false;
       if (filterFantasma === "quitar" && m.esTemporal) return false;
-      if (filterSustitucion !== "all") {
+      if (filterSustitucion === "discrepancia") {
+        if (!discrepanciaPorId.has(m.localId)) return false;
+      } else if (filterSustitucion !== "all") {
         const est = nuevoEstadoPorId.get(m.localId) ?? null;
-        if (filterSustitucion === "sinSust" && est !== "sinSust") return false;
-        if (filterSustitucion === "yaSust" && est !== "yaSust") return false;
+        if (est !== filterSustitucion) return false;
       }
       if (needle && !`${m.nombre} ${m.apellidos} ${m.dni}`.toLowerCase().includes(needle))
         return false;
@@ -468,7 +526,7 @@ export default function LocalList({
           return sign * ((a.nOrden ?? Infinity) - (b.nOrden ?? Infinity));
       }
     });
-  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, filterSustitucion, nuevoEstadoPorId, sort]);
+  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, filterSustitucion, nuevoEstadoPorId, discrepanciaPorId, sort]);
 
   const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
@@ -555,26 +613,22 @@ export default function LocalList({
 
   function handleFantasmaClick() {
     setFilterFantasma((prev) => {
-      if (prev === "all") return "solo";
-      if (prev === "solo") return "quitar";
+      if (prev === "all") return "quitar";
+      if (prev === "quitar") return "solo";
       return "all";
     });
   }
 
   function handleSustitucionClick() {
     setFilterSustitucion((prev) => {
-      if (prev === "all") return "sinSust";
-      if (prev === "sinSust") return "yaSust";
+      if (prev === "all") return "pendiente";
+      if (prev === "pendiente") return "vinculado";
+      if (prev === "vinculado") return "sustituido";
+      if (prev === "sustituido") return "sinEstado";
+      if (prev === "sinEstado") return "discrepancia";
       return "all";
     });
   }
-
-  const hasFilters =
-    filterEnsenanza ||
-    filterEspecialidad ||
-    filterRepetidor !== "all" ||
-    filterFantasma !== "all" ||
-    filterSustitucion !== "all";
 
   return (
     <div className="flex flex-col h-full">
@@ -664,15 +718,6 @@ export default function LocalList({
           </select>
         </div>
 
-        {hasFilters && (
-          <button
-            onClick={() => { setFilterEnsenanza(""); setFilterEspecialidad(""); setFilterRepetidor("all"); setFilterFantasma("all"); setFilterSustitucion("all"); }}
-            className="self-start text-xs text-[var(--tc-primary)] font-medium hover:underline"
-          >
-            Limpiar filtros
-          </button>
-        )}
-
         <div className="bg-[var(--tc-bg-panel)] rounded-full p-1 flex items-center gap-0.5 flex-wrap border border-[var(--tc-border-soft)]">
           {SORT_BUTTONS.map(({ field, label }) => {
             const active = sort.field === field;
@@ -709,7 +754,7 @@ export default function LocalList({
           </button>
           <button
             onClick={handleFantasmaClick}
-            title="Filtrar fantasmas: Solo los fantasmas › Quitar los fantasmas › Mostrar todos"
+            title="Filtrar fantasmas: No alumnado fantasma › Sí alumnado fantasma › Todos"
             className={
               "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
               (filterFantasma !== "all"
@@ -718,24 +763,34 @@ export default function LocalList({
             }
           >
             <Ghost className="w-3.5 h-3.5 shrink-0" />
-            {filterFantasma === "solo" && "Solo"}
-            {filterFantasma === "quitar" && "Quitar"}
+            {filterFantasma === "quitar" && "No"}
+            {filterFantasma === "solo" && "Sí"}
           </button>
           <button
             onClick={handleSustitucionClick}
-            title="Filtrar nuevo alumnado: Sin sustitución › Ya sustituidos › Mostrar todos"
+            title="Filtrar sustitución: Pendientes › Vinculados › Sustituidos › Sin Estado › Discrepancia › Mostrar todos"
             className={
               "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
-              (filterSustitucion === "sinSust"
-                ? "bg-[var(--tc-card)] shadow-sm text-red-600"
-                : filterSustitucion === "yaSust"
-                  ? "bg-[var(--tc-card)] shadow-sm text-green-600"
-                  : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
+              (filterSustitucion === "pendiente"
+                ? "bg-[var(--tc-card)] shadow-sm text-orange-600"
+                : filterSustitucion === "vinculado"
+                  ? "bg-[var(--tc-card)] shadow-sm text-blue-600"
+                  : filterSustitucion === "sustituido"
+                    ? "bg-[var(--tc-card)] shadow-sm text-slate-600"
+                    : filterSustitucion === "sinEstado"
+                      ? "bg-[var(--tc-card)] shadow-sm text-gray-500"
+                      : filterSustitucion === "discrepancia"
+                        ? "bg-[var(--tc-card)] shadow-sm"
+                        : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
             }
+            style={filterSustitucion === "discrepancia" ? { color: "var(--tc-violet-ink)" } : undefined}
           >
             <Repeat className="w-3.5 h-3.5 shrink-0" />
-            {filterSustitucion === "sinSust" && "Sin Sust."}
-            {filterSustitucion === "yaSust" && "Ya Sust."}
+            {filterSustitucion === "pendiente" && "Pendientes"}
+            {filterSustitucion === "vinculado" && "Vinculados"}
+            {filterSustitucion === "sustituido" && "Sustituidos"}
+            {filterSustitucion === "sinEstado" && "Sin Estado"}
+            {filterSustitucion === "discrepancia" && "Discrepancia"}
           </button>
         </div>
 
@@ -800,6 +855,7 @@ export default function LocalList({
                       selectedId={selectedId}
                       onSelect={onSelect}
                       nuevoEstadoPorId={nuevoEstadoPorId}
+                      discrepanciaPorId={discrepanciaPorId}
                     />
                   </div>
                 );
@@ -826,6 +882,7 @@ export default function LocalList({
                     isSelected={isSelected}
                     onSelect={onSelect}
                     nuevoEstadoPorId={nuevoEstadoPorId}
+                    discrepanciaPorId={discrepanciaPorId}
                   />
                 </div>
               );

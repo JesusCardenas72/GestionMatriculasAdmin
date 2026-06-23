@@ -12,6 +12,7 @@ import {
   Link2,
   Link2Off,
   Trash2,
+  Undo2,
   UserCheck,
   Users,
   X,
@@ -312,6 +313,26 @@ export default function TemporalesScreen({
     if (!window.confirm(aviso)) return;
     if (real) await actualizar(real.localId, { sustituyeATemporalId: null });
     await eliminar(t.localId);
+  };
+
+  const handleRevertirSustitucion = async (t: MatriculaLocal) => {
+    if (t.temporalEstado !== "sustituido") return;
+    const sustituto = t.sustituidoPorLocalId ? porLocalId.get(t.sustituidoPorLocalId) : null;
+    // ¿Sigue la matrícula real apuntando a este fantasma? Si es así, al revertir
+    // vuelve a quedar «vinculado»; si no, pasa directamente a «pendiente».
+    const realSigueVinculada =
+      !!sustituto && sustituto.sustituyeATemporalId === t.localId;
+    const destino = realSigueVinculada ? "vinculado" : "pendiente";
+    const quien = sustituto ? `${sustituto.apellidos}, ${sustituto.nombre}` : "el alumno real";
+    const aviso =
+      `¿Deshacer la sustitución de "${nombreVisibleTemporal(t)}" por ${quien}?\n\n` +
+      `El alumno fantasma volverá al estado «${destino}» y reaparecerá en informes y en el Excel de horarios.` +
+      (realSigueVinculada
+        ? ` Si quieres dejarlo además sin vínculo, usa después «Quitar vínculo».`
+        : "");
+    if (!window.confirm(aviso)) return;
+    await actualizar(t.localId, { temporalEstado: "pendiente", sustituidoPorLocalId: null });
+    setMensaje(`Sustitución deshecha: "${nombreVisibleTemporal(t)}" vuelve al estado «${destino}».`);
   };
 
   const handleDesvincular = async (t: MatriculaLocal) => {
@@ -692,6 +713,15 @@ export default function TemporalesScreen({
                                                   className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition-colors"
                                                 >
                                                   <Link2Off className="w-4 h-4" />
+                                                </button>
+                                              )}
+                                              {estado === "sustituido" && (
+                                                <button
+                                                  onClick={() => handleRevertirSustitucion(t)}
+                                                  title="Deshacer sustitución"
+                                                  className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition-colors"
+                                                >
+                                                  <Undo2 className="w-4 h-4" />
                                                 </button>
                                               )}
                                               <button
