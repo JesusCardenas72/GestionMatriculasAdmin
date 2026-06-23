@@ -99,9 +99,11 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
   const [filtroEmail, setFiltroEmail] = useState<"todos" | "conEmail" | "sinEmail">("todos");
 
   // Modal de envío
+  const MENSAJE_DEFAULT = `Les recordamos que el plazo para solicitar el cambio de grupo finaliza el próximo 8 de julio.\nPor otra parte, les aclaramos que los horarios facilitados corresponden únicamente a las clases grupales. El resto de las clases se irán conformando más adelante directamente por el equipo docente de cada alumno.\nPara realizar la solicitud de cambio, pueden elegir una de las siguientes vías:\nPor correo electrónico: Respondiendo a este mismo mensaje y adjuntando el formulario debidamente cumplimentado. Pueden descargar el documento en el siguiente enlace: [Formulario de solicitud de cambio de grupo](https://www.conservatoriociudadreal.es/wp-content/uploads/2022/07/SolicitudCambioGrupo.pdf).\nDe forma presencial: Acudiendo a la Secretaría del Conservatorio y presentando el mismo modelo de solicitud. Les recordamos que nuestro horario de atención al público es de 9:00 a 14:00 horas.`;
   const [showEnviarModal, setShowEnviarModal] = useState(false);
   const [nombreCampanya, setNombreCampanya] = useState("");
   const [descripcionCampanya, setDescripcionCampanya] = useState("");
+  const [mensajeCampanya, setMensajeCampanya] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
   const [resultadoEnvio, setResultadoEnvio] = useState<ResultadoEnvio[] | null>(null);
@@ -503,6 +505,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
     alumnosParaEnviar.current = limpias;
     setNombreCampanya("");
     setDescripcionCampanya("");
+    setMensajeCampanya(MENSAJE_DEFAULT);
     setResultadoEnvio(null);
     setProgreso(null);
     setShowEnviarModal(true);
@@ -527,7 +530,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       setProgreso({ actual: i + 1, total: destinatarios.length });
       try {
         const horarioHtml = buildHorarioHtml(alumno, anio);
-        const emailHtml = buildHorarioEmailHtml(alumno, anio);
+        const emailHtml = buildHorarioEmailHtml(alumno, anio, mensajeCampanya.trim() || undefined);
         const pdfRes = await window.adminAPI.pdf.generarBase64(horarioHtml, true);
         if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "PDF no generado");
         const nombreBase = `Horario ${alumno.nombre}`.replace(/[\\/:*?"<>|]/g, "_");
@@ -1176,8 +1179,10 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
           total={alumnosParaEnviar.current.length}
           nombreCampanya={nombreCampanya}
           descripcionCampanya={descripcionCampanya}
+          mensajeCampanya={mensajeCampanya}
           onNombre={setNombreCampanya}
           onDescripcion={setDescripcionCampanya}
+          onMensaje={setMensajeCampanya}
           enviando={enviando}
           progreso={progreso}
           resultado={resultadoEnvio}
@@ -1411,14 +1416,17 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
 }
 
 function EnviarModal({
-  total, nombreCampanya, descripcionCampanya, onNombre, onDescripcion,
+  total, nombreCampanya, descripcionCampanya, mensajeCampanya,
+  onNombre, onDescripcion, onMensaje,
   enviando, progreso, resultado, onConfirmar, onCerrar,
 }: {
   total: number;
   nombreCampanya: string;
   descripcionCampanya: string;
+  mensajeCampanya: string;
   onNombre: (v: string) => void;
   onDescripcion: (v: string) => void;
+  onMensaje: (v: string) => void;
   enviando: boolean;
   progreso: { actual: number; total: number } | null;
   resultado: ResultadoEnvio[] | null;
@@ -1470,6 +1478,22 @@ function EnviarModal({
                   onChange={e => onDescripcion(e.target.value)}
                   placeholder="Notas sobre esta tanda de envíos…"
                   rows={2}
+                  disabled={enviando}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)] resize-none disabled:opacity-60"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[var(--tc-ink-soft)] mb-1 uppercase tracking-wide">
+                  Mensaje para el correo (opcional)
+                </label>
+                <p className="text-[11px] text-[var(--tc-ink-mute)] mb-1.5 leading-snug">
+                  Aparecerá resaltado en el correo, justo después del texto introductorio.
+                </p>
+                <textarea
+                  value={mensajeCampanya}
+                  onChange={e => onMensaje(e.target.value)}
+                  placeholder="p. ej. Las clases comienzan el lunes 8 de septiembre. Recuerda traer el material…"
+                  rows={3}
                   disabled={enviando}
                   className="w-full px-3 py-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)] resize-none disabled:opacity-60"
                 />
