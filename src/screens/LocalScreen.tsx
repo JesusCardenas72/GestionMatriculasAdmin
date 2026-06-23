@@ -281,6 +281,38 @@ export default function LocalScreen({ config }: Props) {
     qc,
   ]);
 
+  // Reconciliación de punteros de sustitución. La relación fantasma↔real es
+  // bidireccional: el fantasma «sustituido» guarda `sustituidoPorLocalId` (→ real)
+  // y la matrícula real debe guardar el puntero inverso `sustituyeATemporalId`
+  // (→ fantasma). Algunas operaciones (p. ej. «Quitar vínculo») o datos de
+  // versiones antiguas podían dejar la real sin su puntero directo: el fantasma
+  // quedaba «sustituido» pero la ficha real mostraba el desplegable vacío. Aquí
+  // se restaura el vínculo directo cuando falta.
+  //
+  // Se ejecuta UNA sola vez por curso (ref): `actualizar` tiene referencia
+  // inestable y cada escritura invalida la query, así que dejarlo reactivo
+  // provocaría un bucle de recargas ("Cargando" infinito).
+  const reconciliadoRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isLoading || isSyncingRef.current) return;
+    if (reconciliadoRef.current === curso) return;
+    reconciliadoRef.current = curso; // marcar antes de escribir → sin reintentos
+    const porLocalId = new Map(matriculas.map((m) => [m.localId, m] as const));
+    const arreglos: Array<{ realLocalId: string; temporalId: string }> = [];
+    for (const t of matriculas) {
+      if (!t.esTemporal || t.temporalEstado !== "sustituido" || !t.sustituidoPorLocalId) continue;
+      const real = porLocalId.get(t.sustituidoPorLocalId);
+      if (!real || real.esTemporal || real.sustituyeATemporalId) continue;
+      arreglos.push({ realLocalId: real.localId, temporalId: t.localId });
+    }
+    if (arreglos.length === 0) return;
+    (async () => {
+      for (const a of arreglos) {
+        await actualizar(a.realLocalId, { sustituyeATemporalId: a.temporalId });
+      }
+    })();
+  }, [isLoading, matriculas, actualizar, curso]);
+
   // Mantiene el panel derecho actualizado si el registro seleccionado cambia en la lista
   useEffect(() => {
     if (!selected) return;

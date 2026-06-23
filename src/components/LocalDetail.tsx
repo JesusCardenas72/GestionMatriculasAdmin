@@ -870,20 +870,34 @@ export default function LocalDetail({
                 disabled={readOnly}
               />
               {/* Vínculo con alumno fantasma (mismo curso y especialidad).
-                  Solo visible dentro del rango de fechas fijado en el asistente. */}
-              {!m.esTemporal && selectorVisible &&
+                  La ELECCIÓN de un fantasma nuevo solo se ofrece dentro del rango
+                  de fechas fijado en el asistente (`selectorVisible`). En cambio,
+                  una sustitución ya ejecutada o un vínculo pendiente se muestran
+                  SIEMPRE (en solo lectura fuera de plazo) para poder consultarlos
+                  o deshacerlos. */}
+              {!m.esTemporal &&
                 (() => {
                   const candidatos = temporalesPendientes.filter(
                     (t) =>
                       t.ensenanzaCurso === m.ensenanzaCurso &&
                       (t.especialidad ?? "") === (m.especialidad ?? ""),
                   );
-                  const temporalSustituido = m.sustituyeATemporalId
-                    ? todosTemporales.find(
-                        (t) => t.localId === m.sustituyeATemporalId && t.temporalEstado === "sustituido",
-                      )
+                  const temporalVinculado = m.sustituyeATemporalId
+                    ? todosTemporales.find((t) => t.localId === m.sustituyeATemporalId)
                     : undefined;
-                  if (candidatos.length === 0 && !m.sustituyeATemporalId && !temporalSustituido) return null;
+                  // Una sustitución ya ejecutada se reconoce por dos vías:
+                  //  · puntero directo (la real apunta al fantasma), o
+                  //  · puntero inverso (el fantasma «sustituido» apunta a esta
+                  //    real). El inverso permite recuperar la relación aunque la
+                  //    matrícula real haya perdido su `sustituyeATemporalId`.
+                  const temporalSustituido =
+                    (temporalVinculado?.temporalEstado === "sustituido" ? temporalVinculado : undefined) ??
+                    todosTemporales.find(
+                      (t) => t.temporalEstado === "sustituido" && t.sustituidoPorLocalId === m.localId,
+                    );
+                  // Sin vínculo (directo ni inverso) y sin posibilidad de elegir
+                  // (fuera de plazo o sin candidatos) → no hay nada que mostrar.
+                  if (!m.sustituyeATemporalId && !temporalSustituido && (!selectorVisible || candidatos.length === 0)) return null;
                   return (
                     <div className="col-span-2">
                       <p
@@ -911,7 +925,7 @@ export default function LocalDetail({
                               </button>
                             )}
                           </>
-                        ) : (
+                        ) : selectorVisible ? (
                           <>
                             <select
                               value={m.sustituyeATemporalId ?? ""}
@@ -929,6 +943,17 @@ export default function LocalDetail({
                                 Pendiente de ejecutar en Alumnado Fantasma
                               </span>
                             )}
+                          </>
+                        ) : (
+                          /* Fuera de la ventana de fechas pero con un vínculo
+                             pendiente: se muestra en solo lectura. */
+                          <>
+                            <span className="text-sm text-[var(--tc-ink)]">
+                              {temporalVinculado ? nombreVisibleTemporal(temporalVinculado) : "—"}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                              Pendiente de ejecutar en Alumnado Fantasma
+                            </span>
                           </>
                         )}
                       </div>
