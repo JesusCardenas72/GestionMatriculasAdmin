@@ -89,6 +89,7 @@ export default function TemporalesScreen({
   const [ordenarPor, setOrdenarPor] = useState<OrdenarPor>("numero");
   const [subAgrupar, setSubAgrupar] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<EstadoTemporal | null>(null);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [asistenteAbierto, setAsistenteAbierto] = useState(true);
   const [listaAbierto, setListaAbierto] = useState(true);
   const [asistenteHeight, setAsistenteHeight] = useState<number | null>(null);
@@ -305,6 +306,10 @@ export default function TemporalesScreen({
   const nSustituidos = temporales.filter((t) => t.temporalEstado === "sustituido").length;
   const nPendientes = temporales.length - nVinculados - nSustituidos;
 
+  const todosVisibesSeleccionados =
+    temporalesFiltrados.length > 0 && temporalesFiltrados.every((t) => seleccionados.has(t.localId));
+  const algunoVisibleSeleccionado = temporalesFiltrados.some((t) => seleccionados.has(t.localId));
+
   const handleEliminar = async (t: MatriculaLocal) => {
     const real = vinculadosPor.get(t.localId);
     const aviso = real
@@ -357,7 +362,51 @@ export default function TemporalesScreen({
       if (real) await actualizar(real.localId, { sustituyeATemporalId: null });
       await eliminar(t.localId);
     }
+    setSeleccionados(new Set());
     setMensaje(`Eliminados ${temporales.length} alumno(s) fantasma.`);
+  };
+
+  const toggleSeleccion = (localId: string) => {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(localId)) next.delete(localId);
+      else next.add(localId);
+      return next;
+    });
+  };
+
+  const seleccionarTodosFiltrados = () => {
+    const ids = temporalesFiltrados.map((t) => t.localId);
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (todosVisibesSeleccionados) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleEliminarSeleccionados = async () => {
+    if (seleccionados.size === 0) return;
+    const aEliminar = temporales.filter((t) => seleccionados.has(t.localId));
+    if (aEliminar.length === 0) return;
+    const nVinc = aEliminar.filter((t) => estadoDe(t) === "vinculado").length;
+    const nSus = aEliminar.filter((t) => estadoDe(t) === "sustituido").length;
+    const aviso =
+      `¿Eliminar ${aEliminar.length} alumno(s) fantasma seleccionado(s)?\n\n` +
+      (nVinc > 0 ? `Se quitarán ${nVinc} vínculo(s) con matrículas reales.\n` : "") +
+      (nSus > 0 ? `Se perderán ${nSus} sustitución(es) ya ejecutada(s).\n` : "") +
+      `\nEsta acción no se puede deshacer.`;
+    if (!window.confirm(aviso)) return;
+    for (const t of aEliminar) {
+      const real = vinculadosPor.get(t.localId);
+      if (real) await actualizar(real.localId, { sustituyeATemporalId: null });
+      await eliminar(t.localId);
+    }
+    setSeleccionados(new Set());
+    setMensaje(`Eliminados ${aEliminar.length} alumno(s) fantasma.`);
   };
 
   const handleCargarProfesores = async () => {
@@ -624,6 +673,33 @@ export default function TemporalesScreen({
                   </button>
                 )}
 
+                {!isSoloLectura && temporalesFiltrados.length > 0 && (
+                  <button
+                    onClick={seleccionarTodosFiltrados}
+                    title={todosVisibesSeleccionados ? "Deseleccionar los visibles" : filtroEstado ? "Seleccionar todos los filtrados" : "Seleccionar todos"}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors whitespace-nowrap ${
+                      algunoVisibleSeleccionado
+                        ? "border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100"
+                        : "border-[var(--tc-border)] bg-[var(--tc-bg)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]"
+                    }`}
+                  >
+                    <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded border text-[9px] font-bold shrink-0 ${
+                      todosVisibesSeleccionados
+                        ? "bg-blue-500 border-blue-500 text-white"
+                        : algunoVisibleSeleccionado
+                        ? "bg-blue-100 border-blue-400 text-blue-600"
+                        : "bg-transparent border-current"
+                    }`}>
+                      {todosVisibesSeleccionados ? "✓" : algunoVisibleSeleccionado ? "−" : ""}
+                    </span>
+                    {todosVisibesSeleccionados
+                      ? "Deseleccionar"
+                      : filtroEstado
+                      ? "Sel. filtrados"
+                      : "Seleccionar"}
+                  </button>
+                )}
+
                 {!isSoloLectura && temporales.length > 0 && (
                   <button
                     onClick={handleEliminarTodos}
@@ -635,6 +711,28 @@ export default function TemporalesScreen({
                   </button>
                 )}
               </div>
+              {!isSoloLectura && seleccionados.size > 0 && (
+                <div className="flex items-center gap-2 mb-2.5 px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+                  <span className="text-xs font-medium text-blue-700">
+                    {seleccionados.size} seleccionado{seleccionados.size === 1 ? "" : "s"}
+                  </span>
+                  <button
+                    onClick={handleEliminarSeleccionados}
+                    className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-white px-3 py-1 text-xs text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Eliminar seleccionados
+                  </button>
+                  <button
+                    onClick={() => setSeleccionados(new Set())}
+                    title="Limpiar selección"
+                    className="ml-auto inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-2 py-1 text-xs text-blue-500 hover:text-blue-700 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               {listaAbierto && (
                 <>
                 {isLoading ? (
@@ -679,7 +777,20 @@ export default function TemporalesScreen({
                                         onMouseEnter={(e) => handleHoverEnter(t.localId, e)}
                                         onMouseLeave={handleHoverLeave}
                                       >
-                                        <div className="flex items-center gap-3 rounded-xl border border-[var(--tc-border-soft)] bg-[var(--tc-bg)] px-3 py-2">
+                                        <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition-colors ${
+                                          seleccionados.has(t.localId)
+                                            ? "border-blue-300 bg-blue-50"
+                                            : "border-[var(--tc-border-soft)] bg-[var(--tc-bg)]"
+                                        }`}>
+                                          {!isSoloLectura && (
+                                            <input
+                                              type="checkbox"
+                                              checked={seleccionados.has(t.localId)}
+                                              onChange={() => toggleSeleccion(t.localId)}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="w-4 h-4 rounded shrink-0 cursor-pointer accent-blue-500"
+                                            />
+                                          )}
                                           <span className="text-sm font-medium text-[var(--tc-ink)] flex-1 min-w-0 truncate">
                                             {nombreVisibleTemporal(t)}
                                           </span>
