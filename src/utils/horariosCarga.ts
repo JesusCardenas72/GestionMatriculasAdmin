@@ -35,7 +35,7 @@ export interface CargaExcelHorariosResult {
 export async function cargarExcelHorarios(
   curso: string,
 ): Promise<CargaExcelHorariosResult | null> {
-  const sel = await window.adminAPI.horarios.cargarExcelRelleno();
+  const sel = await window.adminAPI.horarios.seleccionarExcelRelleno();
   if (!sel) return null;
 
   const carga = await parseHorariosExcel(sel.base64, sel.fileName);

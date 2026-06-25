@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Download,
   Upload,
@@ -69,6 +69,7 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
   const [seleccionId, setSeleccionId] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const cargar = async () => {
     setCargando(true);
@@ -86,6 +87,14 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
     void cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curso, reloadToken]);
+
+  useEffect(() => {
+    if (editandoId) {
+      // setTimeout garantiza el foco tras el repintado en Electron
+      const t = setTimeout(() => editInputRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [editandoId]);
 
   const handleExportar = async () => {
     setExportando(true);
@@ -282,7 +291,7 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
                       {editando ? (
                         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                           <input
-                            autoFocus
+                            ref={editInputRef}
                             value={editNombre}
                             onChange={(e) => setEditNombre(e.target.value)}
                             onKeyDown={(e) => {
