@@ -153,6 +153,14 @@ function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: Sus
               <Upload className="w-3 h-3" />
             </span>
           )}
+          {m._fueEditado && !m._pendienteSubida && (
+            <span
+              className="shrink-0 px-1.5 py-px rounded-full text-[9px] font-bold border"
+              style={{ background: "var(--tc-success-bg)", color: "var(--tc-success-ink)", borderColor: "var(--tc-success-border)" }}
+            >
+              ED
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 min-w-0">
           <span

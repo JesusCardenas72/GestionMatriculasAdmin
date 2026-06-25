@@ -54,6 +54,7 @@ export function solicitudALocal(
     _pendienteSubida: false,
     _guardadoEn: now,
     _modificadoEn: now,
+    _nubeModificadoEn: s.modifiedon,
     _tienePdf: false,
   });
 }

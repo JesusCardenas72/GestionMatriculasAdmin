@@ -22,6 +22,7 @@ export interface Solicitud {
   cp: string | null;
   fechaInscripcion: string;
   createdon: string;
+  modifiedon: string;
   cursoEscolar: string | null;
   ensenanzaCurso: string;
   especialidad: string | null;
@@ -323,8 +324,12 @@ export interface MatriculaLocal {
   discrepanciaRevisada?: boolean;
 
   _pendienteSubida: boolean;
+  /** true tras una subida exitosa a Dataverse de un registro editado localmente. */
+  _fueEditado?: boolean;
   _guardadoEn: string;
   _modificadoEn: string;
+  /** Valor de modifiedon de Dataverse en la última descarga. Null en registros creados localmente. */
+  _nubeModificadoEn?: string | null;
   /** @deprecated Reemplazado por ficheros sueltos. Mantenido solo para migración. */
   _pdfBase64?: string | null;
   _tienePdf: boolean;

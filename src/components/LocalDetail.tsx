@@ -105,6 +105,8 @@ interface Props {
   onMarcarDiscrepanciaRevisada?: (realLocalId: string, revisada: boolean) => void;
   onAmpliacion: () => void;
   onSubirNube: () => void;
+  onSubirNubeTodo?: () => void;
+  pendingUploads?: number;
   onGenerarPdf: () => void;
   onBorrar: () => void;
   onEnviarCorreo: () => void;
@@ -153,6 +155,8 @@ export default function LocalDetail({
   onMarcarDiscrepanciaRevisada,
   onAmpliacion,
   onSubirNube,
+  onSubirNubeTodo,
+  pendingUploads = 0,
   onGenerarPdf,
   onBorrar,
   onEnviarCorreo,
@@ -490,6 +494,14 @@ export default function LocalDetail({
                 Matrícula Nº {m.nOrden ?? "—"}
               </span>
               {estado != null && <EstadoBadge estado={estado} />}
+              {m._fueEditado && !m._pendienteSubida && (
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border"
+                  style={{ background: "var(--tc-success-bg)", color: "var(--tc-success-ink)", borderColor: "var(--tc-success-border)" }}
+                >
+                  Editado
+                </span>
+              )}
               {m.anulacion && (
                 <span
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
@@ -728,33 +740,6 @@ export default function LocalDetail({
                   >
                     <button
                       type="button"
-                      onClick={() => {
-                        onGenerarPdf();
-                        setMenuOpen(false);
-                      }}
-                      disabled={isSaving}
-                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 hover:bg-[var(--tc-bg-panel)]"
-                      style={{ color: "var(--tc-ink)" }}
-                    >
-                      <FileText className="w-4 h-4 shrink-0" />
-                      {m._tienePdf ? "Regenerar PDF" : m.ampliacion ? "Generar PDF" : "Obtener PDF"}
-                    </button>
-                    {m._tienePdf && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void abrirVisorPdf();
-                          setMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-[var(--tc-bg-panel)]"
-                        style={{ color: "var(--tc-ink)" }}
-                      >
-                        <Download className="w-4 h-4 shrink-0" />
-                        Descargar PDF
-                      </button>
-                    )}
-                    <button
-                      type="button"
                       onClick={() => { if (!readOnly) { onSubirNube(); setMenuOpen(false); } }}
                       disabled={isSaving || !m._pendienteSubida || readOnly}
                       title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
@@ -764,6 +749,18 @@ export default function LocalDetail({
                       <Cloud className="w-4 h-4 shrink-0" />
                       Subir a la Nube
                     </button>
+                    {pendingUploads > 0 && onSubirNubeTodo && !readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => { onSubirNubeTodo(); setMenuOpen(false); }}
+                        disabled={isSaving}
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-ink)" }}
+                      >
+                        <Cloud className="w-4 h-4 shrink-0" />
+                        Subir todo a la nube ({pendingUploads})
+                      </button>
+                    )}
                     {estado != null && !readOnly && (
                       <button
                         type="button"
@@ -1431,28 +1428,6 @@ export default function LocalDetail({
           )}
           {!m.esTemporal && (
           <button
-            onClick={onGenerarPdf}
-            disabled={isSaving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: "var(--tc-violet-ink)" }}
-          >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            {m._tienePdf ? "Regenerar PDF" : m.ampliacion ? "Generar PDF" : "Obtener PDF"}
-          </button>
-          )}
-          {!m.esTemporal && m._tienePdf && (
-            <button
-              onClick={() => void abrirVisorPdf()}
-              disabled={loadingPdf}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-              style={{ background: "var(--tc-ink-soft)" }}
-            >
-              {loadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Descargar PDF
-            </button>
-          )}
-          {!m.esTemporal && (
-          <button
             onClick={() => !readOnly && onSubirNube()}
             disabled={isSaving || !m._pendienteSubida || readOnly}
             title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
@@ -1461,6 +1436,16 @@ export default function LocalDetail({
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
             Subir a la Nube
           </button>
+          )}
+          {!m.esTemporal && pendingUploads > 0 && onSubirNubeTodo && !readOnly && (
+            <button
+              onClick={() => onSubirNubeTodo()}
+              disabled={isSaving}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-700 hover:bg-emerald-800"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
+              Subir todo ({pendingUploads})
+            </button>
           )}
           {!m.esTemporal && !m._pendienteSubida && (
             <p className="self-center text-xs" style={{ color: "var(--tc-ink-mute)" }}>Sin cambios pendientes de subir</p>
