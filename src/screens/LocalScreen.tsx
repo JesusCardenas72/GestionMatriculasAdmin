@@ -23,6 +23,11 @@ import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { solicitudALocal } from "../utils/solicitudALocal";
+import { construirCargaDesdeStore } from "../utils/horariosPersistencia";
+import { MENSAJE_HORARIO_DEFAULT, normNombre, enviarHorarioAlumno } from "../utils/horarioEnvio";
+import type { HorarioAlumno } from "../horarios/types";
+import { buildCursoLabel } from "../horarios/types";
+import { CalendarClock, Loader2, Send, X, CheckCircle2, AlertCircle } from "lucide-react";
 
 function LocalEmailModal({
   matricula,
@@ -103,6 +108,201 @@ function LocalEmailModal({
   );
 }
 
+/**
+ * Modal de envío individual del correo de horario desde la ficha de Local.
+ * Busca el horario del alumno (cargado en la pestaña Horarios) por nombre, ofrece
+ * una ventana para rectificar el texto suplementario y lo manda con el PDF y el
+ * HTML adjuntos, igual que la pestaña Horarios Individuales.
+ */
+function LocalHorarioEmailModal({
+  matricula,
+  candidatosNombre,
+  config,
+  curso,
+  open,
+  onClose,
+}: {
+  matricula: MatriculaLocal;
+  candidatosNombre: string[];
+  config: AppConfig;
+  curso: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const anio = `Curso ${curso}`;
+  const [cargando, setCargando] = useState(true);
+  const [alumno, setAlumno] = useState<HorarioAlumno | null>(null);
+  const [mensaje, setMensaje] = useState(MENSAJE_HORARIO_DEFAULT);
+  const [enviando, setEnviando] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelado = false;
+    setCargando(true);
+    setError(null);
+    setEnviado(false);
+    setMensaje(MENSAJE_HORARIO_DEFAULT);
+    setAlumno(null);
+    (async () => {
+      try {
+        const store = await window.adminAPI.horarios.data.obtener(curso);
+        const carga = construirCargaDesdeStore(store);
+        const candidatos = new Set(candidatosNombre);
+        const encontrado = carga.alumnos.find((a) => candidatos.has(normNombre(a.nombre))) ?? null;
+        if (!cancelado) {
+          setAlumno(encontrado ? { ...encontrado, email: matricula.email || encontrado.email } : null);
+        }
+      } catch (e) {
+        if (!cancelado) setError(e instanceof Error ? e.message : "No se pudo leer el horario.");
+      } finally {
+        if (!cancelado) setCargando(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, curso, matricula.localId]);
+
+  async function handleEnviar() {
+    if (!alumno || !alumno.email) return;
+    if (!config.urlEnviarEmailHorario) {
+      setError("No está configurada la URL del Flow AdminEnviarEmailHorario. Añádela en Configuración.");
+      return;
+    }
+    setEnviando(true);
+    setError(null);
+    try {
+      await enviarHorarioAlumno(config, alumno, anio, mensaje);
+      setEnviado(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo enviar el correo.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (!open) return null;
+
+  const sinEmail = !alumno?.email;
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      style={{ background: "rgba(45,36,29,.45)", backdropFilter: "blur(4px)" }}
+      onClick={() => !enviando && onClose()}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", boxShadow: "0 16px 48px -12px rgba(45,36,29,.3)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 flex items-start justify-between gap-3" style={{ borderBottom: "1px solid var(--tc-border-soft)" }}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>
+              <CalendarClock className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-display text-lg leading-tight" style={{ color: "var(--tc-ink)" }}>Enviar email Horario</h2>
+              <p className="text-xs truncate" style={{ color: "var(--tc-ink-soft)" }}>
+                {matricula.apellidos}, {matricula.nombre} · {buildCursoLabel(matricula.ensenanzaCurso, matricula.especialidad ?? "")}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => !enviando && onClose()}
+            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--tc-bg-panel)]"
+            style={{ color: "var(--tc-ink-mute)" }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+          {cargando ? (
+            <div className="flex items-center justify-center gap-2 py-8" style={{ color: "var(--tc-ink-mute)" }}>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-sm">Buscando el horario del alumno…</span>
+            </div>
+          ) : !alumno ? (
+            <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)" }}>
+              No se ha encontrado el horario de este alumno. Carga el Excel de horarios en la pestaña
+              <strong> Horarios</strong> antes de enviarlo.
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg px-4 py-3 text-sm flex items-center gap-2 flex-wrap" style={{ background: "var(--tc-bg-panel)", border: "1px solid var(--tc-border-soft)" }}>
+                <span className="font-bold uppercase tracking-wide text-[10.5px]" style={{ color: "var(--tc-ink-mute)" }}>Destinatario</span>
+                {sinEmail ? (
+                  <span className="font-medium" style={{ color: "var(--tc-warn-ink)" }}>sin email — no se puede enviar</span>
+                ) : (
+                  <span style={{ color: "var(--tc-primary)" }}>{alumno.email}</span>
+                )}
+                <span style={{ color: "var(--tc-ink-mute)" }}>· {alumno.clases.length} clase{alumno.clases.length === 1 ? "" : "s"}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--tc-ink-mute)" }}>
+                  Texto suplementario del correo (editable)
+                </label>
+                <textarea
+                  value={mensaje}
+                  onChange={(e) => setMensaje(e.target.value)}
+                  rows={9}
+                  disabled={enviando || enviado}
+                  className="w-full text-sm rounded-lg border px-3 py-2 resize-y outline-none focus:border-[var(--tc-primary)] disabled:opacity-60"
+                  style={{ borderColor: "var(--tc-border)", background: "var(--tc-bg)", color: "var(--tc-ink)", minHeight: 160 }}
+                />
+                <p className="text-[11px] mt-1" style={{ color: "var(--tc-ink-mute)" }}>
+                  Aparece resaltado en el correo. Puedes usar enlaces con el formato [texto](https://…).
+                </p>
+              </div>
+            </>
+          )}
+
+          {error && (
+            <p className="text-sm flex items-start gap-2" style={{ color: "var(--tc-danger-ink)" }}>
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
+            </p>
+          )}
+          {enviado && (
+            <p className="text-sm flex items-center gap-2 font-medium" style={{ color: "var(--tc-olive-ink, #4d7c0f)" }}>
+              <CheckCircle2 className="w-4 h-4 shrink-0" /> Correo de horario enviado correctamente.
+            </p>
+          )}
+        </div>
+
+        <div className="px-6 py-4 flex items-center justify-end gap-2" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={enviando}
+            className="px-4 py-2 rounded-lg text-sm disabled:opacity-40"
+            style={{ color: "var(--tc-ink-soft)" }}
+          >
+            {enviado ? "Cerrar" : "Cancelar"}
+          </button>
+          {!enviado && (
+            <button
+              type="button"
+              onClick={() => void handleEnviar()}
+              disabled={enviando || cargando || !alumno || sinEmail}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "var(--tc-primary)" }}
+            >
+              {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {enviando ? "Enviando…" : "Enviar horario"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   config: AppConfig;
 }
@@ -133,6 +333,7 @@ export default function LocalScreen({ config }: Props) {
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showHorarioModal, setShowHorarioModal] = useState(false);
 
   // Auto-sincronización: descarga matrículas telemáticas de Dataverse que no estén en local
   // (estados: Pendiente de tramitación, Pendiente de validación y Tramitado)
@@ -546,6 +747,11 @@ export default function LocalScreen({ config }: Props) {
     setShowEmailModal(true);
   }
 
+  function handleEnviarHorario() {
+    if (!selected) return;
+    setShowHorarioModal(true);
+  }
+
   async function handleSubirNube() {
     if (!selected) return;
     setIsSaving(true);
@@ -717,6 +923,28 @@ export default function LocalScreen({ config }: Props) {
     [matriculas],
   );
 
+  // Nombres (normalizados) con los que el horario del alumno seleccionado puede
+  // estar cargado: su propio «Apellidos, Nombre» y, si sustituyó a un fantasma,
+  // también el nombre _Temp del fantasma (el horario suele seguir bajo ese nombre).
+  const candidatosNombreHorario = useMemo(() => {
+    if (!selected) return [];
+    const clave = (apellidos?: string | null, nombre?: string | null): string | null => {
+      const a = (apellidos ?? "").trim();
+      const n = (nombre ?? "").trim();
+      const completo = a && n ? `${a}, ${n}` : a || n;
+      return completo ? normNombre(completo) : null;
+    };
+    const out: string[] = [];
+    const propio = clave(selected.apellidos, selected.nombre);
+    if (propio) out.push(propio);
+    if (selected.sustituyeATemporalId) {
+      const temporal = matriculas.find((m) => m.localId === selected.sustituyeATemporalId);
+      const claveTemp = clave(temporal?.apellidos, temporal?.nombre);
+      if (claveTemp) out.push(claveTemp);
+    }
+    return out;
+  }, [selected, matriculas]);
+
   // Cuando la ficha seleccionada es un fantasma, la matrícula real que lo
   // sustituyó (estado sustituido) o que lo tiene vinculado (pendiente de ejecutar).
   const sustitutoRealSeleccionado = useMemo(() => {
@@ -852,6 +1080,7 @@ export default function LocalScreen({ config }: Props) {
                 onGenerarPdf={() => void handleObtenerPdf()}
                 onBorrar={() => { if (!isSoloLectura) void handleBorrar(); }}
                 onEnviarCorreo={() => void handleEnviarCorreo()}
+                onEnviarHorario={() => { if (!isSoloLectura) handleEnviarHorario(); }}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center gap-3">
@@ -889,6 +1118,16 @@ export default function LocalScreen({ config }: Props) {
           config={config}
           open={showEmailModal}
           onClose={() => setShowEmailModal(false)}
+        />
+      )}
+      {showHorarioModal && selected && (
+        <LocalHorarioEmailModal
+          matricula={selected}
+          candidatosNombre={candidatosNombreHorario}
+          config={config}
+          curso={curso}
+          open={showHorarioModal}
+          onClose={() => setShowHorarioModal(false)}
         />
       )}
     </>

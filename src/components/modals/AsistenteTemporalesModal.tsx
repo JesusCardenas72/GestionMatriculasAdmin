@@ -31,9 +31,9 @@ import {
 import { parseArchivoTemporales } from "../../utils/importTemporales";
 import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
 import { generarExcelHorarios, type OpcionesHorario } from "../../utils/excelHorarios";
-import { obtenerValoresHorario } from "../../utils/horariosPersistencia";
+import { fantasmaTieneHorario, obtenerValoresHorario } from "../../utils/horariosPersistencia";
 import { cargarExcelHorarios } from "../../utils/horariosCarga";
-import type { HorariosCursoData } from "../../../electron/horarios-data-store";
+import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
 import type { CampanyaEnvio } from "../../horarios/types";
 import { HistorialHorariosContenido } from "./HistorialHorariosContenido";
 import type { AppConfig } from "../../../electron/config-store";
@@ -731,6 +731,35 @@ function ModalGenerarHorariosAsistente({
       .catch(() => setNProfesores(0));
   }, []);
 
+  // Si ya hay un Excel cargado para este curso, lo mostramos como base de datos:
+  // se parte de él (fecha + nombre de la carga del historial) para conservar los
+  // horarios ya rellenados al regenerar.
+  const [baseExcel, setBaseExcel] = useState<
+    { fecha: string; nombre?: string; fileName?: string } | null
+  >(null);
+  useEffect(() => {
+    window.adminAPI.horarios.data
+      .obtener(curso)
+      .then((data: HorariosCursoData) => {
+        if (data.entries.length === 0) {
+          setBaseExcel(null);
+          return;
+        }
+        const ultimaCarga = data.snapshots
+          .filter((s) => s.accion === "carga_excel")
+          .reduce<HorariosSnapshot | null>(
+            (best, s) => (!best || s.timestamp > best.timestamp ? s : best),
+            null,
+          );
+        setBaseExcel(
+          ultimaCarga
+            ? { fecha: ultimaCarga.timestamp, nombre: ultimaCarga.nombre, fileName: ultimaCarga.fileName }
+            : { fecha: data.lastUpdated ?? "" },
+        );
+      })
+      .catch(() => setBaseExcel(null));
+  }, [curso]);
+
   const handleCargarProfesores = async () => {
     setError(null);
     try {
@@ -819,7 +848,16 @@ function ModalGenerarHorariosAsistente({
         );
       }
 
-      const filas = filasAsignaturaLocales(matriculasGen);
+      // Se carga el Excel base ANTES de construir las filas: si una asignatura
+      // del fantasma tiene horario metido por los profesores y no está entre las
+      // matriculadas del real, se conserva como fila fantasma para decidirla.
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      const conExcel = storeData.entries.length > 0;
+
+      const filas = filasAsignaturaLocales(
+        matriculasGen,
+        conExcel ? fantasmaTieneHorario(storeData.entries) : undefined,
+      );
       if (filas.length === 0) {
         setError("No hay ningún alumno fantasma con asignaturas en este curso: no hay nada que poner en el Excel.");
         return;
@@ -831,8 +869,7 @@ function ModalGenerarHorariosAsistente({
       };
 
       let valoresHorario: Array<Record<string, string> | null> | undefined;
-      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-      if (storeData.entries.length > 0) {
+      if (conExcel) {
         const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
           filas,
           storeData.entries,
@@ -887,6 +924,26 @@ function ModalGenerarHorariosAsistente({
 
         {/* Cuerpo */}
         <div className="px-5 py-4 space-y-5 overflow-y-auto">
+          {/* Base de datos: Excel cargado del que se parte (si lo hay) */}
+          {baseExcel && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-[12px] text-sky-800 flex items-start gap-2">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Se toma como base de datos el Excel cargado el{" "}
+                <strong>
+                  {baseExcel.fecha ? new Date(baseExcel.fecha).toLocaleString("es-ES") : "—"}
+                </strong>
+                {baseExcel.nombre ? (
+                  <>
+                    {" "}
+                    con el nombre «<strong>{baseExcel.nombre}</strong>»
+                  </>
+                ) : null}
+                . Los horarios ya rellenados se conservan y los alumnos fantasma sustituidos heredan el suyo.
+              </span>
+            </div>
+          )}
+
           {/* Profesorado: el Excel necesita la lista para los desplegables */}
           <div>
             {nProfesores === null ? (

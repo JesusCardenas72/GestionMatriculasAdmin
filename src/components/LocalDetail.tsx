@@ -44,7 +44,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { AlertTriangle, Check, ChevronDown, ChevronUp, Cloud, Download, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, Download, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -108,6 +108,8 @@ interface Props {
   onGenerarPdf: () => void;
   onBorrar: () => void;
   onEnviarCorreo: () => void;
+  /** Enviar el correo de horario (el mismo de la pestaña Horarios Individuales). */
+  onEnviarHorario: () => void;
 }
 
 function initForm(m: MatriculaLocal): FormData {
@@ -154,6 +156,7 @@ export default function LocalDetail({
   onGenerarPdf,
   onBorrar,
   onEnviarCorreo,
+  onEnviarHorario,
 }: Props) {
   const { curso } = useCursoContext();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -771,13 +774,26 @@ export default function LocalDetail({
                             ? "Abrir email de documentación requerida (Pendiente de Validación)"
                             : estado === 856530002
                               ? "Abrir email de matrícula tramitada (Tramitado)"
-                              : "Enviar correo"
+                              : "Enviar email de situación de la matrícula"
                         }
                         className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
                         style={{ color: "var(--tc-ink)" }}
                       >
                         <Mail className="w-4 h-4 shrink-0" />
-                        Enviar correo
+                        Enviar email Situación Matrícula
+                      </button>
+                    )}
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => { onEnviarHorario(); setMenuOpen(false); }}
+                        disabled={isSaving}
+                        title="Enviar al alumno su horario (el mismo correo de la pestaña Horarios Individuales)"
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-ink)" }}
+                      >
+                        <CalendarClock className="w-4 h-4 shrink-0" />
+                        Enviar email Horario
                       </button>
                     )}
                   </div>
@@ -877,11 +893,30 @@ export default function LocalDetail({
                   o deshacerlos. */}
               {!m.esTemporal &&
                 (() => {
-                  const candidatos = temporalesPendientes.filter(
-                    (t) =>
-                      t.ensenanzaCurso === m.ensenanzaCurso &&
-                      (t.especialidad ?? "") === (m.especialidad ?? ""),
-                  );
+                  // Candidatos a sustituir: TODOS los fantasmas pendientes del
+                  // mismo instrumento (especialidad), sin importar la enseñanza
+                  // ni el número de curso. Así un fantasma creado como EP5 puede
+                  // enlazarse con una matrícula real que finalmente entró como
+                  // EP4 (traslados, repetidores…). Los de curso idéntico se
+                  // ofrecen primero; cada opción muestra su curso (EE2, EP1…).
+                  const candidatos = temporalesPendientes
+                    .filter((t) => (t.especialidad ?? "") === (m.especialidad ?? ""))
+                    .sort((a, b) => {
+                      const ra = a.ensenanzaCurso === m.ensenanzaCurso ? 0 : 1;
+                      const rb = b.ensenanzaCurso === m.ensenanzaCurso ? 0 : 1;
+                      if (ra !== rb) return ra - rb;
+                      const porCurso = (a.ensenanzaCurso ?? "").localeCompare(b.ensenanzaCurso ?? "");
+                      if (porCurso !== 0) return porCurso;
+                      return nombreVisibleTemporal(a).localeCompare(nombreVisibleTemporal(b));
+                    });
+                  // Etiqueta de cada opción: «Apellidos, Nombre (Curso)». Para los
+                  // marcadores PDTE el curso ya viene en el propio nombre, así que
+                  // no se duplica.
+                  const etiquetaCandidato = (t: MatriculaLocal) => {
+                    const base = nombreVisibleTemporal(t);
+                    const curso = (t.ensenanzaCurso ?? "").trim();
+                    return curso && !base.includes(curso) ? `${base} (${curso})` : base;
+                  };
                   const temporalVinculado = m.sustituyeATemporalId
                     ? todosTemporales.find((t) => t.localId === m.sustituyeATemporalId)
                     : undefined;
@@ -895,9 +930,11 @@ export default function LocalDetail({
                     todosTemporales.find(
                       (t) => t.temporalEstado === "sustituido" && t.sustituidoPorLocalId === m.localId,
                     );
-                  // Sin vínculo (directo ni inverso) y sin posibilidad de elegir
-                  // (fuera de plazo o sin candidatos) → no hay nada que mostrar.
-                  if (!m.sustituyeATemporalId && !temporalSustituido && (!selectorVisible || candidatos.length === 0)) return null;
+                  // Sin vínculo (directo ni inverso) y fuera del plazo del
+                  // asistente → no hay nada que mostrar. Dentro del plazo el
+                  // selector aparece SIEMPRE, aunque no haya candidatos (mostrará
+                  // solo «Ningún alumno fantasma»), para no esconder la opción.
+                  if (!m.sustituyeATemporalId && !temporalSustituido && !selectorVisible) return null;
                   return (
                     <div className="col-span-2">
                       <p
@@ -935,7 +972,7 @@ export default function LocalDetail({
                             >
                               <option value="">— Ningún alumno fantasma —</option>
                               {candidatos.map((t) => (
-                                <option key={t.localId} value={t.localId}>{nombreVisibleTemporal(t)}</option>
+                                <option key={t.localId} value={t.localId}>{etiquetaCandidato(t)}</option>
                               ))}
                             </select>
                             {m.sustituyeATemporalId && (

@@ -12,8 +12,7 @@ import { cargarExcelHorarios } from "../utils/horariosCarga";
 import type { HorariosSnapshot } from "../../electron/horarios-data-store";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
 import { buildListadoHtml, type VersionListado } from "../utils/horarioListadoTemplate";
-import { buildHorarioEmailHtml } from "../utils/horarioEmailTemplate";
-import { enviarEmailHorario } from "../api/horarios";
+import { MENSAJE_HORARIO_DEFAULT, normNombre, enviarHorarioAlumno } from "../utils/horarioEnvio";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ResultadoEnvio } from "../horarios/types";
 import { buildCursoLabel } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
@@ -62,16 +61,6 @@ function horasPorAsignatura(clases: import('../horarios/types').ClaseHorario[]):
     .sort((a, b) => b.minutos - a.minutos);
 }
 
-/** Normaliza un nombre para buscar coincidencias (sin acentos, minúsculas, espacios simples). */
-function normNombre(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSnapshotAbierto }: Props) {
   const { curso } = useCursoContext();
   const anio = `Curso ${curso}`;
@@ -94,12 +83,11 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
 
   // Filtros de la lista de alumnos
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [filtroFantasma, setFiltroFantasma] = useState<"todos" | "solo" | "sin">("todos");
   const [filtroEnvio, setFiltroEnvio] = useState<"todos" | "enviados" | "pendientes">("todos");
   const [filtroEmail, setFiltroEmail] = useState<"todos" | "conEmail" | "sinEmail">("todos");
 
   // Modal de envío
-  const MENSAJE_DEFAULT = `Les recordamos que el plazo para solicitar el cambio de grupo finaliza el próximo 8 de julio.\nPor otra parte, les aclaramos que los horarios facilitados corresponden únicamente a las clases grupales. El resto de las clases se irán conformando más adelante directamente por el equipo docente de cada alumno.\nPara realizar la solicitud de cambio, pueden elegir una de las siguientes vías:\nPor correo electrónico: Respondiendo a este mismo mensaje y adjuntando el formulario debidamente cumplimentado. Pueden descargar el documento en el siguiente enlace: [Formulario de solicitud de cambio de grupo](https://www.conservatoriociudadreal.es/wp-content/uploads/2022/07/SolicitudCambioGrupo.pdf).\nDe forma presencial: Acudiendo a la Secretaría del Conservatorio y presentando el mismo modelo de solicitud. Les recordamos que nuestro horario de atención al público es de 9:00 a 14:00 horas.`;
+  const MENSAJE_DEFAULT = MENSAJE_HORARIO_DEFAULT;
   const [showEnviarModal, setShowEnviarModal] = useState(false);
   const [nombreCampanya, setNombreCampanya] = useState("");
   const [descripcionCampanya, setDescripcionCampanya] = useState("");
@@ -152,8 +140,12 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
         if (cancelado) return;
         const cargaStore = construirCargaDesdeStore(storeData);
         if (cargaStore.alumnos.length > 0) {
-          setCarga(prev => prev ?? cargaStore);
-          setSelectedClave(prev => prev ?? cargaStore.alumnos[0]?.clave ?? null);
+          // Enriquecemos ya aquí (no solo en el efecto) para no depender de que las
+          // matrículas cambien después de fijar la carga: si vienen de caché, el
+          // efecto no se vuelve a disparar y el horario se quedaría sin emails.
+          const alumnos = enriquecerEmailsRef.current(cargaStore.alumnos);
+          setCarga(prev => prev ?? { ...cargaStore, alumnos });
+          setSelectedClave(prev => prev ?? alumnos[0]?.clave ?? null);
         }
       } catch {
         // Si el almacén falla, no hay carga automática.
@@ -168,15 +160,45 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
    * Construye un mapa nombre-normalizado → contacto (email + teléfono) a partir
    * de las matrículas locales.
    * Clave: "apellidos, nombre" normalizado (igual que buildNombreCompleto en InformesScreen).
+   *
+   * Solo las matrículas REALES aportan email/teléfono: nunca se envía correo a un
+   * alumno fantasma (temporal, nombre/apellidos con sufijo `_Temp`), que además
+   * siempre tiene email vacío. Cuando una matrícula real sustituyó a un fantasma,
+   * su contacto se registra también bajo el nombre `_Temp` del fantasma, porque el
+   * horario puede seguir cargado con ese nombre y debe recoger el email del alumno real.
    */
   const contactoLocalPorNombre = useMemo(() => {
     const mapa = new Map<string, { email: string; telefono: string }>();
-    for (const m of localMatriculas) {
-      const a = (m.apellidos ?? '').trim();
-      const n = (m.nombre ?? '').trim();
+    const claveNombre = (apellidos?: string, nombre?: string): string | null => {
+      const a = (apellidos ?? '').trim();
+      const n = (nombre ?? '').trim();
       const nombreCompleto = a && n ? `${a}, ${n}` : a || n;
-      if (nombreCompleto) {
-        mapa.set(normNombre(nombreCompleto), {
+      return nombreCompleto ? normNombre(nombreCompleto) : null;
+    };
+
+    // 1) Solo las matrículas reales aportan contacto, bajo su propio nombre.
+    const porLocalId = new Map<string, typeof localMatriculas[number]>();
+    for (const m of localMatriculas) {
+      porLocalId.set(m.localId, m);
+      if (m.esTemporal) continue;
+      const clave = claveNombre(m.apellidos, m.nombre);
+      if (clave) {
+        mapa.set(clave, {
+          email: (m.email ?? '').toLowerCase().trim(),
+          telefono: (m.telefono ?? '').trim(),
+        });
+      }
+    }
+
+    // 2) Si una real sustituyó a un fantasma, su contacto responde también al
+    //    nombre (_Temp) del fantasma. No pisa una entrada real ya existente.
+    for (const m of localMatriculas) {
+      if (m.esTemporal || !m.sustituyeATemporalId) continue;
+      const temporal = porLocalId.get(m.sustituyeATemporalId);
+      if (!temporal) continue;
+      const claveTemp = claveNombre(temporal.apellidos, temporal.nombre);
+      if (claveTemp && !mapa.has(claveTemp)) {
+        mapa.set(claveTemp, {
           email: (m.email ?? '').toLowerCase().trim(),
           telefono: (m.telefono ?? '').trim(),
         });
@@ -258,6 +280,17 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       };
     });
   }, [contactoLocalPorNombre]);
+
+  /**
+   * Versión más reciente de `enriquecerEmails` accesible desde callbacks asíncronos
+   * (p. ej. la carga automática del almacén) sin capturar un closure obsoleto. Sin
+   * esto, si la carga del almacén se resuelve con las matrículas aún a medio cargar,
+   * el horario quedaría sin emails hasta un cambio posterior que quizá no llega.
+   */
+  const enriquecerEmailsRef = useRef(enriquecerEmails);
+  useEffect(() => {
+    enriquecerEmailsRef.current = enriquecerEmails;
+  }, [enriquecerEmails]);
 
   /**
    * Completa email y teléfono de la carga actual cuando llegan (o cambian) las
@@ -389,9 +422,9 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
 
   const alumnosFiltrados = useMemo(() => {
     if (!carga) return [];
-    let base = carga.alumnos;
-    if (filtroFantasma === "solo") base = base.filter(esFantasma);
-    else if (filtroFantasma === "sin") base = base.filter(a => !esFantasma(a));
+    // Horarios Individuales muestra solo alumnado real: las plazas fantasma
+    // (temporales pendientes) nunca aparecen en esta lista.
+    let base = carga.alumnos.filter(a => !esFantasma(a));
     if (filtroEnvio === "enviados") base = base.filter(a => enviosPorClave.has(a.clave));
     else if (filtroEnvio === "pendientes") base = base.filter(a => !enviosPorClave.has(a.clave));
     if (filtroEmail === "conEmail") base = base.filter(a => a.email);
@@ -404,7 +437,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       a.ensenanzaCurso.toLowerCase().includes(q),
     );
     return base;
-  }, [carga, filtroFantasma, filtroEnvio, filtroEmail, soloNuevos, esFantasma, enviosPorClave, esNuevo, busqueda]);
+  }, [carga, filtroEnvio, filtroEmail, soloNuevos, esFantasma, enviosPorClave, esNuevo, busqueda]);
 
   /** Nuevos (por sustitución) presentes en la carga actual que aún no han recibido email. */
   const nuevosSinEnviar = useMemo(
@@ -432,6 +465,18 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
   };
 
   const seleccionado = carga?.alumnos.find(a => a.clave === selectedClave) ?? null;
+
+  /**
+   * La vista previa de Horarios Individuales nunca muestra una plaza fantasma: si
+   * la selección recae sobre una (p. ej. era el primer alumno de la carga), se
+   * mueve al primer alumno real disponible.
+   */
+  useEffect(() => {
+    if (seleccionado && esFantasma(seleccionado)) {
+      const primerReal = carga?.alumnos.find(a => !esFantasma(a));
+      setSelectedClave(primerReal?.clave ?? null);
+    }
+  }, [seleccionado, esFantasma, carga]);
 
   const html = useMemo(
     () => (seleccionado ? buildHorarioHtml(seleccionado, anio) : ""),
@@ -529,21 +574,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       const alumno = destinatarios[i];
       setProgreso({ actual: i + 1, total: destinatarios.length });
       try {
-        const horarioHtml = buildHorarioHtml(alumno, anio);
-        const emailHtml = buildHorarioEmailHtml(alumno, anio, mensajeCampanya.trim() || undefined);
-        const pdfRes = await window.adminAPI.pdf.generarBase64(horarioHtml, true);
-        if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "PDF no generado");
-        const nombreBase = `Horario ${alumno.nombre}`.replace(/[\\/:*?"<>|]/g, "_");
-        const htmlBase64 = btoa(unescape(encodeURIComponent(horarioHtml)));
-        await enviarEmailHorario(config, {
-          email: alumno.email,
-          nombre: alumno.nombre,
-          emailHtml,
-          pdfBase64: pdfRes.base64,
-          pdfNombre: `${nombreBase}.pdf`,
-          htmlBase64,
-          htmlNombre: `${nombreBase}.html`,
-        });
+        await enviarHorarioAlumno(config, alumno, anio, mensajeCampanya);
         resultados.push({ clave: alumno.clave, nombre: alumno.nombre, email: alumno.email, estado: 'ok' });
       } catch (err) {
         resultados.push({
@@ -788,18 +819,6 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
           </div>
           {mostrarFiltros && (
             <div className="flex flex-col gap-1 px-1 py-1.5 rounded-lg bg-[var(--tc-bg-panel)] border border-[var(--tc-border)]">
-              <button
-                onClick={() => setFiltroFantasma(v => v === "todos" ? "solo" : v === "solo" ? "sin" : "todos")}
-                className={
-                  "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border transition " +
-                  (filtroFantasma !== "todos"
-                    ? "bg-slate-200 text-slate-700 border-slate-300"
-                    : "bg-[var(--tc-card)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
-                }
-              >
-                <Ghost className="w-3 h-3" />
-                {filtroFantasma === "todos" ? "Fantasma: todos" : filtroFantasma === "solo" ? "Solo fantasma" : "Sin fantasma"}
-              </button>
               <button
                 onClick={() => setFiltroEnvio(v => v === "todos" ? "enviados" : v === "enviados" ? "pendientes" : "todos")}
                 className={

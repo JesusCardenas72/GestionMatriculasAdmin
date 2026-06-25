@@ -83,6 +83,106 @@ describe("filasAsignaturaLocales", () => {
     // El sustituido no aparece
     expect(filas.some((f) => String(f.rowId).startsWith(sustituido.localId))).toBe(false);
   });
+
+  it("el alumno real ocupa la fila del fantasma ya sustituido (estado pre-marcado por el asistente)", () => {
+    // El asistente pre-marca el fantasma como «sustituido» antes de generar y la
+    // real conserva su `sustituyeATemporalId`. La fila no debe perderse: el real
+    // ocupa la posición del fantasma con sus propias asignaturas.
+    const [fantasma] = crearTemporales("25/26", "EP1", "Piano", 1, []);
+    fantasma.temporalEstado = "sustituido";
+    fantasma.sustituidoPorLocalId = "real-1";
+    const real: MatriculaLocal = {
+      ...fantasma,
+      localId: "real-1",
+      origenRowId: "real-1",
+      esTemporal: undefined,
+      temporalNumero: undefined,
+      temporalEstado: undefined,
+      sustituidoPorLocalId: undefined,
+      sustituyeATemporalId: fantasma.localId,
+      nombre: "Ana",
+      apellidos: "Pérez",
+      asignaturas: [
+        {
+          localId: "a1", rowId: null, asignaturaId: null, codigo: 1,
+          nombre: "Instrumento", estado: ESTADO_ASIGNATURA.MATRICULADA,
+          observaciones: null, horario: null,
+        },
+        {
+          localId: "a2", rowId: null, asignaturaId: null, codigo: 2,
+          nombre: "Lenguaje Musical", estado: ESTADO_ASIGNATURA.MATRICULADA,
+          observaciones: null, horario: null,
+        },
+      ],
+    };
+
+    const filas = filasAsignaturaLocales([fantasma, real]);
+
+    // El real aparece una vez por cada asignatura matriculada en Local (las suyas).
+    const deReal = filas.filter((f) => f.apellidos === "Pérez");
+    expect(deReal).toHaveLength(real.asignaturas.length);
+    expect(deReal.every((f) => !f.esTemporal)).toBe(true);
+    expect(deReal.every((f) => f.nombre === "Ana")).toBe(true);
+    expect(deReal.map((f) => f.asigNombre).sort()).toEqual(["Instrumento", "Lenguaje Musical"]);
+    // Sin Excel base (sin predicado) no se conserva ninguna fila fantasma.
+    expect(filas.some((f) => f.esTemporal)).toBe(false);
+  });
+
+  it("conserva como fantasma la asignatura con horario que el real no tiene matriculada", () => {
+    const [fantasma] = crearTemporales("25/26", "EP1", "Piano", 1, []);
+    fantasma.asignaturas = [
+      {
+        localId: "f1", rowId: null, asignaturaId: null, codigo: 1,
+        nombre: "Instrumento", estado: ESTADO_ASIGNATURA.MATRICULADA,
+        observaciones: null, horario: null,
+      },
+      {
+        localId: "f2", rowId: null, asignaturaId: null, codigo: 2,
+        nombre: "Orquesta", estado: ESTADO_ASIGNATURA.MATRICULADA,
+        observaciones: null, horario: null,
+      },
+    ];
+    fantasma.temporalEstado = "sustituido";
+    fantasma.sustituidoPorLocalId = "real-1";
+    const real: MatriculaLocal = {
+      ...fantasma,
+      localId: "real-1",
+      origenRowId: "real-1",
+      esTemporal: undefined,
+      temporalNumero: undefined,
+      temporalEstado: undefined,
+      sustituidoPorLocalId: undefined,
+      sustituyeATemporalId: fantasma.localId,
+      nombre: "Ana",
+      apellidos: "Pérez",
+      // En Local el real solo tiene matriculada "Instrumento" (no "Orquesta").
+      asignaturas: [
+        {
+          localId: "a1", rowId: null, asignaturaId: null, codigo: 1,
+          nombre: "Instrumento", estado: ESTADO_ASIGNATURA.MATRICULADA,
+          observaciones: null, horario: null,
+        },
+      ],
+    };
+
+    // El fantasma tiene horario introducido solo en "Orquesta".
+    const conHorario = (f: MatriculaLocal, a: { nombre: string }) =>
+      f.localId === fantasma.localId && a.nombre === "Orquesta";
+
+    const filas = filasAsignaturaLocales([fantasma, real], conHorario);
+
+    // El real ocupa su asignatura matriculada en Local.
+    const deReal = filas.filter((f) => !f.esTemporal);
+    expect(deReal).toHaveLength(1);
+    expect(deReal[0].asigNombre).toBe("Instrumento");
+    expect(deReal[0].apellidos).toBe("Pérez");
+
+    // "Orquesta" (con horario, no matriculada en el real) se mantiene como fantasma.
+    const deFantasma = filas.filter((f) => f.esTemporal);
+    expect(deFantasma).toHaveLength(1);
+    expect(deFantasma[0].asigNombre).toBe("Orquesta");
+    expect(String(deFantasma[0].rowId).startsWith(fantasma.localId)).toBe(true);
+  });
 });
 
 describe("ordenarComoExcel", () => {

@@ -103,13 +103,21 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
     const duration = fin - ini;
 
     if (startsAtHalf) {
-      // Bottom half, always rowspan 1
+      // Empieza en la media hora: arranca en la mitad inferior de esta fila y se
+      // extiende hacia abajo tantas filas como dure (no se aplasta en media celda).
       const prev = ocup[d][h];
       if (prev === 'cov') return;
       const data: HourSlotData = (prev as HourSlotData) ?? {};
       if (data.full || data.bottom) return;
-      data.bottom = { clase: c, position: 'bottom', rowspan: 1 };
+      const endRow = Math.min(Math.floor((fin - 1 - gridIni) / 60), nHours - 1);
+      let span = 1;
+      for (let r = 1; r <= endRow - h; r++) {
+        if (ocup[d][h + r] !== undefined) break;
+        span = r + 1;
+      }
+      data.bottom = { clase: c, position: 'bottom', rowspan: span };
       ocup[d][h] = data;
+      for (let r = 1; r < span; r++) ocup[d][h + r] = 'cov';
     } else if (duration <= 30) {
       // Top half, rowspan 1
       const prev = ocup[d][h];
@@ -172,7 +180,11 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
         if (!slot) return '<td class="cell"></td>';
 
         const data = slot as HourSlotData;
-        const rowspan = data.full?.rowspan ?? 1;
+        const rowspan = Math.max(
+          data.full?.rowspan ?? 1,
+          data.top?.rowspan ?? 1,
+          data.bottom?.rowspan ?? 1,
+        );
         const entries: OcupEntry[] = data.full
           ? [data.full]
           : [...(data.top ? [data.top] : []), ...(data.bottom ? [data.bottom] : [])];
@@ -182,11 +194,19 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
           const color = colorMap.get(e.clase.asignatura) ?? PALETA[0];
           const horas = `${esc(e.clase.entrada)} – ${esc(e.clase.salida)}`;
           const nota = e.clase.grupo ? `Grupo ${esc(e.clase.grupo)}` : '';
-          const posClass = e.position === 'full' ? 'pos-full' : e.position === 'top' ? 'pos-top' : 'pos-bottom';
-          return `<div class="note ${color} ${posClass}" style="${rotacion(semilla)}"
+          const posClass = e.position === 'full'
+            ? 'pos-full'
+            : e.position === 'top'
+              ? 'pos-top'
+              : e.rowspan > 1 ? 'pos-bottom pos-bottom-tall' : 'pos-bottom';
+          // Clases de 30 min ocupan media celda: no caben las dos líneas, mostramos solo la asignatura.
+          const ini = aMin(e.clase.entrada);
+          const fin = aMin(e.clase.salida);
+          const esBreve = ini !== null && fin !== null && fin - ini <= 30;
+          return `<div class="note ${color} ${posClass}${esBreve ? ' is-breve' : ''}" style="${rotacion(semilla)}"
             data-subj="${esc(e.clase.asignatura)}" data-time="${horas}" data-day="${esc(e.clase.dia)}"
             data-prof="${esc(e.clase.profesor)}" data-room="${esc(e.clase.aula)}" data-notes="${esc(nota)}">
-            <span class="n-time">${horas}</span>
+            ${esBreve ? '' : `<span class="n-time">${horas}</span>`}
             <span class="n-subj">${esc(e.clase.asignatura)}</span>
           </div>`;
         }).join('');
@@ -263,11 +283,16 @@ td.cell{height:90px;background:var(--bg);vertical-align:top;padding:0;overflow:v
 .note.pos-full{top:8px;bottom:8px;}
 .note.pos-top{top:8px;height:calc(50% - 12px);}
 .note.pos-bottom{top:calc(50% + 4px);bottom:8px;}
+/* Empieza a la media hora pero abarca varias filas: el alto lo da el rowspan del td. */
+.note.pos-bottom-tall{top:48px;bottom:8px;}
 .note .n-time{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;line-height:1;transition:font-size .18s;}
 .note .n-subj{font-family:var(--display);font-size:14px;font-weight:400;text-align:center;line-height:1.2;color:var(--ink);
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;transition:font-size .18s,font-weight .18s;}
 .note.selected .n-time{font-size:11px;}
 .note.selected .n-subj{font-size:16px;font-weight:700;-webkit-line-clamp:3;}
+/* Clases de 30 min (media celda): solo asignatura, ajustada a 2 líneas */
+.note.is-breve{padding:4px 8px;}
+.note.is-breve .n-subj{font-size:12px;line-height:1.15;-webkit-line-clamp:2;}
 .n-info{background-color:var(--info-bg);border:1px solid var(--info-border);}
 .n-olive{background-color:var(--olive-tint);border:1px solid var(--olive-border);}
 .n-warn{background-color:var(--warn-bg);border:1px solid var(--warn-border);}

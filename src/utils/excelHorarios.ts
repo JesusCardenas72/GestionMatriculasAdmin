@@ -240,7 +240,11 @@ export async function generarExcelHorarios(
     if (h) {
       colsMid.forEach((c) => {
         const v = h[c.key];
-        if (v) row[c.key] = v;
+        // Solo texto aprovechable: descarta valores no-string y restos de
+        // cargas antiguas ("[object Object]") que ensuciarían la celda.
+        if (typeof v === "string" && v.trim() && v.trim() !== "[object Object]") {
+          row[c.key] = v.trim();
+        }
       });
     }
     ws.addRow(row);

@@ -98,62 +98,102 @@ function buildFila(m: MatriculaLocal, estado: EstadoTramite): FilaInforme {
   };
 }
 
+/** Añade una fila por asignatura a `filas`, copiando los datos de la asignatura. */
+function pushFilaAsignatura(
+  filas: FilaInforme[],
+  base: FilaInforme,
+  ownerLocalId: string,
+  a: AsignaturaLocal,
+): void {
+  filas.push({
+    ...base,
+    rowId: `${ownerLocalId}|${a.localId}`,
+    asigNombre: a.nombre,
+    asigCodigo: a.codigo,
+    asigEstado: a.estado,
+    asigHorario: a.horario,
+  });
+}
+
 /**
  * Filas (alumno × asignatura) de las matrículas locales, igual que el modo
  * "Por asignaturas" de Informes: excluye los temporales ya sustituidos (su
- * lugar lo ocupa el alumno real). Los temporales vinculados a una matrícula
- * real se sustituyen in situ: el alumno real ocupa la misma fila que el
- * temporal, conservando la posición para que los datos de horario
- * (Profesor…Salida 2) permanezcan alineados.
+ * lugar lo ocupa el alumno real).
+ *
+ * Sustitución fantasma → real: las asignaturas (y su estado) son las que el
+ * alumno real tiene matriculadas en Local. Si una asignatura del fantasma con
+ * horario ya introducido por los profesores NO está entre las del real, se
+ * conserva como fila fantasma (naranja, nombre con _Temp y su horario) para
+ * poder decidir sobre el Excel; para saber si tiene horario se usa el predicado
+ * opcional `fantasmaConHorario` (sin él no se conserva ninguna).
  */
-export function filasAsignaturaLocales(matriculas: MatriculaLocal[]): FilaInforme[] {
+export function filasAsignaturaLocales(
+  matriculas: MatriculaLocal[],
+  fantasmaConHorario?: (fantasma: MatriculaLocal, asignatura: AsignaturaLocal) => boolean,
+): FilaInforme[] {
+  const porLocalId = new Map(matriculas.map((m) => [m.localId, m]));
   // Map: temporal localId → matrícula real vinculada
   const realPorTemporal = new Map<string, MatriculaLocal>();
   // Set: IDs de reales vinculados (no deben aparecer por separado)
   const realesVinculados = new Set<string>();
 
   for (const m of matriculas) {
+    // Vínculo pendiente: la real apunta al temporal (`sustituyeATemporalId`).
     if (!m.esTemporal && m.sustituyeATemporalId) {
       realPorTemporal.set(m.sustituyeATemporalId, m);
       realesVinculados.add(m.localId);
+    }
+    // Sustitución ya ejecutada: el temporal «sustituido» apunta a la real
+    // (`sustituidoPorLocalId`). El asistente pre-marca este estado al generar,
+    // así que también hay que reconocerlo o la fila se perdería.
+    if (m.esTemporal && m.temporalEstado === "sustituido" && m.sustituidoPorLocalId) {
+      const real = porLocalId.get(m.sustituidoPorLocalId);
+      if (real) {
+        realPorTemporal.set(m.localId, real);
+        realesVinculados.add(real.localId);
+      }
     }
   }
 
   const filas: FilaInforme[] = [];
   for (const m of matriculas) {
-    if (m.esTemporal && m.temporalEstado === "sustituido") continue;
+    // Si es un temporal vinculado/sustituido, el alumno real ocupa su fila.
+    const real = m.esTemporal ? realPorTemporal.get(m.localId) : undefined;
+
+    // Temporal sustituido sin real localizable: huérfano, no hay nada que poner.
+    if (m.esTemporal && m.temporalEstado === "sustituido" && !real) continue;
     // El real vinculado no aparece por separado; ocupa la fila de su temporal
     if (!m.esTemporal && realesVinculados.has(m.localId)) continue;
 
-    // Si es un temporal vinculado, sustituir campos del informe por el alumno real
-    const real = m.esTemporal ? realPorTemporal.get(m.localId) : undefined;
-    const fuente = real ?? m;
-
-    const base = buildFila(fuente, ESTADO.TRAMITADO);
-    if (real) base.esTemporal = false;
-
-    // Mapa de asignaturas del real por nombre normalizado
-    let asigRealPorNombre: Map<string, AsignaturaLocal> | undefined;
-    if (real) {
-      asigRealPorNombre = new Map();
-      for (const a of real.asignaturas) {
-        asigRealPorNombre.set(norm(a.nombre), a);
+    // Caso normal (sin sustitución): el alumno con sus propias asignaturas.
+    if (!real) {
+      const base = buildFila(m, ESTADO.TRAMITADO);
+      for (const a of asignaturasCursadas(m, m.asignaturas)) {
+        pushFilaAsignatura(filas, base, m.localId, a);
       }
+      continue;
     }
 
-    for (const a of asignaturasCursadas(m, m.asignaturas)) {
-      // Si el real tiene asignatura con el mismo nombre, usar sus datos
-      const asigReal = asigRealPorNombre?.get(norm(a.nombre));
-      const asig = asigReal ?? a;
+    // Sustitución fantasma (m) → real: las asignaturas y su estado salen de
+    // Local (las del alumno real). El nombre/datos personales también del real.
+    const baseReal = buildFila(real, ESTADO.TRAMITADO);
+    baseReal.esTemporal = false;
+    const cursadasReal = asignaturasCursadas(real, real.asignaturas);
+    const nombresReal = new Set(cursadasReal.map((a) => norm(a.nombre)));
+    for (const a of cursadasReal) {
+      pushFilaAsignatura(filas, baseReal, real.localId, a);
+    }
 
-      filas.push({
-        ...base,
-        rowId: `${m.localId}|${a.localId}`,
-        asigNombre: asig.nombre,
-        asigCodigo: asig.codigo,
-        asigEstado: asig.estado,
-        asigHorario: asig.horario,
-      });
+    // Discrepancia: asignatura del fantasma con horario ya metido por los
+    // profesores que NO está matriculada en el real → se mantiene como fila
+    // fantasma (naranja, nombre _Temp, su horario) para decidir sobre el Excel.
+    if (!fantasmaConHorario) continue;
+    const baseTemp = buildFila(m, ESTADO.TRAMITADO);
+    baseTemp.esTemporal = true;
+    for (const a of asignaturasCursadas(m, m.asignaturas)) {
+      if (nombresReal.has(norm(a.nombre))) continue;
+      if (!fantasmaConHorario(m, a)) continue;
+      pushFilaAsignatura(filas, baseTemp, m.localId, a);
     }
   }
   return filas;

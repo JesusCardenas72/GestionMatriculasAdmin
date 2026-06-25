@@ -215,6 +215,29 @@ export function buildListadoHtml(
       </select>`
     : '';
 
+  // Especialidades y cursos únicos (filtros exclusivos de la versión profesorado)
+  const especialidadesUnicas = [...new Set(
+    grupos.flatMap(g => g.cursos.flatMap(cu => cu.subgrupos.flatMap(sg => sg.alumnos.map(a => a.especialidad).filter(Boolean))))
+  )].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  const cursosUnicos = [...new Set(
+    grupos.flatMap(g => g.cursos.map(cu => cu.curso))
+  )].sort((a, b) => ordenCurso(a) - ordenCurso(b) || a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  const selectEspHtml = esProfes && especialidadesUnicas.length > 0
+    ? `<select id="filtro-especialidad" class="select-prof" data-tip-title="Filtrar por especialidad" data-tip="Muestra solo los alumnos de la especialidad elegida. Elige «Todas las especialidades» para quitar el filtro. Se combina con el resto de filtros.">
+        <option value="">Todas las especialidades</option>
+        ${especialidadesUnicas.map(e => `<option value="${esc(norm(e))}">${esc(e)}</option>`).join('')}
+      </select>`
+    : '';
+
+  const selectCursoHtml = esProfes && cursosUnicos.length > 0
+    ? `<select id="filtro-curso" class="select-prof" data-tip-title="Filtrar por curso" data-tip="Muestra solo los alumnos del curso elegido. Elige «Todos los cursos» para quitar el filtro. Se combina con el resto de filtros.">
+        <option value="">Todos los cursos</option>
+        ${cursosUnicos.map(c => `<option value="${esc(c)}">${esc(labelCurso(c))} (${esc(c)})</option>`).join('')}
+      </select>`
+    : '';
+
   const indiceHtml = grupos
     .map(
       (g, i) =>
@@ -244,7 +267,7 @@ export function buildListadoHtml(
 
               const filas = sg.alumnos
                 .map(
-                  (al, n) => `<tr data-nombre="${esc(norm(al.nombre))}"${al.pendiente ? ' data-pendiente="1"' : ''}${esProfes && al.email ? ` data-email="${esc(al.email)}"` : ''}>
+                  (al, n) => `<tr data-nombre="${esc(norm(al.nombre))}" data-curso="${esc(cu.curso)}" data-especialidad="${esc(norm(al.especialidad))}"${al.pendiente ? ' data-pendiente="1"' : ''}${esProfes && al.email ? ` data-email="${esc(al.email)}"` : ''}>
 ${esProfes ? `  <td class="chk-cell"><input type="checkbox" class="chk-alumno" data-sg="${sgId}"${al.email ? ` data-email="${esc(al.email)}"` : ''} onclick="event.stopPropagation()"></td>` : ''}
   <td class="num">${n + 1}</td>
   <td class="nombre">${esc(al.nombre)}${al.pendiente ? ` <span class="pendiente-tag">Pendiente${al.cursoPendiente ? ' de ' + esc(al.cursoPendiente) : ''}</span>` : ''}</td>
@@ -334,9 +357,11 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .buscador .limpiar{font-family:var(--font);font-size:13px;padding:8px 14px;border:1.5px solid var(--border);
   border-radius:10px;background:var(--card);color:var(--ink-soft);cursor:pointer;display:none;}
 .buscador .limpiar:hover{border-color:var(--primary);color:var(--primary);}
-#btn-toggle-todo{font-family:var(--font);font-size:13px;padding:8px 16px;border:1.5px solid var(--border);
-  border-radius:10px;background:var(--card);color:var(--ink-soft);cursor:pointer;white-space:nowrap;flex-shrink:0;}
+#btn-toggle-todo{padding:8px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);
+  color:var(--ink-soft);cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  transition:border-color .12s,color .12s;}
 #btn-toggle-todo:hover{border-color:var(--primary);color:var(--primary);}
+#btn-toggle-todo svg{width:18px;height:18px;display:block;}
 
 .toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px;}
 .toc-item{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-family:var(--font);
@@ -524,9 +549,11 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
         data-tip="Escribe cualquier parte del nombre para filtrar la lista en tiempo real. Las secciones con resultados se expanden automáticamente.">
       <button id="limpiar" class="limpiar" type="button" data-tip-title="Limpiar búsqueda" data-tip="Borra el texto del buscador y muestra el listado completo de nuevo.">Limpiar</button>
       ${selectProfHtml}
+      ${selectEspHtml}
+      ${selectCursoHtml}
       ${esProfes ? `<button id="btn-pendientes" class="btn-pend" type="button" data-tip-title="Filtrar solo pendientes" data-tip="Muestra únicamente a los alumnos que tienen la asignatura pendiente de otro curso. Combínalo con las cápsulas de asignatura para sacar los pendientes de una asignatura concreta.">Solo pendientes</button>` : ''}
       ${esProfes ? `<button id="btn-copiar-email" class="btn-copiar" type="button" disabled data-tip-title="Copiar emails al portapapeles" data-tip="Selecciona alumnos con las casillas y pulsa aquí para copiar sus emails, listos para pegar en el campo CCO de Outlook.">Copiar email</button>` : ''}
-      <button id="btn-toggle-todo" type="button" data-tip-title="Expandir / Contraer todo" data-tip="Despliega o contrae todas las asignaturas, cursos y grupos de una sola vez.">Expandir todo</button>
+      <button id="btn-toggle-todo" type="button" aria-label="Expandir / Contraer todo" data-tip-title="Expandir / Contraer todo" data-tip="Cada pulsación abre o cierra una capa: al expandir baja de asignatura a curso y a grupo; al llegar abajo, cada pulsación va cerrando una capa hacia arriba."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 8 12 3 17 8"/><polyline points="7 16 12 21 17 16"/></svg></button>
       <button id="btn-ayuda" class="btn-ayuda" type="button" data-tip-title="Guía de uso" data-tip="Abre la guía completa con la explicación de todos los elementos interactivos de esta vista."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>Ayuda</button>
       <span id="contador" class="contador"></span>
     </div>
@@ -584,8 +611,12 @@ ${esProfes ? `
       </div>
       <div class="aitem slate">
         <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg></div>
-        <div><h3>Expandir / Contraer</h3><p>El botón <strong>Expandir todo / Contraer todo</strong> abre o cierra todas las secciones de una sola vez. También puedes hacer clic en cualquier cabecera individual (la flecha ▸) para expandir o contraer solo esa asignatura, curso o grupo.</p></div>
+        <div><h3>Expandir / Contraer</h3><p>El botón con el icono de flechas (↕) trabaja por capas: cada pulsación abre una capa más (asignatura, luego curso, luego grupo) y, una vez todo abierto, cada pulsación va cerrando una capa. También puedes hacer clic en cualquier cabecera individual (la flecha ▸) para plegar o desplegar solo esa asignatura, curso o grupo. También puedes hacer clic en cualquier cabecera individual (la flecha ▸) para expandir o contraer solo esa asignatura, curso o grupo.</p></div>
       </div>${esProfes ? `
+      <div class="aitem slate">
+        <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+        <div><h3>Filtros por especialidad y curso</h3><p>Los desplegables <strong>Especialidad</strong> y <strong>Curso</strong> acotan el listado a una especialidad o a un curso concretos. Se combinan entre sí y con el resto de filtros (profesor, pendientes y cápsulas de asignatura). Elige la opción «Todas / Todos» para quitar cada filtro.</p></div>
+      </div>` : ''}${esProfes ? `
       <div class="aitem violet">
         <div class="aitem-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
         <div><h3>Filtro por profesor</h3><p>El desplegable te permite ver solo los grupos que imparte un profesor concreto. Elige <em>«Todos los profesores»</em> para quitar el filtro y mostrar todos los grupos de nuevo.</p></div>
@@ -612,9 +643,6 @@ ${esProfes ? `
   var secciones = Array.prototype.slice.call(document.querySelectorAll('.asignatura'));
   var filas = Array.prototype.slice.call(document.querySelectorAll('tr[data-nombre]'));
   var total = filas.length;
-  // true = todo contraído, false = todo expandido
-  // Estado inicial: grupos contraídos, así que el botón ofrece "Expandir todo"
-  var todoContraido = false;
   // Conjunto de índices de asignaturas filtradas (vacío = sin filtro, multi-selección)
   var asigSet = {};
   function asigVacio(){ for (var k in asigSet) if (asigSet[k]) return false; return true; }
@@ -622,6 +650,27 @@ ${esProfes ? `
   var pendienteSolo = false;
   // -1 = sin filtro de profesor; ≥0 = índice en el array de profesores
   var profFiltrado = -1;
+  // '' = sin filtro; valor normalizado de la especialidad / código de curso
+  var espFiltrada = '';
+  var cursoFiltrado = '';
+
+  // Iconos del botón Expandir/Contraer: flechas hacia fuera = expandir, hacia dentro = contraer
+  var ICON_EXPANDIR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 8 12 3 17 8"/><polyline points="7 16 12 21 17 16"/></svg>';
+  var ICON_CONTRAER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 4 12 9 17 4"/><polyline points="7 20 12 15 17 20"/></svg>';
+
+  // Expansión por capas. 0 = todo comprimido · 1 = asignaturas · 2 = + cursos · 3 = + grupos (todo abierto).
+  // La vista inicial trae asignaturas y cursos abiertos y los grupos cerrados → capa 2.
+  var capa = 2;
+  // +1 = la siguiente pulsación abre una capa más; -1 = cierra una capa.
+  var dirCapa = 1;
+  function setIconBtn(){ btnToggle.innerHTML = dirCapa > 0 ? ICON_EXPANDIR : ICON_CONTRAER; }
+  // Aplica el estado plegado/desplegado de cada nivel según la capa actual.
+  function aplicarCapa(){
+    document.querySelectorAll('.asignatura').forEach(function(el){ el.classList.toggle('is-collapsed', capa < 1); });
+    document.querySelectorAll('.curso').forEach(function(el){ el.classList.toggle('is-collapsed', capa < 2); });
+    document.querySelectorAll('.subgrupo').forEach(function(el){ el.classList.toggle('is-collapsed', capa < 3); });
+    renderPlegado();
+  }
 
   function norm(s){
     return (s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/\\s+/g,' ').trim();
@@ -629,8 +678,8 @@ ${esProfes ? `
 
   function renderPlegado(){
     var buscando = !!norm(input.value);
-    // Con búsqueda, filtro de profesor o filtro de pendientes activo → forzar expansión de lo que coincide
-    var forzarExpansion = buscando || profFiltrado >= 0 || pendienteSolo;
+    // Con búsqueda o cualquier filtro activo → forzar expansión de lo que coincide
+    var forzarExpansion = buscando || profFiltrado >= 0 || pendienteSolo || !!espFiltrada || !!cursoFiltrado;
     // Grupos (nivel 2)
     document.querySelectorAll('.subgrupo').forEach(function(sg){
       // Filtro por profesor (comparación numérica de índice)
@@ -678,7 +727,9 @@ ${esProfes ? `
     var visibles = 0;
     filas.forEach(function(tr){
       var ok = (!q || tr.getAttribute('data-nombre').indexOf(q) !== -1)
-            && (!pendienteSolo || tr.getAttribute('data-pendiente') === '1');
+            && (!pendienteSolo || tr.getAttribute('data-pendiente') === '1')
+            && (!espFiltrada || tr.getAttribute('data-especialidad') === espFiltrada)
+            && (!cursoFiltrado || tr.getAttribute('data-curso') === cursoFiltrado);
       tr.style.display = ok ? '' : 'none';
       if (ok) visibles++;
     });
@@ -689,9 +740,10 @@ ${esProfes ? `
       }
     });
     renderPlegado();
-    globalVacio.style.display = (q || pendienteSolo) && visibles === 0 ? 'block' : 'none';
+    var hayFiltro = q || pendienteSolo || espFiltrada || cursoFiltrado;
+    globalVacio.style.display = hayFiltro && visibles === 0 ? 'block' : 'none';
     limpiar.style.display = q ? 'inline-block' : 'none';
-    contador.textContent = (q || pendienteSolo)
+    contador.textContent = hayFiltro
       ? visibles + ' de ' + total + ' registros'
       : total + ' registros';
   }
@@ -703,6 +755,26 @@ ${esProfes ? `
       var idx = parseInt(e.target.value, 10);
       profFiltrado = isNaN(idx) || idx < 0 ? -1 : idx;
       selectProf.classList.toggle('activo', profFiltrado >= 0);
+      aplicar();
+    });
+  }
+
+  // Selector de especialidad (versión profesorado)
+  var selectEsp = document.getElementById('filtro-especialidad');
+  if (selectEsp) {
+    selectEsp.addEventListener('change', function(e){
+      espFiltrada = e.target.value || '';
+      selectEsp.classList.toggle('activo', !!espFiltrada);
+      aplicar();
+    });
+  }
+
+  // Selector de curso (versión profesorado)
+  var selectCurso = document.getElementById('filtro-curso');
+  if (selectCurso) {
+    selectCurso.addEventListener('change', function(e){
+      cursoFiltrado = e.target.value || '';
+      selectCurso.classList.toggle('activo', !!cursoFiltrado);
       aplicar();
     });
   }
@@ -727,29 +799,32 @@ ${esProfes ? `
     });
   }
 
-  // Clic en cabecera individual
+  // Clic en cabecera individual: pliega/despliega solo ese nodo y recalcula la
+  // capa global a partir de lo que quede abierto, para que el botón siga coherente.
   document.querySelectorAll('[data-toggle]').forEach(function(cab){
     cab.addEventListener('click', function(){
       cab.parentElement.classList.toggle('is-collapsed');
-      // Sincroniza estado del botón: si alguno está expandido, el botón ofrece "Contraer"
-      var algExpand = Array.prototype.some.call(
-        document.querySelectorAll('.asignatura, .curso, .subgrupo'),
-        function(el){ return !el.classList.contains('is-collapsed'); }
-      );
-      todoContraido = !algExpand;
-      btnToggle.textContent = todoContraido ? 'Expandir todo' : 'Contraer todo';
+      var hay = function(sel){
+        return Array.prototype.some.call(
+          document.querySelectorAll(sel),
+          function(el){ return !el.classList.contains('is-collapsed'); }
+        );
+      };
+      capa = hay('.subgrupo') ? 3 : hay('.curso') ? 2 : hay('.asignatura') ? 1 : 0;
+      dirCapa = capa >= 3 ? -1 : capa <= 0 ? 1 : dirCapa;
+      setIconBtn();
       renderPlegado();
     });
   });
 
-  // Botón único toggle contraer/expandir
+  // Botón "por capas": cada pulsación abre o cierra UNA sola capa. Al expandir
+  // sube de asignatura → curso → grupo; al llegar arriba invierte y baja igual.
   btnToggle.addEventListener('click', function(){
-    todoContraido = !todoContraido;
-    btnToggle.textContent = todoContraido ? 'Expandir todo' : 'Contraer todo';
-    document.querySelectorAll('.asignatura, .curso, .subgrupo').forEach(function(el){
-      el.classList.toggle('is-collapsed', todoContraido);
-    });
-    renderPlegado();
+    capa += dirCapa;
+    if (capa >= 3) { capa = 3; dirCapa = -1; }
+    else if (capa <= 0) { capa = 0; dirCapa = 1; }
+    setIconBtn();
+    aplicarCapa();
   });
 
   input.addEventListener('input', aplicar);

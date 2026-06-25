@@ -256,6 +256,32 @@ export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios
   return { fileName: "Datos guardados internamente", alumnos, incompletas };
 }
 
+/**
+ * Predicado: ¿la asignatura de este alumno fantasma tiene horario introducido en
+ * el Excel cargado? Sirve para decidir si una asignatura del fantasma que NO está
+ * entre las matriculadas del alumno real (según Local) debe conservarse como fila
+ * fantasma —con su horario— en vez de descartarse al sustituir.
+ */
+export function fantasmaTieneHorario(
+  entries: HorariosEntry[],
+): (fantasma: MatriculaLocal, asignatura: { nombre: string }) => boolean {
+  const porClave = new Map(entries.map((e) => [e.key, e]));
+  return (fantasma, asignatura) => {
+    const nombre =
+      fantasma.apellidos && fantasma.nombre
+        ? `${fantasma.apellidos}, ${fantasma.nombre}`
+        : fantasma.apellidos || fantasma.nombre || "";
+    const clave = generarClave(
+      nombre,
+      fantasma.ensenanzaCurso,
+      fantasma.especialidad ?? "",
+      asignatura.nombre,
+    );
+    const entry = porClave.get(clave);
+    return !!entry && tieneHorario(entry.h);
+  };
+}
+
 export function obtenerValoresHorario(
   filas: FilaInforme[],
   entries: HorariosEntry[],

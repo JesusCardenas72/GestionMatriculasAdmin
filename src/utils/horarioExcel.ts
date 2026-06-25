@@ -25,6 +25,10 @@ export function cellText(value: ExcelJS.CellValue): string {
     if ('richText' in v && Array.isArray(v.richText)) {
       return (v.richText as { text: string }[]).map(r => r.text).join('').trim();
     }
+    // Fórmula con error (p. ej. { error: '#VALUE!' }) u objeto sin texto
+    // legible: no hay texto aprovechable → cadena vacía. Evita que se cuele
+    // un "[object Object]" en el almacén y, de ahí, al Excel regenerado.
+    return '';
   }
   return String(value).trim();
 }
