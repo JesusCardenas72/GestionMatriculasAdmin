@@ -7,7 +7,20 @@ function isAllUpper(s: string): boolean {
 
 function titleCaseWord(w: string): string {
   if (!w) return w;
+  if (w.includes("-")) {
+    return w
+      .split("-")
+      .map((part) => (part ? titleCaseWord(part) : ""))
+      .join("-");
+  }
   return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+}
+
+export function fixHyphenCase(s: string | null | undefined): string | null {
+  if (s == null) return s ?? null;
+  return s.replace(/-([a-záéíóúñüàèìòùâêîôûäëïöü])/g, (_, c: string) =>
+    "-" + c.toUpperCase(),
+  );
 }
 
 export function toTitleCase(s: string | null | undefined): string | null {

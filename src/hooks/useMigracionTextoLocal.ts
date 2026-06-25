@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { MatriculaLocal } from "../api/types";
-import { formatearMatriculaLocal } from "../utils/formatText";
+import { fixHyphenCase, formatearMatriculaLocal } from "../utils/formatText";
 
 export type ListarLocal = (curso: string) => Promise<MatriculaLocal[]>;
 export type ActualizarLocal = (
@@ -19,7 +19,22 @@ export async function migrarTextosLocal(
     try {
       const records = await listar(curso);
       for (const record of records) {
-        if (record.textoFormateado === true) continue;
+        if (record.textoFormateado === true) {
+          // Registros ya formateados: corregir guión en apellidos compuestos si aún está mal
+          if (
+            record.apellidos &&
+            /-[a-záéíóúñüàèìòùâêîôûäëïöü]/.test(record.apellidos)
+          ) {
+            const apellidosFixed = fixHyphenCase(record.apellidos);
+            if (apellidosFixed !== record.apellidos) {
+              await actualizar(curso, record.localId, {
+                apellidos: apellidosFixed,
+              });
+              count++;
+            }
+          }
+          continue;
+        }
         const formatted = formatearMatriculaLocal(record);
         await actualizar(curso, record.localId, {
           nombre: formatted.nombre,

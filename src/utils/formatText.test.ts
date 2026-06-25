@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatearMatriculaLocal, toTitleCase } from "./formatText";
+import { fixHyphenCase, formatearMatriculaLocal, toTitleCase } from "./formatText";
 import type { MatriculaLocal } from "../api/types";
 
 function makeMatricula(overrides: Partial<MatriculaLocal> = {}): MatriculaLocal {
@@ -94,12 +94,50 @@ describe("toTitleCase", () => {
     expect(toTitleCase("---")).toBe("---");
   });
 
+  it("capitaliza ambas partes de un apellido compuesto con guión", () => {
+    expect(toTitleCase("GARCIA-LOPEZ")).toBe("Garcia-Lopez");
+  });
+
+  it("capitaliza apellido compuesto con acento", () => {
+    expect(toTitleCase("GARCÍA-LÓPEZ")).toBe("García-López");
+  });
+
+  it("capitaliza apellido compuesto con múltiples palabras y guión", () => {
+    expect(toTitleCase("MARTIN GARCIA-LOPEZ")).toBe("Martin Garcia-Lopez");
+  });
+
   it("maneja múltiples espacios entre palabras", () => {
     expect(toTitleCase("PEDRO   LÓPEZ")).toBe("Pedro   López");
   });
 
   it("transforma palabras sueltas", () => {
     expect(toTitleCase("PEDRO")).toBe("Pedro");
+  });
+});
+
+describe("fixHyphenCase", () => {
+  it("capitaliza la letra tras el guión si está en minúscula", () => {
+    expect(fixHyphenCase("García-lopez")).toBe("García-Lopez");
+  });
+
+  it("no modifica si ya está correctamente capitalizado", () => {
+    expect(fixHyphenCase("García-López")).toBe("García-López");
+  });
+
+  it("capitaliza múltiples guiones", () => {
+    expect(fixHyphenCase("García-lopez-martín")).toBe("García-Lopez-Martín");
+  });
+
+  it("devuelve null si la entrada es null", () => {
+    expect(fixHyphenCase(null)).toBeNull();
+  });
+
+  it("devuelve null si la entrada es undefined", () => {
+    expect(fixHyphenCase(undefined)).toBeNull();
+  });
+
+  it("no modifica cadenas sin guión", () => {
+    expect(fixHyphenCase("García López")).toBe("García López");
   });
 });
 
@@ -119,6 +157,12 @@ describe("formatearMatriculaLocal", () => {
     expect(out.localidad).toBe("Ciudad Real");
     expect(out.provincia).toBe("Ciudad Real");
     expect(out.textoFormateado).toBe(true);
+  });
+
+  it("formatea apellidos compuestos con guión correctamente", () => {
+    const m = makeMatricula({ apellidos: "GARCIA-LOPEZ" });
+    const out = formatearMatriculaLocal(m);
+    expect(out.apellidos).toBe("Garcia-Lopez");
   });
 
   it("se salta registros ya marcados como textoFormateado", () => {
