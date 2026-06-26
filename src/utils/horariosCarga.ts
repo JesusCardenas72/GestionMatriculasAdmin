@@ -1,5 +1,5 @@
 import { parseHorariosExcel, extraerCamposInforme } from "./horarioExcel";
-import { parseHorariosExcelCrudo } from "./fusionHorarios";
+import { parseHorariosExcelCrudo, type FilaCrudaHorario } from "./fusionHorarios";
 import { actualizarHorariosStore, type ResultadoActualizacion } from "./horariosPersistencia";
 import type { HorariosCursoData } from "../../electron/horarios-data-store";
 import type { CargaHorarios } from "../horarios/types";
@@ -30,17 +30,32 @@ export interface CargaExcelHorariosResult {
  * lo detecta del Excel y crea automáticamente el preset correspondiente en
  * Informes.
  *
- * Devuelve `null` si el usuario cancela el selector de archivo.
+ * @param onValidar  Callback opcional para validar/corregir las filas antes de
+ *                   guardarlas. Recibe las filas crudas y la lista de profesores;
+ *                   debe devolver las filas corregidas o `null` para cancelar la
+ *                   carga. Si no se pasa, las filas se guardan sin validación.
+ *
+ * Devuelve `null` si el usuario cancela el selector de archivo o el diálogo de
+ * corrección.
  */
 export async function cargarExcelHorarios(
   curso: string,
+  onValidar?: (crudas: FilaCrudaHorario[], profesores: string[]) => Promise<FilaCrudaHorario[] | null>,
 ): Promise<CargaExcelHorariosResult | null> {
   const sel = await window.adminAPI.horarios.seleccionarExcelRelleno();
   if (!sel) return null;
 
   const carga = await parseHorariosExcel(sel.base64, sel.fileName);
 
-  const crudas = await parseHorariosExcelCrudo(sel.base64);
+  let crudas = await parseHorariosExcelCrudo(sel.base64);
+
+  if (onValidar) {
+    const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
+    const corregidas = await onValidar(crudas, profesores);
+    if (corregidas === null) return null;
+    crudas = corregidas;
+  }
+
   const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
   const resultado = actualizarHorariosStore(storeData, crudas, "carga_excel", sel.fileName);
 

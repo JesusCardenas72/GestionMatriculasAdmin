@@ -38,6 +38,10 @@ import {
   type HuerfanaAlmacen,
 } from "../../utils/horariosPersistencia";
 import { cargarExcelHorarios } from "../../utils/horariosCarga";
+import { validarFilasCrudas, aplicarCorreccionesHorario } from "../../utils/validarHorariosCargados";
+import { ModalCorreccionHorarios } from "./ModalCorreccionHorarios";
+import type { FilaConErrorHorario } from "../../utils/validarHorariosCargados";
+import type { FilaCrudaHorario, HKey } from "../../utils/fusionHorarios";
 import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
 import type { CampanyaEnvio } from "../../horarios/types";
 import { HistorialHorariosContenido } from "./HistorialHorariosContenido";
@@ -1316,6 +1320,11 @@ function Paso3ProfesoresRellenan({
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
+  const [validacionPendiente, setValidacionPendiente] = useState<{
+    crudas: FilaCrudaHorario[];
+    filasConError: FilaConErrorHorario[];
+    resolve: (crudas: FilaCrudaHorario[] | null) => void;
+  } | null>(null);
 
   useEffect(() => {
     window.adminAPI.horarios.campanyas
@@ -1330,7 +1339,13 @@ function Paso3ProfesoresRellenan({
     try {
       setOcupado(true);
       // Misma lógica exacta que «Horarios → Cargar Excel de horarios».
-      const cargado = await cargarExcelHorarios(curso);
+      const cargado = await cargarExcelHorarios(curso, async (crudas, profesores) => {
+        const errores = validarFilasCrudas(crudas, profesores);
+        if (errores.length === 0) return crudas;
+        return new Promise<FilaCrudaHorario[] | null>((resolve) => {
+          setValidacionPendiente({ crudas, filasConError: errores, resolve });
+        });
+      });
       if (!cargado) return;
       const { carga, resultado, formatoDetectado } = cargado;
       setReloadToken((t) => t + 1);
@@ -1460,6 +1475,21 @@ function Paso3ProfesoresRellenan({
           </div>
         )}
       </div>
+
+      {validacionPendiente && (
+        <ModalCorreccionHorarios
+          filasConError={validacionPendiente.filasConError}
+          onConfirmar={(correcciones) => {
+            const { crudas, resolve } = validacionPendiente;
+            setValidacionPendiente(null);
+            resolve(aplicarCorreccionesHorario(crudas, correcciones));
+          }}
+          onCancelar={() => {
+            validacionPendiente.resolve(null);
+            setValidacionPendiente(null);
+          }}
+        />
+      )}
     </div>
   );
 }
