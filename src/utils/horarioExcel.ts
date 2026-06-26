@@ -17,7 +17,16 @@ export function cellText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number') return String(value);
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) {
+    // ExcelJS convierte seriales de hora de Excel (base 1899-12-30) a Date UTC.
+    // Los detectamos por año 1899 y los formateamos como "H:MM" igual que el desplegable.
+    if (value.getUTCFullYear() === 1899) {
+      const h = value.getUTCHours();
+      const m = value.getUTCMinutes();
+      return `${h}:${m.toString().padStart(2, '0')}`;
+    }
+    return value.toISOString();
+  }
   if (typeof value === 'object') {
     const v = value as unknown as Record<string, unknown>;
     if ('text' in v && typeof v.text === 'string') return v.text.trim();

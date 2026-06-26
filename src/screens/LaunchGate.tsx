@@ -28,9 +28,18 @@ export default function LaunchGate() {
 
   useEffect(() => {
     if (vista === "elegir") {
-      botonesRef.current[0]?.focus();
+      botonesRef.current[focoIdx]?.focus();
     }
-  }, [vista]);
+  }, [vista]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cuando la ventana recupera el foco (venimos de otra app), re-enfocar el botón
+  // activo para que las flechas y Enter vuelvan a funcionar sin usar el ratón.
+  useEffect(() => {
+    if (vista !== "elegir") return;
+    const onWindowFocus = () => botonesRef.current[focoIdx]?.focus();
+    window.addEventListener("focus", onWindowFocus);
+    return () => window.removeEventListener("focus", onWindowFocus);
+  }, [vista, focoIdx]);
 
   function onKeyDownMenu(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown" || e.key === "ArrowRight") {

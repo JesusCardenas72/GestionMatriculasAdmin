@@ -437,8 +437,7 @@ function registerIpcHandlers() {
     },
   );
 
-  // ── Horarios: seleccionar Excel relleno desde el asistente (paso 3) ───────
-  // Abre diálogo sin guardar la ruta global (se gestiona desde el estado del asistente).
+  // ── Horarios: seleccionar Excel relleno (siempre abre diálogo) ─────────────
   ipcMain.handle(
     "horarios:seleccionarExcelRelleno",
     async (): Promise<{ fileName: string; base64: string; path: string } | null> => {
@@ -450,6 +449,7 @@ function registerIpcHandlers() {
       if (res.canceled || res.filePaths.length === 0) return null;
       const file = res.filePaths[0];
       const buf = fs.readFileSync(file);
+      setHorariosExcelPath(file);
       return { fileName: path.basename(file), base64: buf.toString("base64"), path: file };
     },
   );

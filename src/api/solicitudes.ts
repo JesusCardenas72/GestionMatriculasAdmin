@@ -43,6 +43,7 @@ interface DataverseSolicitud {
   cpmmr_estado: EstadoTramite;
   cpmmr_fechadeinscripcion?: string | null;
   createdon?: string | null;
+  modifiedon?: string | null;
   cr955_docfaltante?: string | null;
   cr955_cursoescolar?: string | null;
   cr955_repetidor?: boolean | null;
@@ -65,6 +66,7 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
     cp: r.cpmmr_cp,
     fechaInscripcion: r.cpmmr_fechadeinscripcion ?? "",
     createdon: r.createdon ?? r.cpmmr_fechadeinscripcion ?? new Date().toISOString(),
+    modifiedon: r.modifiedon ?? r.createdon ?? r.cpmmr_fechadeinscripcion ?? new Date().toISOString(),
     cursoEscolar: r.cr955_cursoescolar || calcularCursoEscolar(r.createdon ?? r.cpmmr_fechadeinscripcion) || null,
     ensenanzaCurso: r.cpmmr_ensenanzaycurso ?? "",
     especialidad: r.cpmmr_especialidad,

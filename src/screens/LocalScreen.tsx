@@ -4,6 +4,7 @@ import type { AppConfig } from "../../electron/config-store";
 import {
   ESTADO,
   ESTADO_ASIGNATURA_LABEL,
+  type AsignaturaLocal,
   type EstadoTramite,
   type MatriculaLocal,
 } from "../api/types";
@@ -320,6 +321,8 @@ export default function LocalScreen({ config }: Props) {
   const { matriculas, isLoading, isFetching, refetch, actualizar, guardar, eliminar, marcarSubida, guardarLote } = useLocalMatriculas(curso);
   const eliminarRef = useRef(eliminar);
   eliminarRef.current = eliminar;
+  const actualizarRef = useRef(actualizar);
+  actualizarRef.current = actualizar;
   const pendienteTramitacionQuery = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
   const pendienteValidacionQuery = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION, curso);
   const tramitadasQuery = useSolicitudes(config, ESTADO.TRAMITADO, curso);
@@ -358,9 +361,12 @@ export default function LocalScreen({ config }: Props) {
       (tramitadasQuery.data.total === 0 ||
         tramitadasQuery.data.solicitudes.length >= tramitadasQuery.data.total);
 
-    const localRowIds = new Set(
-      matriculas.map((m) => m.rowId).filter((id): id is string => id !== null),
+    const localPorRowId = new Map(
+      matriculas
+        .filter((m) => m.rowId !== null && !m._pendienteSubida && !m.esTemporal)
+        .map((m) => [m.rowId!, m]),
     );
+    const localRowIds = new Set(localPorRowId.keys());
     const remotas = [
       ...pendienteTramitacionQuery.data.solicitudes,
       ...pendienteValidacionQuery.data.solicitudes,
@@ -373,6 +379,18 @@ export default function LocalScreen({ config }: Props) {
       if (vistos.has(s.rowId)) return false;
       vistos.add(s.rowId);
       return true;
+    });
+
+    // Detecta registros que ya existen en local pero que la nube ha modificado desde
+    // la última sincronización (compara modifiedon de Dataverse con _nubeModificadoEn).
+    const vistosAct = new Set<string>();
+    const actualizadas = remotas.filter((s) => {
+      const local = localPorRowId.get(s.rowId);
+      if (!local) return false;
+      if (vistosAct.has(s.rowId)) return false;
+      vistosAct.add(s.rowId);
+      if (!local._nubeModificadoEn) return true; // sin marca de sincronización → re-descargar
+      return s.modifiedon > local._nubeModificadoEn;
     });
 
     // Detecta duplicados y huérfanos: registros locales con rowId que ya no está en
@@ -397,7 +415,7 @@ export default function LocalScreen({ config }: Props) {
       }
     }
 
-    if (nuevas.length === 0 && obsoletos.length === 0) return;
+    if (nuevas.length === 0 && obsoletos.length === 0 && actualizadas.length === 0) return;
 
     setIsSyncing(true);
 
@@ -467,6 +485,68 @@ export default function LocalScreen({ config }: Props) {
             .map((r) => r.value);
           // 3) Guardar todo el lote en una sola escritura del archivo
           if (records.length > 0) await guardarLote(records);
+        }
+
+        // 4) Actualizar registros que ya existen en local pero la nube ha cambiado
+        if (actualizadas.length > 0) {
+          await Promise.allSettled(
+            actualizadas.map(async (solicitud) => {
+              const localExistente = localPorRowId.get(solicitud.rowId)!;
+
+              const asigs = await listarAsignaturasSolicitud(config, {
+                matriculaId: solicitud.rowId,
+              });
+
+              // Preservar horarios asignados manualmente por localId de asignatura
+              const horariosPorRowId = new Map<string, string | null>(
+                localExistente.asignaturas
+                  .filter((a) => a.rowId !== null)
+                  .map((a) => [a.rowId!, a.horario]),
+              );
+
+              const asignaturasActualizadas: AsignaturaLocal[] = asigs.map((a) => ({
+                localId:
+                  localExistente.asignaturas.find((la) => la.rowId === a.rowId)?.localId ??
+                  crypto.randomUUID(),
+                rowId: a.rowId,
+                asignaturaId: a.asignaturaId,
+                codigo:
+                  localExistente.asignaturas.find((la) => la.rowId === a.rowId)?.codigo ?? 0,
+                nombre: a.nombre,
+                estado: a.estado,
+                observaciones: a.observaciones,
+                horario: horariosPorRowId.get(a.rowId) ?? null,
+              }));
+
+              const now = new Date().toISOString();
+              await actualizarRef.current(localExistente.localId, {
+                nOrden: solicitud.nOrden,
+                nombreMatricula: solicitud.nombreMatricula,
+                nombre: solicitud.nombre,
+                apellidos: solicitud.apellidos,
+                dni: solicitud.dni,
+                email: solicitud.email,
+                telefono: solicitud.telefono,
+                fechaNacimiento: solicitud.fechaNacimiento,
+                domicilio: solicitud.domicilio,
+                localidad: solicitud.localidad,
+                provincia: solicitud.provincia,
+                cp: solicitud.cp,
+                ensenanzaCurso: solicitud.ensenanzaCurso,
+                especialidad: solicitud.especialidad,
+                formaPago: solicitud.formaPago,
+                reduccionTasas: solicitud.reduccionTasas,
+                autorizacionImagen: solicitud.autorizacionImagen,
+                disponibilidadManana: solicitud.disponibilidadManana,
+                horaSalida: solicitud.horaSalida,
+                docFaltante: solicitud.docFaltante,
+                repetidor: solicitud.repetidor,
+                asignaturas: asignaturasActualizadas,
+                _nubeModificadoEn: solicitud.modifiedon,
+                _modificadoEn: now,
+              });
+            }),
+          );
         }
       } finally {
         setIsSyncing(false);
@@ -786,7 +866,7 @@ export default function LocalScreen({ config }: Props) {
             .filter((a) => a.rowId === null)
             .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
         });
-        await marcarSubida(selected.localId);
+        await actualizar(selected.localId, { _pendienteSubida: false, _fueEditado: true });
       } else {
         const result = await crearAmpliacion(config, {
           nombre: selected.nombre,
@@ -815,7 +895,7 @@ export default function LocalScreen({ config }: Props) {
           })),
           pdfBase64: selected._tienePdf ? await cursosStore.leerPdf(curso, selected.localId) : null,
         });
-        await actualizar(selected.localId, { rowId: result.rowId, _pendienteSubida: false });
+        await actualizar(selected.localId, { rowId: result.rowId, _pendienteSubida: false, _fueEditado: true });
       }
     } catch (e) {
       setSubirError(e instanceof Error ? e.message : "Error desconocido al subir");
@@ -861,7 +941,7 @@ export default function LocalScreen({ config }: Props) {
               .filter((a) => a.rowId === null)
               .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
           });
-          await marcarSubida(m.localId);
+          await actualizar(m.localId, { _pendienteSubida: false, _fueEditado: true });
         } else {
           const result = await crearAmpliacion(config, {
             nombre: m.nombre,
@@ -890,7 +970,7 @@ export default function LocalScreen({ config }: Props) {
             })),
             pdfBase64: m._tienePdf ? await cursosStore.leerPdf(curso, m.localId) : null,
           });
-          await actualizar(m.localId, { rowId: result.rowId, _pendienteSubida: false });
+          await actualizar(m.localId, { rowId: result.rowId, _pendienteSubida: false, _fueEditado: true });
         }
       } catch {
         errores++;
@@ -1077,6 +1157,8 @@ export default function LocalScreen({ config }: Props) {
                   setShowAmpliacion(true);
                 }}
                 onSubirNube={() => { if (!isSoloLectura) void handleSubirNube(); }}
+                onSubirNubeTodo={() => { if (!isSoloLectura) void handleSubirNubeTodo(); }}
+                pendingUploads={pendingUploads}
                 onGenerarPdf={() => void handleObtenerPdf()}
                 onBorrar={() => { if (!isSoloLectura) void handleBorrar(); }}
                 onEnviarCorreo={() => void handleEnviarCorreo()}

@@ -113,8 +113,13 @@ export async function generarExcelHorarios(
   columnasLista.forEach((col, i) => {
     const letra = String.fromCharCode(65 + i);
     listas.getCell(`${letra}1`).value = col.titulo;
+    // Columnas E y F son HorasEntrada/HorasSalida: forzamos formato texto para
+    // evitar que Excel auto-convierta "9:00" o "18:30" a serial de tiempo.
+    const esHora = letra === 'E' || letra === 'F';
     col.valores.forEach((v, j) => {
-      listas.getCell(`${letra}${j + 2}`).value = v;
+      const cell = listas.getCell(`${letra}${j + 2}`);
+      cell.value = v;
+      if (esHora) cell.numFmt = '@';
     });
   });
   const rango = (letra: string, n: number) => `Listas!$${letra}$2:$${letra}$${Math.max(n, 1) + 1}`;
@@ -266,18 +271,21 @@ export async function generarExcelHorarios(
             `IF(${L(entKey)}${r}<>"",` +
             `TEXT(MIN(TIMEVALUE(${L(entKey)}${r})+TIME(1,0,0),TIMEVALUE("21:00")),"H:MM"),"")`,
         };
+        salCell.numFmt = '@';
       }
     }
   }
 
   // Desplegables + protección por celda. Las filas de alumnos temporales
   // ("PDTE. N — …") se pintan en naranja para localizarlas de un vistazo.
+  const TIME_KEYS = new Set(['h_ent1', 'h_sal1', 'h_ent2', 'h_sal2']);
   const filaEsTemporal = (r: number) => r - 2 < filas.length && !!filas[r - 2].esTemporal;
   for (let r = 2; r <= totalFilas + 1; r++) {
     const esTemp = filaEsTemporal(r);
     COLS.forEach((c, i) => {
       const cell = ws.getCell(r, i + 1);
       if (c.editable && c.lista) {
+        if (TIME_KEYS.has(c.key)) cell.numFmt = '@';
         cell.dataValidation = {
           type: 'list',
           allowBlank: true,
