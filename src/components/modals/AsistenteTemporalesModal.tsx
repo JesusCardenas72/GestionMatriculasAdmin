@@ -31,7 +31,12 @@ import {
 import { parseArchivoTemporales } from "../../utils/importTemporales";
 import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
 import { generarExcelHorarios, type OpcionesHorario } from "../../utils/excelHorarios";
-import { fantasmaTieneHorario, obtenerValoresHorario } from "../../utils/horariosPersistencia";
+import {
+  fantasmaTieneHorario,
+  obtenerValoresHorario,
+  detectarHuerfanasAlmacen,
+  type HuerfanaAlmacen,
+} from "../../utils/horariosPersistencia";
 import { cargarExcelHorarios } from "../../utils/horariosCarga";
 import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
 import type { CampanyaEnvio } from "../../horarios/types";
@@ -643,17 +648,57 @@ function Paso2ExcelHorarios({
 }) {
   const [showGenerar, setShowGenerar] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  // Clases guardadas que no casarían con el informe actual (`null` = sin comprobar).
+  const [huerfanas, setHuerfanas] = useState<HuerfanaAlmacen[] | null>(null);
+  const [comprobando, setComprobando] = useState(false);
+
+  // Comprobación de huérfanas read-only: reproduce las filas que generaría el
+  // Paso 2 (incluida la sustitución fantasma → real, sobre una copia local sin
+  // persistir) y detecta lo que se quedaría fuera del Excel.
+  const handleComprobarHuerfanas = async () => {
+    setComprobando(true);
+    try {
+      const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      const conExcel = storeData.entries.length > 0;
+      const parejas = planSustituciones(matriculas);
+      const cambios = new Map<string, Partial<MatriculaLocal>>();
+      for (const p of parejas) {
+        cambios.set(p.temporal.localId, {
+          temporalEstado: "sustituido",
+          sustituidoPorLocalId: p.real.localId,
+        });
+      }
+      const matriculasGen = matriculas.map((m) =>
+        cambios.has(m.localId) ? { ...m, ...cambios.get(m.localId) } : m,
+      );
+      const filas = filasAsignaturaLocales(
+        matriculasGen,
+        conExcel ? fantasmaTieneHorario(storeData.entries) : undefined,
+      );
+      setHuerfanas(detectarHuerfanasAlmacen(filas, storeData.entries, matriculasGen));
+    } finally {
+      setComprobando(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
       {!disabled && (
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowGenerar(true)}
             className="h-9 inline-flex items-center gap-1.5 rounded-lg bg-[var(--tc-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
           >
             <FileSpreadsheet className="w-4 h-4" />
             Generar Excel de horarios
+          </button>
+          <button
+            onClick={() => void handleComprobarHuerfanas()}
+            disabled={comprobando}
+            className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] px-4 text-sm font-semibold text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-50"
+          >
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            {comprobando ? "Comprobando…" : "Comprobar clases huérfanas"}
           </button>
         </div>
       )}
@@ -684,6 +729,157 @@ function Paso2ExcelHorarios({
           }}
         />
       )}
+
+      {huerfanas !== null && (
+        <ModalHuerfanasAsistente huerfanas={huerfanas} onClose={() => setHuerfanas(null)} />
+      )}
+    </div>
+  );
+}
+
+/** Ventana de aviso: clases guardadas con horario que NO entrarían en el Excel. */
+function ModalHuerfanasAsistente({
+  huerfanas,
+  onClose,
+}: {
+  huerfanas: HuerfanaAlmacen[];
+  onClose: () => void;
+}) {
+  // Solo cerramos si la pulsación empieza Y termina en el fondo. Así un arrastre
+  // del redimensionado que suelta fuera de la ventana no la cierra por error.
+  const pulsacionEnFondo = useRef(false);
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+      onMouseDown={(e) => {
+        pulsacionEnFondo.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && pulsacionEnFondo.current) onClose();
+      }}
+    >
+      <div
+        className="bg-[var(--tc-card)] rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh] resize-x"
+        style={{ width: "min(720px, 95vw)", minWidth: "480px", maxWidth: "95vw" }}
+      >
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle
+              className={`w-5 h-5 shrink-0 ${huerfanas.length ? "text-amber-500" : "text-emerald-500"}`}
+            />
+            <h3 className="text-sm font-bold text-[var(--tc-ink)] truncate">
+              {huerfanas.length
+                ? `${huerfanas.length} clase${huerfanas.length === 1 ? "" : "s"} guardada${huerfanas.length === 1 ? "" : "s"} sin volcar`
+                : "Todas las clases guardadas entrarían"}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-[var(--tc-primary-tint)] text-[var(--tc-muted)] transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 overflow-y-auto">
+          {huerfanas.length === 0 ? (
+            <p className="text-sm text-[var(--tc-ink)]">
+              No hay clases guardadas con horario que se queden fuera. Todo lo guardado casa por
+              alumno, enseñanza/curso, especialidad y asignatura.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-[var(--tc-muted)] mb-3">
+                Estas clases tienen horario guardado pero{" "}
+                <span className="font-semibold">no entrarían en el Excel</span> porque no casan con el
+                informe (se comparan ignorando mayúsculas y acentos). El dato{" "}
+                <span className="font-semibold">no se pierde</span>: sigue en el almacén. Ajusta el
+                alumno/asignatura o los datos de Local y vuelve a generar.
+              </p>
+              <div className="border border-[var(--tc-border)] rounded-lg overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead>
+                    <tr className="bg-[var(--tc-primary-tint)] text-[var(--tc-muted)] text-left">
+                      <th className="px-2.5 py-2 font-semibold">Alumno</th>
+                      <th className="px-2.5 py-2 font-semibold">Ens./Curso</th>
+                      <th className="px-2.5 py-2 font-semibold">Especialidad</th>
+                      <th className="px-2.5 py-2 font-semibold">Asignatura</th>
+                      <th className="px-2.5 py-2 font-semibold">Horario guardado</th>
+                      <th className="px-2.5 py-2 font-semibold">Motivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {huerfanas.map((h, i) => (
+                      <tr key={i} className="border-t border-[var(--tc-border)] text-[var(--tc-ink)] align-top">
+                        <td className="px-2.5 py-1.5 font-medium">{h.nombreCompleto}</td>
+                        <td className="px-2.5 py-1.5">{h.ensenanzaCurso}</td>
+                        <td className="px-2.5 py-1.5">{h.especialidad}</td>
+                        <td className="px-2.5 py-1.5">{h.asignatura}</td>
+                        <td className="px-2.5 py-1.5 text-[var(--tc-muted)]">{h.horarioResumen}</td>
+                        <td className="px-2.5 py-1.5">
+                          <span
+                            className={
+                              "inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold " +
+                              (h.motivo === "clave_no_casa"
+                                ? "bg-orange-100 text-orange-700"
+                                : "bg-slate-100 text-slate-600")
+                            }
+                          >
+                            {h.motivo === "clave_no_casa"
+                              ? "El Alumn. aparece, asignatura no coincide"
+                              : "Alumn.-Asign. No incluido en nuevo Excel"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Leyenda: qué significa cada motivo y por qué ocurre */}
+              <div className="mt-4 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-primary-tint)]/30 px-3.5 py-3 space-y-2.5">
+                <p className="text-[11px] font-bold text-[var(--tc-ink)]">¿Qué significa cada motivo?</p>
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 shrink-0">
+                    El Alumn. aparece, asignatura no coincide
+                  </span>
+                  <p className="text-[11px] text-[var(--tc-ink)] leading-snug">
+                    El <span className="font-semibold">alumno sí aparece</span> en el informe, pero esa{" "}
+                    <span className="font-semibold">asignatura</span> concreta no coincide con ninguna de sus filas.
+                    Causas habituales: el nombre de la asignatura está escrito distinto (abreviado, con código,
+                    con/sin tilde o mayúsculas), o el alumno tiene esa asignatura en el horario guardado pero{" "}
+                    <span className="font-semibold">ya no la tiene matriculada</span> en Local.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 shrink-0">
+                    Alumn.-Asign. No incluido en nuevo Excel
+                  </span>
+                  <p className="text-[11px] text-[var(--tc-ink)] leading-snug">
+                    El <span className="font-semibold">alumno no aparece</span> en el informe actual.
+                    Causas habituales: no está entre las matrículas de Local de este curso, está{" "}
+                    <span className="font-semibold">excluido por los filtros</span> del informe, o su{" "}
+                    <span className="font-semibold">nombre, enseñanza/curso o especialidad</span> difiere del
+                    guardado (se comparan ignorando mayúsculas y acentos) y no se le reconoce como el mismo alumno.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-[var(--tc-border)] bg-[var(--tc-primary-tint)]/40 shrink-0">
+          <span className="text-[10px] text-[var(--tc-muted)] hidden sm:inline">
+            Arrastra la esquina inferior derecha para ensanchar la ventana.
+          </span>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-[var(--tc-primary)] text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-colors shadow-sm"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

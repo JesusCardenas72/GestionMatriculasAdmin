@@ -17,6 +17,26 @@ export const H_KEYS = [
 export type HKey = (typeof H_KEYS)[number];
 export type ValoresH = Partial<Record<HKey, string>>;
 
+/**
+ * ¿Es un valor de celda de horario aprovechable? Descarta los vacíos y, sobre
+ * todo, el resto `"[object Object]"` que dejaba el lector de fórmulas antiguo
+ * (celdas de Salida con fórmula sin resultado cacheado). Es el único punto de
+ * verdad: así ese valor nunca cuenta como horario ni se cuela en los Excel,
+ * aunque reaparezca en una carga antigua o en datos ya guardados.
+ */
+export function esValorHorarioUtil(v: unknown): v is string {
+  return typeof v === "string" && v.trim() !== "" && v.trim() !== "[object Object]";
+}
+
+/** Copia de los valores de horario quedándose solo con las celdas aprovechables. */
+export function sanearValoresH(h: ValoresH): ValoresH {
+  const out: ValoresH = {};
+  for (const k of H_KEYS) {
+    if (esValorHorarioUtil(h[k])) out[k] = h[k]!.trim();
+  }
+  return out;
+}
+
 /** Fila cruda de la hoja "Horarios" de un Excel relleno por los profesores. */
 export interface FilaCrudaHorario {
   nombreCompleto: string;
@@ -119,7 +139,7 @@ export async function parseHorariosExcelCrudo(base64: string): Promise<FilaCruda
     const h: ValoresH = {};
     for (const k of H_KEYS) {
       const v = txt(row, cH[k]);
-      if (v) h[k] = v;
+      if (esValorHorarioUtil(v)) h[k] = v;
     }
     filas.push({
       nombreCompleto,
@@ -158,8 +178,8 @@ export function fusionarHorarios(
   crudas: FilaCrudaHorario[],
   matriculas: MatriculaLocal[],
 ): ResultadoFusion {
-  // Índice de filas crudas CON algún dato de horario.
-  const conHorario = crudas.filter((c) => Object.keys(c.h).length > 0);
+  // Índice de filas crudas CON algún dato de horario aprovechable.
+  const conHorario = crudas.filter((c) => Object.values(c.h).some(esValorHorarioUtil));
   const porClave = new Map<string, FilaCrudaHorario>();
   for (const c of conHorario) {
     const k = claveDe(c);

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
@@ -51,7 +52,12 @@ import {
 import { buildHtmlInforme } from '../utils/pdfInforme';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion } from '../utils/fusionHorarios';
-import { obtenerValoresHorario, actualizarHorariosStore } from '../utils/horariosPersistencia';
+import {
+  obtenerValoresHorario,
+  actualizarHorariosStore,
+  detectarHuerfanasAlmacen,
+  type HuerfanaAlmacen,
+} from '../utils/horariosPersistencia';
 import { asignaturasCursadas } from '../utils/repetidorSuelta';
 import type { HorariosCursoData, FormatoHorarios } from '../../electron/horarios-data-store';
 
@@ -379,6 +385,10 @@ export default function InformesScreen({ config }: Props) {
     fileName: string;
     crudas: import('../utils/fusionHorarios').FilaCrudaHorario[];
   } | null>(null);
+
+  // Clases guardadas que NO han entrado en el último Excel generado (huérfanas).
+  // `null` = sin comprobación; `[]` = comprobado y todo casó.
+  const [huerfanas, setHuerfanas] = useState<HuerfanaAlmacen[] | null>(null);
 
   // Previsualización CSV profesores (modal)
 
@@ -1408,6 +1418,11 @@ export default function InformesScreen({ config }: Props) {
       nombreArchivo: `${informe.nombre} - Horarios`,
       extension: 'xlsx',
     });
+
+    // Aviso: clases guardadas que NO han entrado en este Excel (no casan con el
+    // informe). Solo abrimos la ventana si hay alguna.
+    const huerf = detectarHuerfanasAlmacen(resultados, storeData.entries, matriculas);
+    if (huerf.length > 0) setHuerfanas(huerf);
   }
 
   /** Borra el formato de horarios guardado para el curso actual (permite establecer uno nuevo). */
@@ -1426,6 +1441,9 @@ export default function InformesScreen({ config }: Props) {
   // Abre el modal de configuración del Excel de horarios con valores por defecto.
   // `fusion` activa la Fusión Actualización Nuevo Alumnado: carga un Excel ya
   // relleno por los profesores y conserva sus horarios en el nuevo Excel.
+  // Conservada íntegra por si se reactiva, pero ya no se expone en el menú de
+  // Informes: la generación del Excel de horarios se hace desde el Paso 2 del
+  // Asistente. La referencia `void` de abajo evita el aviso de símbolo sin uso.
   function handleExportarHorarios(fusion = false) {
     setShowExportMenu(false);
     if (camposEnTabla.length === 0) {
@@ -1473,6 +1491,8 @@ export default function InformesScreen({ config }: Props) {
     }
     setShowHorariosConfig(true);
   }
+  // Mantiene viva la generación de horarios desde Informes aunque no haya botón.
+  void handleExportarHorarios;
 
   // Genera y exporta el Excel de horarios con la configuración elegida en el modal.
   async function handleGenerarHorarios() {
@@ -1607,6 +1627,9 @@ export default function InformesScreen({ config }: Props) {
         actualizarHorariosStore(storeData, fusionPendiente.crudas, 'carga_excel', fusionPendiente.fileName);
         await window.adminAPI.horarios.data.guardar(curso, storeData);
         setFusionPendiente(null);
+        // Aviso de clases guardadas que no han entrado en el Excel fusionado.
+        const huerf = detectarHuerfanasAlmacen(resultados, storeData.entries, matriculas);
+        if (huerf.length > 0) setHuerfanas(huerf);
       }
     } finally {
       setHorariosGenerando(false);
@@ -1719,14 +1742,6 @@ export default function InformesScreen({ config }: Props) {
                   <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-400" />
                   <span>Excel <span className="text-slate-400 text-xs">(.xlsx)</span></span>
                 </button>
-                <button
-                  onClick={() => handleExportarHorarios()}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] transition-colors"
-                >
-                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-500" />
-                  <span>Generar Excel Horarios</span>
-                </button>
-
                 <div className="h-px bg-slate-100 my-1" />
 
                 <button
@@ -2938,6 +2953,111 @@ export default function InformesScreen({ config }: Props) {
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   {horariosGenerando ? 'Generando…' : 'Generar Excel fusionado'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal: clases guardadas huérfanas (no entran en el Excel) ───────── */}
+      <AnimatePresence>
+        {huerfanas !== null && (
+          <motion.div
+            key="huerfanas-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setHuerfanas(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[85vh]"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0 gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <AlertTriangle className={`w-5 h-5 shrink-0 ${huerfanas.length ? 'text-amber-500' : 'text-emerald-500'}`} />
+                  <h3 className="text-sm font-bold text-[#1b1b24]">
+                    {huerfanas.length
+                      ? `${huerfanas.length} clase${huerfanas.length === 1 ? '' : 's'} guardada${huerfanas.length === 1 ? '' : 's'} sin volcar`
+                      : 'Todas las clases guardadas han entrado'}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setHuerfanas(null)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 overflow-y-auto">
+                {huerfanas.length === 0 ? (
+                  <p className="text-sm text-slate-600">
+                    No hay clases guardadas con horario que se queden fuera del informe actual.
+                    Todo lo guardado casa por alumno, enseñanza/curso, especialidad y asignatura.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Estas clases tienen horario guardado pero <span className="font-semibold">no han entrado en el Excel</span> porque
+                      no casan con el informe actual (se comparan ignorando mayúsculas y acentos).
+                      El dato <span className="font-semibold">no se ha perdido</span>: sigue en el almacén. Ajusta el alumno/asignatura
+                      o los filtros del informe y vuelve a generar.
+                    </p>
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-[11px] border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 text-left">
+                            <th className="px-2.5 py-2 font-semibold">Alumno</th>
+                            <th className="px-2.5 py-2 font-semibold">Ens./Curso</th>
+                            <th className="px-2.5 py-2 font-semibold">Especialidad</th>
+                            <th className="px-2.5 py-2 font-semibold">Asignatura</th>
+                            <th className="px-2.5 py-2 font-semibold">Horario guardado</th>
+                            <th className="px-2.5 py-2 font-semibold">Motivo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {huerfanas.map((h, i) => (
+                            <tr key={i} className="border-t border-slate-100 text-slate-700 align-top">
+                              <td className="px-2.5 py-1.5 font-medium">{h.nombreCompleto}</td>
+                              <td className="px-2.5 py-1.5">{h.ensenanzaCurso}</td>
+                              <td className="px-2.5 py-1.5">{h.especialidad}</td>
+                              <td className="px-2.5 py-1.5">{h.asignatura}</td>
+                              <td className="px-2.5 py-1.5 text-slate-500">{h.horarioResumen}</td>
+                              <td className="px-2.5 py-1.5">
+                                <span
+                                  className={
+                                    'inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ' +
+                                    (h.motivo === 'clave_no_casa'
+                                      ? 'bg-orange-100 text-orange-700'
+                                      : 'bg-slate-100 text-slate-600')
+                                  }
+                                >
+                                  {h.motivo === 'clave_no_casa' ? 'No casa la clave' : 'No está en el informe'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 shrink-0">
+                <button
+                  onClick={() => setHuerfanas(null)}
+                  className="px-4 py-2 bg-[var(--tc-primary)] text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-colors shadow-sm"
+                >
+                  Entendido
                 </button>
               </div>
             </motion.div>

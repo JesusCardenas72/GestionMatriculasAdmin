@@ -2,10 +2,12 @@ import type { FilaInforme } from "../api/types";
 import type { MatriculaLocal } from "../api/types";
 import { norm } from "./horarioExcel";
 import type { CargaHorarios, ClaseHorario, HorarioAlumno } from "../horarios/types";
-import type {
-  FilaCrudaHorario,
-  HKey,
-  ValoresH,
+import {
+  esValorHorarioUtil,
+  sanearValoresH,
+  type FilaCrudaHorario,
+  type HKey,
+  type ValoresH,
 } from "./fusionHorarios";
 import type {
   HorariosCursoData,
@@ -31,7 +33,7 @@ function generarClave(
 }
 
 function tieneHorario(h: ValoresH): boolean {
-  return Object.values(h).some((v) => v !== undefined && v !== "");
+  return Object.values(h).some(esValorHorarioUtil);
 }
 
 function sonIguales(a: ValoresH, b: ValoresH): boolean {
@@ -100,11 +102,13 @@ export function actualizarHorariosStore(
       continue;
     }
 
+    const hSaneada = sanearValoresH(fila.h);
+
     if (existente) {
-      if (sonIguales(existente.h, fila.h)) {
+      if (sonIguales(existente.h, hSaneada)) {
         sinCambio++;
       } else {
-        porClave.set(clave, { ...existente, h: fila.h, updatedAt: ahora });
+        porClave.set(clave, { ...existente, h: hSaneada, updatedAt: ahora });
         actualizadas++;
       }
     } else {
@@ -114,7 +118,7 @@ export function actualizarHorariosStore(
         ensenanzaCurso: fila.ensenanzaCurso,
         especialidad: fila.especialidad,
         asignatura: fila.asignatura,
-        h: fila.h,
+        h: hSaneada,
         createdAt: ahora,
         updatedAt: ahora,
       });
@@ -204,7 +208,7 @@ export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios
   let incompletas = 0;
 
   for (const entry of data.entries) {
-    const h = entry.h;
+    const h = sanearValoresH(entry.h);
     const profesor = (h.h_prof ?? "").trim();
     if (!profesor) continue; // sin profesor → fila sin clase asignada
 
@@ -282,6 +286,102 @@ export function fantasmaTieneHorario(
   };
 }
 
+/** Por qué una clase guardada no ha entrado en el Excel generado. */
+export type MotivoHuerfana = "no_en_informe" | "clave_no_casa";
+
+/** Clase guardada en el almacén que no se ha podido volcar al Excel generado. */
+export interface HuerfanaAlmacen {
+  nombreCompleto: string;
+  ensenanzaCurso: string;
+  especialidad: string;
+  asignatura: string;
+  /** Resumen legible del horario guardado (profesor · día/horas · aula). */
+  horarioResumen: string;
+  motivo: MotivoHuerfana;
+}
+
+/** Texto corto del horario de una entrada: "Profesor · Lun 16:00–17:00 · A34". */
+function resumenHorario(h: ValoresH): string {
+  const partes: string[] = [];
+  const prof = (h.h_prof ?? "").trim();
+  partes.push(prof || "(sin profesor)");
+  const tramo = (dia?: string, ent?: string, sal?: string): string => {
+    const d = (dia ?? "").trim();
+    const e = (ent ?? "").trim();
+    const s = (sal ?? "").trim();
+    if (!d && !e && !s) return "";
+    const horas = e && s ? `${e}–${s}` : e || s;
+    return [d, horas].filter(Boolean).join(" ");
+  };
+  const t1 = tramo(h.h_dia1, h.h_ent1, h.h_sal1);
+  const t2 = tramo(h.h_dia2, h.h_ent2, h.h_sal2);
+  if (t1) partes.push(t1);
+  if (t2) partes.push(t2);
+  const aula = (h.h_aula ?? "").trim();
+  if (aula) partes.push(aula);
+  return partes.join(" · ");
+}
+
+/**
+ * Detecta las clases guardadas con horario que NO se han volcado al Excel
+ * generado, comparando por clave normalizada (alumno + enseñanza/curso +
+ * especialidad + asignatura, ignorando mayúsculas y acentos) con las filas del
+ * informe en pantalla. Reproduce el mismo emparejamiento que
+ * `obtenerValoresHorario` (incluida la herencia temporal → alumno real).
+ *
+ * Distingue dos motivos:
+ *  - `no_en_informe`: el alumno no aparece en el informe actual.
+ *  - `clave_no_casa`: el alumno SÍ está, pero esa asignatura/clave no casa.
+ */
+export function detectarHuerfanasAlmacen(
+  filas: FilaInforme[],
+  entries: HorariosEntry[],
+  matriculas: MatriculaLocal[],
+): HuerfanaAlmacen[] {
+  const alias = construirAliasFantasma(matriculas);
+  const usadas = new Set<string>();
+  const prefijosInforme = new Set<string>();
+
+  for (const fila of filas) {
+    const nombre = fila.nombreCompleto ?? "";
+    const curso = fila.ensenanzaCurso ?? "";
+    const esp = fila.especialidad ?? "";
+    const asig = fila.asigNombre ?? "";
+    const prefijo = norm(nombre) + "|||" + norm(curso) + "|||" + norm(esp);
+    prefijosInforme.add(prefijo);
+    usadas.add(generarClave(nombre, curso, esp, asig));
+    // Si esta fila (alumno real) hereda de un temporal sustituido, la clave del
+    // temporal también queda "consumida" y no debe contar como huérfana.
+    const prefijoTemp = alias.get(prefijo);
+    if (prefijoTemp) usadas.add(prefijoTemp + "|||" + norm(asig));
+  }
+
+  const huerfanas: HuerfanaAlmacen[] = [];
+  for (const e of entries) {
+    if (!tieneHorario(e.h)) continue;
+    if (usadas.has(e.key)) continue;
+    const prefijo =
+      norm(e.nombreCompleto) + "|||" + norm(e.ensenanzaCurso) + "|||" + norm(e.especialidad);
+    huerfanas.push({
+      nombreCompleto: e.nombreCompleto,
+      ensenanzaCurso: e.ensenanzaCurso,
+      especialidad: e.especialidad,
+      asignatura: e.asignatura,
+      horarioResumen: resumenHorario(e.h),
+      motivo: prefijosInforme.has(prefijo) ? "clave_no_casa" : "no_en_informe",
+    });
+  }
+
+  // Orden estable y legible: por motivo, luego alumno, luego asignatura.
+  huerfanas.sort(
+    (a, b) =>
+      a.motivo.localeCompare(b.motivo) ||
+      a.nombreCompleto.localeCompare(b.nombreCompleto, "es") ||
+      a.asignatura.localeCompare(b.asignatura, "es"),
+  );
+  return huerfanas;
+}
+
 export function obtenerValoresHorario(
   filas: FilaInforme[],
   entries: HorariosEntry[],
@@ -303,7 +403,7 @@ export function obtenerValoresHorario(
     const entry = porClave.get(clave);
     if (entry && tieneHorario(entry.h)) {
       conservadas++;
-      return entry.h;
+      return sanearValoresH(entry.h);
     }
 
     const prefijoReal = norm(nombre) + "|||" + norm(curso) + "|||" + norm(esp);
@@ -313,7 +413,7 @@ export function obtenerValoresHorario(
       const entryTemp = porClave.get(claveTemp);
       if (entryTemp && tieneHorario(entryTemp.h)) {
         heredadas++;
-        return entryTemp.h;
+        return sanearValoresH(entryTemp.h);
       }
     }
 
