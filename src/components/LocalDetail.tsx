@@ -1128,58 +1128,136 @@ export default function LocalDetail({
               {listaVisible.length === 0 && !showAdd && (
                 <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Sin asignaturas</p>
               )}
-              {listaVisible.map((item) => (
-                <div
-                  key={item.localId}
-                  className="flex items-center gap-3 p-3 rounded-lg"
-                  style={{
-                    background: "var(--tc-bg-panel)",
-                    border: "1px solid var(--tc-border-soft)",
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--tc-ink)" }}>{item.nombre}</p>
-                  </div>
-                  <select
-                    value={item.estado}
-                    onChange={(e) =>
-                      cambiarEstadoAsig(item.localId, Number(e.target.value) as EstadoAsignatura)
-                    }
-                    disabled={readOnly}
-                    className="text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{
-                      borderColor: "var(--tc-border)",
-                      background: "var(--tc-card)",
-                      color: "var(--tc-ink)",
-                    }}
-                  >
-                    {Object.entries(ESTADO_ASIGNATURA).map(([, val]) => (
-                      <option key={val} value={val}>
-                        {ESTADO_ASIGNATURA_LABEL[val as EstadoAsignatura]}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => !readOnly && eliminarAsig(item.localId)}
-                    disabled={readOnly}
-                    className="p-1 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    style={{ color: "var(--tc-ink-mute)" }}
-                    onMouseEnter={(e) => {
-                      if (!readOnly) {
-                        (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
-                        (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-mute)";
-                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                    }}
-                    title={readOnly ? "No disponible en modo Solo Lectura" : "Eliminar asignatura"}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+              {(() => {
+                // Agrupar asignaturas por estado
+                const agrupadas: Record<EstadoAsignatura, AsignaturaEdit[]> = {
+                  [ESTADO_ASIGNATURA.MATRICULADA]: [],
+                  [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: [],
+                  [ESTADO_ASIGNATURA.CONVALIDADA]: [],
+                  [ESTADO_ASIGNATURA.SIMULTANEADA]: [],
+                  [ESTADO_ASIGNATURA.PENDIENTE]: [],
+                };
+                listaVisible.forEach((item) => {
+                  agrupadas[item.estado].push(item);
+                });
+
+                // Colores según estado (de la plantilla HTML)
+                const coloresPorEstado: Record<EstadoAsignatura, { bg: string; text: string; border: string; label: string }> = {
+                  [ESTADO_ASIGNATURA.MATRICULADA]: {
+                    bg: "#EFF6FF",
+                    text: "#1D4ED8",
+                    border: "#BFDBFE",
+                    label: "Matriculadas"
+                  },
+                  [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: {
+                    bg: "#F3E8FF",
+                    text: "#7E22CE",
+                    border: "#E9D5FF",
+                    label: "Solicitud de Convalidación"
+                  },
+                  [ESTADO_ASIGNATURA.CONVALIDADA]: {
+                    bg: "#DCFCE7",
+                    text: "#15803D",
+                    border: "#BBF7D0",
+                    label: "Convalidadas"
+                  },
+                  [ESTADO_ASIGNATURA.SIMULTANEADA]: {
+                    bg: "#F3E8FF",
+                    text: "#7E22CE",
+                    border: "#E9D5FF",
+                    label: "Simultaneadas"
+                  },
+                  [ESTADO_ASIGNATURA.PENDIENTE]: {
+                    bg: "#FFF7ED",
+                    text: "#92400E",
+                    border: "#FED7AA",
+                    label: "Pendientes"
+                  },
+                };
+
+                // Renderizar grupos con contenido
+                return Object.entries(ESTADO_ASIGNATURA).map(([, estado]) => {
+                  const asigs = agrupadas[estado as EstadoAsignatura];
+                  if (asigs.length === 0) return null;
+
+                  const estilos = coloresPorEstado[estado as EstadoAsignatura];
+
+                  return (
+                    <div key={estado} className="space-y-2">
+                      <div
+                        className="px-3 py-2 rounded-lg"
+                        style={{
+                          background: estilos.bg,
+                          border: `1px solid ${estilos.border}`,
+                        }}
+                      >
+                        <h4
+                          className="text-xs font-bold uppercase tracking-wide mb-2"
+                          style={{ color: estilos.text }}
+                        >
+                          {estilos.label}
+                        </h4>
+                        <div className="space-y-1">
+                          {asigs.map((item) => (
+                            <div
+                              key={item.localId}
+                              className="flex items-center gap-3 p-2 rounded-lg"
+                              style={{
+                                background: "#fff",
+                                border: `1px solid ${estilos.border}`,
+                              }}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate" style={{ color: "var(--tc-ink)" }}>
+                                  {item.nombre}
+                                </p>
+                              </div>
+                              <select
+                                value={item.estado}
+                                onChange={(e) =>
+                                  cambiarEstadoAsig(item.localId, Number(e.target.value) as EstadoAsignatura)
+                                }
+                                disabled={readOnly}
+                                className="text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                style={{
+                                  borderColor: estilos.border,
+                                  background: estilos.bg,
+                                  color: estilos.text,
+                                }}
+                              >
+                                {Object.entries(ESTADO_ASIGNATURA).map(([, val]) => (
+                                  <option key={val} value={val}>
+                                    {ESTADO_ASIGNATURA_LABEL[val as EstadoAsignatura]}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => !readOnly && eliminarAsig(item.localId)}
+                                disabled={readOnly}
+                                className="p-1 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                style={{ color: estilos.text }}
+                                onMouseEnter={(e) => {
+                                  if (!readOnly) {
+                                    (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
+                                    (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  (e.currentTarget as HTMLButtonElement).style.color = estilos.text;
+                                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                                }}
+                                title={readOnly ? "No disponible en modo Solo Lectura" : "Eliminar asignatura"}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
 
               {showAdd && !readOnly ? (
                 <div
