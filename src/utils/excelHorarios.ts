@@ -12,6 +12,7 @@ import {
   HORAS_ENTRADA,
   HORAS_SALIDA,
 } from '../data/horariosListas';
+import { esValorHorarioUtil } from './fusionHorarios';
 
 /**
  * Opciones configurables (desde el modal) para generar el Excel de horarios.
@@ -242,7 +243,7 @@ export async function generarExcelHorarios(
         const v = h[c.key];
         // Solo texto aprovechable: descarta valores no-string y restos de
         // cargas antiguas ("[object Object]") que ensuciarían la celda.
-        if (typeof v === "string" && v.trim() && v.trim() !== "[object Object]") {
+        if (esValorHorarioUtil(v)) {
           row[c.key] = v.trim();
         }
       });
