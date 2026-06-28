@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { toTitleCase } from "../utils/formatText";
 import PdfViewer from "./PdfViewer";
 import { cursosStore } from "../api/cursosStore";
 import { useCursoContext } from "../contexts/CursoContextProvider";
@@ -341,17 +342,19 @@ export default function LocalDetail({
     if (readOnly) return;
     const now = new Date().toISOString();
     const n = (v: string): string | null => v.trim() || null;
+    const tc = (v: string) => toTitleCase(v.trim()) ?? v.trim();
+    const tcn = (v: string) => toTitleCase(v.trim()) || null;
     onSave({
       nOrden: f.nOrden ? parseInt(f.nOrden, 10) : null,
-      nombre: f.nombre.trim(),
-      apellidos: f.apellidos.trim(),
+      nombre: tc(f.nombre),
+      apellidos: tc(f.apellidos),
       dni: f.dni.trim(),
       email: f.email.trim(),
       telefono: n(f.telefono),
       fechaNacimiento: n(f.fechaNacimiento),
-      domicilio: n(f.domicilio),
-      localidad: n(f.localidad),
-      provincia: n(f.provincia),
+      domicilio: tcn(f.domicilio),
+      localidad: tcn(f.localidad),
+      provincia: tcn(f.provincia),
       cp: n(f.cp),
       ensenanzaCurso: f.ensenanzaCurso.trim(),
       especialidad: n(f.especialidad),

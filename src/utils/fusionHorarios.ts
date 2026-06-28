@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { FilaInforme, MatriculaLocal } from "../api/types";
 import { cellText, norm } from "./horarioExcel";
+import { idCompuesto as calcIdCompuesto } from "./asigId";
 
 /** Claves de las 9 columnas de horario que rellenan los profesores. */
 export const H_KEYS = [
@@ -44,6 +45,8 @@ export interface FilaCrudaHorario {
   especialidad: string;
   asignatura: string;
   h: ValoresH;
+  /** ID "{nOrden}_{asciiSum}" leído de la columna "ID" del Excel (si existe). */
+  idAlumnoAsignatura?: string;
 }
 
 /** Cabeceras visibles de cada columna de horario, como las genera excelHorarios.ts. */
@@ -114,6 +117,7 @@ export async function parseHorariosExcelCrudo(base64: string): Promise<FilaCruda
     );
   }
 
+  const cId = findCol(headers, "ID");
   const cNomComp = findCol(headers, "Nombre Completo", "Alumno", "Alumno/a");
   const cApellidos = findCol(headers, "Apellidos");
   const cNombre = findCol(headers, "Nombre");
@@ -141,12 +145,14 @@ export async function parseHorariosExcelCrudo(base64: string): Promise<FilaCruda
       const v = txt(row, cH[k]);
       if (esValorHorarioUtil(v)) h[k] = v;
     }
+    const idComp = cId ? txt(row, cId) : undefined;
     filas.push({
       nombreCompleto,
       ensenanzaCurso: txt(row, cEns),
       especialidad: txt(row, cEsp),
       asignatura: txt(row, cAsig),
       h,
+      ...(idComp ? { idAlumnoAsignatura: idComp } : {}),
     });
   });
   return filas;
@@ -180,25 +186,36 @@ export function fusionarHorarios(
 ): ResultadoFusion {
   // Índice de filas crudas CON algún dato de horario aprovechable.
   const conHorario = crudas.filter((c) => Object.values(c.h).some(esValorHorarioUtil));
+
+  // Índice primario por idAlumnoAsignatura (cuando el Excel tiene columna ID).
+  const porId = new Map<string, FilaCrudaHorario>();
+  // Índice de respaldo por clave de texto (retrocompatibilidad con Excel sin ID).
   const porClave = new Map<string, FilaCrudaHorario>();
   for (const c of conHorario) {
+    if (c.idAlumnoAsignatura && !porId.has(c.idAlumnoAsignatura)) porId.set(c.idAlumnoAsignatura, c);
     const k = claveDe(c);
     if (!porClave.has(k)) porClave.set(k, c);
   }
 
-  // Alias: prefijo del alumno real → prefijo de su temporal sustituido.
+  const usaId = porId.size > 0;
+
+  // Alias nOrden: real.nOrden → temporal.nOrden (para herencia de horario).
   const porLocalId = new Map(matriculas.map((m) => [m.localId, m]));
+  const aliasNOrden = new Map<number, number>(); // nOrden_real → nOrden_temporal
+  // Alias de texto (retrocompatibilidad): prefijo_real → prefijo_temporal.
   const aliasRealATemporal = new Map<string, string>();
   for (const t of matriculas) {
     if (!t.esTemporal || t.temporalEstado !== "sustituido" || !t.sustituidoPorLocalId) continue;
     const real = porLocalId.get(t.sustituidoPorLocalId);
     if (!real) continue;
+    if (t.nOrden !== null && real.nOrden !== null) {
+      aliasNOrden.set(real.nOrden, t.nOrden);
+    }
     const prefReal = prefijo(
       nombreCompletoDe(real.apellidos, real.nombre),
       real.ensenanzaCurso,
       real.especialidad ?? "",
     );
-    // Los "PDTE. N" no tienen apellidos; los importados de Excel/CSV sí (sufijo _Temp)
     const prefTemp = prefijo(
       nombreCompletoDe(t.apellidos, t.nombre),
       t.ensenanzaCurso,
@@ -214,6 +231,32 @@ export function fusionarHorarios(
 
   const valoresHorario = filasNuevas.map((f) => {
     const nombre = f.nombreCompleto ?? nombreCompletoDe(f.apellidos, f.nombre);
+
+    // ── Búsqueda por ID (cuando el Excel tiene columna ID) ────────────────
+    if (usaId) {
+      const idDirecto = f.idAlumnoAsignatura ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? "");
+      const directaId = porId.get(idDirecto);
+      if (directaId) {
+        usadas.add(idDirecto);
+        conservadas++;
+        return directaId.h;
+      }
+      // Alias: buscar con el nOrden del temporal sustituido
+      const nOrdenTemp = f.nOrden !== null ? aliasNOrden.get(f.nOrden) : undefined;
+      if (nOrdenTemp !== undefined) {
+        const idAlias = calcIdCompuesto(nOrdenTemp, f.asigNombre ?? "");
+        const heredadaId = porId.get(idAlias);
+        if (heredadaId) {
+          usadas.add(idAlias);
+          heredadas++;
+          return heredadaId.h;
+        }
+        sinHorario.push(`${nombre} — ${f.asigNombre ?? "(sin asignatura)"}`);
+      }
+      return null;
+    }
+
+    // ── Búsqueda por texto (retrocompatibilidad con Excel sin columna ID) ─
     const pref = prefijo(nombre, f.ensenanzaCurso ?? "", f.especialidad ?? "");
     const asig = norm(f.asigNombre ?? "");
     const claveDirecta = pref + "|||" + asig;
@@ -234,15 +277,18 @@ export function fusionarHorarios(
         heredadas++;
         return heredada.h;
       }
-      // El alumno sustituto tiene una asignatura que el temporal no tenía con horario
       sinHorario.push(`${nombre} — ${f.asigNombre ?? "(sin asignatura)"}`);
     }
     return null;
   });
 
-  const huerfanas = [...porClave.entries()]
-    .filter(([k]) => !usadas.has(k))
-    .map(([, c]) => `${c.nombreCompleto} — ${c.asignatura || "(sin asignatura)"} (${c.h.h_prof ?? "sin profesor"})`);
+  const huerfanas = usaId
+    ? [...porId.entries()]
+        .filter(([k]) => !usadas.has(k))
+        .map(([, c]) => `${c.nombreCompleto || c.idAlumnoAsignatura} — ${c.asignatura || "(sin asignatura)"} (${c.h.h_prof ?? "sin profesor"})`)
+    : [...porClave.entries()]
+        .filter(([k]) => !usadas.has(k))
+        .map(([, c]) => `${c.nombreCompleto} — ${c.asignatura || "(sin asignatura)"} (${c.h.h_prof ?? "sin profesor"})`);
 
   return { valoresHorario, conservadas, heredadas, sinHorario, huerfanas };
 }

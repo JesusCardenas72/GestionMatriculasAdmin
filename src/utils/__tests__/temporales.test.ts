@@ -75,6 +75,31 @@ describe("crearTemporales", () => {
     expect(out[0].temporalNumero).toBe(4);
     expect(out[0].nombre).toBe(nombreTemporal(4, "Violín", "EE2"));
   });
+
+  it("asigna nOrden 900+ según el temporalNumero (primer temporal → 900)", () => {
+    const out = crearTemporales("25/26", "EP1", "Piano", 1, []);
+    expect(out[0].temporalNumero).toBe(1);
+    expect(out[0].nOrden).toBe(900); // 899 + 1
+  });
+
+  it("asigna nOrden consecutivos para múltiples temporales creados a la vez", () => {
+    const out = crearTemporales("25/26", "EP1", "Piano", 3, []);
+    expect(out[0].nOrden).toBe(900);
+    expect(out[1].nOrden).toBe(901);
+    expect(out[2].nOrden).toBe(902);
+  });
+
+  it("continúa desde el último temporalNumero existente para los nOrden", () => {
+    const previos = [
+      matriculaBase({ esTemporal: true, temporalNumero: 5, temporalEstado: "sustituido" }),
+    ];
+    const out = crearTemporales("25/26", "EP2", "Canto", 2, previos);
+    // Siguente número = 6 → nOrden 905; y 7 → nOrden 906
+    expect(out[0].temporalNumero).toBe(6);
+    expect(out[0].nOrden).toBe(905);
+    expect(out[1].temporalNumero).toBe(7);
+    expect(out[1].nOrden).toBe(906);
+  });
 });
 
 describe("crearTemporalesNominales", () => {

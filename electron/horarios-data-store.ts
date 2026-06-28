@@ -15,6 +15,12 @@ export interface ValoresH {
 }
 
 export interface HorariosEntry {
+  /**
+   * ID compuesto "{nOrden}_{asciiSum(asignatura)}" cuando la entrada proviene de
+   * un Excel con columna ID. Es la clave primaria cuando está presente; si falta,
+   * se usa `key` (clave de texto, solo para entradas antiguas).
+   */
+  idCompuesto?: string;
   key: string;
   nombreCompleto: string;
   ensenanzaCurso: string;

@@ -13,6 +13,7 @@ import {
   HORAS_SALIDA,
 } from '../data/horariosListas';
 import { esValorHorarioUtil } from './fusionHorarios';
+import { idCompuesto as calcIdCompuesto } from './asigId';
 
 /**
  * Opciones configurables (desde el modal) para generar el Excel de horarios.
@@ -179,7 +180,9 @@ export async function generarExcelHorarios(
     lista: c.lista,
   }));
 
-  const COLS: ColDef[] = [...colsIzq, ...colsMid, ...colsDer];
+  // Columna ID: primera columna, bloqueada, oculta. Identificador único fila/asignatura.
+  const colId: ColDef = { header: 'ID', key: 'id_compuesto', width: 12, editable: false };
+  const COLS: ColDef[] = [colId, ...colsIzq, ...colsMid, ...colsDer];
 
   // ── Hoja principal "Horarios" ───────────────────────────────────────────
   // Congelar la cabecera (ySplit: 1) y, si se ha pedido, las columnas fijas de
@@ -236,9 +239,14 @@ export async function generarExcelHorarios(
   });
   const L = (key: string) => colLetter(colIdx[key]);
 
+  // Columna ID oculta (primera columna): la columna se oculta a nivel de hoja.
+  ws.getColumn('id_compuesto').hidden = true;
+
   // Filas de datos (con los valores de horario heredados, si los hay)
   filas.forEach((f, idx) => {
     const row: Record<string, string> = {};
+    // ID compuesto: identifica de forma única la fila matrícula × asignatura.
+    row['id_compuesto'] = f.idAlumnoAsignatura ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? '');
     colsDatos.forEach((c) => {
       if (c.campo) row[c.key] = formatValor(f, c.campo);
     });

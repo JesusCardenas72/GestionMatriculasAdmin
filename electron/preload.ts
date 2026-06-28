@@ -254,6 +254,20 @@ const adminAPI = {
     setAsistente: (curso: string, estado: AsistenteTemporalesEstado | null): Promise<void> =>
       ipcRenderer.invoke("temporales:setAsistente", curso, estado),
   },
+  dialogoCorreccion: {
+    /** Abre la ventana nativa de corrección. Devuelve correcciones JSON o null si se cancela. */
+    abrir: (filasConErrorJSON: string): Promise<string | null> =>
+      ipcRenderer.invoke("horarios:abrirDialogoCorreccion", filasConErrorJSON),
+    /** Solo para la ventana de diálogo: obtiene los datos de la sesión. */
+    getData: (dialogId: string): Promise<string | null> =>
+      ipcRenderer.invoke("horarios:dialogoGetData", dialogId),
+    /** Solo para la ventana de diálogo: confirma con las correcciones. */
+    confirmar: (dialogId: string, correccionesJSON: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoConfirmar", dialogId, correccionesJSON),
+    /** Solo para la ventana de diálogo: cancela. */
+    cancelar: (dialogId: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoCancelar", dialogId),
+  },
 };
 
 contextBridge.exposeInMainWorld("adminAPI", adminAPI);

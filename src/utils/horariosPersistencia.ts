@@ -1,6 +1,7 @@
 import type { FilaInforme } from "../api/types";
 import type { MatriculaLocal } from "../api/types";
 import { norm } from "./horarioExcel";
+import { idCompuesto as calcIdCompuesto } from "./asigId";
 import type { CargaHorarios, ClaseHorario, HorarioAlumno } from "../horarios/types";
 import {
   esValorHorarioUtil,
@@ -79,22 +80,23 @@ export function actualizarHorariosStore(
   nombre?: string,
 ): ResultadoActualizacion {
   const ahora = new Date().toISOString();
-  // Map por clave: conserva el orden de inserción (existentes primero, nuevos al final).
-  const porClave = new Map(data.entries.map((e) => [e.key, e]));
+
+  // Mapa maestro: la clave de búsqueda es el idAlumnoAsignatura de la fila cuando existe
+  // (garantiza que dos entradas con el mismo texto pero distinto ID no se pisen entre sí),
+  // o la clave de texto normalizada para entradas antiguas sin ID.
+  const mapaKey = (e: HorariosEntry) => e.idCompuesto ?? e.key;
+  const filaClave = (f: FilaCrudaHorario) =>
+    f.idAlumnoAsignatura ?? generarClave(f.nombreCompleto, f.ensenanzaCurso, f.especialidad, f.asignatura);
+
+  const mapa = new Map<string, HorariosEntry>(data.entries.map((e) => [mapaKey(e), e]));
 
   let anadidas = 0;
   let actualizadas = 0;
   let sinCambio = 0;
 
   for (const fila of crudas) {
-    const clave = generarClave(
-      fila.nombreCompleto,
-      fila.ensenanzaCurso,
-      fila.especialidad,
-      fila.asignatura,
-    );
-
-    const existente = porClave.get(clave);
+    const mk = filaClave(fila);
+    const existente = mapa.get(mk);
 
     // Fila sin horario: no machaca lo que ya hubiera; solo cuenta como sin cambio.
     if (!tieneHorario(fila.h)) {
@@ -108,12 +110,24 @@ export function actualizarHorariosStore(
       if (sonIguales(existente.h, hSaneada)) {
         sinCambio++;
       } else {
-        porClave.set(clave, { ...existente, h: hSaneada, updatedAt: ahora });
+        mapa.set(mk, {
+          ...existente,
+          ...(fila.idAlumnoAsignatura ? { idCompuesto: fila.idAlumnoAsignatura } : {}),
+          h: hSaneada,
+          updatedAt: ahora,
+        });
         actualizadas++;
       }
     } else {
-      porClave.set(clave, {
-        key: clave,
+      const claveTexto = generarClave(
+        fila.nombreCompleto,
+        fila.ensenanzaCurso,
+        fila.especialidad,
+        fila.asignatura,
+      );
+      mapa.set(mk, {
+        ...(fila.idAlumnoAsignatura ? { idCompuesto: fila.idAlumnoAsignatura } : {}),
+        key: claveTexto,
         nombreCompleto: fila.nombreCompleto,
         ensenanzaCurso: fila.ensenanzaCurso,
         especialidad: fila.especialidad,
@@ -126,8 +140,7 @@ export function actualizarHorariosStore(
     }
   }
 
-  const entriesNuevas = [...porClave.values()];
-  data.entries = entriesNuevas;
+  data.entries = [...mapa.values()];
 
   // Cargar nunca borra (upsert); el borrado es manual desde el historial.
   const eliminadas = 0;
@@ -144,7 +157,7 @@ export function actualizarHorariosStore(
     resumen: { anadidas, actualizadas, eliminadas, sinCambio },
     fileName,
     nombre: nombre?.trim() || undefined,
-    entries: [...entriesNuevas],
+    entries: [...data.entries],
   };
 
   data.snapshots.push(snapshot);
@@ -153,41 +166,42 @@ export function actualizarHorariosStore(
   return { anadidas, actualizadas, eliminadas, sinCambio, snapshot };
 }
 
-function construirAliasFantasma(
-  matriculas: MatriculaLocal[],
-): Map<string, string> {
-  const alias = new Map<string, string>();
+interface AliasFantasma {
+  /** Alias por texto: prefijoReal → prefijoTemporal (retrocompatibilidad). */
+  porTexto: Map<string, string>;
+  /** Alias por nOrden: nOrden_real → nOrden_temporal (matching por ID). */
+  porNOrden: Map<number, number>;
+}
+
+function construirAliasFantasma(matriculas: MatriculaLocal[]): AliasFantasma {
+  const porTexto = new Map<string, string>();
+  const porNOrden = new Map<number, number>();
+
   for (const m of matriculas) {
-    if (
-      m.esTemporal &&
-      m.temporalEstado === "sustituido" &&
-      m.sustituidoPorLocalId
-    ) {
-      const real = matriculas.find((x) => x.localId === m.sustituidoPorLocalId);
-      if (real) {
-        const nombreReal = real.apellidos && real.nombre
-          ? `${real.apellidos}, ${real.nombre}`
-          : real.apellidos || real.nombre || "";
-        const nombreTemp = m.apellidos && m.nombre
-          ? `${m.apellidos}, ${m.nombre}`
-          : m.apellidos || m.nombre || "";
-        const prefijoReal =
-          norm(nombreReal) +
-          "|||" +
-          norm(real.ensenanzaCurso) +
-          "|||" +
-          norm(real.especialidad ?? "");
-        const prefijoTemp =
-          norm(nombreTemp) +
-          "|||" +
-          norm(m.ensenanzaCurso) +
-          "|||" +
-          norm(m.especialidad ?? "");
-        alias.set(prefijoReal, prefijoTemp);
-      }
+    if (!m.esTemporal || m.temporalEstado !== "sustituido" || !m.sustituidoPorLocalId) continue;
+    const real = matriculas.find((x) => x.localId === m.sustituidoPorLocalId);
+    if (!real) continue;
+
+    // Alias por nOrden (nuevo sistema).
+    if (m.nOrden !== null && real.nOrden !== null) {
+      porNOrden.set(real.nOrden, m.nOrden);
     }
+
+    // Alias por texto (retrocompatibilidad con entradas sin idCompuesto).
+    const nombreReal = real.apellidos && real.nombre
+      ? `${real.apellidos}, ${real.nombre}`
+      : real.apellidos || real.nombre || "";
+    const nombreTemp = m.apellidos && m.nombre
+      ? `${m.apellidos}, ${m.nombre}`
+      : m.apellidos || m.nombre || "";
+    const prefijoReal =
+      norm(nombreReal) + "|||" + norm(real.ensenanzaCurso) + "|||" + norm(real.especialidad ?? "");
+    const prefijoTemp =
+      norm(nombreTemp) + "|||" + norm(m.ensenanzaCurso) + "|||" + norm(m.especialidad ?? "");
+    porTexto.set(prefijoReal, prefijoTemp);
   }
-  return alias;
+
+  return { porTexto, porNOrden };
 }
 
 /**
@@ -243,7 +257,10 @@ export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios
       const e = (entrada ?? "").trim();
       const s = (salida ?? "").trim();
       if (!d || !e || !s) return false;
-      const clase: ClaseHorario = { asignatura, profesor, aula, grupo, dia: d, entrada: e, salida: s };
+      const clase: ClaseHorario = {
+        idAlumnoAsignatura: entry.idCompuesto,
+        asignatura, profesor, aula, grupo, dia: d, entrada: e, salida: s,
+      };
       alumno!.clases.push(clase);
       return true;
     };
@@ -269,18 +286,26 @@ export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios
 export function fantasmaTieneHorario(
   entries: HorariosEntry[],
 ): (fantasma: MatriculaLocal, asignatura: { nombre: string }) => boolean {
-  const porClave = new Map(entries.map((e) => [e.key, e]));
+  const porId = new Map<string, HorariosEntry>();
+  const porClave = new Map<string, HorariosEntry>();
+  for (const e of entries) {
+    if (e.idCompuesto) porId.set(e.idCompuesto, e);
+    porClave.set(e.key, e);
+  }
+
   return (fantasma, asignatura) => {
+    // Búsqueda por ID primero (temporales con nOrden 900+).
+    if (porId.size > 0 && fantasma.nOrden !== null) {
+      const idComp = calcIdCompuesto(fantasma.nOrden, asignatura.nombre);
+      const entryId = porId.get(idComp);
+      if (entryId) return tieneHorario(entryId.h);
+    }
+    // Fallback por texto.
     const nombre =
       fantasma.apellidos && fantasma.nombre
         ? `${fantasma.apellidos}, ${fantasma.nombre}`
         : fantasma.apellidos || fantasma.nombre || "";
-    const clave = generarClave(
-      nombre,
-      fantasma.ensenanzaCurso,
-      fantasma.especialidad ?? "",
-      asignatura.nombre,
-    );
+    const clave = generarClave(nombre, fantasma.ensenanzaCurso, fantasma.especialidad ?? "", asignatura.nombre);
     const entry = porClave.get(clave);
     return !!entry && tieneHorario(entry.h);
   };
@@ -339,7 +364,8 @@ export function detectarHuerfanasAlmacen(
   matriculas: MatriculaLocal[],
 ): HuerfanaAlmacen[] {
   const alias = construirAliasFantasma(matriculas);
-  const usadas = new Set<string>();
+  const usadasId = new Set<string>();
+  const usadasClave = new Set<string>();
   const prefijosInforme = new Set<string>();
 
   for (const fila of filas) {
@@ -347,32 +373,42 @@ export function detectarHuerfanasAlmacen(
     const curso = fila.ensenanzaCurso ?? "";
     const esp = fila.especialidad ?? "";
     const asig = fila.asigNombre ?? "";
-    const prefijo = norm(nombre) + "|||" + norm(curso) + "|||" + norm(esp);
-    prefijosInforme.add(prefijo);
-    usadas.add(generarClave(nombre, curso, esp, asig));
-    // Si esta fila (alumno real) hereda de un temporal sustituido, la clave del
-    // temporal también queda "consumida" y no debe contar como huérfana.
-    const prefijoTemp = alias.get(prefijo);
-    if (prefijoTemp) usadas.add(prefijoTemp + "|||" + norm(asig));
+    const pref = norm(nombre) + "|||" + norm(curso) + "|||" + norm(esp);
+    prefijosInforme.add(pref);
+
+    // Marcar la fila actual como usada por ID y por texto.
+    if (fila.idAlumnoAsignatura) usadasId.add(fila.idAlumnoAsignatura);
+    usadasClave.add(generarClave(nombre, curso, esp, asig));
+
+    // La clave/ID del temporal sustituido también queda consumida.
+    if (fila.nOrden !== null) {
+      const nOrdenTemp = alias.porNOrden.get(fila.nOrden);
+      if (nOrdenTemp !== undefined) {
+        usadasId.add(calcIdCompuesto(nOrdenTemp, asig));
+      }
+    }
+    const prefijoTemp = alias.porTexto.get(pref);
+    if (prefijoTemp) usadasClave.add(prefijoTemp + "|||" + norm(asig));
   }
 
   const huerfanas: HuerfanaAlmacen[] = [];
   for (const e of entries) {
     if (!tieneHorario(e.h)) continue;
-    if (usadas.has(e.key)) continue;
-    const prefijo =
-      norm(e.nombreCompleto) + "|||" + norm(e.ensenanzaCurso) + "|||" + norm(e.especialidad);
+    const consumidaPorId = e.idCompuesto ? usadasId.has(e.idCompuesto) : false;
+    const consumidaPorClave = usadasClave.has(e.key);
+    if (consumidaPorId || consumidaPorClave) continue;
+
+    const pref = norm(e.nombreCompleto) + "|||" + norm(e.ensenanzaCurso) + "|||" + norm(e.especialidad);
     huerfanas.push({
       nombreCompleto: e.nombreCompleto,
       ensenanzaCurso: e.ensenanzaCurso,
       especialidad: e.especialidad,
       asignatura: e.asignatura,
       horarioResumen: resumenHorario(e.h),
-      motivo: prefijosInforme.has(prefijo) ? "clave_no_casa" : "no_en_informe",
+      motivo: prefijosInforme.has(pref) ? "clave_no_casa" : "no_en_informe",
     });
   }
 
-  // Orden estable y legible: por motivo, luego alumno, luego asignatura.
   huerfanas.sort(
     (a, b) =>
       a.motivo.localeCompare(b.motivo) ||
@@ -387,7 +423,14 @@ export function obtenerValoresHorario(
   entries: HorariosEntry[],
   matriculas: MatriculaLocal[],
 ): { valoresHorario: Array<ValoresH | null>; conservadas: number; heredadas: number } {
-  const porClave = new Map(entries.map((e) => [e.key, e]));
+  // Índices por ID (nuevo sistema) y por clave de texto (retrocompatibilidad).
+  const porId = new Map<string, HorariosEntry>();
+  const porClave = new Map<string, HorariosEntry>();
+  for (const e of entries) {
+    if (e.idCompuesto) porId.set(e.idCompuesto, e);
+    porClave.set(e.key, e);
+  }
+
   const alias = construirAliasFantasma(matriculas);
 
   let conservadas = 0;
@@ -398,8 +441,29 @@ export function obtenerValoresHorario(
     const curso = fila.ensenanzaCurso ?? "";
     const esp = fila.especialidad ?? "";
     const asig = fila.asigNombre ?? "";
-    const clave = generarClave(nombre, curso, esp, asig);
 
+    // ── Búsqueda por ID ──────────────────────────────────────────────────
+    if (porId.size > 0) {
+      const idDirecto = fila.idAlumnoAsignatura ?? calcIdCompuesto(fila.nOrden, asig);
+      const entryId = porId.get(idDirecto);
+      if (entryId && tieneHorario(entryId.h)) {
+        conservadas++;
+        return sanearValoresH(entryId.h);
+      }
+      // Herencia: buscar con el nOrden del temporal sustituido.
+      const nOrdenTemp = fila.nOrden !== null ? alias.porNOrden.get(fila.nOrden) : undefined;
+      if (nOrdenTemp !== undefined) {
+        const idAlias = calcIdCompuesto(nOrdenTemp, asig);
+        const entryAlias = porId.get(idAlias);
+        if (entryAlias && tieneHorario(entryAlias.h)) {
+          heredadas++;
+          return sanearValoresH(entryAlias.h);
+        }
+      }
+    }
+
+    // ── Búsqueda por texto (retrocompatibilidad con entradas sin ID) ─────
+    const clave = generarClave(nombre, curso, esp, asig);
     const entry = porClave.get(clave);
     if (entry && tieneHorario(entry.h)) {
       conservadas++;
@@ -407,7 +471,7 @@ export function obtenerValoresHorario(
     }
 
     const prefijoReal = norm(nombre) + "|||" + norm(curso) + "|||" + norm(esp);
-    const prefijoTemp = alias.get(prefijoReal);
+    const prefijoTemp = alias.porTexto.get(prefijoReal);
     if (prefijoTemp) {
       const claveTemp = prefijoTemp + "|||" + norm(asig);
       const entryTemp = porClave.get(claveTemp);

@@ -52,9 +52,7 @@ import {
 import { buildHtmlInforme } from '../utils/pdfInforme';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion, type FilaCrudaHorario } from '../utils/fusionHorarios';
-import { validarFilasCrudas, aplicarCorreccionesHorario, type FilaConErrorHorario } from '../utils/validarHorariosCargados';
-import { ModalCorreccionHorarios } from '../components/modals/ModalCorreccionHorarios';
-import type { HKey } from '../utils/fusionHorarios';
+import { validarCrudasConVentanaNativa } from '../utils/validarHorariosCargados';
 import {
   obtenerValoresHorario,
   actualizarHorariosStore,
@@ -387,13 +385,6 @@ export default function InformesScreen({ config }: Props) {
     profesores: string[];
     fileName: string;
     crudas: FilaCrudaHorario[];
-  } | null>(null);
-
-  // Validación de valores fuera de lista al cargar Excel de fusión
-  const [validacionFusion, setValidacionFusion] = useState<{
-    crudas: FilaCrudaHorario[];
-    filasConError: FilaConErrorHorario[];
-    resolve: (crudas: FilaCrudaHorario[] | null) => void;
   } | null>(null);
 
   // Clases guardadas que NO han entrado en el último Excel generado (huérfanas).
@@ -1331,18 +1322,6 @@ export default function InformesScreen({ config }: Props) {
    * - Si coincide: devuelve true.
    * - Si NO coincide: muestra el modal de error y devuelve false.
    */
-  /** Valida crudas contra las listas; si hay errores muestra el modal y espera al usuario. */
-  async function validarCrudasConModal(
-    crudas: FilaCrudaHorario[],
-    profesores: string[],
-  ): Promise<FilaCrudaHorario[] | null> {
-    const errores = validarFilasCrudas(crudas, profesores);
-    if (errores.length === 0) return crudas;
-    return new Promise<FilaCrudaHorario[] | null>((resolve) => {
-      setValidacionFusion({ crudas, filasConError: errores, resolve });
-    });
-  }
-
   async function guardarOEnforzarFormato(
     currentKeys: string[],
     opciones: OpcionesHorario,
@@ -1549,7 +1528,7 @@ export default function InformesScreen({ config }: Props) {
         const sel = await window.adminAPI.horarios.cargarExcelRelleno();
         if (!sel) return;
         const crudasRaw = await parseHorariosExcelCrudo(sel.base64);
-        const crudas = await validarCrudasConModal(crudasRaw, profesores);
+        const crudas = await validarCrudasConVentanaNativa(crudasRaw, profesores);
         if (!crudas) return;
         const resultado = fusionarHorarios(resultados, crudas, matriculas);
         if (resultado.conservadas + resultado.heredadas === 0) {
@@ -1614,7 +1593,7 @@ export default function InformesScreen({ config }: Props) {
         const sel = await window.adminAPI.horarios.cargarExcelRelleno();
         if (!sel) return;
         const crudasRaw2 = await parseHorariosExcelCrudo(sel.base64);
-        const crudas = await validarCrudasConModal(crudasRaw2, profesores);
+        const crudas = await validarCrudasConVentanaNativa(crudasRaw2, profesores);
         if (!crudas) return;
         const resultado = fusionarHorarios(resultados, crudas, matriculas);
         if (resultado.conservadas + resultado.heredadas === 0) {
@@ -3347,21 +3326,6 @@ export default function InformesScreen({ config }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {validacionFusion && (
-        <ModalCorreccionHorarios
-          filasConError={validacionFusion.filasConError}
-          onConfirmar={(correcciones) => {
-            const { crudas, resolve } = validacionFusion;
-            setValidacionFusion(null);
-            resolve(aplicarCorreccionesHorario(crudas, correcciones));
-          }}
-          onCancelar={() => {
-            validacionFusion.resolve(null);
-            setValidacionFusion(null);
-          }}
-        />
-      )}
 
     </div>
   );

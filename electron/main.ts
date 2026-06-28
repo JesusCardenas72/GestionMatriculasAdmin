@@ -111,6 +111,11 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 
 let win: BrowserWindow | null = null;
 
+// ── Diálogos de corrección de horarios ────────────────────────────────────────
+// Almacena los datos de cada sesión de diálogo pendiente, indexados por un UUID.
+const dialogData = new Map<string, unknown>();
+const dialogResolvers = new Map<string, (json: string | null) => void>();
+
 function createWindow() {
   const saved = loadWindowState();
 
@@ -978,6 +983,84 @@ function registerIpcHandlers() {
       }
     },
   );
+
+  // ── Diálogo nativo de corrección de horarios ────────────────────────────────
+  // Abre una ventana modal OS separada con la UI de corrección de colisiones.
+  // Devuelve las correcciones como JSON (array de entradas de Map) o null si
+  // el usuario cancela / cierra la ventana.
+  ipcMain.handle(
+    "horarios:abrirDialogoCorreccion",
+    async (_e, filasConErrorJSON: string): Promise<string | null> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(filasConErrorJSON));
+
+      return new Promise<string | null>((resolve) => {
+        dialogResolvers.set(dialogId, resolve);
+
+        const dialogWin = new BrowserWindow({
+          width: 720,
+          height: 640,
+          minWidth: 520,
+          minHeight: 400,
+          title: "Valores fuera de lista — Horarios",
+          icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+          autoHideMenuBar: true,
+          parent: win ?? undefined,
+          modal: true,
+          webPreferences: {
+            preload: path.join(__dirname, "preload.js"),
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        });
+
+        const cleanup = (result: string | null) => {
+          dialogData.delete(dialogId);
+          dialogResolvers.delete(dialogId);
+          if (!dialogWin.isDestroyed()) dialogWin.destroy();
+          resolve(result);
+        };
+
+        // Si el usuario cierra la ventana directamente → cancelar
+        dialogWin.on("closed", () => {
+          if (dialogResolvers.has(dialogId)) cleanup(null);
+        });
+
+        const hash = `dialog-correccion?id=${encodeURIComponent(dialogId)}`;
+        if (VITE_DEV_SERVER_URL) {
+          dialogWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+        } else {
+          dialogWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+        }
+      });
+    },
+  );
+
+  // Llamado por la ventana de diálogo para obtener los datos de su sesión.
+  ipcMain.handle("horarios:dialogoGetData", (_e, dialogId: string): string | null => {
+    const data = dialogData.get(dialogId);
+    return data !== undefined ? JSON.stringify(data) : null;
+  });
+
+  // Llamado por la ventana de diálogo cuando el usuario confirma las correcciones.
+  ipcMain.handle("horarios:dialogoConfirmar", (_e, dialogId: string, correccionesJSON: string): void => {
+    const resolver = dialogResolvers.get(dialogId);
+    if (resolver) {
+      dialogData.delete(dialogId);
+      dialogResolvers.delete(dialogId);
+      resolver(correccionesJSON);
+    }
+  });
+
+  // Llamado por la ventana de diálogo cuando el usuario cancela.
+  ipcMain.handle("horarios:dialogoCancelar", (_e, dialogId: string): void => {
+    const resolver = dialogResolvers.get(dialogId);
+    if (resolver) {
+      dialogData.delete(dialogId);
+      dialogResolvers.delete(dialogId);
+      resolver(null);
+    }
+  });
 }
 
 app.whenReady().then(() => {
