@@ -81,57 +81,51 @@ export function actualizarHorariosStore(
 ): ResultadoActualizacion {
   const ahora = new Date().toISOString();
 
-  // Índice unificado: prioridad al idCompuesto cuando existe, fallback a key de texto.
-  // Se construye dos mapas para buscar en cualquiera de los dos espacios.
-  const porId = new Map<string, HorariosEntry>();
-  const porClave = new Map<string, HorariosEntry>();
-  for (const e of data.entries) {
-    if (e.idCompuesto) porId.set(e.idCompuesto, e);
-    porClave.set(e.key, e);
-  }
+  // Mapa maestro: la clave de búsqueda es el idCompuesto cuando existe (garantiza que
+  // dos entradas con el mismo texto pero distinto ID no se pisen entre sí), o la clave
+  // de texto normalizada para entradas antiguas sin idCompuesto.
+  const mapaKey = (e: HorariosEntry) => e.idCompuesto ?? e.key;
+  const filaClave = (f: FilaCrudaHorario) =>
+    f.idCompuesto ?? generarClave(f.nombreCompleto, f.ensenanzaCurso, f.especialidad, f.asignatura);
+
+  const mapa = new Map<string, HorariosEntry>(data.entries.map((e) => [mapaKey(e), e]));
 
   let anadidas = 0;
   let actualizadas = 0;
   let sinCambio = 0;
 
   for (const fila of crudas) {
+    const mk = filaClave(fila);
+    const existente = mapa.get(mk);
+
     // Fila sin horario: no machaca lo que ya hubiera; solo cuenta como sin cambio.
     if (!tieneHorario(fila.h)) {
-      const tieneExistente = fila.idCompuesto
-        ? porId.has(fila.idCompuesto)
-        : porClave.has(generarClave(fila.nombreCompleto, fila.ensenanzaCurso, fila.especialidad, fila.asignatura));
-      if (tieneExistente) sinCambio++;
+      if (existente) sinCambio++;
       continue;
     }
 
     const hSaneada = sanearValoresH(fila.h);
 
-    // Buscar entrada existente: ID primero, texto después.
-    const claveTexto = generarClave(
-      fila.nombreCompleto,
-      fila.ensenanzaCurso,
-      fila.especialidad,
-      fila.asignatura,
-    );
-    const existente = (fila.idCompuesto ? porId.get(fila.idCompuesto) : undefined)
-      ?? porClave.get(claveTexto);
-
     if (existente) {
       if (sonIguales(existente.h, hSaneada)) {
         sinCambio++;
       } else {
-        const actualizado = {
+        mapa.set(mk, {
           ...existente,
           ...(fila.idCompuesto ? { idCompuesto: fila.idCompuesto } : {}),
           h: hSaneada,
           updatedAt: ahora,
-        };
-        if (fila.idCompuesto) porId.set(fila.idCompuesto, actualizado);
-        porClave.set(existente.key, actualizado);
+        });
         actualizadas++;
       }
     } else {
-      const nueva: HorariosEntry = {
+      const claveTexto = generarClave(
+        fila.nombreCompleto,
+        fila.ensenanzaCurso,
+        fila.especialidad,
+        fila.asignatura,
+      );
+      mapa.set(mk, {
         ...(fila.idCompuesto ? { idCompuesto: fila.idCompuesto } : {}),
         key: claveTexto,
         nombreCompleto: fila.nombreCompleto,
@@ -141,15 +135,12 @@ export function actualizarHorariosStore(
         h: hSaneada,
         createdAt: ahora,
         updatedAt: ahora,
-      };
-      if (fila.idCompuesto) porId.set(fila.idCompuesto, nueva);
-      porClave.set(claveTexto, nueva);
+      });
       anadidas++;
     }
   }
 
-  const entriesNuevas = [...porClave.values()];
-  data.entries = entriesNuevas;
+  data.entries = [...mapa.values()];
 
   // Cargar nunca borra (upsert); el borrado es manual desde el historial.
   const eliminadas = 0;
@@ -166,7 +157,7 @@ export function actualizarHorariosStore(
     resumen: { anadidas, actualizadas, eliminadas, sinCambio },
     fileName,
     nombre: nombre?.trim() || undefined,
-    entries: [...entriesNuevas],
+    entries: [...data.entries],
   };
 
   data.snapshots.push(snapshot);
