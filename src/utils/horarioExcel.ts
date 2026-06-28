@@ -52,10 +52,11 @@ function findCol(headers: Map<string, number>, ...claves: string[]): number | nu
 }
 
 /**
- * Etiquetas normalizadas de las 9 columnas de horario que insertan los profesores.
- * Se usan para excluirlas al reconstruir el listado de campos del informe.
+ * Etiquetas normalizadas de las columnas técnicas del Excel que NO son campos del informe:
+ * las 9 columnas de horario y la columna ID compuesto.
  */
 const H_LABELS_NORM = new Set([
+  'id',
   'profesor', 'grupo', 'aula',
   'dia 1', 'entrada 1', 'salida 1',
   'dia 2', 'entrada 2', 'salida 2',

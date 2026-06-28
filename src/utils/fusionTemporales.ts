@@ -1,14 +1,15 @@
 import ExcelJS from "exceljs";
 import type { AsignaturaLocal, EstadoTramite, FilaInforme, MatriculaLocal } from "../api/types";
 import { ESTADO } from "../api/types";
+import { idCompuesto as calcIdCompuesto } from "./asigId";
 import { CAMPOS_META, CAMPOS_ASIGNATURA, type CampoMeta } from "../data/informesConfig";
 import { norm, cellText } from "./horarioExcel";
 import { nombreCompletoDe, prefijo, type FilaCrudaHorario } from "./fusionHorarios";
 import { asignaturasCursadas } from "./repetidorSuelta";
 
-/** Cabeceras de las 9 columnas de horario (no son campos del informe). */
+/** Cabeceras de columnas técnicas del Excel que no son campos del informe. */
 const HEADERS_HORARIO = new Set(
-  ["Profesor", "Grupo", "Aula", "Día 1", "Dia 1", "Entrada 1", "Salida 1", "Día 2", "Dia 2", "Entrada 2", "Salida 2"].map(norm),
+  ["ID", "Profesor", "Grupo", "Aula", "Día 1", "Dia 1", "Entrada 1", "Salida 1", "Día 2", "Dia 2", "Entrada 2", "Salida 2"].map(norm),
 );
 
 export interface CamposReconstruidos {
@@ -112,6 +113,7 @@ function pushFilaAsignatura(
     asigCodigo: a.codigo,
     asigEstado: a.estado,
     asigHorario: a.horario,
+    idCompuesto: calcIdCompuesto(base.nOrden, a.nombre),
   });
 }
 
