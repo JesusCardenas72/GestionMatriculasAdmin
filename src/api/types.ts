@@ -205,8 +205,8 @@ export interface FilaInforme extends Solicitud {
   nombreCompleto?: string;
   /** true si la fila proviene de un alumno temporal pendiente (placeholder de horarios) */
   esTemporal?: boolean;
-  /** ID compuesto "{nOrden}_{asciiSum(asigNombre)}" para identificar la fila en el Excel de horarios. */
-  idCompuesto?: string;
+  /** ID "{nOrden}_{asciiSum(asigNombre)}" que identifica de forma única la fila alumno × asignatura. */
+  idAlumnoAsignatura?: string;
 }
 
 export type OperadorFiltro =

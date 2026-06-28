@@ -246,7 +246,7 @@ export async function generarExcelHorarios(
   filas.forEach((f, idx) => {
     const row: Record<string, string> = {};
     // ID compuesto: identifica de forma única la fila matrícula × asignatura.
-    row['id_compuesto'] = f.idCompuesto ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? '');
+    row['id_compuesto'] = f.idAlumnoAsignatura ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? '');
     colsDatos.forEach((c) => {
       if (c.campo) row[c.key] = formatValor(f, c.campo);
     });

@@ -113,7 +113,7 @@ function pushFilaAsignatura(
     asigCodigo: a.codigo,
     asigEstado: a.estado,
     asigHorario: a.horario,
-    idCompuesto: calcIdCompuesto(base.nOrden, a.nombre),
+    idAlumnoAsignatura: calcIdCompuesto(base.nOrden, a.nombre),
   });
 }
 

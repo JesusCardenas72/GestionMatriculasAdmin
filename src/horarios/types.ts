@@ -8,6 +8,8 @@
 
 /** Un tramo de clase colocable en la parrilla (un día, una franja horaria). */
 export interface ClaseHorario {
+  /** ID "{nOrden}_{asciiSum(asignatura)}" que enlaza el tramo con la fila alumno × asignatura. */
+  idAlumnoAsignatura?: string;
   asignatura: string;
   profesor: string;
   aula: string;

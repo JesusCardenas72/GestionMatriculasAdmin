@@ -45,7 +45,7 @@ function entryTexto(
 }
 
 function cruda(id: string, asig: string, h: FilaCrudaHorario["h"]): FilaCrudaHorario {
-  return { nombreCompleto: "", ensenanzaCurso: "", especialidad: "", asignatura: asig, h, idCompuesto: id };
+  return { nombreCompleto: "", ensenanzaCurso: "", especialidad: "", asignatura: asig, h, idAlumnoAsignatura: id };
 }
 
 function crudaTexto(nombre: string, curso: string, esp: string, asig: string, h: FilaCrudaHorario["h"]): FilaCrudaHorario {
@@ -82,7 +82,7 @@ function filaInforme(nOrden: number, asigNombre: string, nombre = "Test, Test"):
     docFaltante: null,
     repetidor: false,
     asigNombre,
-    idCompuesto: idCompuesto(nOrden, asigNombre),
+    idAlumnoAsignatura: idCompuesto(nOrden, asigNombre),
   };
 }
 

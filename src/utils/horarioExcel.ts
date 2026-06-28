@@ -136,6 +136,7 @@ export async function parseHorariosExcel(
   const cEnt2 = findCol(headers, 'Entrada 2');
   const cSal2 = findCol(headers, 'Salida 2');
 
+  const cId = findCol(headers, 'ID');
   const cEmail = findCol(headers, 'Email', 'Correo', 'Correo electrónico');
   const cNomComp = findCol(headers, 'Nombre Completo', 'Alumno', 'Alumno/a');
   const cApellidos = findCol(headers, 'Apellidos');
@@ -191,10 +192,11 @@ export async function parseHorariosExcel(
     const asignatura = txt(row, cAsig) || 'Clase';
     const aula = txt(row, cAula);
     const grupo = txt(row, cGrupo);
+    const idAlumnoAsignatura = cId ? txt(row, cId) || undefined : undefined;
 
     const addTramo = (dia: string, entrada: string, salida: string) => {
       if (!dia || !entrada || !salida) return false;
-      const clase: ClaseHorario = { asignatura, profesor, aula, grupo, dia, entrada, salida };
+      const clase: ClaseHorario = { idAlumnoAsignatura, asignatura, profesor, aula, grupo, dia, entrada, salida };
       alumno!.clases.push(clase);
       return true;
     };

@@ -40,7 +40,7 @@ function fila(
     docFaltante: null,
     repetidor: false,
     asigNombre,
-    ...(nOrden !== null ? { idCompuesto: idCompuesto(nOrden, asigNombre) } : {}),
+    ...(nOrden !== null ? { idAlumnoAsignatura: idCompuesto(nOrden, asigNombre) } : {}),
   };
 }
 
@@ -49,7 +49,7 @@ function cruda(nombreCompleto: string, curso: string, esp: string, asig: string,
 }
 
 function crudaConId(id: string, asig: string, h: FilaCrudaHorario["h"]): FilaCrudaHorario {
-  return { nombreCompleto: "", ensenanzaCurso: "", especialidad: "", asignatura: asig, h, idCompuesto: id };
+  return { nombreCompleto: "", ensenanzaCurso: "", especialidad: "", asignatura: asig, h, idAlumnoAsignatura: id };
 }
 
 describe("fusionarHorarios", () => {

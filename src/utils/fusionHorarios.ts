@@ -45,8 +45,8 @@ export interface FilaCrudaHorario {
   especialidad: string;
   asignatura: string;
   h: ValoresH;
-  /** ID compuesto "{nOrden}_{asciiSum}" leído de la columna "ID" del Excel (si existe). */
-  idCompuesto?: string;
+  /** ID "{nOrden}_{asciiSum}" leído de la columna "ID" del Excel (si existe). */
+  idAlumnoAsignatura?: string;
 }
 
 /** Cabeceras visibles de cada columna de horario, como las genera excelHorarios.ts. */
@@ -152,7 +152,7 @@ export async function parseHorariosExcelCrudo(base64: string): Promise<FilaCruda
       especialidad: txt(row, cEsp),
       asignatura: txt(row, cAsig),
       h,
-      ...(idComp ? { idCompuesto: idComp } : {}),
+      ...(idComp ? { idAlumnoAsignatura: idComp } : {}),
     });
   });
   return filas;
@@ -187,12 +187,12 @@ export function fusionarHorarios(
   // Índice de filas crudas CON algún dato de horario aprovechable.
   const conHorario = crudas.filter((c) => Object.values(c.h).some(esValorHorarioUtil));
 
-  // Índice primario por idCompuesto (cuando el Excel tiene columna ID).
+  // Índice primario por idAlumnoAsignatura (cuando el Excel tiene columna ID).
   const porId = new Map<string, FilaCrudaHorario>();
   // Índice de respaldo por clave de texto (retrocompatibilidad con Excel sin ID).
   const porClave = new Map<string, FilaCrudaHorario>();
   for (const c of conHorario) {
-    if (c.idCompuesto && !porId.has(c.idCompuesto)) porId.set(c.idCompuesto, c);
+    if (c.idAlumnoAsignatura && !porId.has(c.idAlumnoAsignatura)) porId.set(c.idAlumnoAsignatura, c);
     const k = claveDe(c);
     if (!porClave.has(k)) porClave.set(k, c);
   }
@@ -234,7 +234,7 @@ export function fusionarHorarios(
 
     // ── Búsqueda por ID (cuando el Excel tiene columna ID) ────────────────
     if (usaId) {
-      const idDirecto = f.idCompuesto ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? "");
+      const idDirecto = f.idAlumnoAsignatura ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? "");
       const directaId = porId.get(idDirecto);
       if (directaId) {
         usadas.add(idDirecto);
@@ -285,7 +285,7 @@ export function fusionarHorarios(
   const huerfanas = usaId
     ? [...porId.entries()]
         .filter(([k]) => !usadas.has(k))
-        .map(([, c]) => `${c.nombreCompleto || c.idCompuesto} — ${c.asignatura || "(sin asignatura)"} (${c.h.h_prof ?? "sin profesor"})`)
+        .map(([, c]) => `${c.nombreCompleto || c.idAlumnoAsignatura} — ${c.asignatura || "(sin asignatura)"} (${c.h.h_prof ?? "sin profesor"})`)
     : [...porClave.entries()]
         .filter(([k]) => !usadas.has(k))
         .map(([, c]) => `${c.nombreCompleto} — ${c.asignatura || "(sin asignatura)"} (${c.h.h_prof ?? "sin profesor"})`);

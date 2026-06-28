@@ -33,6 +33,7 @@ import { Loader2, Plus, Trash2, X } from "lucide-react";
 import type { AsignaturaLocal, MatriculaLocal, EstadoAsignatura } from "../api/types";
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
 import { getCatalogoLocal, ensenanzaDesdeCode } from "../data/catalogoLocal";
+import { toTitleCase } from "../utils/formatText";
 
 type Tab = "datos" | "asignaturas";
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
@@ -153,16 +154,19 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
       .filter((i) => !i._deleted)
       .map(({ _deleted: _d, ...rest }) => rest);
 
+    const tc = (v: string) => toTitleCase(v.trim()) ?? v.trim();
+    const tcn = (v: string) => toTitleCase(v.trim()) || null;
+
     onSave({
-      nombre: form.nombre.trim(),
-      apellidos: form.apellidos.trim(),
+      nombre: tc(form.nombre),
+      apellidos: tc(form.apellidos),
       dni: form.dni.trim(),
       email: form.email.trim(),
       telefono: n(form.telefono),
       fechaNacimiento: n(form.fechaNacimiento),
-      domicilio: n(form.domicilio),
-      localidad: n(form.localidad),
-      provincia: n(form.provincia),
+      domicilio: tcn(form.domicilio),
+      localidad: tcn(form.localidad),
+      provincia: tcn(form.provincia),
       cp: n(form.cp),
       formaPago: n(form.formaPago),
       reduccionTasas: n(REDUCCIONES_TASAS_REVERSE[form.reduccionTasas] ?? form.reduccionTasas),

@@ -1,10 +1,5 @@
 import type { MatriculaLocal } from "../api/types";
 
-function isAllUpper(s: string): boolean {
-  const letters = s.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñÜü]/g, "");
-  return letters.length > 0 && letters === letters.toUpperCase();
-}
-
 function titleCaseWord(w: string): string {
   if (!w) return w;
   if (w.includes("-")) {
@@ -16,6 +11,7 @@ function titleCaseWord(w: string): string {
   return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
 }
 
+/** Capitaliza la primera letra tras cada guión si está en minúscula (sin tocar el resto). */
 export function fixHyphenCase(s: string | null | undefined): string | null {
   if (s == null) return s ?? null;
   return s.replace(/-([a-záéíóúñüàèìòùâêîôûäëïöü])/g, (_, c: string) =>
@@ -23,9 +19,13 @@ export function fixHyphenCase(s: string | null | undefined): string | null {
   );
 }
 
+/**
+ * Convierte cada palabra a Title Case (primera letra mayúscula, resto minúsculas).
+ * Respeta guiones: ambas partes de una palabra compuesta quedan capitalizadas.
+ * Se aplica siempre, independientemente del case original.
+ */
 export function toTitleCase(s: string | null | undefined): string | null {
   if (s == null) return s ?? null;
-  if (!isAllUpper(s)) return s;
   return s
     .split(/(\s+)/)
     .map((part) => (/\s+/.test(part) ? part : titleCaseWord(part)))
@@ -33,7 +33,6 @@ export function toTitleCase(s: string | null | undefined): string | null {
 }
 
 export function formatearMatriculaLocal(m: MatriculaLocal): MatriculaLocal {
-  if (m.textoFormateado === true) return m;
   return {
     ...m,
     nombre: toTitleCase(m.nombre) ?? m.nombre,

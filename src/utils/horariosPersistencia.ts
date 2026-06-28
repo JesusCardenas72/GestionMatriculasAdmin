@@ -81,12 +81,12 @@ export function actualizarHorariosStore(
 ): ResultadoActualizacion {
   const ahora = new Date().toISOString();
 
-  // Mapa maestro: la clave de búsqueda es el idCompuesto cuando existe (garantiza que
-  // dos entradas con el mismo texto pero distinto ID no se pisen entre sí), o la clave
-  // de texto normalizada para entradas antiguas sin idCompuesto.
+  // Mapa maestro: la clave de búsqueda es el idAlumnoAsignatura de la fila cuando existe
+  // (garantiza que dos entradas con el mismo texto pero distinto ID no se pisen entre sí),
+  // o la clave de texto normalizada para entradas antiguas sin ID.
   const mapaKey = (e: HorariosEntry) => e.idCompuesto ?? e.key;
   const filaClave = (f: FilaCrudaHorario) =>
-    f.idCompuesto ?? generarClave(f.nombreCompleto, f.ensenanzaCurso, f.especialidad, f.asignatura);
+    f.idAlumnoAsignatura ?? generarClave(f.nombreCompleto, f.ensenanzaCurso, f.especialidad, f.asignatura);
 
   const mapa = new Map<string, HorariosEntry>(data.entries.map((e) => [mapaKey(e), e]));
 
@@ -112,7 +112,7 @@ export function actualizarHorariosStore(
       } else {
         mapa.set(mk, {
           ...existente,
-          ...(fila.idCompuesto ? { idCompuesto: fila.idCompuesto } : {}),
+          ...(fila.idAlumnoAsignatura ? { idCompuesto: fila.idAlumnoAsignatura } : {}),
           h: hSaneada,
           updatedAt: ahora,
         });
@@ -126,7 +126,7 @@ export function actualizarHorariosStore(
         fila.asignatura,
       );
       mapa.set(mk, {
-        ...(fila.idCompuesto ? { idCompuesto: fila.idCompuesto } : {}),
+        ...(fila.idAlumnoAsignatura ? { idCompuesto: fila.idAlumnoAsignatura } : {}),
         key: claveTexto,
         nombreCompleto: fila.nombreCompleto,
         ensenanzaCurso: fila.ensenanzaCurso,
@@ -257,7 +257,10 @@ export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios
       const e = (entrada ?? "").trim();
       const s = (salida ?? "").trim();
       if (!d || !e || !s) return false;
-      const clase: ClaseHorario = { asignatura, profesor, aula, grupo, dia: d, entrada: e, salida: s };
+      const clase: ClaseHorario = {
+        idAlumnoAsignatura: entry.idCompuesto,
+        asignatura, profesor, aula, grupo, dia: d, entrada: e, salida: s,
+      };
       alumno!.clases.push(clase);
       return true;
     };
@@ -374,7 +377,7 @@ export function detectarHuerfanasAlmacen(
     prefijosInforme.add(pref);
 
     // Marcar la fila actual como usada por ID y por texto.
-    if (fila.idCompuesto) usadasId.add(fila.idCompuesto);
+    if (fila.idAlumnoAsignatura) usadasId.add(fila.idAlumnoAsignatura);
     usadasClave.add(generarClave(nombre, curso, esp, asig));
 
     // La clave/ID del temporal sustituido también queda consumida.
@@ -441,7 +444,7 @@ export function obtenerValoresHorario(
 
     // ── Búsqueda por ID ──────────────────────────────────────────────────
     if (porId.size > 0) {
-      const idDirecto = fila.idCompuesto ?? calcIdCompuesto(fila.nOrden, asig);
+      const idDirecto = fila.idAlumnoAsignatura ?? calcIdCompuesto(fila.nOrden, asig);
       const entryId = porId.get(idDirecto);
       if (entryId && tieneHorario(entryId.h)) {
         conservadas++;
