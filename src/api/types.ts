@@ -56,6 +56,8 @@ export interface ActualizarSolicitudInput {
   emailHtml?: string;
   email?: string;
   enviarEmail?: boolean;
+  adjuntoPersonalizadoBase64?: string;
+  adjuntoPersonalizadoNombre?: string;
 }
 
 export interface EditarSolicitudInput {

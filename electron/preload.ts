@@ -268,6 +268,30 @@ const adminAPI = {
     cancelar: (dialogId: string): Promise<void> =>
       ipcRenderer.invoke("horarios:dialogoCancelar", dialogId),
   },
+  dialogoEnviarHorario: {
+    /** Abre la ventana nativa flotante de envío de horario por email. */
+    abrir: (payloadJSON: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:abrirDialogoEnviar", payloadJSON),
+  },
+  dialogoEnviarCampanya: {
+    /** Abre la ventana nativa flotante de envío masivo (campaña). */
+    abrir: (payloadJSON: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:abrirDialogoEnviarCampanya", payloadJSON),
+    /** Solo para la ventana de campaña: avisa de que guardó la campaña. */
+    notificarGuardada: (): Promise<void> =>
+      ipcRenderer.invoke("horarios:campanyaGuardadaNotificar"),
+    /** Para la ventana principal: se ejecuta cuando una campaña se guarda. Devuelve una función para desuscribirse. */
+    onGuardada: (cb: () => void): (() => void) => {
+      const listener = () => cb();
+      ipcRenderer.on("horarios:campanyaGuardada", listener);
+      return () => ipcRenderer.removeListener("horarios:campanyaGuardada", listener);
+    },
+  },
+  assets: {
+    /** Devuelve el PDF de solicitud de cambio de grupo como base64, o null si no está disponible. */
+    solicitudCambioGrupoBase64: (): Promise<string | null> =>
+      ipcRenderer.invoke("assets:solicitudCambioGrupoBase64"),
+  },
 };
 
 contextBridge.exposeInMainWorld("adminAPI", adminAPI);

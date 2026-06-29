@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowLeftRight,
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
@@ -1170,7 +1171,6 @@ export default function InformesScreen({ config }: Props) {
       return el.offsetWidth;
     }
 
-    const headerW = measure(campo.label.toUpperCase(), 12, "600");
     let maxDataW = 0;
     for (const fila of resultados) {
       const w = measure(formatCelda(fila, campo), 14, "400");
@@ -1179,9 +1179,8 @@ export default function InformesScreen({ config }: Props) {
 
     document.body.removeChild(el);
 
-    const HEADER_CHROME = 42;
     const DATA_PADDING = 28;
-    const anchoFinal = Math.max(80, Math.ceil(Math.max(headerW + HEADER_CHROME, maxDataW + DATA_PADDING)));
+    const anchoFinal = Math.max(80, Math.ceil(maxDataW + DATA_PADDING));
 
     setInforme(prev => ({
       ...prev,
@@ -2394,6 +2393,16 @@ export default function InformesScreen({ config }: Props) {
                                   )}
                                 </button>
 
+                                {/* Autoajustar ancho al contenido */}
+                                <button
+                                  onClick={() => handleAutoAjustarColumna(c.key)}
+                                  onMouseDown={e => e.stopPropagation()}
+                                  className="ml-0.5 p-0.5 rounded text-slate-400 opacity-50 hover:opacity-100 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer shrink-0"
+                                  title="Autoajustar ancho al contenido más ancho"
+                                >
+                                  <ArrowLeftRight className="w-3 h-3" />
+                                </button>
+
                                 {/* X — eliminar columna */}
                                 <button
                                   onClick={() => removeCampo(c.key)}
@@ -2471,6 +2480,13 @@ export default function InformesScreen({ config }: Props) {
                                     >
                                       <Filter className="w-4 h-4 shrink-0 text-slate-400" />
                                       <span>Filtrar{nFiltrosCol > 0 ? ` (${nFiltrosCol})` : '…'}</span>
+                                    </button>
+                                    <button
+                                      onClick={() => { handleAutoAjustarColumna(c.key); setColMenuCampo(null); }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                    >
+                                      <ArrowLeftRight className="w-4 h-4 shrink-0 text-slate-400" />
+                                      <span>Autoajustar ancho</span>
                                     </button>
                                     <button
                                       onClick={() => { ocultarCampo(c.key); setColMenuCampo(null); }}

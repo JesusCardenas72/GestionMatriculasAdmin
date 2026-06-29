@@ -24,11 +24,7 @@ import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { solicitudALocal } from "../utils/solicitudALocal";
-import { construirCargaDesdeStore } from "../utils/horariosPersistencia";
-import { MENSAJE_HORARIO_DEFAULT, normNombre, enviarHorarioAlumno } from "../utils/horarioEnvio";
-import type { HorarioAlumno } from "../horarios/types";
-import { buildCursoLabel } from "../horarios/types";
-import { CalendarClock, Loader2, Send, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { normNombre } from "../utils/horarioEnvio";
 
 function LocalEmailModal({
   matricula,
@@ -75,7 +71,7 @@ function LocalEmailModal({
     estado: a.estado,
   }));
 
-  async function handleConfirm(observaciones: string, emailHtml: string) {
+  async function handleConfirm(observaciones: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) {
     if (!matricula.rowId) return;
     setLoading(true);
     try {
@@ -86,6 +82,8 @@ function LocalEmailModal({
         emailHtml,
         email: matricula.email,
         enviarEmail: true,
+        adjuntoPersonalizadoBase64: adjunto?.base64,
+        adjuntoPersonalizadoNombre: adjunto?.nombre,
       });
       onClose();
     } catch (e) {
@@ -103,204 +101,9 @@ function LocalEmailModal({
       asignaturas={asignaturas}
       observacionesIniciales={esDocumentacion ? (matricula.docFaltante ?? "") : ""}
       loading={loading}
-      onConfirm={(observaciones, emailHtml) => void handleConfirm(observaciones, emailHtml)}
+      onConfirm={(observaciones, emailHtml, adjunto) => void handleConfirm(observaciones, emailHtml, adjunto)}
       onCancel={onClose}
     />
-  );
-}
-
-/**
- * Modal de envío individual del correo de horario desde la ficha de Local.
- * Busca el horario del alumno (cargado en la pestaña Horarios) por nombre, ofrece
- * una ventana para rectificar el texto suplementario y lo manda con el PDF y el
- * HTML adjuntos, igual que la pestaña Horarios Individuales.
- */
-function LocalHorarioEmailModal({
-  matricula,
-  candidatosNombre,
-  config,
-  curso,
-  open,
-  onClose,
-}: {
-  matricula: MatriculaLocal;
-  candidatosNombre: string[];
-  config: AppConfig;
-  curso: string;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const anio = `Curso ${curso}`;
-  const [cargando, setCargando] = useState(true);
-  const [alumno, setAlumno] = useState<HorarioAlumno | null>(null);
-  const [mensaje, setMensaje] = useState(MENSAJE_HORARIO_DEFAULT);
-  const [enviando, setEnviando] = useState(false);
-  const [enviado, setEnviado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelado = false;
-    setCargando(true);
-    setError(null);
-    setEnviado(false);
-    setMensaje(MENSAJE_HORARIO_DEFAULT);
-    setAlumno(null);
-    (async () => {
-      try {
-        const store = await window.adminAPI.horarios.data.obtener(curso);
-        const carga = construirCargaDesdeStore(store);
-        const candidatos = new Set(candidatosNombre);
-        const encontrado = carga.alumnos.find((a) => candidatos.has(normNombre(a.nombre))) ?? null;
-        if (!cancelado) {
-          setAlumno(encontrado ? { ...encontrado, email: matricula.email || encontrado.email } : null);
-        }
-      } catch (e) {
-        if (!cancelado) setError(e instanceof Error ? e.message : "No se pudo leer el horario.");
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, curso, matricula.localId]);
-
-  async function handleEnviar() {
-    if (!alumno || !alumno.email) return;
-    if (!config.urlEnviarEmailHorario) {
-      setError("No está configurada la URL del Flow AdminEnviarEmailHorario. Añádela en Configuración.");
-      return;
-    }
-    setEnviando(true);
-    setError(null);
-    try {
-      await enviarHorarioAlumno(config, alumno, anio, mensaje);
-      setEnviado(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo enviar el correo.");
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  if (!open) return null;
-
-  const sinEmail = !alumno?.email;
-
-  return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ background: "rgba(45,36,29,.45)", backdropFilter: "blur(4px)" }}
-      onClick={() => !enviando && onClose()}
-    >
-      <div
-        className="w-full max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[90vh]"
-        style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", boxShadow: "0 16px 48px -12px rgba(45,36,29,.3)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-6 py-4 flex items-start justify-between gap-3" style={{ borderBottom: "1px solid var(--tc-border-soft)" }}>
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>
-              <CalendarClock className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-display text-lg leading-tight" style={{ color: "var(--tc-ink)" }}>Enviar email Horario</h2>
-              <p className="text-xs truncate" style={{ color: "var(--tc-ink-soft)" }}>
-                {matricula.apellidos}, {matricula.nombre} · {buildCursoLabel(matricula.ensenanzaCurso, matricula.especialidad ?? "")}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => !enviando && onClose()}
-            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--tc-bg-panel)]"
-            style={{ color: "var(--tc-ink-mute)" }}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
-          {cargando ? (
-            <div className="flex items-center justify-center gap-2 py-8" style={{ color: "var(--tc-ink-mute)" }}>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span className="text-sm">Buscando el horario del alumno…</span>
-            </div>
-          ) : !alumno ? (
-            <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)" }}>
-              No se ha encontrado el horario de este alumno. Carga el Excel de horarios en la pestaña
-              <strong> Horarios</strong> antes de enviarlo.
-            </div>
-          ) : (
-            <>
-              <div className="rounded-lg px-4 py-3 text-sm flex items-center gap-2 flex-wrap" style={{ background: "var(--tc-bg-panel)", border: "1px solid var(--tc-border-soft)" }}>
-                <span className="font-bold uppercase tracking-wide text-[10.5px]" style={{ color: "var(--tc-ink-mute)" }}>Destinatario</span>
-                {sinEmail ? (
-                  <span className="font-medium" style={{ color: "var(--tc-warn-ink)" }}>sin email — no se puede enviar</span>
-                ) : (
-                  <span style={{ color: "var(--tc-primary)" }}>{alumno.email}</span>
-                )}
-                <span style={{ color: "var(--tc-ink-mute)" }}>· {alumno.clases.length} clase{alumno.clases.length === 1 ? "" : "s"}</span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--tc-ink-mute)" }}>
-                  Texto suplementario del correo (editable)
-                </label>
-                <textarea
-                  value={mensaje}
-                  onChange={(e) => setMensaje(e.target.value)}
-                  rows={9}
-                  disabled={enviando || enviado}
-                  className="w-full text-sm rounded-lg border px-3 py-2 resize-y outline-none focus:border-[var(--tc-primary)] disabled:opacity-60"
-                  style={{ borderColor: "var(--tc-border)", background: "var(--tc-bg)", color: "var(--tc-ink)", minHeight: 160 }}
-                />
-                <p className="text-[11px] mt-1" style={{ color: "var(--tc-ink-mute)" }}>
-                  Aparece resaltado en el correo. Puedes usar enlaces con el formato [texto](https://…).
-                </p>
-              </div>
-            </>
-          )}
-
-          {error && (
-            <p className="text-sm flex items-start gap-2" style={{ color: "var(--tc-danger-ink)" }}>
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
-            </p>
-          )}
-          {enviado && (
-            <p className="text-sm flex items-center gap-2 font-medium" style={{ color: "var(--tc-olive-ink, #4d7c0f)" }}>
-              <CheckCircle2 className="w-4 h-4 shrink-0" /> Correo de horario enviado correctamente.
-            </p>
-          )}
-        </div>
-
-        <div className="px-6 py-4 flex items-center justify-end gap-2" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={enviando}
-            className="px-4 py-2 rounded-lg text-sm disabled:opacity-40"
-            style={{ color: "var(--tc-ink-soft)" }}
-          >
-            {enviado ? "Cerrar" : "Cancelar"}
-          </button>
-          {!enviado && (
-            <button
-              type="button"
-              onClick={() => void handleEnviar()}
-              disabled={enviando || cargando || !alumno || sinEmail}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "var(--tc-primary)" }}
-            >
-              {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {enviando ? "Enviando…" : "Enviar horario"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -336,7 +139,6 @@ export default function LocalScreen({ config }: Props) {
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showHorarioModal, setShowHorarioModal] = useState(false);
 
   // Auto-sincronización: descarga matrículas telemáticas de Dataverse que no estén en local
   // (estados: Pendiente de tramitación, Pendiente de validación y Tramitado)
@@ -366,7 +168,12 @@ export default function LocalScreen({ config }: Props) {
         .filter((m) => m.rowId !== null && !m._pendienteSubida && !m.esTemporal)
         .map((m) => [m.rowId!, m]),
     );
-    const localRowIds = new Set(localPorRowId.keys());
+    // Incluir también los rowIds con cambios pendientes para evitar re-descargarlos
+    const localRowIds = new Set(
+      matriculas
+        .filter((m) => m.rowId !== null && !m.esTemporal)
+        .map((m) => m.rowId!),
+    );
     const remotas = [
       ...pendienteTramitacionQuery.data.solicitudes,
       ...pendienteValidacionQuery.data.solicitudes,
@@ -396,19 +203,34 @@ export default function LocalScreen({ config }: Props) {
     // Detecta duplicados y huérfanos: registros locales con rowId que ya no está en
     // ninguna de las 3 listas remotas o cuyo rowId ya quedó representado por otro localId.
     // Solo se borran si la lista de la nube llegó completa (red de seguridad).
+    //
+    // La copia con _pendienteSubida tiene prioridad: si hay varias copias del mismo
+    // rowId, se conserva la primera que tiene cambios pendientes (edits del usuario)
+    // y se borran las copias sincronizadas redundantes.
+    const pendingByRowId = new Map<string, string>(); // rowId → localId de la copia pendiente
+    for (const m of matriculas) {
+      if (m.esTemporal || !m.rowId || !m._pendienteSubida) continue;
+      if (!pendingByRowId.has(m.rowId)) pendingByRowId.set(m.rowId, m.localId);
+    }
+
     const conservados = new Set<string>();
     const obsoletos: string[] = [];
     if (listaCompleta) {
       for (const m of matriculas) {
         if (m.esTemporal) continue; // placeholder de horarios, nunca existe en la nube
-        if (m._pendienteSubida) continue; // tiene cambios sin sincronizar, no tocar
         if (m.rowId === null) continue; // creación local en curso (ampliación no subida)
         if (!remoteRowIds.has(m.rowId)) {
-          obsoletos.push(m.localId);
+          if (!m._pendienteSubida) obsoletos.push(m.localId); // huérfano sin cambios
           continue;
         }
         if (conservados.has(m.rowId)) {
           obsoletos.push(m.localId); // duplicado del mismo rowId
+          continue;
+        }
+        // Si existe una copia pendiente para este rowId y esta no lo es → redundante
+        const canonicalPendingId = pendingByRowId.get(m.rowId);
+        if (canonicalPendingId && m.localId !== canonicalPendingId) {
+          obsoletos.push(m.localId);
           continue;
         }
         conservados.add(m.rowId);
@@ -714,7 +536,7 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
-  async function handleCrearAmpliacion(nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps) {
+  async function handleCrearAmpliacion(nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps, adjuntoAmpliacion?: { nombre: string; base64: string }) {
     setIsSaving(true);
     try {
       // Generar PDF de la ampliación con el mismo formato que la solicitud
@@ -752,6 +574,8 @@ export default function LocalScreen({ config }: Props) {
             apellidos: nueva.apellidos,
             emailHtml,
             pdfBase64: pdfBase64 ?? undefined,
+            adjuntoPersonalizadoBase64: adjuntoAmpliacion?.base64,
+            adjuntoPersonalizadoNombre: adjuntoAmpliacion?.nombre,
           });
         } catch (e) {
           console.error("Error enviando email de ampliación:", e);
@@ -829,7 +653,14 @@ export default function LocalScreen({ config }: Props) {
 
   function handleEnviarHorario() {
     if (!selected) return;
-    setShowHorarioModal(true);
+    void window.adminAPI.dialogoEnviarHorario.abrir(
+      JSON.stringify({
+        matricula: selected,
+        candidatosNombre: candidatosNombreHorario,
+        config,
+        curso,
+      }),
+    );
   }
 
   async function handleSubirNube() {
@@ -982,6 +813,60 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
+  async function handleDescargarNube() {
+    if (!selected || !selected.rowId || selected.esTemporal) return;
+    if (selected._pendienteSubida) {
+      if (!window.confirm("Este registro tiene cambios sin subir. Si continúas, se perderán. ¿Descargar de todas formas?")) return;
+    }
+    setIsSaving(true);
+    try {
+      const pdfKey = selected.rowId;
+      await cursosStore.eliminarPdf(curso, pdfKey);
+      await eliminar(selected.localId);
+      setSelected(null);
+      await Promise.all([
+        pendienteTramitacionQuery.refetch(),
+        pendienteValidacionQuery.refetch(),
+        tramitadasQuery.refetch(),
+      ]);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const [isDescargandoTodo, setIsDescargandoTodo] = useState(false);
+  const [descargarTodoError, setDescargarTodoError] = useState<string | null>(null);
+
+  async function handleDescargarTodo() {
+    const conRowId = matriculas.filter((m) => !m.esTemporal && m.rowId !== null);
+    if (conRowId.length === 0) return;
+    const pendientes = conRowId.filter((m) => m._pendienteSubida);
+    const aviso = pendientes.length > 0
+      ? `${pendientes.length} matrícula${pendientes.length > 1 ? "s tienen" : " tiene"} cambios sin subir y se perderán. `
+      : "";
+    if (!window.confirm(`${aviso}Se borrarán ${conRowId.length} registros locales y se volverán a descargar desde la nube. ¿Continuar?`)) return;
+    setIsDescargandoTodo(true);
+    setDescargarTodoError(null);
+    setSelected(null);
+    try {
+      await Promise.allSettled(
+        conRowId.map(async (m) => {
+          await cursosStore.eliminarPdf(curso, m.rowId!);
+          await eliminar(m.localId);
+        }),
+      );
+      await Promise.all([
+        pendienteTramitacionQuery.refetch(),
+        pendienteValidacionQuery.refetch(),
+        tramitadasQuery.refetch(),
+      ]);
+    } catch {
+      setDescargarTodoError("Error al limpiar los datos locales");
+    } finally {
+      setIsDescargandoTodo(false);
+    }
+  }
+
   const pendingUploads = matriculas.filter((m) => m._pendienteSubida && !m.esTemporal).length;
 
   // Temporales pendientes ofrecibles en el selector "Sustituye a…": los que no
@@ -1094,35 +979,66 @@ export default function LocalScreen({ config }: Props) {
                 void tramitadasQuery.refetch();
               }}
             />
-            {pendingUploads > 0 && (
+            {(pendingUploads > 0 || matriculas.some((m) => !m.esTemporal && m.rowId)) && (
               <div className="p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
+                {pendingUploads > 0 && (
+                  <button
+                    onClick={() => !isSoloLectura && void handleSubirNubeTodo()}
+                    disabled={isSubiendoTodo || isSaving || isSoloLectura}
+                    title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm disabled:cursor-not-allowed"
+                    style={{ background: isSoloLectura ? "var(--tc-border)" : undefined }}
+                  >
+                    {isSubiendoTodo ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Subiendo…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
+                        </svg>
+                        Subir todo a la nube ({pendingUploads})
+                      </>
+                    )}
+                  </button>
+                )}
+                {subirTodoError && (
+                  <p className="text-xs text-red-500 text-center">{subirTodoError}</p>
+                )}
                 <button
-                  onClick={() => !isSoloLectura && void handleSubirNubeTodo()}
-                  disabled={isSubiendoTodo || isSaving || isSoloLectura}
-                  title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm disabled:cursor-not-allowed"
-                  style={{ background: isSoloLectura ? "var(--tc-border)" : undefined }}
+                  onClick={() => void handleDescargarTodo()}
+                  disabled={isDescargandoTodo || isSaving || isSyncing}
+                  title="Borra todos los registros locales y los vuelve a descargar desde Dataverse"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border disabled:opacity-60 text-xs font-semibold transition-colors disabled:cursor-not-allowed"
+                  style={{ borderColor: "var(--tc-border)", color: "var(--tc-ink-soft)", background: "var(--tc-bg-panel)" }}
                 >
-                  {isSubiendoTodo ? (
+                  {isDescargandoTodo ? (
                     <>
                       <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      Subiendo…
+                      Descargando…
                     </>
                   ) : (
                     <>
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M12 8v8m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
                         <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
+                        <path d="M4 8V6a2 2 0 012-2h12a2 2 0 012 2v2" strokeLinecap="round" />
                       </svg>
-                      Subir todo a la nube ({pendingUploads})
+                      Descargar todo
                     </>
                   )}
                 </button>
-                {subirTodoError && (
-                  <p className="text-xs text-red-500 text-center">{subirTodoError}</p>
+                {descargarTodoError && (
+                  <p className="text-xs text-red-500 text-center">{descargarTodoError}</p>
                 )}
               </div>
             )}
@@ -1163,6 +1079,8 @@ export default function LocalScreen({ config }: Props) {
                 onBorrar={() => { if (!isSoloLectura) void handleBorrar(); }}
                 onEnviarCorreo={() => void handleEnviarCorreo()}
                 onEnviarHorario={() => { if (!isSoloLectura) handleEnviarHorario(); }}
+                onDescargarNube={() => void handleDescargarNube()}
+                onDescargarTodo={() => void handleDescargarTodo()}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center gap-3">
@@ -1190,7 +1108,7 @@ export default function LocalScreen({ config }: Props) {
           matricula={selected}
           isSaving={isSaving}
           onClose={() => setShowAmpliacion(false)}
-          onCrear={(nueva, emailHtml, pdfProps) => void handleCrearAmpliacion(nueva, emailHtml, pdfProps)}
+          onCrear={(nueva, emailHtml, pdfProps, adjunto) => void handleCrearAmpliacion(nueva, emailHtml, pdfProps, adjunto)}
         />
       )}
       {showEmailModal && selected && estadoSeleccionado && (
@@ -1200,16 +1118,6 @@ export default function LocalScreen({ config }: Props) {
           config={config}
           open={showEmailModal}
           onClose={() => setShowEmailModal(false)}
-        />
-      )}
-      {showHorarioModal && selected && (
-        <LocalHorarioEmailModal
-          matricula={selected}
-          candidatosNombre={candidatosNombreHorario}
-          config={config}
-          curso={curso}
-          open={showHorarioModal}
-          onClose={() => setShowHorarioModal(false)}
         />
       )}
     </>

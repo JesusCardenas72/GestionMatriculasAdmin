@@ -6,10 +6,14 @@ export interface EnviarEmailHorarioInput {
   email: string;
   nombre: string;
   emailHtml: string;
-  pdfBase64: string;
-  pdfNombre: string;
-  htmlBase64: string;
-  htmlNombre: string;
+  pdfBase64?: string;
+  pdfNombre?: string;
+  htmlBase64?: string;
+  htmlNombre?: string;
+  formularioBase64?: string;
+  formularioNombre?: string;
+  adjuntoPersonalizadoBase64?: string;
+  adjuntoPersonalizadoNombre?: string;
 }
 
 export function enviarEmailHorario(

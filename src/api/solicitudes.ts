@@ -270,7 +270,7 @@ export function crearAmpliacion(
 
 export function enviarEmailAmpliacion(
   cfg: AppConfig,
-  input: { email: string; nombre: string; apellidos: string; emailHtml: string; pdfBase64?: string },
+  input: { email: string; nombre: string; apellidos: string; emailHtml: string; pdfBase64?: string; adjuntoPersonalizadoBase64?: string; adjuntoPersonalizadoNombre?: string },
 ): Promise<{ ok: boolean }> {
   assertEscribible("EnviarEmailAmpliacion");
   return postFlow<{ ok: boolean }>(cfg.urlEnviarEmailAmpliacion!, cfg.apiKey, input, "AdminEnviarEmailAmpliacion");

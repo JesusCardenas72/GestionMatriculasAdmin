@@ -541,16 +541,16 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     }
   };
 
-  function handleConfirmTramitar(observaciones: string, emailHtml: string) {
+  function handleConfirmTramitar(observaciones: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) {
     mutation.mutate(
-      { rowId: solicitud.rowId, nuevoEstado: ESTADO.TRAMITADO, docFaltante: observaciones, emailHtml, email: solicitud.email, enviarEmail: true },
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.TRAMITADO, docFaltante: observaciones, emailHtml, email: solicitud.email, enviarEmail: true, adjuntoPersonalizadoBase64: adjunto?.base64, adjuntoPersonalizadoNombre: adjunto?.nombre },
       { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
     );
   }
 
-  function handleConfirmPedir(docFaltanteText: string, emailHtml: string) {
+  function handleConfirmPedir(docFaltanteText: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) {
     mutation.mutate(
-      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, emailHtml, email: solicitud.email, enviarEmail: true },
+      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, emailHtml, email: solicitud.email, enviarEmail: true, adjuntoPersonalizadoBase64: adjunto?.base64, adjuntoPersonalizadoNombre: adjunto?.nombre },
       { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
     );
   }

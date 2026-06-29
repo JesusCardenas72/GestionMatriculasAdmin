@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Loader2, Mail, MailX, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FileUp, Loader2, Mail, MailX, X } from "lucide-react";
+import { leerArchivoBase64 } from "../utils/fileUtils";
 import type { Solicitud } from "../api/types";
 import type { AsignaturaEmail } from "../utils/emailTemplate";
 import { buildTramitadoEmailHtml, buildDocumentacionEmailHtml } from "../utils/emailTemplate";
@@ -13,7 +14,7 @@ interface Props {
   asignaturas: AsignaturaEmail[];
   observacionesIniciales: string;
   loading: boolean;
-  onConfirm: (observaciones: string, emailHtml: string) => void;
+  onConfirm: (observaciones: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) => void;
   onConfirmSinEmail?: (observaciones: string) => void;
   onCancel: () => void;
 }
@@ -30,10 +31,23 @@ export default function TramitarEmailModal({
   onCancel,
 }: Props) {
   const [observaciones, setObservaciones] = useState(observacionesIniciales);
+  const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) setObservaciones(observacionesIniciales);
+    if (open) {
+      setObservaciones(observacionesIniciales);
+      setAdjuntoPersonalizado(null);
+    }
   }, [open, observacionesIniciales]);
+
+  async function handleSeleccionarArchivo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const base64 = await leerArchivoBase64(file);
+    setAdjuntoPersonalizado({ nombre: file.name, base64 });
+    e.target.value = '';
+  }
 
   if (!open) return null;
 
@@ -133,6 +147,35 @@ export default function TramitarEmailModal({
               </div>
             </div>
 
+            {/* Adjunto personalizado */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--tc-ink-soft)" }}>
+                Documento adjunto (opcional)
+              </label>
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleSeleccionarArchivo} />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition hover:bg-[var(--tc-bg-panel)]"
+                  style={{ borderColor: "var(--tc-border)", color: "var(--tc-ink-soft)" }}
+                >
+                  <FileUp className="w-3.5 h-3.5" />
+                  {adjuntoPersonalizado ? 'Cambiar…' : 'Adjuntar…'}
+                </button>
+                {adjuntoPersonalizado ? (
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <span className="truncate text-xs" style={{ color: "var(--tc-ink)" }}>{adjuntoPersonalizado.nombre}</span>
+                    <button type="button" onClick={() => setAdjuntoPersonalizado(null)} className="shrink-0 p-0.5 rounded hover:text-red-500" style={{ color: "var(--tc-ink-mute)" }}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>Ninguno</span>
+                )}
+              </div>
+            </div>
+
             {esDocumentacion ? (
               <div className="rounded-xl p-4" style={{ background: "var(--tc-warn-bg)", border: "1px solid var(--tc-warn-border)" }}>
                 <p className="text-xs font-bold mb-1.5 flex items-center gap-1.5" style={{ color: "var(--tc-warn-ink)" }}>
@@ -203,7 +246,7 @@ export default function TramitarEmailModal({
             </button>
           )}
           <button
-            onClick={() => onConfirm(observaciones, emailHtml)}
+            onClick={() => onConfirm(observaciones, emailHtml, adjuntoPersonalizado ?? undefined)}
             disabled={loading || (esDocumentacion && !observaciones.trim())}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm"
             style={{ background: esDocumentacion ? "var(--tc-warn-ink)" : "var(--tc-success-ink)" }}

@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Mail, X } from "lucide-react";
+import { useRef, useState, useMemo, useEffect } from "react";
+import { ChevronLeft, ChevronRight, FileUp, Loader2, Mail, X } from "lucide-react";
+import { leerArchivoBase64 } from "../utils/fileUtils";
 import type { AsignaturaLocal, EstadoAsignatura, MatriculaLocal } from "../api/types";
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
 import { ensenanzaDesdeCode, getCatalogoParaCurso } from "../data/catalogoLocal";
@@ -74,7 +75,7 @@ interface Props {
   matricula: MatriculaLocal;
   isSaving: boolean;
   onClose: () => void;
-  onCrear: (nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps) => void;
+  onCrear: (nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps, adjunto?: { nombre: string; base64: string }) => void;
 }
 
 function calcularNuevoCurso(ensenanzaCurso: string) {
@@ -90,6 +91,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
   const ensenanza = ensenanzaDesdeCode(m.ensenanzaCurso);
 
   const [paso, setPaso] = useState<Paso>(1);
+  const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
   const [fechaInscripcion, setFechaInscripcion] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -250,7 +252,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       observaciones,
       nOrden: m.nOrden,
     };
-    onCrear(nueva, emailHtml, pdfProps);
+    onCrear(nueva, emailHtml, pdfProps, adjuntoPersonalizado ?? undefined);
   }
 
   function avanzar() {
@@ -382,6 +384,8 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
           observaciones={observaciones}
           debePagar={!calculo.esExento && formaPago !== "Solicita Beca" && formaPago !== "Becado"}
           isSaving={isSaving}
+          adjuntoPersonalizado={adjuntoPersonalizado}
+          onAdjuntoPersonalizado={setAdjuntoPersonalizado}
           onObservacionesChange={setObservaciones}
           onCancel={() => setShowEmailPreview(false)}
           onConfirmar={handleConfirmar}
@@ -675,6 +679,8 @@ function EmailPreviewOverlay({
   cuantia,
   observaciones,
   debePagar,
+  adjuntoPersonalizado,
+  onAdjuntoPersonalizado,
   isSaving,
   onObservacionesChange,
   onCancel,
@@ -691,11 +697,14 @@ function EmailPreviewOverlay({
   cuantia: string;
   observaciones: string;
   debePagar: boolean;
+  adjuntoPersonalizado: { nombre: string; base64: string } | null;
+  onAdjuntoPersonalizado: (v: { nombre: string; base64: string } | null) => void;
   isSaving: boolean;
   onObservacionesChange: (v: string) => void;
   onCancel: () => void;
   onConfirmar: () => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const emailHtml = buildAmpliacionEmailHtml({
     nombre,
     apellidos,
@@ -760,6 +769,30 @@ function EmailPreviewOverlay({
                 placeholder="Añade observaciones para el alumno (opcional)..."
               />
             </div>
+            {/* Adjunto personalizado */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                Documento adjunto (opcional)
+              </label>
+              <input ref={fileInputRef} type="file" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (f) { onAdjuntoPersonalizado({ nombre: f.name, base64: await leerArchivoBase64(f) }); e.target.value = ''; } }} />
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+                  <FileUp className="w-3.5 h-3.5" />
+                  {adjuntoPersonalizado ? 'Cambiar…' : 'Adjuntar…'}
+                </button>
+                {adjuntoPersonalizado ? (
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <span className="truncate text-xs text-slate-700">{adjuntoPersonalizado.nombre}</span>
+                    <button type="button" onClick={() => onAdjuntoPersonalizado(null)} className="shrink-0 p-0.5 rounded text-slate-400 hover:text-red-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400">Ninguno</span>
+                )}
+              </div>
+            </div>
+
             <div className="rounded-xl bg-violet-50 border border-violet-200 p-4">
               <p className="text-xs font-bold text-violet-800 mb-1.5 flex items-center gap-1.5">
                 <span className="w-4 h-4 bg-violet-500 text-white rounded-full inline-flex items-center justify-center text-[10px] font-bold">✓</span>

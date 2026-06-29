@@ -11,9 +11,9 @@ import { construirCargaDesdeStore } from "../utils/horariosPersistencia";
 import { cargarExcelHorarios } from "../utils/horariosCarga";
 import type { HorariosSnapshot } from "../../electron/horarios-data-store";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
-import { buildListadoHtml, type VersionListado } from "../utils/horarioListadoTemplate";
-import { MENSAJE_HORARIO_DEFAULT, normNombre, enviarHorarioAlumno } from "../utils/horarioEnvio";
-import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ResultadoEnvio } from "../horarios/types";
+import { buildListadoHtml, listarAsignaturasUnicas, type VersionListado, type NivelAgrupacion } from "../utils/horarioListadoTemplate";
+import { normNombre } from "../utils/horarioEnvio";
+import type { CargaHorarios, HorarioAlumno, CampanyaEnvio } from "../horarios/types";
 import { buildCursoLabel } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
 import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
@@ -86,16 +86,6 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
   const [filtroEnvio, setFiltroEnvio] = useState<"todos" | "enviados" | "pendientes">("todos");
   const [filtroEmail, setFiltroEmail] = useState<"todos" | "conEmail" | "sinEmail">("todos");
 
-  // Modal de envío
-  const MENSAJE_DEFAULT = MENSAJE_HORARIO_DEFAULT;
-  const [showEnviarModal, setShowEnviarModal] = useState(false);
-  const [nombreCampanya, setNombreCampanya] = useState("");
-  const [descripcionCampanya, setDescripcionCampanya] = useState("");
-  const [mensajeCampanya, setMensajeCampanya] = useState("");
-  const [enviando, setEnviando] = useState(false);
-  const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
-  const [resultadoEnvio, setResultadoEnvio] = useState<ResultadoEnvio[] | null>(null);
-
   // Modal de historial de horarios
   const [showHistorialHorariosModal, setShowHistorialHorariosModal] = useState(false);
 
@@ -119,10 +109,21 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
 
   const [tooltipEnvio, setTooltipEnvio] = useState<{ x: number; y: number; tipo: 'seleccionados' | 'todos' } | null>(null);
 
-  const alumnosParaEnviar = useRef<string[]>([]);
-
   useEffect(() => {
     window.adminAPI.horarios.campanyas.listar().then(setCampanyas).catch(() => {});
+  }, []);
+
+  // Cuando la ventana nativa de campaña guarda una campaña, refrescar el
+  // historial y mostrar el panel de historial.
+  useEffect(() => {
+    const off = window.adminAPI.dialogoEnviarCampanya.onGuardada(() => {
+      window.adminAPI.horarios.campanyas.listar().then((updated) => {
+        setCampanyas(updated);
+        setCampanyaSeleccionada(updated[0]?.id ?? null);
+      }).catch(() => {});
+      setPanelDerecho("historial");
+    });
+    return off;
   }, []);
 
   /**
@@ -540,78 +541,19 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       return;
     }
     // Guardia: fantasmas y alumnos sin email NUNCA reciben correo
-    const limpias = carga
-      ? carga.alumnos.filter(a => claves.includes(a.clave) && a.email && !esFantasma(a)).map(a => a.clave)
-      : claves;
-    if (limpias.length === 0) {
+    const destinatarios = carga
+      ? carga.alumnos.filter(a => claves.includes(a.clave) && a.email && !esFantasma(a))
+      : [];
+    if (destinatarios.length === 0) {
       setError("Ningún alumno seleccionado tiene email o son todos plazas fantasma.");
       return;
     }
-    alumnosParaEnviar.current = limpias;
-    setNombreCampanya("");
-    setDescripcionCampanya("");
-    setMensajeCampanya(MENSAJE_DEFAULT);
-    setResultadoEnvio(null);
-    setProgreso(null);
-    setShowEnviarModal(true);
+    // Abre la ventana nativa flotante del SO (autónoma: envía, guarda la campaña
+    // y avisa para refrescar el historial).
+    void window.adminAPI.dialogoEnviarCampanya.abrir(
+      JSON.stringify({ destinatarios, config, anio }),
+    );
   };
-
-  const confirmarEnvio = async () => {
-    if (!carga || !nombreCampanya.trim()) return;
-    const claves = alumnosParaEnviar.current;
-    const destinatarios = carga.alumnos.filter(a => claves.includes(a.clave) && a.email && !esFantasma(a));
-    if (destinatarios.length === 0) {
-      setError("Ninguno de los alumnos seleccionados tiene email registrado.");
-      setShowEnviarModal(false);
-      return;
-    }
-
-    setEnviando(true);
-    setProgreso({ actual: 0, total: destinatarios.length });
-    const resultados: ResultadoEnvio[] = [];
-
-    for (let i = 0; i < destinatarios.length; i++) {
-      const alumno = destinatarios[i];
-      setProgreso({ actual: i + 1, total: destinatarios.length });
-      try {
-        await enviarHorarioAlumno(config, alumno, anio, mensajeCampanya);
-        resultados.push({ clave: alumno.clave, nombre: alumno.nombre, email: alumno.email, estado: 'ok' });
-      } catch (err) {
-        resultados.push({
-          clave: alumno.clave,
-          nombre: alumno.nombre,
-          email: alumno.email,
-          estado: 'error',
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
-    const campanya: CampanyaEnvio = {
-      id: crypto.randomUUID(),
-      nombre: nombreCampanya.trim(),
-      descripcion: descripcionCampanya.trim(),
-      fecha: new Date().toISOString(),
-      alumnos: resultados,
-    };
-    await window.adminAPI.horarios.campanyas.guardar(campanya);
-    const updated = await window.adminAPI.horarios.campanyas.listar();
-    setCampanyas(updated);
-    setCampanyaSeleccionada(campanya.id);
-
-    setResultadoEnvio(resultados);
-    setEnviando(false);
-    setProgreso(null);
-  };
-
-  const cerrarModal = useCallback(() => {
-    if (enviando) return;
-    setShowEnviarModal(false);
-    setResultadoEnvio(null);
-    if (resultadoEnvio) {
-      setPanelDerecho("historial");
-    }
-  }, [enviando, resultadoEnvio]);
 
   const handleEliminarCampanya = async (id: string) => {
     if (!window.confirm("¿Eliminar esta campaña del historial? No se puede deshacer.")) return;
@@ -1192,23 +1134,6 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
         </div>
       )}
 
-      {/* Modal de envío */}
-      {showEnviarModal && (
-        <EnviarModal
-          total={alumnosParaEnviar.current.length}
-          nombreCampanya={nombreCampanya}
-          descripcionCampanya={descripcionCampanya}
-          mensajeCampanya={mensajeCampanya}
-          onNombre={setNombreCampanya}
-          onDescripcion={setDescripcionCampanya}
-          onMensaje={setMensajeCampanya}
-          enviando={enviando}
-          progreso={progreso}
-          resultado={resultadoEnvio}
-          onConfirmar={confirmarEnvio}
-          onCerrar={cerrarModal}
-        />
-      )}
 
       {/* Modal de historial de horarios */}
       {showHistorialHorariosModal && (
@@ -1270,42 +1195,351 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
  * Panel de listados de alumnado agrupados por Asignatura → Curso → Grupo/Aula/Profesor.
  * Vista previa en pantalla + exportación a HTML autónomo e impresión.
  */
+/** Modal previo: elige entre imprimir o guardar en disco (sin selección de asignaturas). */
+function ModalElegirAccion({
+  onImprimir,
+  onGuardar,
+  onCancelar,
+}: {
+  onImprimir: () => Promise<void>;
+  onGuardar: () => Promise<void>;
+  onCancelar: () => void;
+}) {
+  const [procesando, setProcesando] = useState(false);
+
+  async function handle(fn: () => Promise<void>) {
+    setProcesando(true);
+    try { await fn(); } finally { setProcesando(false); }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+      style={{ background: "rgba(45,36,29,.5)", backdropFilter: "blur(3px)" }}
+      onClick={() => !procesando && onCancelar()}
+    >
+      <div
+        className="w-full max-w-xs rounded-2xl overflow-hidden flex flex-col"
+        style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", boxShadow: "0 16px 48px -12px rgba(45,36,29,.35)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-5 py-4" style={{ borderBottom: "1px solid var(--tc-border-soft)" }}>
+          <h2 className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>¿Cómo quieres exportar el listado?</h2>
+          <p className="text-[11px] mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>Se usarán las opciones activas en este momento</p>
+        </div>
+        <div className="px-5 py-4 flex flex-col gap-3">
+          <button
+            type="button"
+            disabled={procesando}
+            onClick={() => void handle(onImprimir)}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition hover:bg-[var(--tc-bg-panel)] disabled:opacity-50"
+            style={{ borderColor: "var(--tc-border)", color: "var(--tc-ink)" }}
+          >
+            <Printer className="w-5 h-5 shrink-0" style={{ color: "var(--tc-primary)" }} />
+            <div>
+              <div className="text-sm font-semibold">Imprimir</div>
+              <div className="text-[11px]" style={{ color: "var(--tc-ink-mute)" }}>Abre el diálogo de impresión del sistema operativo</div>
+            </div>
+          </button>
+          <button
+            type="button"
+            disabled={procesando}
+            onClick={() => void handle(onGuardar)}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition hover:bg-[var(--tc-bg-panel)] disabled:opacity-50"
+            style={{ borderColor: "var(--tc-border)", color: "var(--tc-ink)" }}
+          >
+            <FileCode2 className="w-5 h-5 shrink-0" style={{ color: "var(--tc-primary)" }} />
+            <div>
+              <div className="text-sm font-semibold">Guardar en disco</div>
+              <div className="text-[11px]" style={{ color: "var(--tc-ink-mute)" }}>Guarda el listado como archivo HTML en tu equipo</div>
+            </div>
+          </button>
+        </div>
+        <div className="px-5 pb-4 flex justify-end">
+          <button
+            type="button"
+            disabled={procesando}
+            onClick={onCancelar}
+            className="px-3.5 py-1.5 rounded-lg text-sm disabled:opacity-40"
+            style={{ color: "var(--tc-ink-soft)" }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Modal de exportación HTML: selección de asignaturas a incluir. */
+function ModalExportarListado({
+  todasAsignaturas,
+  onConfirmar,
+  onCancelar,
+}: {
+  todasAsignaturas: string[];
+  onConfirmar: (asignaturasSeleccionadas: Set<string> | undefined) => Promise<void>;
+  onCancelar: () => void;
+}) {
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(() => new Set(todasAsignaturas));
+  const [procesando, setProcesando] = useState(false);
+  const todasMarcadas = todasAsignaturas.every(a => seleccionadas.has(a));
+  const ningunaSeleccionada = seleccionadas.size === 0;
+
+  async function handleConfirmar() {
+    setProcesando(true);
+    try {
+      // Si están todas seleccionadas, pasamos undefined (sin filtro)
+      const filtro = todasMarcadas ? undefined : seleccionadas;
+      await onConfirmar(filtro);
+    } finally {
+      setProcesando(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+      style={{ background: "rgba(45,36,29,.5)", backdropFilter: "blur(3px)" }}
+      onClick={() => !procesando && onCancelar()}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col"
+        style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", boxShadow: "0 16px 48px -12px rgba(45,36,29,.35)", maxHeight: "80vh" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 flex items-center gap-2.5" style={{ borderBottom: "1px solid var(--tc-border-soft)" }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--tc-primary-tint)", color: "var(--tc-primary)" }}>
+            <FileCode2 className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>Generar HTML</h2>
+            <p className="text-[11px]" style={{ color: "var(--tc-ink-mute)" }}>Elige las asignaturas a incluir</p>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 overflow-y-auto flex-1">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>Asignaturas</span>
+            <button
+              type="button"
+              disabled={procesando}
+              onClick={() => setSeleccionadas(todasMarcadas ? new Set() : new Set(todasAsignaturas))}
+              className="text-[11px] font-semibold disabled:opacity-40"
+              style={{ color: "var(--tc-primary)" }}
+            >
+              {todasMarcadas ? "Quitar todas" : "Todas"}
+            </button>
+          </div>
+          <div className="rounded-xl border divide-y overflow-hidden" style={{ borderColor: "var(--tc-border)", background: "var(--tc-bg-panel)" }}>
+            {todasAsignaturas.map(asig => (
+              <label
+                key={asig}
+                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer text-[13px] select-none ${procesando ? "opacity-50 cursor-default" : "hover:bg-[var(--tc-bg)]"}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={seleccionadas.has(asig)}
+                  disabled={procesando}
+                  onChange={e => {
+                    const next = new Set(seleccionadas);
+                    if (e.target.checked) next.add(asig); else next.delete(asig);
+                    setSeleccionadas(next);
+                  }}
+                  className="w-3.5 h-3.5 shrink-0 accent-[var(--tc-primary)]"
+                />
+                <span style={{ color: "var(--tc-ink)" }}>{asig}</span>
+              </label>
+            ))}
+          </div>
+          {ningunaSeleccionada && (
+            <p className="text-[11px] mt-1.5 font-medium" style={{ color: "var(--tc-danger-ink)" }}>
+              Selecciona al menos una asignatura.
+            </p>
+          )}
+        </div>
+
+        <div className="px-5 py-3 flex items-center justify-end gap-2" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+          <button
+            type="button"
+            onClick={onCancelar}
+            disabled={procesando}
+            className="px-3.5 py-1.5 rounded-lg text-sm disabled:opacity-40"
+            style={{ color: "var(--tc-ink-soft)" }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleConfirmar()}
+            disabled={procesando || ningunaSeleccionada}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: "var(--tc-primary)" }}
+          >
+            {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (accion === "imprimir" ? <Printer className="w-3.5 h-3.5" /> : <FileCode2 className="w-3.5 h-3.5" />)}
+            {accion === "imprimir" ? "Imprimir" : "Generar HTML"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const NIVELES_DISPONIBLES: { id: NivelAgrupacion; label: string }[] = [
+  { id: "asignatura", label: "Asignatura" },
+  { id: "curso", label: "Curso" },
+];
+
+/** Botón compacto con dropdown para configurar los niveles de agrupación. */
+function AgrupDropdown({
+  niveles,
+  onMover,
+  onToggle,
+  onReset,
+}: {
+  niveles: NivelAgrupacion[];
+  onMover: (idx: number, dir: -1 | 1) => void;
+  onToggle: (id: NivelAgrupacion) => void;
+  onReset: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const etiqueta = niveles.length === 0
+    ? "Solo Grupo"
+    : niveles.map(n => n === "asignatura" ? "Asig." : "Curso").join(" → ") + " → Grupo";
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition whitespace-nowrap ${open ? "border-[var(--tc-primary)] bg-[var(--tc-primary-tint)] text-[var(--tc-primary)]" : "border-[var(--tc-border)] bg-[var(--tc-bg-panel)] text-[var(--tc-ink-soft)] hover:border-[var(--tc-primary)] hover:text-[var(--tc-primary)]"}`}
+        title={`Agrupación actual: ${etiqueta}`}
+      >
+        <ListChecks className="w-3.5 h-3.5 shrink-0" />
+        <span>Agrupar</span>
+        <span className="font-normal opacity-60 hidden sm:inline">·</span>
+        <span className="font-bold hidden sm:inline">{etiqueta}</span>
+        <svg className={`w-3 h-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-full right-0 mt-1.5 z-[200] rounded-xl shadow-2xl overflow-hidden"
+          style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", width: 230, minWidth: 200 }}
+        >
+          {/* Cabecera */}
+          <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "var(--tc-border-soft)" }}>
+            <span className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>Agrupación</span>
+            <button
+              type="button"
+              onClick={() => { onReset(); }}
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded hover:underline"
+              style={{ color: "var(--tc-primary)" }}
+              title="Volver a Asignatura → Curso → Grupo"
+            >
+              Restablecer
+            </button>
+          </div>
+
+          {/* Niveles activos */}
+          <div className="px-2.5 pt-2 pb-1 space-y-1">
+            {niveles.map((nid, idx) => {
+              const info = NIVELES_DISPONIBLES.find(n => n.id === nid)!;
+              return (
+                <div key={nid} className="flex items-center gap-1.5 rounded-lg px-2 py-1" style={{ background: "var(--tc-bg-panel)", border: "1px solid var(--tc-border-soft)" }}>
+                  <span className="text-[9.5px] font-bold w-3.5 text-center shrink-0 tabular-nums" style={{ color: "var(--tc-ink-mute)" }}>{idx + 1}</span>
+                  <span className="text-[11.5px] font-semibold flex-1" style={{ color: "var(--tc-ink)" }}>{info.label}</span>
+                  <button type="button" disabled={idx === 0} onClick={() => onMover(idx, -1)} className="p-0.5 rounded disabled:opacity-25 hover:text-[var(--tc-primary)]" title="Subir">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+                  </button>
+                  <button type="button" disabled={idx === niveles.length - 1} onClick={() => onMover(idx, 1)} className="p-0.5 rounded disabled:opacity-25 hover:text-[var(--tc-primary)]" title="Bajar">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <button type="button" onClick={() => onToggle(nid)} className="p-0.5 rounded hover:text-red-500 ml-0.5" title="Quitar">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* Niveles inactivos añadibles */}
+            {NIVELES_DISPONIBLES.filter(n => !niveles.includes(n.id)).map(n => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => onToggle(n.id)}
+                className="w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-left transition hover:bg-[var(--tc-bg-panel)]"
+                style={{ color: "var(--tc-ink-mute)", border: "1px dashed var(--tc-border)" }}
+              >
+                <span className="text-[10px] w-3.5 text-center shrink-0">＋</span>
+                <span>{n.label}</span>
+              </button>
+            ))}
+
+            {niveles.length === 0 && (
+              <p className="text-[10.5px] text-center py-0.5" style={{ color: "var(--tc-ink-mute)" }}>Solo se muestran grupos directamente.</p>
+            )}
+          </div>
+
+          {/* Pie: nivel hoja fijo */}
+          <div className="mx-2.5 mb-2.5 mt-1 flex items-center gap-1.5 rounded-lg px-2 py-1" style={{ background: "var(--tc-border-soft)", border: "1px solid var(--tc-border-soft)" }}>
+            <span className="text-[9.5px] font-bold w-3.5 text-center shrink-0" style={{ color: "var(--tc-ink-mute)" }}>↳</span>
+            <span className="text-[11px] flex-1" style={{ color: "var(--tc-ink-mute)" }}>Grupo <span className="text-[9.5px]">(siempre al final)</span></span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: string }) {
   const [version, setVersion] = useState<VersionListado>("alumnos");
-  const [exportando, setExportando] = useState(false);
-  const [imprimiendo, setImprimiendo] = useState(false);
+  const [nivelesAgrupacion, setNivelesAgrupacion] = useState<NivelAgrupacion[]>(["asignatura", "curso"]);
+  const [modalElegir, setModalElegir] = useState(false);
+  const [modalAccion, setModalAccion] = useState<"html" | null>(null);
   const [tooltip, setTooltip] = useState<{ title: string; lines: string[]; x: number; y: number } | null>(null);
 
+  // Asignaturas únicas presentes en los datos cargados
+  const todasAsignaturas = useMemo(() => listarAsignaturasUnicas(alumnos), [alumnos]);
+
+  // La preview siempre usa todos los alumnos con la agrupación elegida
   const html = useMemo(
-    () => buildListadoHtml(alumnos, anio, version),
-    [alumnos, anio, version],
+    () => buildListadoHtml(alumnos, anio, version, { nivelesAgrupacion }),
+    [alumnos, anio, version, nivelesAgrupacion],
   );
 
-  const handleExportarHtml = async () => {
-    setExportando(true);
-    try {
-      const base64 = btoa(unescape(encodeURIComponent(html)));
-      const nombre = version === "profesores"
-        ? `Listados por asignatura (profesorado) ${anio}`
-        : `Listados por asignatura ${anio}`;
-      await window.adminAPI.informe.exportar({
-        contenidoBase64: base64,
-        nombreArchivo: nombre,
-        extension: "html",
-      });
-    } finally {
-      setExportando(false);
-    }
-  };
+  async function ejecutarExportar(asignaturasIncluidas: Set<string> | undefined) {
+    const htmlExport = asignaturasIncluidas
+      ? buildListadoHtml(alumnos, anio, version, { nivelesAgrupacion, asignaturasIncluidas })
+      : html;
+    const base64 = btoa(unescape(encodeURIComponent(htmlExport)));
+    const nombre = version === "profesores"
+      ? `Listados por asignatura (profesorado) ${anio}`
+      : `Listados por asignatura ${anio}`;
+    await window.adminAPI.informe.exportar({ contenidoBase64: base64, nombreArchivo: nombre, extension: "html" });
+    setModalAccion(null);
+  }
 
-  const handleImprimir = async () => {
-    setImprimiendo(true);
-    try {
-      await window.adminAPI.pdf.printHtml(html);
-    } finally {
-      setImprimiendo(false);
-    }
-  };
+  async function ejecutarImprimir(asignaturasIncluidas: Set<string> | undefined) {
+    const htmlPrint = asignaturasIncluidas
+      ? buildListadoHtml(alumnos, anio, version, { nivelesAgrupacion, asignaturasIncluidas })
+      : html;
+    await window.adminAPI.pdf.printHtml(htmlPrint);
+    setModalAccion(null);
+  }
 
   /** Genera los handlers de tooltip para un elemento concreto. */
   const tip = (title: string, lines: string[]) => ({
@@ -1315,10 +1549,26 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
     onMouseLeave: () => setTooltip(null),
   });
 
+  function moverNivel(idx: number, dir: -1 | 1) {
+    const nuevo = [...nivelesAgrupacion];
+    const target = idx + dir;
+    if (target < 0 || target >= nuevo.length) return;
+    [nuevo[idx], nuevo[target]] = [nuevo[target], nuevo[idx]];
+    setNivelesAgrupacion(nuevo);
+  }
+
+  function toggleNivel(id: NivelAgrupacion) {
+    if (nivelesAgrupacion.includes(id)) {
+      setNivelesAgrupacion(nivelesAgrupacion.filter(n => n !== id));
+    } else {
+      setNivelesAgrupacion([...nivelesAgrupacion, id]);
+    }
+  }
+
   return (
     <>
       {/* ── Barra superior ────────────────────────────────────────────────── */}
-      <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between gap-3">
+      <div className="shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2">
         <div className="flex items-center gap-3 min-w-0">
           <span className="text-sm font-medium text-[var(--tc-ink)] whitespace-nowrap">
             Listados por asignatura
@@ -1328,13 +1578,7 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
           <div className="flex items-center bg-[var(--tc-bg-panel)] rounded-lg p-0.5">
             <button
               onClick={() => setVersion("alumnos")}
-              {...tip(
-                "Vista Alumnado",
-                [
-                  "Muestra todos los alumnos cargados agrupados por asignatura, curso y grupo.",
-                  "Para cada alumno aparece su nombre, enseñanza y datos de contacto.",
-                ],
-              )}
+              {...tip("Vista Alumnado", ["Nombre completo + Especialidad para publicar al alumnado."])}
               className={
                 "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
                 (version === "alumnos"
@@ -1346,13 +1590,7 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
             </button>
             <button
               onClick={() => setVersion("profesores")}
-              {...tip(
-                "Vista Profesorado",
-                [
-                  "El mismo listado pero orientado al profesorado.",
-                  "Incluye email y teléfono de contacto del profesor asignado a cada clase.",
-                ],
-              )}
+              {...tip("Vista Profesorado", ["Añade Email y Teléfono del alumno. Uso interno del profesorado."])}
               className={
                 "px-2.5 py-1 text-[11px] font-semibold rounded-md transition " +
                 (version === "profesores"
@@ -1363,44 +1601,32 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
               Profesorado
             </button>
           </div>
-
-          {version === "profesores" && (
-            <span className="text-[11px] text-amber-600 whitespace-nowrap hidden lg:inline">
-              incluye email y teléfono
-            </span>
-          )}
         </div>
+
+        {/* Control de agrupación — botón compacto + dropdown */}
+        <AgrupDropdown
+          niveles={nivelesAgrupacion}
+          onMover={moverNivel}
+          onToggle={toggleNivel}
+          onReset={() => setNivelesAgrupacion(["asignatura", "curso"])}
+        />
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={handleImprimir}
-            disabled={imprimiendo || exportando}
-            {...tip(
-              "Imprimir listado",
-              [
-                "Abre el diálogo de impresión del sistema operativo.",
-                "Desde ahí puedes imprimir en papel o elegir «Guardar como PDF».",
-              ],
-            )}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
+            onClick={() => setModalElegir(true)}
+            {...tip("Imprimir listado", ["Elige asignaturas y abre el diálogo de impresión del sistema operativo.", "Desde ahí puedes imprimir en papel o elegir «Guardar como PDF»."])}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition"
           >
-            {imprimiendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            <Printer className="w-4 h-4" />
             Imprimir
           </button>
 
           <button
-            onClick={handleExportarHtml}
-            disabled={exportando || imprimiendo}
-            {...tip(
-              "Generar HTML",
-              [
-                "Guarda el listado completo como archivo .html autónomo.",
-                "Puedes abrirlo en cualquier navegador, compartirlo por correo o archivarlo sin necesidad de la app.",
-              ],
-            )}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
+            onClick={() => setModalAccion("html")}
+            {...tip("Generar HTML", ["Elige asignaturas y guarda el listado como archivo .html autónomo.", "Puedes abrirlo en cualquier navegador o compartirlo sin la app."])}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition"
           >
-            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCode2 className="w-4 h-4" />}
+            <FileCode2 className="w-4 h-4" />
             Generar HTML
           </button>
         </div>
@@ -1425,174 +1651,30 @@ function ListadosPanel({ alumnos, anio }: { alumnos: HorarioAlumno[]; anio: stri
 
       {/* ── Vista previa ─────────────────────────────────────────────────── */}
       <iframe
-        key={version}
+        key={`${version}-${nivelesAgrupacion.join(',')}`}
         title="Listados por asignatura"
         srcDoc={html}
         className="flex-1 w-full border-0 bg-white"
       />
+
+      {/* ── Modal: elegir imprimir o guardar (sin selección de asignaturas) ─ */}
+      {modalElegir && (
+        <ModalElegirAccion
+          onImprimir={async () => { await ejecutarImprimir(undefined); setModalElegir(false); }}
+          onGuardar={async () => { await ejecutarExportar(undefined); setModalElegir(false); }}
+          onCancelar={() => setModalElegir(false)}
+        />
+      )}
+
+      {/* ── Modal de exportación HTML (selector de asignaturas) ───────────── */}
+      {modalAccion === "html" && (
+        <ModalExportarListado
+          todasAsignaturas={todasAsignaturas}
+          onConfirmar={ejecutarExportar}
+          onCancelar={() => setModalAccion(null)}
+        />
+      )}
     </>
-  );
-}
-
-function EnviarModal({
-  total, nombreCampanya, descripcionCampanya, mensajeCampanya,
-  onNombre, onDescripcion, onMensaje,
-  enviando, progreso, resultado, onConfirmar, onCerrar,
-}: {
-  total: number;
-  nombreCampanya: string;
-  descripcionCampanya: string;
-  mensajeCampanya: string;
-  onNombre: (v: string) => void;
-  onDescripcion: (v: string) => void;
-  onMensaje: (v: string) => void;
-  enviando: boolean;
-  progreso: { actual: number; total: number } | null;
-  resultado: ResultadoEnvio[] | null;
-  onConfirmar: () => void;
-  onCerrar: () => void;
-}) {
-  const ok = resultado?.filter(r => r.estado === 'ok').length ?? 0;
-  const fail = resultado?.filter(r => r.estado === 'error').length ?? 0;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
-      <div className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="px-6 pt-6 pb-4 border-b border-[var(--tc-border)] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-[var(--tc-primary)]" />
-            <h2 className="text-base font-semibold text-[var(--tc-ink)]">Enviar horarios por email</h2>
-          </div>
-          {!enviando && (
-            <button onClick={onCerrar} className="p-1 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)]">
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
-          {!resultado ? (
-            <>
-              <p className="text-sm text-[var(--tc-ink-soft)]">
-                Se enviarán los horarios a <strong className="text-[var(--tc-ink)]">{total} alumno{total !== 1 ? 's' : ''}</strong> con email registrado.
-              </p>
-              <div>
-                <label className="block text-xs font-semibold text-[var(--tc-ink-soft)] mb-1.5 uppercase tracking-wide">
-                  Nombre de campaña *
-                </label>
-                <input
-                  value={nombreCampanya}
-                  onChange={e => onNombre(e.target.value)}
-                  placeholder="p. ej. Clases Individuales 1ª ronda"
-                  disabled={enviando}
-                  className="w-full px-3 py-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)] disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[var(--tc-ink-soft)] mb-1.5 uppercase tracking-wide">
-                  Descripción (opcional)
-                </label>
-                <textarea
-                  value={descripcionCampanya}
-                  onChange={e => onDescripcion(e.target.value)}
-                  placeholder="Notas sobre esta tanda de envíos…"
-                  rows={2}
-                  disabled={enviando}
-                  className="w-full px-3 py-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)] resize-none disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[var(--tc-ink-soft)] mb-1 uppercase tracking-wide">
-                  Mensaje para el correo (opcional)
-                </label>
-                <p className="text-[11px] text-[var(--tc-ink-mute)] mb-1.5 leading-snug">
-                  Aparecerá resaltado en el correo, justo después del texto introductorio.
-                </p>
-                <textarea
-                  value={mensajeCampanya}
-                  onChange={e => onMensaje(e.target.value)}
-                  placeholder="p. ej. Las clases comienzan el lunes 8 de septiembre. Recuerda traer el material…"
-                  rows={3}
-                  disabled={enviando}
-                  className="w-full px-3 py-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)] resize-none disabled:opacity-60"
-                />
-              </div>
-              {enviando && progreso && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-[var(--tc-ink-soft)]">
-                    <span>Enviando…</span>
-                    <span>{progreso.actual} / {progreso.total}</span>
-                  </div>
-                  <div className="w-full bg-[var(--tc-border)] rounded-full h-1.5">
-                    <div
-                      className="bg-[var(--tc-primary)] h-1.5 rounded-full transition-all"
-                      style={{ width: `${(progreso.actual / progreso.total) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex gap-4">
-                <div className="flex items-center gap-2 text-emerald-600">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="text-sm font-semibold">{ok} enviados</span>
-                </div>
-                {fail > 0 && (
-                  <div className="flex items-center gap-2 text-red-500">
-                    <XCircle className="w-5 h-5" />
-                    <span className="text-sm font-semibold">{fail} fallidos</span>
-                  </div>
-                )}
-              </div>
-              {fail > 0 && (
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {resultado.filter(r => r.estado === 'error').map(r => (
-                    <div key={r.clave} className="text-xs p-2 rounded-lg bg-red-50 border border-red-100">
-                      <span className="font-medium text-red-700">{r.nombre}</span>
-                      <span className="text-red-400 ml-2">{r.error}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-[var(--tc-ink-mute)]">
-                La campaña ha quedado guardada en el historial.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="px-6 pb-6 flex justify-end gap-2">
-          {!resultado ? (
-            <>
-              <button
-                onClick={onCerrar}
-                disabled={enviando}
-                className="px-4 py-2 rounded-lg border border-[var(--tc-border)] text-sm text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={onConfirmar}
-                disabled={enviando || !nombreCampanya.trim()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
-              >
-                {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {enviando ? "Enviando…" : "Enviar"}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={onCerrar}
-              className="px-4 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition"
-            >
-              Ver historial
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 

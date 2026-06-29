@@ -74,8 +74,8 @@ describe("contarTemporales", () => {
 describe("pasoHecho", () => {
   const vacio = { nTemporales: 0, nVinculados: 0, nSustituidos: 0, nPendientes: 0 };
 
-  it("paso 1: hecho cuando existe algún temporal", () => {
-    expect(pasoHecho(1, vacio, sinChecks)).toBe(false);
+  it("paso 1: siempre hecho (crear fantasmas es opcional)", () => {
+    expect(pasoHecho(1, vacio, sinChecks)).toBe(true);
     expect(pasoHecho(1, { ...vacio, nTemporales: 2, nPendientes: 2 }, sinChecks)).toBe(true);
   });
 
@@ -90,13 +90,13 @@ describe("pasoHecho", () => {
 });
 
 describe("primerPasoNoHecho", () => {
-  it("sin nada hecho devuelve el paso 1", () => {
-    expect(primerPasoNoHecho({ nTemporales: 0, nVinculados: 0, nSustituidos: 0, nPendientes: 0 }, sinChecks)).toBe(1);
+  it("sin Excel generado el primer paso no hecho es el 2 (paso 1 siempre hecho)", () => {
+    expect(primerPasoNoHecho({ nTemporales: 0, nVinculados: 0, nSustituidos: 0, nPendientes: 0 }, sinChecks)).toBe(2);
   });
 
   it("avanza hasta el primer requisito sin cumplir", () => {
     const contadores = { nTemporales: 3, nVinculados: 1, nSustituidos: 0, nPendientes: 2 };
-    // Paso 1 hecho (hay temporales) pero falta generar el Excel (paso 2).
+    // Paso 1 siempre hecho; falta generar el Excel (paso 2).
     expect(primerPasoNoHecho(contadores, sinChecks)).toBe(2);
     // Con el Excel generado, el primer paso no hecho es el 3 (último).
     expect(primerPasoNoHecho(contadores, { fechaExcelGenerado: "2026-06-12" })).toBe(3);

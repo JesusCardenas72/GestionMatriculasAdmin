@@ -496,17 +496,24 @@ export async function generarExcelHorarios(
     ha.getCell(`A${r}`).value = aula;
     DIAS.forEach((dia, d) => {
       const cClases = ha.getCell(r, 2 + d * 2);
+      // Clases únicas: deduplicar por (aula, día, profesor, entrada, salida)
+      // SUMPRODUCT(condición / COUNTIFS(mismos campos)) → 1 por clase, no 1 por alumno
       cClases.value = {
         formula:
-          `COUNTIFS(${cR('F')},$A${r},${cR('B')},"${dia}")+` +
-          `COUNTIFS(${cR('F')},$A${r},${cR('D')},"${dia}")`,
+          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('B')}="${dia}")*(${cR('A')}<>"")/` +
+          `COUNTIFS(${cR('F')},${cR('F')},${cR('B')},${cR('B')},${cR('A')},${cR('A')},${cR('G')},${cR('G')},${cR('H')},${cR('H')}))+` +
+          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('D')}="${dia}")*(${cR('A')}<>"")/` +
+          `COUNTIFS(${cR('F')},${cR('F')},${cR('D')},${cR('D')},${cR('A')},${cR('A')},${cR('I')},${cR('I')},${cR('J')},${cR('J')}))`,
       };
       cClases.alignment = { horizontal: 'center' };
       const cHoras = ha.getCell(r, 3 + d * 2);
+      // Horas únicas: misma deduplicación aplicada a la duración
       cHoras.value = {
         formula:
-          `SUMIFS(${cR('C')},${cR('F')},$A${r},${cR('B')},"${dia}")+` +
-          `SUMIFS(${cR('E')},${cR('F')},$A${r},${cR('D')},"${dia}")`,
+          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('B')}="${dia}")*(${cR('A')}<>"")*${cR('C')}/` +
+          `COUNTIFS(${cR('F')},${cR('F')},${cR('B')},${cR('B')},${cR('A')},${cR('A')},${cR('G')},${cR('G')},${cR('H')},${cR('H')}))+` +
+          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('D')}="${dia}")*(${cR('A')}<>"")*${cR('E')}/` +
+          `COUNTIFS(${cR('F')},${cR('F')},${cR('D')},${cR('D')},${cR('A')},${cR('A')},${cR('I')},${cR('I')},${cR('J')},${cR('J')}))`,
       };
       cHoras.numFmt = fmtHoras;
       cHoras.alignment = { horizontal: 'center' };
