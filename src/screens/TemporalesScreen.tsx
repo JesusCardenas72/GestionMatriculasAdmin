@@ -279,7 +279,7 @@ export default function TemporalesScreen({
     });
 
     return resultado;
-  }, [temporales, modoAgrupacion, ordenLista, ordenarPor, subAgrupar]);
+  }, [temporalesFiltrados, modoAgrupacion, ordenLista, ordenarPor, subAgrupar]);
 
   useEffect(() => {
     setExpandedGroups(new Set(grupos.map((g) => g.titulo)));

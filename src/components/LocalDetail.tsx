@@ -496,8 +496,7 @@ export default function LocalDetail({
               {estado != null && <EstadoBadge estado={estado} />}
               {m._fueEditado && !m._pendienteSubida && (
                 <span
-                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border"
-                  style={{ background: "var(--tc-success-bg)", color: "var(--tc-success-ink)", borderColor: "var(--tc-success-border)" }}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border bg-purple-100 text-purple-600 border-purple-200"
                 >
                   Editado
                 </span>

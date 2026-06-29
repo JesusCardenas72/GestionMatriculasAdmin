@@ -15,6 +15,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  ScanSearch,
   Trash2,
   Upload,
   X,
@@ -40,8 +41,10 @@ import {
 import { cargarExcelHorarios } from "../../utils/horariosCarga";
 import { validarFilasCrudas, aplicarCorreccionesHorario } from "../../utils/validarHorariosCargados";
 import { ModalCorreccionHorarios } from "./ModalCorreccionHorarios";
+import { ModalComprobacionCoherencia } from "./ModalComprobacionCoherencia";
+import { comprobarCoherenciaLocalHorario, type ComprobacionCoherencia } from "../../utils/comprobarCoherencia";
 import type { FilaConErrorHorario } from "../../utils/validarHorariosCargados";
-import type { FilaCrudaHorario, HKey } from "../../utils/fusionHorarios";
+import type { FilaCrudaHorario } from "../../utils/fusionHorarios";
 import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
 import type { CampanyaEnvio } from "../../horarios/types";
 import { HistorialHorariosContenido } from "./HistorialHorariosContenido";
@@ -302,7 +305,7 @@ export function AsistenteTemporalesModal({
                 />
               ) : pasoActual === 3 ? (
                 <div className="flex-1 min-h-0 flex flex-col gap-3">
-                  <Paso3ProfesoresRellenan curso={curso} disabled={isSoloLectura} onAbrirHorario={onAbrirHorario} />
+                  <Paso3ProfesoresRellenan curso={curso} matriculas={matriculas} disabled={isSoloLectura} onAbrirHorario={onAbrirHorario} />
                 </div>
               ) : null}
 
@@ -1308,10 +1311,12 @@ function ModalGenerarHorariosAsistente({
  */
 function Paso3ProfesoresRellenan({
   curso,
+  matriculas,
   disabled,
   onAbrirHorario,
 }: {
   curso: string;
+  matriculas: MatriculaLocal[];
   disabled: boolean;
   onAbrirHorario?: (snapshotId: string) => void;
 }) {
@@ -1320,6 +1325,8 @@ function Paso3ProfesoresRellenan({
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
+  const [comprobando, setComprobando] = useState(false);
+  const [comprobacion, setComprobacion] = useState<ComprobacionCoherencia | null>(null);
   const [validacionPendiente, setValidacionPendiente] = useState<{
     crudas: FilaCrudaHorario[];
     filasConError: FilaConErrorHorario[];
@@ -1392,6 +1399,20 @@ function Paso3ProfesoresRellenan({
     }
   };
 
+  const handleComprobar = async () => {
+    setError(null);
+    setMensaje(null);
+    setComprobando(true);
+    try {
+      const store: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
+      setComprobacion(comprobarCoherenciaLocalHorario(matriculas, store.entries));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo comprobar la coherencia.");
+    } finally {
+      setComprobando(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3 flex-1 min-h-0">
       {!disabled && (
@@ -1414,6 +1435,16 @@ function Paso3ProfesoresRellenan({
           </button>
         </div>
       )}
+
+      <button
+        onClick={() => void handleComprobar()}
+        disabled={comprobando}
+        title="Compara las matrículas de Local con los horarios cargados y muestra las incoherencias"
+        className="shrink-0 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-sm font-semibold text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-60 transition-colors"
+      >
+        <ScanSearch className="w-4 h-4 text-[var(--tc-primary)]" />
+        {comprobando ? "Comprobando…" : "Comprobar coherencia Local ↔ Horario"}
+      </button>
 
       {mensaje && <MensajeOk texto={mensaje} />}
       {error && <MensajeError texto={error} />}
@@ -1489,6 +1520,10 @@ function Paso3ProfesoresRellenan({
             setValidacionPendiente(null);
           }}
         />
+      )}
+
+      {comprobacion && (
+        <ModalComprobacionCoherencia resultado={comprobacion} onClose={() => setComprobacion(null)} />
       )}
     </div>
   );

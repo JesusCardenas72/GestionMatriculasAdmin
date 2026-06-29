@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, screen } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, MenuItem } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -175,6 +175,74 @@ function createWindow() {
   win.on("resize", persistState);
   win.on("move", persistState);
   win.on("close", persistState);
+
+  // Corrector ortográfico: Chromium subraya en zigzag los errores, pero el menú
+  // contextual con las sugerencias NO aparece solo en Electron; hay que armarlo
+  // a mano a partir de `params.dictionarySuggestions`. Fijamos el idioma en
+  // español (con respaldo al inglés) para que el diccionario sea el correcto.
+  try {
+    win.webContents.session.setSpellCheckerLanguages(["es-ES", "en-US"]);
+  } catch {
+    // Algún build/plataforma podría no soportar ese idioma; se ignora.
+  }
+
+  win.webContents.on("context-menu", (_event, params) => {
+    const menu = new Menu();
+
+    // Sugerencias de corrección para la palabra mal escrita bajo el cursor.
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions) {
+        menu.append(
+          new MenuItem({
+            label: suggestion,
+            click: () => win?.webContents.replaceMisspelling(suggestion),
+          }),
+        );
+      }
+      if (params.dictionarySuggestions.length > 0) {
+        menu.append(new MenuItem({ type: "separator" }));
+      } else {
+        menu.append(
+          new MenuItem({ label: "Sin sugerencias", enabled: false }),
+        );
+        menu.append(new MenuItem({ type: "separator" }));
+      }
+      menu.append(
+        new MenuItem({
+          label: "Añadir al diccionario",
+          click: () =>
+            win?.webContents.session.addWordToSpellCheckerDictionary(
+              params.misspelledWord,
+            ),
+        }),
+      );
+      menu.append(new MenuItem({ type: "separator" }));
+    }
+
+    // Acciones de edición estándar sobre campos de texto.
+    if (params.isEditable || params.editFlags.canCopy) {
+      menu.append(
+        new MenuItem({ label: "Cortar", role: "cut", enabled: params.editFlags.canCut }),
+      );
+      menu.append(
+        new MenuItem({ label: "Copiar", role: "copy", enabled: params.editFlags.canCopy }),
+      );
+      menu.append(
+        new MenuItem({ label: "Pegar", role: "paste", enabled: params.editFlags.canPaste }),
+      );
+      menu.append(
+        new MenuItem({
+          label: "Seleccionar todo",
+          role: "selectAll",
+          enabled: params.editFlags.canSelectAll,
+        }),
+      );
+    }
+
+    if (menu.items.length > 0 && win) {
+      menu.popup({ window: win });
+    }
+  });
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);

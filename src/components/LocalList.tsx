@@ -20,7 +20,7 @@ import { nombresTemporalRealCoinciden } from "../utils/temporales";
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
 type RepetidorFilter = "all" | "repetidor" | "noRepetidor";
-type FantasmaFilter = "all" | "solo" | "quitar";
+type FantasmaFilter = "no" | "si" | "todo";
 type SustitucionFilter = "all" | "pendiente" | "vinculado" | "sustituido" | "sinEstado" | "discrepancia";
 
 type SustitucionEstado = "pendiente" | "vinculado" | "sustituido" | "sinEstado";
@@ -153,14 +153,6 @@ function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: Sus
               <Upload className="w-3 h-3" />
             </span>
           )}
-          {m._fueEditado && !m._pendienteSubida && (
-            <span
-              className="shrink-0 px-1.5 py-px rounded-full text-[9px] font-bold border"
-              style={{ background: "var(--tc-success-bg)", color: "var(--tc-success-ink)", borderColor: "var(--tc-success-border)" }}
-            >
-              ED
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-1.5 min-w-0">
           <span
@@ -195,6 +187,9 @@ function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: Sus
           )}
           {m.repetidor && (
             <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">REPETIDOR</span>
+          )}
+          {m._fueEditado && !m._pendienteSubida && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-600 border border-purple-200">EDITADO</span>
           )}
           {m.anulacion && (
             <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">ANULADA</span>
@@ -269,6 +264,9 @@ function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId, discrepanciaPorI
           )}
           {m.repetidor && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-red-100 text-red-600">REP</span>
+          )}
+          {m._fueEditado && !m._pendienteSubida && (
+            <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-purple-100 text-purple-600">ED</span>
           )}
           {m._pendienteSubida && <Upload className="w-3 h-3 shrink-0 text-[var(--tc-warn-ink)]" />}
           {m.ensenanzaCurso && (
@@ -396,7 +394,7 @@ export default function LocalList({
   const [filterEnsenanza, setFilterEnsenanza] = useState("");
   const [filterEspecialidad, setFilterEspecialidad] = useState("");
   const [filterRepetidor, setFilterRepetidor] = useState<RepetidorFilter>("all");
-  const [filterFantasma, setFilterFantasma] = useState<FantasmaFilter>("all");
+  const [filterFantasma, setFilterFantasma] = useState<FantasmaFilter>("no");
   const [filterSustitucion, setFilterSustitucion] = useState<SustitucionFilter>("all");
   const [sort, setSort] = useState<{ field: SortField | null; dir: SortDir }>({
     field: null,
@@ -503,8 +501,8 @@ export default function LocalList({
       if (filterEspecialidad && m.especialidad !== filterEspecialidad) return false;
       if (filterRepetidor === "repetidor" && !m.repetidor) return false;
       if (filterRepetidor === "noRepetidor" && m.repetidor) return false;
-      if (filterFantasma === "solo" && !m.esTemporal) return false;
-      if (filterFantasma === "quitar" && m.esTemporal) return false;
+      if (filterFantasma === "no" && m.esTemporal) return false;
+      if (filterFantasma === "si" && !m.esTemporal) return false;
       if (filterSustitucion === "discrepancia") {
         if (!discrepanciaPorId.has(m.localId)) return false;
       } else if (filterSustitucion !== "all") {
@@ -621,9 +619,9 @@ export default function LocalList({
 
   function handleFantasmaClick() {
     setFilterFantasma((prev) => {
-      if (prev === "all") return "quitar";
-      if (prev === "quitar") return "solo";
-      return "all";
+      if (prev === "no") return "si";
+      if (prev === "si") return "todo";
+      return "no";
     });
   }
 
@@ -762,17 +760,17 @@ export default function LocalList({
           </button>
           <button
             onClick={handleFantasmaClick}
-            title="Filtrar fantasmas: No alumnado fantasma › Sí alumnado fantasma › Todos"
+            title="Filtrar Fantasma: No › Sí › Todo › No"
             className={
               "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
-              (filterFantasma !== "all"
+              (filterFantasma !== "todo"
                 ? "bg-[var(--tc-card)] shadow-sm text-[var(--tc-primary)]"
                 : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
             }
           >
             <Ghost className="w-3.5 h-3.5 shrink-0" />
-            {filterFantasma === "quitar" && "No"}
-            {filterFantasma === "solo" && "Sí"}
+            {filterFantasma === "no" && "No"}
+            {filterFantasma === "si" && "Sí"}
           </button>
           <button
             onClick={handleSustitucionClick}
