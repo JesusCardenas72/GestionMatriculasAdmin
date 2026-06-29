@@ -61,7 +61,7 @@ function nuevoTemporal(opts: {
     localId,
     rowId: null,
     origenRowId: localId,
-    nOrden: null,
+    nOrden: 899 + opts.numero,
     nombreMatricula: opts.nombreMatricula,
     nombre: opts.nombre,
     apellidos: opts.apellidos,

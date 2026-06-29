@@ -10,6 +10,12 @@
     "PergaminoIcon.ico",
     "node_modules/pdf-to-printer/**/*"
   ],
+  "extraResources": [
+    {
+      "from": "SolicitudCambioGrupo.pdf",
+      "to": "SolicitudCambioGrupo.pdf"
+    }
+  ],
   "asarUnpack": [
     "node_modules/pdf-to-printer/**/*"
   ],

@@ -6,6 +6,9 @@ function esc(s: string): string {
 }
 
 function renderMensaje(texto: string): string {
+  // Si contiene etiquetas HTML (editor enriquecido), lo emitimos tal cual
+  if (/<[a-z][\s\S]*>/i.test(texto)) return texto;
+  // Texto plano: escapar + convertir sintaxis [texto](url)
   return esc(texto).replace(
     /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
     (_, label, url) =>

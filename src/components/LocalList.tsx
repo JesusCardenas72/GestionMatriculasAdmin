@@ -148,7 +148,7 @@ function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: Sus
           >
             {m.nombre} {m.apellidos}
           </span>
-          {m._pendienteSubida && (
+          {m._pendienteSubida && !m.esTemporal && (
             <span title="Pendiente de subir" className="shrink-0 flex items-center gap-0.5 text-[10px] font-medium" style={{ color: "var(--tc-warn-ink)" }}>
               <Upload className="w-3 h-3" />
             </span>
@@ -268,7 +268,7 @@ function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId, discrepanciaPorI
           {m._fueEditado && !m._pendienteSubida && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-purple-100 text-purple-600">ED</span>
           )}
-          {m._pendienteSubida && <Upload className="w-3 h-3 shrink-0 text-[var(--tc-warn-ink)]" />}
+          {m._pendienteSubida && !m.esTemporal && <Upload className="w-3 h-3 shrink-0 text-[var(--tc-warn-ink)]" />}
           {m.ensenanzaCurso && (
             <span className="shrink-0 text-[10px] text-[var(--tc-ink-mute)]">{m.ensenanzaCurso}</span>
           )}

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { toTitleCase } from "../utils/formatText";
 import PdfViewer from "./PdfViewer";
 import { cursosStore } from "../api/cursosStore";
 import { useCursoContext } from "../contexts/CursoContextProvider";
@@ -44,7 +45,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, Download, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, Download, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -112,6 +113,10 @@ interface Props {
   onEnviarCorreo: () => void;
   /** Enviar el correo de horario (el mismo de la pestaña Horarios Individuales). */
   onEnviarHorario: () => void;
+  /** Borra el registro local y lo vuelve a descargar de la nube (solo si tiene rowId). */
+  onDescargarNube?: () => void;
+  /** Borra todos los registros locales de Dataverse y los vuelve a descargar. */
+  onDescargarTodo?: () => void;
 }
 
 function initForm(m: MatriculaLocal): FormData {
@@ -161,6 +166,8 @@ export default function LocalDetail({
   onBorrar,
   onEnviarCorreo,
   onEnviarHorario,
+  onDescargarNube,
+  onDescargarTodo,
 }: Props) {
   const { curso } = useCursoContext();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -287,14 +294,6 @@ export default function LocalDetail({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m.localId]);
 
-  // Cargar PDF inline al abrir el detalle si tiene PDF
-  useEffect(() => {
-    if (m._tienePdf && !pdfBase64Preview) {
-      void loadInlinePdf();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [m.localId]);
-
   const originalValues = useRef({
     horaSalida: m.horaSalida ?? "",
     formaPago: FORMAS_PAGO_MAP[m.formaPago ?? ""] ?? m.formaPago ?? "",
@@ -305,13 +304,30 @@ export default function LocalDetail({
     originalValues.current = {
       horaSalida: m.horaSalida ?? "",
       formaPago: FORMAS_PAGO_MAP[m.formaPago ?? ""] ?? m.formaPago ?? "",
-    reduccionTasas: REDUCCIONES_TASAS_MAP[m.reduccionTasas ?? ""] ?? m.reduccionTasas ?? "",
+      reduccionTasas: REDUCCIONES_TASAS_MAP[m.reduccionTasas ?? ""] ?? m.reduccionTasas ?? "",
     };
     setForm(initForm(m));
     setItems(m.asignaturas.map((a) => ({ ...a })));
     setShowAdd(false);
     setAddCodigo("");
-    setPdfBase64Preview(null); // invalidar caché del visor al cambiar de matrícula
+    setPdfBase64Preview(null);
+    setShowInlinePdf(true);
+    // Cargar PDF inline automáticamente al cambiar de matrícula
+    if (m._tienePdf) {
+      setLoadingPdf(true);
+      let cancelled = false;
+      (async () => {
+        try {
+          let base64 = await cursosStore.leerPdf(curso, pdfKey);
+          if (!base64 && m.localId) base64 = await cursosStore.leerPdf(curso, m.localId);
+          if (!cancelled && base64) setPdfBase64Preview(base64);
+        } finally {
+          if (!cancelled) setLoadingPdf(false);
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m.localId]);
 
   const ensenanza = ensenanzaDesdeCode(m.ensenanzaCurso);
@@ -341,17 +357,19 @@ export default function LocalDetail({
     if (readOnly) return;
     const now = new Date().toISOString();
     const n = (v: string): string | null => v.trim() || null;
+    const tc = (v: string) => toTitleCase(v.trim()) ?? v.trim();
+    const tcn = (v: string) => toTitleCase(v.trim()) || null;
     onSave({
       nOrden: f.nOrden ? parseInt(f.nOrden, 10) : null,
-      nombre: f.nombre.trim(),
-      apellidos: f.apellidos.trim(),
+      nombre: tc(f.nombre),
+      apellidos: tc(f.apellidos),
       dni: f.dni.trim(),
       email: f.email.trim(),
       telefono: n(f.telefono),
       fechaNacimiento: n(f.fechaNacimiento),
-      domicilio: n(f.domicilio),
-      localidad: n(f.localidad),
-      provincia: n(f.provincia),
+      domicilio: tcn(f.domicilio),
+      localidad: tcn(f.localidad),
+      provincia: tcn(f.provincia),
       cp: n(f.cp),
       ensenanzaCurso: f.ensenanzaCurso.trim(),
       especialidad: n(f.especialidad),
@@ -758,6 +776,44 @@ export default function LocalDetail({
                       >
                         <Cloud className="w-4 h-4 shrink-0" />
                         Subir todo a la nube ({pendingUploads})
+                      </button>
+                    )}
+                    {onDescargarNube && m.rowId && !m.esTemporal && (
+                      <button
+                        type="button"
+                        onClick={() => { onDescargarNube(); setMenuOpen(false); }}
+                        disabled={isSaving}
+                        title="Borra el registro local y lo vuelve a descargar desde Dataverse"
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-ink)" }}
+                      >
+                        <CloudDownload className="w-4 h-4 shrink-0" />
+                        Descargar de la Nube
+                      </button>
+                    )}
+                    {onDescargarTodo && !m.esTemporal && (
+                      <button
+                        type="button"
+                        onClick={() => { onDescargarTodo(); setMenuOpen(false); }}
+                        disabled={isSaving}
+                        title="Borra todos los registros locales y los vuelve a descargar desde Dataverse"
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-ink)" }}
+                      >
+                        <CloudDownload className="w-4 h-4 shrink-0" />
+                        Descargar todo
+                      </button>
+                    )}
+                    {!m.esTemporal && !m.ampliacion && !m.anulacion && !yaTieneAmpliacion && !readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => { onAmpliacion(); setMenuOpen(false); }}
+                        disabled={isSaving}
+                        className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
+                        style={{ color: "var(--tc-violet-ink)" }}
+                      >
+                        <TrendingUp className="w-4 h-4 shrink-0" />
+                        Crear Ampliación
                       </button>
                     )}
                     {estado != null && !readOnly && (
@@ -1466,103 +1522,6 @@ export default function LocalDetail({
             </div>
           </AccordionBlock>
         </div>
-
-        {/* ── Acciones ─────────────────────────────────────────────────────── */}
-        <section
-          className="px-6 py-4 flex flex-wrap items-center gap-2"
-          style={{ borderTop: "1px solid var(--tc-border-soft)", background: "var(--tc-bg-panel)" }}
-        >
-          {m.esTemporal && (
-            <p className="self-center text-xs" style={{ color: "var(--tc-ink-mute)" }}>
-              Registro fantasma: sin subida a la nube, PDF ni ampliación.
-            </p>
-          )}
-          {!m.esTemporal && !m.ampliacion && !m.anulacion && !yaTieneAmpliacion && (
-            <button
-              onClick={() => !readOnly && onAmpliacion()}
-              disabled={isSaving || readOnly}
-              title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: readOnly ? "var(--tc-border)" : "var(--tc-violet-ink)", color: readOnly ? "var(--tc-ink-mute)" : "white" }}
-            >
-              <TrendingUp className="w-4 h-4" />
-              Crear Ampliación
-            </button>
-          )}
-          {!m.esTemporal && !m.ampliacion && !m.anulacion && yaTieneAmpliacion && (
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border"
-              style={{
-                background: "var(--tc-violet-bg)",
-                color: "var(--tc-violet-ink)",
-                borderColor: "var(--tc-violet-border)",
-              }}
-              title="Ya existe una ampliación para esta matrícula"
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              Ampliación ya creada
-            </span>
-          )}
-          {!m.esTemporal && (
-          <button
-            onClick={() => !readOnly && onSubirNube()}
-            disabled={isSaving || !m._pendienteSubida || readOnly}
-            title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700"
-          >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
-            Subir a la Nube
-          </button>
-          )}
-          {!m.esTemporal && pendingUploads > 0 && onSubirNubeTodo && !readOnly && (
-            <button
-              onClick={() => onSubirNubeTodo()}
-              disabled={isSaving}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-700 hover:bg-emerald-800"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
-              Subir todo ({pendingUploads})
-            </button>
-          )}
-          {!m.esTemporal && !m._pendienteSubida && (
-            <p className="self-center text-xs" style={{ color: "var(--tc-ink-mute)" }}>Sin cambios pendientes de subir</p>
-          )}
-
-          {/* Borrar — separado */}
-          <div className="ml-auto flex items-center gap-2">
-            {confirmDelete && !readOnly ? (
-              <>
-                <span className="text-xs text-red-600 font-medium">¿Borrar definitivamente?</span>
-                <button
-                  onClick={onBorrar}
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Sí, borrar
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  disabled={isSaving}
-                  className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
-                  style={{ color: "var(--tc-ink-soft)" }}
-                >
-                  Cancelar
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => !readOnly && setConfirmDelete(true)}
-                disabled={isSaving || readOnly}
-                title={readOnly ? "No disponible en modo Solo Lectura" : "Borrar matrícula del almacén local"}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="w-4 h-4" />
-                Borrar
-              </button>
-            )}
-          </div>
-        </section>
 
         {subirError && (
           <p className="mx-6 mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

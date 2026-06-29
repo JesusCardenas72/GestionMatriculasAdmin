@@ -9,8 +9,8 @@ function makeRecord(overrides: Partial<MatriculaLocal> = {}): MatriculaLocal {
     origenRowId: "row-1",
     nOrden: 1,
     nombreMatricula: "TEST USER",
-    nombre: "TEST",
-    apellidos: "USER",
+    nombre: "Test",
+    apellidos: "User",
     dni: "00000000X",
     email: "t@e.com",
     telefono: null,
@@ -44,7 +44,7 @@ function makeRecord(overrides: Partial<MatriculaLocal> = {}): MatriculaLocal {
 }
 
 describe("migrarTextosLocal", () => {
-  it("formatea registros sin marca y los persiste", async () => {
+  it("formatea registros con texto en mayúsculas y los persiste con _pendienteSubida", async () => {
     const records = [
       makeRecord({ localId: "a", nombre: "PEDRO", apellidos: "GARCÍA LÓPEZ" }),
       makeRecord({ localId: "b", nombre: "MARÍA", apellidos: "LÓPEZ" }),
@@ -56,41 +56,35 @@ describe("migrarTextosLocal", () => {
 
     expect(count).toBe(2);
     expect(actualizar).toHaveBeenCalledTimes(2);
-    expect(actualizar).toHaveBeenCalledWith("25/26", "a", {
+    expect(actualizar).toHaveBeenCalledWith("25/26", "a", expect.objectContaining({
       nombre: "Pedro",
       apellidos: "García López",
-      domicilio: null,
-      localidad: null,
-      provincia: null,
       textoFormateado: true,
-    });
-    expect(actualizar).toHaveBeenCalledWith("25/26", "b", {
+      _pendienteSubida: true,
+    }));
+    expect(actualizar).toHaveBeenCalledWith("25/26", "b", expect.objectContaining({
       nombre: "María",
       apellidos: "López",
-      domicilio: null,
-      localidad: null,
-      provincia: null,
       textoFormateado: true,
-    });
+      _pendienteSubida: true,
+    }));
   });
 
-  it("se salta registros ya marcados como textoFormateado", async () => {
+  it("no llama a actualizar si el texto ya está correctamente formateado y tiene el flag", async () => {
     const records = [
-      makeRecord({ localId: "a", textoFormateado: true, nombre: "INTACTO" }),
-      makeRecord({ localId: "b", nombre: "PEDRO" }),
+      makeRecord({ localId: "a", textoFormateado: true, nombre: "Pedro", apellidos: "García López" }),
     ];
     const listar: ListarLocal = vi.fn().mockResolvedValue(records);
     const actualizar: ActualizarLocal = vi.fn().mockResolvedValue(null);
 
     const count = await migrarTextosLocal(["25/26"], listar, actualizar);
 
-    expect(count).toBe(1);
-    expect(actualizar).toHaveBeenCalledTimes(1);
-    expect(actualizar).toHaveBeenCalledWith("25/26", "b", expect.objectContaining({ textoFormateado: true }));
+    expect(count).toBe(0);
+    expect(actualizar).not.toHaveBeenCalled();
   });
 
-  it("formatea registros con textoFormateado undefined (registros antiguos sin marca)", async () => {
-    const records = [makeRecord({ localId: "a", nombre: "PEDRO" })];
+  it("pone solo textoFormateado cuando el texto ya es correcto pero falta el flag", async () => {
+    const records = [makeRecord({ localId: "a", nombre: "Pedro", apellidos: "García López" })];
     delete (records[0] as { textoFormateado?: boolean }).textoFormateado;
     const listar: ListarLocal = vi.fn().mockResolvedValue(records);
     const actualizar: ActualizarLocal = vi.fn().mockResolvedValue(null);
@@ -98,11 +92,36 @@ describe("migrarTextosLocal", () => {
     const count = await migrarTextosLocal(["25/26"], listar, actualizar);
 
     expect(count).toBe(1);
-    expect(actualizar).toHaveBeenCalledWith(
-      "25/26",
-      "a",
-      expect.objectContaining({ textoFormateado: true }),
-    );
+    expect(actualizar).toHaveBeenCalledWith("25/26", "a", { textoFormateado: true });
+  });
+
+  it("corrige guión en apellidos ya formateados y marca _pendienteSubida", async () => {
+    const records = [
+      makeRecord({ localId: "a", textoFormateado: true, apellidos: "García-lopez" }),
+    ];
+    const listar: ListarLocal = vi.fn().mockResolvedValue(records);
+    const actualizar: ActualizarLocal = vi.fn().mockResolvedValue(null);
+
+    const count = await migrarTextosLocal(["25/26"], listar, actualizar);
+
+    expect(count).toBe(1);
+    expect(actualizar).toHaveBeenCalledWith("25/26", "a", expect.objectContaining({
+      apellidos: "García-Lopez",
+      _pendienteSubida: true,
+    }));
+  });
+
+  it("no toca registro ya formateado con guión correcto", async () => {
+    const records = [
+      makeRecord({ localId: "a", textoFormateado: true, apellidos: "García-Lopez" }),
+    ];
+    const listar: ListarLocal = vi.fn().mockResolvedValue(records);
+    const actualizar: ActualizarLocal = vi.fn().mockResolvedValue(null);
+
+    const count = await migrarTextosLocal(["25/26"], listar, actualizar);
+
+    expect(count).toBe(0);
+    expect(actualizar).not.toHaveBeenCalled();
   });
 
   it("procesa varios cursos en serie", async () => {
@@ -149,12 +168,13 @@ describe("migrarTextosLocal", () => {
     expect(actualizar).not.toHaveBeenCalled();
   });
 
-  it("preserva campos nulos sin intentar formatearlos", async () => {
+  it("preserva campos nulos y no los considera como cambio de texto", async () => {
     const records = [
       makeRecord({
         localId: "a",
-        nombre: "PEDRO",
-        apellidos: "GARCÍA",
+        textoFormateado: true,
+        nombre: "Pedro",
+        apellidos: "García",
         domicilio: null,
         localidad: null,
         provincia: null,
@@ -163,23 +183,16 @@ describe("migrarTextosLocal", () => {
     const listar: ListarLocal = vi.fn().mockResolvedValue(records);
     const actualizar: ActualizarLocal = vi.fn().mockResolvedValue(null);
 
-    await migrarTextosLocal(["25/26"], listar, actualizar);
+    const count = await migrarTextosLocal(["25/26"], listar, actualizar);
 
-    expect(actualizar).toHaveBeenCalledWith(
-      "25/26",
-      "a",
-      expect.objectContaining({
-        domicilio: null,
-        localidad: null,
-        provincia: null,
-      }),
-    );
+    expect(count).toBe(0);
+    expect(actualizar).not.toHaveBeenCalled();
   });
 
-  it("no llama a actualizar si todos los registros ya están marcados", async () => {
+  it("no llama a actualizar si todos los registros ya están correctos", async () => {
     const records = [
-      makeRecord({ localId: "a", textoFormateado: true }),
-      makeRecord({ localId: "b", textoFormateado: true }),
+      makeRecord({ localId: "a", textoFormateado: true, nombre: "Pedro", apellidos: "García" }),
+      makeRecord({ localId: "b", textoFormateado: true, nombre: "María", apellidos: "López" }),
     ];
     const listar: ListarLocal = vi.fn().mockResolvedValue(records);
     const actualizar: ActualizarLocal = vi.fn().mockResolvedValue(null);

@@ -42,7 +42,7 @@ export function pasoHecho(
 ): boolean {
   switch (n) {
     case 1:
-      return contadores.nTemporales > 0;
+      return true; // crear fantasmas es opcional; el paso siempre es accesible
     case 2:
       return estado.fechaExcelGenerado != null;
     default:

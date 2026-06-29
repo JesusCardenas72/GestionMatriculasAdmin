@@ -44,6 +44,7 @@ import { ModalCorreccionHorarios } from "./ModalCorreccionHorarios";
 import { ModalComprobacionCoherencia } from "./ModalComprobacionCoherencia";
 import { comprobarCoherenciaLocalHorario, type ComprobacionCoherencia } from "../../utils/comprobarCoherencia";
 import type { FilaConErrorHorario } from "../../utils/validarHorariosCargados";
+
 import type { FilaCrudaHorario } from "../../utils/fusionHorarios";
 import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
 import type { CampanyaEnvio } from "../../horarios/types";
@@ -75,7 +76,7 @@ const PASOS: PasoDef[] = [
     titulo: "Crear los alumnos fantasma",
     descripcion:
       "Crea una plaza por cada alumno previsto: a mano («PDTE. N» por curso y especialidad) o importando un Excel/CSV con nombres provisionales (sufijo _Temp). Puedes combinar ambas formas y crear más tandas cuando quieras.",
-    requisito: "No hay ningún alumno fantasma creado todavía: crea al menos uno para continuar.",
+    requisito: "",
   },
   {
     n: 2,
@@ -1345,14 +1346,7 @@ function Paso3ProfesoresRellenan({
     setMensaje(null);
     try {
       setOcupado(true);
-      // Misma lógica exacta que «Horarios → Cargar Excel de horarios».
-      const cargado = await cargarExcelHorarios(curso, async (crudas, profesores) => {
-        const errores = validarFilasCrudas(crudas, profesores);
-        if (errores.length === 0) return crudas;
-        return new Promise<FilaCrudaHorario[] | null>((resolve) => {
-          setValidacionPendiente({ crudas, filasConError: errores, resolve });
-        });
-      });
+      const cargado = await cargarExcelHorarios(curso);
       if (!cargado) return;
       const { carga, resultado, formatoDetectado } = cargado;
       setReloadToken((t) => t + 1);

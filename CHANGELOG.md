@@ -9,6 +9,22 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.4.0] - 2026-06-29
+
+### Añadido
+
+- **Ventanas nativas de envío de horarios**: el envío de horarios sale ahora en ventanas flotantes propias del sistema (independientes de la ventana principal), tanto para el **envío individual** desde la ficha de Local (`DialogoEnviarHorario`) como para el **envío masivo / campaña** desde Horarios Individuales (`DialogoEnviarCampanya`). Permiten trabajar sin bloquear la pantalla principal.
+- **Adjuntos configurables en el envío**: al enviar un horario se puede elegir qué adjuntar — **PDF**, **HTML interactivo**, el **formulario de solicitud de cambio de grupo** (incluido ahora dentro de la app) y un **archivo personalizado del PC**. También se pueden **seleccionar las asignaturas** a incluir en el horario enviado.
+- **Formulario de cambio de grupo embebido**: `SolicitudCambioGrupo.pdf` viaja con la aplicación (recurso interno), de modo que el formulario se adjunta directamente al correo en lugar de enlazar a una web externa.
+- **ID compuesto para filas del Excel de horarios** (`nOrden_asciiSum`): cada fila lleva un identificador estable que combina su número de orden con una suma de control, propagado por todo el flujo de Horarios (renombrado a `idAlumnoAsignatura`). Los alumnos fantasma usan números de orden ≥ 900 para distinguirse.
+
+### Cambiado
+
+- **Validación de horarios con ventana del sistema**: la comprobación de valores fuera de lista al cargar el Excel de horarios se muestra en una ventana nativa, con **corrección masiva** de un valor repetido en todas sus apariciones.
+- **Texto por defecto del correo de horarios**: ahora indica que el formulario se adjunta al propio correo (antes remitía a un enlace de la web del Conservatorio).
+
+---
+
 ## [1.3.1] - 2026-06-21
 
 ### Cambiado

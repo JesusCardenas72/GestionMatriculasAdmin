@@ -56,6 +56,8 @@ export interface ActualizarSolicitudInput {
   emailHtml?: string;
   email?: string;
   enviarEmail?: boolean;
+  adjuntoPersonalizadoBase64?: string;
+  adjuntoPersonalizadoNombre?: string;
 }
 
 export interface EditarSolicitudInput {
@@ -205,6 +207,8 @@ export interface FilaInforme extends Solicitud {
   nombreCompleto?: string;
   /** true si la fila proviene de un alumno temporal pendiente (placeholder de horarios) */
   esTemporal?: boolean;
+  /** ID "{nOrden}_{asciiSum(asigNombre)}" que identifica de forma única la fila alumno × asignatura. */
+  idAlumnoAsignatura?: string;
 }
 
 export type OperadorFiltro =

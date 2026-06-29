@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { MatriculaLocal } from "../api/types";
-import { fixHyphenCase, formatearMatriculaLocal } from "../utils/formatText";
+import { toTitleCase } from "../utils/formatText";
 
 export type ListarLocal = (curso: string) => Promise<MatriculaLocal[]>;
 export type ActualizarLocal = (
@@ -19,32 +19,37 @@ export async function migrarTextosLocal(
     try {
       const records = await listar(curso);
       for (const record of records) {
-        if (record.textoFormateado === true) {
-          // Registros ya formateados: corregir guión en apellidos compuestos si aún está mal
-          if (
-            record.apellidos &&
-            /-[a-záéíóúñüàèìòùâêîôûäëïöü]/.test(record.apellidos)
-          ) {
-            const apellidosFixed = fixHyphenCase(record.apellidos);
-            if (apellidosFixed !== record.apellidos) {
-              await actualizar(curso, record.localId, {
-                apellidos: apellidosFixed,
-              });
-              count++;
-            }
-          }
-          continue;
+        if (record.esTemporal) continue;
+        const nombre = toTitleCase(record.nombre) ?? record.nombre;
+        const apellidos = toTitleCase(record.apellidos) ?? record.apellidos;
+        const domicilio = toTitleCase(record.domicilio) ?? record.domicilio;
+        const localidad = toTitleCase(record.localidad) ?? record.localidad;
+        const provincia = toTitleCase(record.provincia) ?? record.provincia;
+
+        const textoCambio =
+          nombre !== record.nombre ||
+          apellidos !== record.apellidos ||
+          domicilio !== record.domicilio ||
+          localidad !== record.localidad ||
+          provincia !== record.provincia;
+
+        if (textoCambio) {
+          const now = new Date().toISOString();
+          await actualizar(curso, record.localId, {
+            nombre,
+            apellidos,
+            domicilio,
+            localidad,
+            provincia,
+            textoFormateado: true,
+            _pendienteSubida: true,
+            _modificadoEn: now,
+          });
+          count++;
+        } else if (!record.textoFormateado) {
+          await actualizar(curso, record.localId, { textoFormateado: true });
+          count++;
         }
-        const formatted = formatearMatriculaLocal(record);
-        await actualizar(curso, record.localId, {
-          nombre: formatted.nombre,
-          apellidos: formatted.apellidos,
-          domicilio: formatted.domicilio,
-          localidad: formatted.localidad,
-          provincia: formatted.provincia,
-          textoFormateado: true,
-        });
-        count++;
       }
     } catch (err) {
       console.error(`[Migración texto] Error en curso ${curso}:`, err);

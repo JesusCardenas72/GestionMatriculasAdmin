@@ -111,6 +111,11 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 
 let win: BrowserWindow | null = null;
 
+// ── Diálogos de corrección de horarios ────────────────────────────────────────
+// Almacena los datos de cada sesión de diálogo pendiente, indexados por un UUID.
+const dialogData = new Map<string, unknown>();
+const dialogResolvers = new Map<string, (json: string | null) => void>();
+
 function createWindow() {
   const saved = loadWindowState();
 
@@ -123,6 +128,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       plugins: true,
+      spellcheck: true,
     },
   };
 
@@ -250,6 +256,43 @@ function createWindow() {
   } else {
     win.loadFile(path.join(RENDERER_DIST, "index.html"));
   }
+
+  win.webContents.on("context-menu", (_e, params) => {
+    const items: Electron.MenuItemConstructorOptions[] = [];
+
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions) {
+        items.push({
+          label: suggestion,
+          click: () => win!.webContents.replaceMisspelling(suggestion),
+        });
+      }
+      if (items.length > 0) items.push({ type: "separator" });
+      items.push({
+        label: "Añadir al diccionario",
+        click: () => win!.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+      });
+      items.push({ type: "separator" });
+    }
+
+    if (params.isEditable) {
+      items.push(
+        { role: "undo", label: "Deshacer" },
+        { role: "redo", label: "Rehacer" },
+        { type: "separator" },
+        { role: "cut", label: "Cortar" },
+        { role: "copy", label: "Copiar" },
+        { role: "paste", label: "Pegar" },
+        { role: "selectAll", label: "Seleccionar todo" },
+      );
+    } else if (params.selectionText) {
+      items.push({ role: "copy", label: "Copiar" });
+    }
+
+    if (items.length > 0) {
+      Menu.buildFromTemplate(items).popup({ window: win! });
+    }
+  });
 }
 
 function registerIpcHandlers() {
@@ -553,6 +596,18 @@ function registerIpcHandlers() {
   ipcMain.handle("horarios:campanyas:guardar", (_e, campanya) => campanyas_guardar(campanya));
   ipcMain.handle("horarios:campanyas:eliminar", (_e, id: string) => campanyas_eliminar(id));
   ipcMain.handle("horarios:campanyas:eliminarAlumno", (_e, campanyaId: string, clave: string) => campanyas_eliminar_alumno(campanyaId, clave));
+
+  ipcMain.handle("assets:solicitudCambioGrupoBase64", async (): Promise<string | null> => {
+    try {
+      const pdfPath = app.isPackaged
+        ? path.join(process.resourcesPath, "SolicitudCambioGrupo.pdf")
+        : path.join(process.env.APP_ROOT!, "SolicitudCambioGrupo.pdf");
+      const buf = fs.readFileSync(pdfPath);
+      return buf.toString("base64");
+    } catch {
+      return null;
+    }
+  });
 
   ipcMain.handle(
     "informe:exportar",
@@ -1046,6 +1101,169 @@ function registerIpcHandlers() {
       }
     },
   );
+
+  // ── Diálogo nativo de corrección de horarios ────────────────────────────────
+  // Abre una ventana modal OS separada con la UI de corrección de colisiones.
+  // Devuelve las correcciones como JSON (array de entradas de Map) o null si
+  // el usuario cancela / cierra la ventana.
+  ipcMain.handle(
+    "horarios:abrirDialogoCorreccion",
+    async (_e, filasConErrorJSON: string): Promise<string | null> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(filasConErrorJSON));
+
+      return new Promise<string | null>((resolve) => {
+        dialogResolvers.set(dialogId, resolve);
+
+        const dialogWin = new BrowserWindow({
+          width: 720,
+          height: 640,
+          minWidth: 520,
+          minHeight: 400,
+          title: "Valores fuera de lista — Horarios",
+          icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+          autoHideMenuBar: true,
+          parent: win ?? undefined,
+          modal: true,
+          webPreferences: {
+            preload: path.join(__dirname, "preload.js"),
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        });
+
+        const cleanup = (result: string | null) => {
+          dialogData.delete(dialogId);
+          dialogResolvers.delete(dialogId);
+          if (!dialogWin.isDestroyed()) dialogWin.destroy();
+          resolve(result);
+        };
+
+        // Si el usuario cierra la ventana directamente → cancelar
+        dialogWin.on("closed", () => {
+          if (dialogResolvers.has(dialogId)) cleanup(null);
+        });
+
+        const hash = `dialog-correccion?id=${encodeURIComponent(dialogId)}`;
+        if (VITE_DEV_SERVER_URL) {
+          dialogWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+        } else {
+          dialogWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+        }
+      });
+    },
+  );
+
+  // ── Ventana nativa flotante de envío de horario por email ───────────────────
+  // Abre una BrowserWindow del SO (con marco nativo: mover, redimensionar,
+  // minimizar/maximizar/cerrar) con la UI de envío. La ventana es autónoma:
+  // carga el horario y realiza el envío por sí misma. No devuelve resultado.
+  ipcMain.handle(
+    "horarios:abrirDialogoEnviar",
+    async (_e, payloadJSON: string): Promise<void> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(payloadJSON));
+
+      const enviarWin = new BrowserWindow({
+        width: 540,
+        height: 680,
+        minWidth: 420,
+        minHeight: 360,
+        title: "Enviar horario por email",
+        icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+        autoHideMenuBar: true,
+        parent: win ?? undefined,
+        webPreferences: {
+          preload: path.join(__dirname, "preload.js"),
+          contextIsolation: true,
+          nodeIntegration: false,
+        },
+      });
+
+      enviarWin.on("closed", () => {
+        dialogData.delete(dialogId);
+      });
+
+      const hash = `dialog-enviar-horario?id=${encodeURIComponent(dialogId)}`;
+      if (VITE_DEV_SERVER_URL) {
+        enviarWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+      } else {
+        enviarWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+      }
+    },
+  );
+
+  // ── Ventana nativa flotante de envío masivo (campaña) ───────────────────────
+  // Abre una BrowserWindow del SO con la UI de campaña. Es autónoma: realiza el
+  // envío masivo, guarda la campaña en el historial y avisa a la ventana
+  // principal para que refresque el panel de historial.
+  ipcMain.handle(
+    "horarios:abrirDialogoEnviarCampanya",
+    async (_e, payloadJSON: string): Promise<void> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(payloadJSON));
+
+      const campWin = new BrowserWindow({
+        width: 560,
+        height: 760,
+        minWidth: 440,
+        minHeight: 400,
+        title: "Enviar horarios por email",
+        icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+        autoHideMenuBar: true,
+        parent: win ?? undefined,
+        webPreferences: {
+          preload: path.join(__dirname, "preload.js"),
+          contextIsolation: true,
+          nodeIntegration: false,
+        },
+      });
+
+      campWin.on("closed", () => {
+        dialogData.delete(dialogId);
+      });
+
+      const hash = `dialog-enviar-campanya?id=${encodeURIComponent(dialogId)}`;
+      if (VITE_DEV_SERVER_URL) {
+        campWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+      } else {
+        campWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+      }
+    },
+  );
+
+  // La ventana de campaña avisa de que guardó una campaña → refrescar historial.
+  ipcMain.handle("horarios:campanyaGuardadaNotificar", (): void => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("horarios:campanyaGuardada");
+    }
+  });
+
+  // Llamado por la ventana de diálogo para obtener los datos de su sesión.
+  ipcMain.handle("horarios:dialogoGetData", (_e, dialogId: string): string | null => {
+    const data = dialogData.get(dialogId);
+    return data !== undefined ? JSON.stringify(data) : null;
+  });
+
+  // Llamado por la ventana de diálogo cuando el usuario confirma las correcciones.
+  ipcMain.handle("horarios:dialogoConfirmar", (_e, dialogId: string, correccionesJSON: string): void => {
+    const resolver = dialogResolvers.get(dialogId);
+    if (resolver) {
+      dialogData.delete(dialogId);
+      dialogResolvers.delete(dialogId);
+      resolver(correccionesJSON);
+    }
+  });
+
+  // Llamado por la ventana de diálogo cuando el usuario cancela.
+  ipcMain.handle("horarios:dialogoCancelar", (_e, dialogId: string): void => {
+    const resolver = dialogResolvers.get(dialogId);
+    if (resolver) {
+      dialogData.delete(dialogId);
+      dialogResolvers.delete(dialogId);
+      resolver(null);
+    }
+  });
 }
 
 app.whenReady().then(() => {

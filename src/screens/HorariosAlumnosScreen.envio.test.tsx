@@ -52,11 +52,15 @@ beforeEach(() => {
       campanyas: { listar: vi.fn().mockResolvedValue(H.campanyas), guardar: vi.fn().mockResolvedValue(undefined), eliminar: vi.fn(), eliminarAlumno: vi.fn() },
       obtenerExcelPath: vi.fn().mockResolvedValue(null),
       eliminarExcelPath: vi.fn(),
-      cargarExcelRelleno: vi.fn().mockResolvedValue({ base64: "x", fileName: "horarios.xlsx" }),
+      // cargarExcelRelleno es la API antigua usada por InformesScreen directamente;
+      // cargarExcelHorarios usa seleccionarExcelRelleno + profesoresGuardados.
+      seleccionarExcelRelleno: vi.fn().mockResolvedValue({ base64: "x", fileName: "horarios.xlsx" }),
+      profesoresGuardados: vi.fn().mockResolvedValue({ path: null, profesores: [] }),
       data: { obtener: vi.fn().mockResolvedValue({ curso: "2025/2026", entries: [], snapshots: [], lastUpdated: null }), guardar: vi.fn() },
     },
     pdf: { generarBase64: vi.fn(), guardar: vi.fn(), openForPrint: vi.fn(), printHtml: vi.fn() },
     informe: { exportar: vi.fn(), seleccionarArchivo: vi.fn() },
+    dialogoCorreccion: { abrir: vi.fn().mockResolvedValue(null) },
   };
 });
 

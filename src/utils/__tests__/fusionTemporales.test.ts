@@ -44,6 +44,20 @@ describe("camposDesdeExcelHorarios", () => {
     const sinCampos = await excelConCabeceras(["Profesor", "Aula"]);
     await expect(camposDesdeExcelHorarios(sinCampos)).rejects.toThrow(/No se reconoce/);
   });
+
+  it("ignora la columna 'ID' (columna técnica de idCompuesto) sin contarla como desconocida", async () => {
+    const base64 = await excelConCabeceras([
+      "ID",  // primera columna técnica — debe ignorarse
+      "Apellidos", "Nombre", "Asignatura",
+      "Profesor", "Aula", "Día 1", "Entrada 1", "Salida 1", "Día 2", "Entrada 2", "Salida 2",
+      "Email",
+    ]);
+    const r = await camposDesdeExcelHorarios(base64);
+    // "ID" no debe aparecer ni en campos ni en desconocidas
+    expect(r.campos.map((c) => c.key)).toContain("apellidos");
+    expect(r.campos.map((c) => c.key)).not.toContain("id_compuesto");
+    expect(r.desconocidas).not.toContain("ID");
+  });
 });
 
 describe("filasAsignaturaLocales", () => {

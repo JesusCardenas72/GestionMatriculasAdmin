@@ -44,7 +44,7 @@ function makeMatricula(overrides: Partial<MatriculaLocal> = {}): MatriculaLocal 
 }
 
 describe("toTitleCase", () => {
-  it("transforma nombre y apellidos en mayúsculas a Title Case", () => {
+  it("transforma texto en mayúsculas a Title Case", () => {
     expect(toTitleCase("GARCÍA LÓPEZ")).toBe("García López");
   });
 
@@ -52,22 +52,20 @@ describe("toTitleCase", () => {
     expect(toTitleCase("CIUDAD REAL")).toBe("Ciudad Real");
   });
 
-  it("respeta correctamente la ñ y los acentos en minúscula", () => {
+  it("respeta correctamente la ñ y los acentos", () => {
     expect(toTitleCase("JOSÉ MARÍA ÑÚÑEZ")).toBe("José María Ñúñez");
   });
 
-  it("respeta nombres ya formateados (mixed case)", () => {
+  it("convierte nombres ya en Title Case sin cambios (idempotente)", () => {
     expect(toTitleCase("García López")).toBe("García López");
   });
 
-  it("respeta cadenas en minúsculas (no son all-upper)", () => {
-    expect(toTitleCase("garcia lopez")).toBe("garcia lopez");
+  it("capitaliza cadenas en minúsculas", () => {
+    expect(toTitleCase("garcia lopez")).toBe("Garcia Lopez");
   });
 
-  it("respeta cadenas parcialmente en mayúsculas", () => {
-    expect(toTitleCase("PENDIENTE de Validación")).toBe(
-      "PENDIENTE de Validación",
-    );
+  it("capitaliza cadenas en case mixto", () => {
+    expect(toTitleCase("PENDIENTE de Validación")).toBe("Pendiente De Validación");
   });
 
   it("devuelve null cuando la entrada es null", () => {
@@ -94,12 +92,16 @@ describe("toTitleCase", () => {
     expect(toTitleCase("---")).toBe("---");
   });
 
-  it("capitaliza ambas partes de un apellido compuesto con guión", () => {
+  it("capitaliza ambas partes de un apellido compuesto con guión (todo mayúsculas)", () => {
     expect(toTitleCase("GARCIA-LOPEZ")).toBe("Garcia-Lopez");
   });
 
-  it("capitaliza apellido compuesto con acento", () => {
+  it("capitaliza apellido compuesto con acento (todo mayúsculas)", () => {
     expect(toTitleCase("GARCÍA-LÓPEZ")).toBe("García-López");
+  });
+
+  it("capitaliza apellido compuesto con guión en case mixto", () => {
+    expect(toTitleCase("García-lopez")).toBe("García-Lopez");
   });
 
   it("capitaliza apellido compuesto con múltiples palabras y guión", () => {
@@ -112,6 +114,11 @@ describe("toTitleCase", () => {
 
   it("transforma palabras sueltas", () => {
     expect(toTitleCase("PEDRO")).toBe("Pedro");
+  });
+
+  it("es idempotente: aplicar dos veces da el mismo resultado", () => {
+    const once = toTitleCase("GARCÍA-LÓPEZ MARTÍNEZ") as string;
+    expect(toTitleCase(once)).toBe(once);
   });
 });
 
@@ -142,7 +149,7 @@ describe("fixHyphenCase", () => {
 });
 
 describe("formatearMatriculaLocal", () => {
-  it("formatea los 5 campos cuando vienen en mayúsculas y marca el flag", () => {
+  it("formatea los 5 campos y marca el flag", () => {
     const m = makeMatricula({
       nombre: "PEDRO",
       apellidos: "GARCÍA LÓPEZ",
@@ -159,42 +166,42 @@ describe("formatearMatriculaLocal", () => {
     expect(out.textoFormateado).toBe(true);
   });
 
-  it("formatea apellidos compuestos con guión correctamente", () => {
+  it("formatea apellidos compuestos con guión (todo mayúsculas)", () => {
     const m = makeMatricula({ apellidos: "GARCIA-LOPEZ" });
     const out = formatearMatriculaLocal(m);
     expect(out.apellidos).toBe("Garcia-Lopez");
   });
 
-  it("se salta registros ya marcados como textoFormateado", () => {
+  it("capitaliza tras guión aunque la primera parte ya esté en title case", () => {
+    const m = makeMatricula({ apellidos: "García-lopez" });
+    const out = formatearMatriculaLocal(m);
+    expect(out.apellidos).toBe("García-Lopez");
+  });
+
+  it("capitaliza tras guión con múltiples componentes", () => {
+    const m = makeMatricula({ apellidos: "García-lopez-martínez" });
+    const out = formatearMatriculaLocal(m);
+    expect(out.apellidos).toBe("García-Lopez-Martínez");
+  });
+
+  it("formatea registros ya marcados como textoFormateado si el texto cambió", () => {
     const m = makeMatricula({
       nombre: "PEDRO",
       apellidos: "GARCÍA LÓPEZ",
       textoFormateado: true,
     });
     const out = formatearMatriculaLocal(m);
-    expect(out).toBe(m);
-    expect(out.nombre).toBe("PEDRO");
-    expect(out.apellidos).toBe("GARCÍA LÓPEZ");
-  });
-
-  it("formatea registros con textoFormateado undefined (registros antiguos)", () => {
-    const m = makeMatricula({
-      nombre: "PEDRO",
-      apellidos: "GARCÍA",
-    });
-    delete (m as { textoFormateado?: boolean }).textoFormateado;
-    const out = formatearMatriculaLocal(m);
     expect(out.nombre).toBe("Pedro");
-    expect(out.apellidos).toBe("García");
-    expect(out.textoFormateado).toBe(true);
+    expect(out.apellidos).toBe("García López");
   });
 
-  it("respeta campos ya formateados (mixed case)", () => {
+  it("es idempotente en registros ya correctamente formateados", () => {
     const m = makeMatricula({
       nombre: "Pedro",
       apellidos: "García López",
       domicilio: "Calle Mayor 1",
       localidad: "Ciudad Real",
+      textoFormateado: true,
     });
     const out = formatearMatriculaLocal(m);
     expect(out.nombre).toBe("Pedro");
