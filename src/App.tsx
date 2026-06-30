@@ -70,6 +70,7 @@ export default function App() {
       <AdminSecretPanel />
       <MainScreen
         config={state.config}
+        onConfigSave={save}
       />
     </>
   );

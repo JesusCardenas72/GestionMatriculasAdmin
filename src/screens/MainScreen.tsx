@@ -30,6 +30,7 @@ import type { BackupManifest } from "../../electron/backup-store";
 
 interface Props {
   config: AppConfig;
+  onConfigSave?: (cfg: AppConfig) => Promise<void>;
 }
 
 const TIPO_BADGE: Record<string, string> = {
@@ -48,7 +49,7 @@ const ALL_TABS: ActiveTab[] = [
   "temporales",
 ];
 
-export default function MainScreen({ config }: Props) {
+export default function MainScreen({ config, onConfigSave }: Props) {
   const [active, setActive] = useState<ActiveTab>(ESTADO.PENDIENTE_TRAMITACION);
   const [selected, setSelected] = useState<Solicitud | null>(null);
   /** Snapshot del historial de horarios pendiente de abrir en la pestaña Horarios. */
@@ -472,7 +473,7 @@ export default function MainScreen({ config }: Props) {
       {conexionModalOpen && (
         <ConexionModal
           initial={config}
-          onSave={async (cfg) => { await window.adminAPI.config.save(cfg); }}
+          onSave={onConfigSave ?? (async (cfg) => { await window.adminAPI.config.save(cfg); })}
           onClose={() => setConexionModalOpen(false)}
         />
       )}
