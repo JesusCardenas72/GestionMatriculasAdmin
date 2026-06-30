@@ -21,6 +21,12 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
+  const claseInstrumento = alumno.clases.find(c =>
+    c.asignatura.toLowerCase().includes('instrumento')
+  );
+  const tutor = claseInstrumento?.profesor?.trim() ||
+    'No disponible. Será asignado por la Delegación de Educación';
+
   const nClases = alumno.clases.length;
   const diasSet = new Set(alumno.clases.map(c => c.dia));
   const diasResumen = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
@@ -109,9 +115,15 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
                   <td style="padding:12px 0 0;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td>
+                        <td style="padding-bottom:12px;border-bottom:1px solid #ddd6fe;">
                           <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Curso</span><br>
                           <span style="font-size:14px;color:#4c1d95;font-weight:700;margin-top:3px;display:block;">${esc(buildCursoLabel(alumno.ensenanzaCurso, alumno.especialidad)) || '—'}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-top:12px;">
+                          <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Tutor/a:</span><br>
+                          <span style="font-size:14px;color:#4c1d95;font-weight:700;margin-top:3px;display:block;">${esc(tutor)}</span>
                         </td>
                       </tr>
                     </table>
@@ -169,6 +181,16 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
             </td>
           </tr>
         </table>
+      </td>
+    </tr>
+
+    <!-- DIRECTORIO PROFESORADO -->
+    <tr>
+      <td style="padding:28px 40px 0;text-align:center;">
+        <a href="https://www.conservatoriociudadreal.es/profesorado/"
+          style="display:inline-block;padding:13px 28px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:30px;box-shadow:0 4px 14px rgba(109,40,217,0.35);letter-spacing:0.3px;">
+          👨‍🏫 &nbsp;Directorio Profesorado
+        </a>
       </td>
     </tr>
 

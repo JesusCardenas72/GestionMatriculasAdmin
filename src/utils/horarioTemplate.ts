@@ -203,7 +203,16 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
           const ini = aMin(e.clase.entrada);
           const fin = aMin(e.clase.salida);
           const esBreve = ini !== null && fin !== null && fin - ini <= 30;
-          return `<div class="note ${color} ${posClass}${esBreve ? ' is-breve' : ''}" style="${rotacion(semilla)}"
+          // Cuando una clase abarca varias filas pero termina a mitad de hora (ej. 16:00–17:30),
+          // calculamos el bottom dinámico para que el bloque no llegue al final de la última fila.
+          let bottomOverride = '';
+          if (e.position === 'full' && ini !== null && fin !== null && fin % 60 !== 0 && e.rowspan > 1) {
+            const durMin = fin - ini;
+            const fillRatio = durMin / (e.rowspan * 60);
+            const pct = Math.round((1 - fillRatio) * 100);
+            bottomOverride = `;bottom:calc(${pct}% + 4px)`;
+          }
+          return `<div class="note ${color} ${posClass}${esBreve ? ' is-breve' : ''}" style="${rotacion(semilla)}${bottomOverride}"
             data-subj="${esc(e.clase.asignatura)}" data-time="${horas}" data-day="${esc(e.clase.dia)}"
             data-prof="${esc(e.clase.profesor)}" data-room="${esc(e.clase.aula)}" data-notes="${esc(nota)}">
             ${esBreve ? '' : `<span class="n-time">${horas}</span>`}
@@ -227,9 +236,11 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Horario Semanal — ${esc(alumno.nombre)}</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 :root{
   --font:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   --display:'DM Serif Display',Georgia,serif;
+  --caveat:'Caveat',cursive;
   --bg:#f7f1e8;--bg-panel:#f0e8da;--card:#fffaf2;--ink:#2d241d;--ink-soft:#5e4f43;
   --ink-mute:#9c8a7a;--border:#e6dac6;--border-soft:#efe5d3;--primary:#b85c3a;
   --primary-dark:#9d4a2c;--primary-tint:#fbe7dc;--primary-border:#e8b8a3;
@@ -249,7 +260,7 @@ body{font-family:var(--display);color:var(--ink);min-height:100vh;
 .header-logos img{display:block;height:56px;width:auto;max-width:38%;object-fit:contain;flex-shrink:0;}
 .doc-title{flex:1 1 auto;min-width:0;font-family:var(--display);font-size:38px;line-height:1;margin:0;text-align:center;color:#0a478f;}
 .doc-year{text-align:center;font-size:26px;font-weight:500;color:#148180;letter-spacing:1.2px;margin:6px 0 16px;line-height:1;}
-.doc-meta{display:flex;flex-direction:column;gap:8px;padding:14px 0 16px;border-top:1px solid var(--border);border-bottom:2px solid var(--ink);}
+.doc-meta{display:flex;flex-direction:column;gap:8px;padding:14px 0 16px;border-top:1px solid var(--border);}
 .meta-row{display:flex;align-items:baseline;gap:10px;font-size:15px;flex-wrap:wrap;}
 .meta-label{font-family:var(--font);font-size:11px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;}
 .meta-val{font-family:var(--display);font-size:18px;color:var(--ink);border-bottom:1.5px solid var(--border);padding:0 6px 1px;min-width:140px;line-height:1.2;}
@@ -285,14 +296,12 @@ td.cell{height:90px;background:var(--bg);vertical-align:top;padding:0;overflow:v
 .note.pos-bottom{top:calc(50% + 4px);bottom:8px;}
 /* Empieza a la media hora pero abarca varias filas: el alto lo da el rowspan del td. */
 .note.pos-bottom-tall{top:48px;bottom:8px;}
-.note .n-time{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;line-height:1;transition:font-size .18s;}
-.note .n-subj{font-family:var(--display);font-size:14px;font-weight:400;text-align:center;line-height:1.2;color:var(--ink);
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;transition:font-size .18s,font-weight .18s;}
-.note.selected .n-time{font-size:11px;}
-.note.selected .n-subj{font-size:16px;font-weight:700;-webkit-line-clamp:3;}
-/* Clases de 30 min (media celda): solo asignatura, ajustada a 2 líneas */
+.note .n-time{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;line-height:1;}
+.note .n-subj{font-family:var(--caveat);font-weight:400;text-align:center;line-height:1.2;color:var(--ink);overflow:hidden;}
+.note.selected .n-subj{font-weight:700;}
+/* Clases de 30 min (media celda): solo asignatura */
 .note.is-breve{padding:4px 8px;}
-.note.is-breve .n-subj{font-size:12px;line-height:1.15;-webkit-line-clamp:2;}
+.note.is-breve .n-subj{line-height:1.15;}
 .n-info{background-color:var(--info-bg);border:1px solid var(--info-border);}
 .n-olive{background-color:var(--olive-tint);border:1px solid var(--olive-border);}
 .n-warn{background-color:var(--warn-bg);border:1px solid var(--warn-border);}
@@ -383,7 +392,6 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
       <button class="modal-close" id="modal-close">&times;</button>
     </div>
     <div class="modal-body">
-      <div class="modal-field"><span class="field-label">D&#237;a</span><div class="field-value" id="modal-day"></div></div>
       <div class="modal-field"><span class="field-label">Profesor/a</span><div class="field-value" id="modal-prof"></div></div>
       <div class="modal-field"><span class="field-label">Aula / Sala</span><div class="field-value" id="modal-room"></div></div>
       <div class="modal-field"><span class="field-label">Grupo / Notas</span><div class="field-value" id="modal-notes"></div></div>
@@ -392,6 +400,38 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
 </div>
 
 <script>
+  /* ── Ajuste dinámico de fuente en cada card de clase ── */
+  function fitNotes() {
+    document.querySelectorAll('.note').forEach(function(note) {
+      var subj = note.querySelector('.n-subj');
+      if (!subj) return;
+      var isBreve = note.classList.contains('is-breve');
+      var maxPx = isBreve ? 15 : 24;
+      var minPx = 8;
+      var time = note.querySelector('.n-time');
+      /* Espacio vertical disponible: alto del card - padding (12px) - gap + n-time */
+      var avail = note.clientHeight - 12 - (time ? time.offsetHeight + 3 : 0);
+      if (avail <= 0) return;
+      for (var px = maxPx; px >= minPx; px--) {
+        subj.style.fontSize = px + 'px';
+        if (subj.scrollHeight <= avail) break;
+      }
+    });
+  }
+  /* Esperar a que Caveat esté cargada antes de medir */
+  function runFit() {
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(fitNotes);
+    } else {
+      setTimeout(fitNotes, 400);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runFit);
+  } else {
+    runFit();
+  }
+
   var overlay=document.getElementById('modal-overlay');
   var colorMap={'n-info':'#e1eaee','n-olive':'#e8ecd4','n-warn':'#fae0bf','n-violet':'#e8dde6','n-tint':'#fbe7dc','n-pink':'#fadcd5'};
   function set(id,v){document.getElementById(id).textContent=v||'—';}
@@ -423,7 +463,7 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
       var d=note.dataset;
       set('modal-subj',d.subj);
       document.getElementById('modal-time').textContent=d.day+'  ·  '+d.time;
-      set('modal-day',d.day);set('modal-prof',d.prof);set('modal-room',d.room);set('modal-notes',d.notes);
+      set('modal-prof',d.prof);set('modal-room',d.room);set('modal-notes',d.notes);
       var cls=[].slice.call(note.classList).find(function(c){return c.indexOf('n-')===0;});
       document.getElementById('modal-bar').style.background=colorMap[cls]||'#e6dac6';
       overlay.classList.add('open');

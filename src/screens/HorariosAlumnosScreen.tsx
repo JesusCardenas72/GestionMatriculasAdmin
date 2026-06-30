@@ -315,16 +315,47 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       if (formatoDetectado) setModalFormatoDetectado(formatoDetectado);
 
       if (carga && carga.alumnos.length > 0) {
-        const existentes = new Set(carga.alumnos.map(a => a.clave));
-        const nuevos = alumnosEnriquecidos.filter(a => !existentes.has(a.clave));
+        const mapaExistentes = new Map(carga.alumnos.map(a => [a.clave, a]));
+        const nuevos: HorarioAlumno[] = [];
+        let clasesNuevasTotal = 0;
+
+        for (const alumnoNuevo of alumnosEnriquecidos) {
+          const existente = mapaExistentes.get(alumnoNuevo.clave);
+          if (!existente) {
+            nuevos.push(alumnoNuevo);
+          } else {
+            // Fusionar clases: añadir solo las que no estén ya (por idAlumnoAsignatura o asignatura+día+entrada)
+            const clavesExistentes = new Set(
+              existente.clases.map(c =>
+                c.idAlumnoAsignatura ?? `${c.asignatura}|${c.dia}|${c.entrada}`,
+              ),
+            );
+            const clasesAñadir = alumnoNuevo.clases.filter(c => {
+              const k = c.idAlumnoAsignatura ?? `${c.asignatura}|${c.dia}|${c.entrada}`;
+              return !clavesExistentes.has(k);
+            });
+            clasesNuevasTotal += clasesAñadir.length;
+            mapaExistentes.set(alumnoNuevo.clave, {
+              ...existente,
+              email: existente.email || alumnoNuevo.email,
+              telefono: existente.telefono || alumnoNuevo.telefono,
+              clases: [...existente.clases, ...clasesAñadir],
+            });
+          }
+        }
+
+        const alumnosMerged = [...mapaExistentes.values(), ...nuevos]
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+
         const merged: CargaHorarios = {
           fileName: res.fileName,
-          alumnos: [...carga.alumnos, ...nuevos].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+          alumnos: alumnosMerged,
           incompletas: carga.incompletas + res.incompletas,
         };
         setCarga(merged);
         if (nuevos.length > 0) setSelectedClave(nuevos[0].clave);
-        else setError("No hay alumnos nuevos en ese Excel (todos ya están cargados).");
+        else if (clasesNuevasTotal > 0) setError(`Fusionadas ${clasesNuevasTotal} clases nuevas en alumnos ya cargados.`);
+        else setError("No hay datos nuevos en ese Excel (todas las clases ya estaban cargadas).");
       } else {
         const cargaFinal: CargaHorarios = { ...res, alumnos: alumnosEnriquecidos };
         setCarga(cargaFinal);

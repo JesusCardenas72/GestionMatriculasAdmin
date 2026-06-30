@@ -25,12 +25,10 @@ import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/ampliacionUtils";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { solicitudALocal } from "../utils/solicitudALocal";
-import { construirCargaDesdeStore } from "../utils/horariosPersistencia";
-import { MENSAJE_HORARIO_DEFAULT, normNombre, enviarHorarioAlumno } from "../utils/horarioEnvio";
-import type { HorarioAlumno } from "../horarios/types";
-import { buildCursoLabel } from "../horarios/types";
-import { CalendarClock, Loader2, Send, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { normNombre } from "../utils/horarioEnvio";
 import { ConflictoNubeModal } from "../components/modals/ConflictoNubeModal";
+import ConfirmDialog from "../components/ConfirmDialog";
+import ProgressDialog from "../components/modals/ProgressDialog";
 
 
 function LocalEmailModal({
@@ -146,9 +144,21 @@ export default function LocalScreen({ config }: Props) {
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showHorarioModal, setShowHorarioModal] = useState(false);
   const [conflictoNube, setConflictoNube] = useState<{ local: MatriculaLocal; nube: Solicitud } | null>(null);
   const [isActualizandoDesdeNube, setIsActualizandoDesdeNube] = useState(false);
+
+  // Estados para diálogos de confirmación y progreso de nube
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    tone?: "primary" | "danger";
+    onConfirm: () => void;
+  } | null>(null);
+  const [progressDialog, setProgressDialog] = useState<{
+    title: string;
+    current: number;
+    total: number;
+  } | null>(null);
 
   // Auto-sincronización: descarga matrículas telemáticas de Dataverse que no estén en local
   // (estados: Pendiente de tramitación, Pendiente de validación y Tramitado)
@@ -243,7 +253,7 @@ export default function LocalScreen({ config }: Props) {
         }
       }
     }
-    const obsoletos = [...obsoletosSet];
+    const obsoletos: string[] = [...obsoletosSet];
 
     // Detecta registros que ya existen en local pero que la nube ha modificado desde
     // la última sincronización (compara modifiedon de Dataverse con _nubeModificadoEn).
@@ -273,7 +283,7 @@ export default function LocalScreen({ config }: Props) {
     }
 
     const conservados = new Set<string>();
-    const obsoletos: string[] = [];
+    const huerfanos: string[] = [];
     if (listaCompleta) {
       for (const m of matriculas) {
         if (m.esTemporal) continue; // placeholder de horarios, nunca existe en la nube
@@ -295,6 +305,8 @@ export default function LocalScreen({ config }: Props) {
         conservados.add(m.rowId);
       }
     }
+
+    obsoletos.push(...huerfanos);
 
     if (nuevas.length === 0 && obsoletos.length === 0 && actualizadas.length === 0) return;
 
@@ -889,16 +901,28 @@ export default function LocalScreen({ config }: Props) {
   async function handleSubirNubeTodo() {
     const pendientes = matriculas.filter((m) => m._pendienteSubida && !m.esTemporal);
     if (pendientes.length === 0) return;
+    setConfirmDialog({
+      title: "Subir todo a la nube",
+      message: `Se subirán ${pendientes.length} matrícula${pendientes.length > 1 ? "s" : ""} pendiente${pendientes.length > 1 ? "s" : ""} a Dataverse.\n\n¿Desea continuar?`,
+      onConfirm: () => ejecutarSubirNubeTodo(pendientes),
+    });
+  }
+
+  async function ejecutarSubirNubeTodo(pendientes: MatriculaLocal[]) {
+    setConfirmDialog(null);
     setIsSubiendoTodo(true);
     setSubirTodoError(null);
+    setProgressDialog({ title: "Subiendo a la nube…", current: 0, total: pendientes.length });
     let errores = 0;
-    for (const m of pendientes) {
+    for (let i = 0; i < pendientes.length; i++) {
       try {
-        await doSubirNube(m);
+        await doSubirNube(pendientes[i]);
       } catch {
         errores++;
       }
+      setProgressDialog({ title: "Subiendo a la nube…", current: i + 1, total: pendientes.length });
     }
+    setProgressDialog(null);
     setIsSubiendoTodo(false);
     if (errores > 0) {
       setSubirTodoError(`${errores} matrícula${errores > 1 ? "s" : ""} no se pudo${errores > 1 ? "ieron" : ""} subir`);
@@ -908,22 +932,29 @@ export default function LocalScreen({ config }: Props) {
   async function handleForzarSubidaTodo() {
     const todos = matriculas.filter((m) => !m.esTemporal && m.rowId);
     if (todos.length === 0) return;
-    const confirmado = window.confirm(
-      `¿Subir TODOS los registros locales a la nube (${todos.length})?\n\n` +
-      `Esto sobreescribirá los datos de Dataverse con los valores actuales en local, ` +
-      `incluyendo correcciones de formato de apellidos. La operación puede tardar varios minutos.`,
-    );
-    if (!confirmado) return;
+    setConfirmDialog({
+      title: "Forzar subida completa",
+      message: `¿Subir TODOS los registros locales a la nube (${todos.length})?\n\nEsto sobreescribirá los datos de Dataverse con los valores actuales en local, incluyendo correcciones de formato de apellidos. La operación puede tardar varios minutos.`,
+      tone: "danger",
+      onConfirm: () => ejecutarForzarSubidaTodo(todos),
+    });
+  }
+
+  async function ejecutarForzarSubidaTodo(todos: MatriculaLocal[]) {
+    setConfirmDialog(null);
     setIsSubiendoTodo(true);
     setSubirTodoError(null);
+    setProgressDialog({ title: "Forzando subida completa…", current: 0, total: todos.length });
     let errores = 0;
-    for (const m of todos) {
+    for (let i = 0; i < todos.length; i++) {
       try {
-        await doSubirNube(m);
+        await doSubirNube(todos[i]);
       } catch {
         errores++;
       }
+      setProgressDialog({ title: "Forzando subida completa…", current: i + 1, total: todos.length });
     }
+    setProgressDialog(null);
     setIsSubiendoTodo(false);
     if (errores > 0) {
       setSubirTodoError(`${errores} registro${errores > 1 ? "s" : ""} no se pudo${errores > 1 ? "ieron" : ""} subir`);
@@ -933,8 +964,20 @@ export default function LocalScreen({ config }: Props) {
   async function handleDescargarNube() {
     if (!selected || !selected.rowId || selected.esTemporal) return;
     if (selected._pendienteSubida) {
-      if (!window.confirm("Este registro tiene cambios sin subir. Si continúas, se perderán. ¿Descargar de todas formas?")) return;
+      setConfirmDialog({
+        title: "Descargar desde la nube",
+        message: "Este registro tiene cambios sin subir. Si continúas, se perderán.\n\n¿Descargar de todas formas?",
+        tone: "danger",
+        onConfirm: () => ejecutarDescargarNube(),
+      });
+      return;
     }
+    await ejecutarDescargarNube();
+  }
+
+  async function ejecutarDescargarNube() {
+    if (!selected || !selected.rowId) return;
+    setConfirmDialog(null);
     setIsSaving(true);
     try {
       const pdfKey = selected.rowId;
@@ -959,19 +1002,30 @@ export default function LocalScreen({ config }: Props) {
     if (conRowId.length === 0) return;
     const pendientes = conRowId.filter((m) => m._pendienteSubida);
     const aviso = pendientes.length > 0
-      ? `${pendientes.length} matrícula${pendientes.length > 1 ? "s tienen" : " tiene"} cambios sin subir y se perderán. `
+      ? `${pendientes.length} matrícula${pendientes.length > 1 ? "s tienen" : " tiene"} cambios sin subir y se perderán.\n\n`
       : "";
-    if (!window.confirm(`${aviso}Se borrarán ${conRowId.length} registros locales y se volverán a descargar desde la nube. ¿Continuar?`)) return;
+    setConfirmDialog({
+      title: "Descargar todo desde la nube",
+      message: `${aviso}Se borrarán ${conRowId.length} registros locales y se volverán a descargar desde Dataverse.\n\n¿Desea continuar?`,
+      tone: pendientes.length > 0 ? "danger" : "primary",
+      onConfirm: () => ejecutarDescargarTodo(conRowId),
+    });
+  }
+
+  async function ejecutarDescargarTodo(conRowId: MatriculaLocal[]) {
+    setConfirmDialog(null);
     setIsDescargandoTodo(true);
     setDescargarTodoError(null);
     setSelected(null);
+    setProgressDialog({ title: "Descargando desde la nube…", current: 0, total: conRowId.length });
     try {
-      await Promise.allSettled(
-        conRowId.map(async (m) => {
-          await cursosStore.eliminarPdf(curso, m.rowId!);
-          await eliminar(m.localId);
-        }),
-      );
+      for (let i = 0; i < conRowId.length; i++) {
+        const m = conRowId[i];
+        await cursosStore.eliminarPdf(curso, m.rowId!);
+        await eliminar(m.localId);
+        setProgressDialog({ title: "Descargando desde la nube…", current: i + 1, total: conRowId.length });
+      }
+      setProgressDialog({ title: "Sincronizando con Dataverse…", current: conRowId.length, total: conRowId.length });
       await Promise.all([
         pendienteTramitacionQuery.refetch(),
         pendienteValidacionQuery.refetch(),
@@ -980,6 +1034,7 @@ export default function LocalScreen({ config }: Props) {
     } catch {
       setDescargarTodoError("Error al limpiar los datos locales");
     } finally {
+      setProgressDialog(null);
       setIsDescargandoTodo(false);
     }
   }
@@ -1263,16 +1318,6 @@ export default function LocalScreen({ config }: Props) {
           onClose={() => setShowEmailModal(false)}
         />
       )}
-      {showHorarioModal && selected && (
-        <LocalHorarioEmailModal
-          matricula={selected}
-          candidatosNombre={candidatosNombreHorario}
-          config={config}
-          curso={curso}
-          open={showHorarioModal}
-          onClose={() => setShowHorarioModal(false)}
-        />
-      )}
       {conflictoNube && (
         <ConflictoNubeModal
           local={conflictoNube.local}
@@ -1281,6 +1326,26 @@ export default function LocalScreen({ config }: Props) {
           onActualizarDesdeNube={() => void handleActualizarDesdeNube(conflictoNube.local, conflictoNube.nube)}
           onCancelar={() => setConflictoNube(null)}
           isLoading={isSaving || isActualizandoDesdeNube}
+        />
+      )}
+      {confirmDialog && (
+        <ConfirmDialog
+          open
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          tone={confirmDialog.tone}
+          confirmLabel="Continuar"
+          cancelLabel="Cancelar"
+          onConfirm={() => void confirmDialog.onConfirm()}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
+      {progressDialog && (
+        <ProgressDialog
+          open
+          title={progressDialog.title}
+          current={progressDialog.current}
+          total={progressDialog.total}
         />
       )}
     </>

@@ -45,7 +45,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, Download, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -162,7 +162,7 @@ export default function LocalDetail({
   onSubirNube,
   onSubirNubeTodo,
   pendingUploads = 0,
-  onGenerarPdf,
+  onGenerarPdf: _unusedGenerarPdf,
   onBorrar,
   onEnviarCorreo,
   onEnviarHorario,
@@ -229,24 +229,6 @@ export default function LocalDetail({
     return { realLocalId: real.localId, revisada: !!real.discrepanciaRevisada };
   }, [m, sustitutoReal, todosTemporales]);
 
-  async function abrirVisorPdf() {
-    if (pdfBase64Preview) {
-      setShowPdfPreview(true);
-      return;
-    }
-    setLoadingPdf(true);
-    try {
-      let base64 = await cursosStore.leerPdf(curso, pdfKey);
-      if (!base64 && m.localId) {
-        base64 = await cursosStore.leerPdf(curso, m.localId);
-      }
-      if (!base64) return;
-      setPdfBase64Preview(base64);
-      setShowPdfPreview(true);
-    } finally {
-      setLoadingPdf(false);
-    }
-  }
 
   async function loadInlinePdf() {
     if (pdfBase64Preview && showInlinePdf) {
@@ -757,7 +739,7 @@ export default function LocalDetail({
                   >
                     <button
                       type="button"
-                      onClick={() => { if (!readOnly) { onSubirNube(); setMenuOpen(false); } }}
+                      onClick={() => { if (!readOnly) { onSubirNube(); setMenuOpen(false); }}}
                       disabled={isSaving || !m._pendienteSubida || readOnly}
                       title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
                       className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"

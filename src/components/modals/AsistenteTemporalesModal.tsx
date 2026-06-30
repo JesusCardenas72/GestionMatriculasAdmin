@@ -39,7 +39,7 @@ import {
   type HuerfanaAlmacen,
 } from "../../utils/horariosPersistencia";
 import { cargarExcelHorarios } from "../../utils/horariosCarga";
-import { validarFilasCrudas, aplicarCorreccionesHorario } from "../../utils/validarHorariosCargados";
+import { aplicarCorreccionesHorario } from "../../utils/validarHorariosCargados";
 import { ModalCorreccionHorarios } from "./ModalCorreccionHorarios";
 import { ModalComprobacionCoherencia } from "./ModalComprobacionCoherencia";
 import { comprobarCoherenciaLocalHorario, type ComprobacionCoherencia } from "../../utils/comprobarCoherencia";
