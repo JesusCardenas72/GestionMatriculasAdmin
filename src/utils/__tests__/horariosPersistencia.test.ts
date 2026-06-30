@@ -70,6 +70,7 @@ function filaInforme(nOrden: number, asigNombre: string, nombre = "Test, Test"):
     cp: null,
     fechaInscripcion: "",
     createdon: "",
+    modifiedon: "",
     cursoEscolar: "25/26",
     ensenanzaCurso: "EP1",
     especialidad: "Piano",

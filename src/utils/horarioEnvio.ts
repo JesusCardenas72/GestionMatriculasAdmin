@@ -1,5 +1,6 @@
 import type { AppConfig } from '../../electron/config-store';
-import type { HorarioAlumno } from '../horarios/types';
+import type { HorarioAlumno, FormatoHorario } from '../horarios/types';
+import { FORMATO_HORARIO_DEFAULT } from '../horarios/types';
 import { buildHorarioHtml } from './horarioTemplate';
 import { buildHorarioEmailHtml } from './horarioEmailTemplate';
 import { enviarEmailHorario } from '../api/horarios';
@@ -32,6 +33,8 @@ export interface OpcionesEnvioHorario {
   adjuntoFormulario?: boolean;
   /** Archivo personalizado del PC para adjuntar (base64 + nombre de fichero). */
   adjuntoPersonalizado?: { nombre: string; base64: string };
+  /** Formato visual del horario adjunto (PDF + HTML). Por defecto "notas". */
+  formato?: FormatoHorario;
 }
 
 /**
@@ -56,7 +59,7 @@ export async function enviarHorarioAlumno(
       ? { ...alumno, clases: alumno.clases.filter(c => opciones.asignaturas!.includes(c.asignatura)) }
       : alumno;
 
-  const horarioHtml = buildHorarioHtml(alumnoFiltrado, anio);
+  const horarioHtml = buildHorarioHtml(alumnoFiltrado, anio, opciones?.formato ?? FORMATO_HORARIO_DEFAULT);
   const emailHtml = buildHorarioEmailHtml(alumnoFiltrado, anio, mensaje?.trim() || undefined);
   const nombreBase = `Horario ${alumno.nombre}`.replace(/[\\/:*?"<>|]/g, '_');
 

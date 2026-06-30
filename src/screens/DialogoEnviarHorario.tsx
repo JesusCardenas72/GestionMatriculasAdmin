@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import type { MatriculaLocal } from "../api/types";
-import { buildCursoLabel } from "../horarios/types";
-import type { HorarioAlumno } from "../horarios/types";
+import { buildCursoLabel, FORMATO_HORARIO_DEFAULT } from "../horarios/types";
+import type { HorarioAlumno, FormatoHorario } from "../horarios/types";
 import { construirCargaDesdeStore } from "../utils/horariosPersistencia";
 import {
   MENSAJE_HORARIO_DEFAULT,
@@ -54,6 +54,10 @@ export function DialogoEnviarHorario() {
   const [adjuntoHtml, setAdjuntoHtml] = useState(true);
   const [adjuntoFormulario, setAdjuntoFormulario] = useState(false);
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
+  const [formato, setFormato] = useState<FormatoHorario>(() => {
+    const saved = localStorage.getItem("horario:formato");
+    return saved === "clasico" || saved === "notas" ? saved : FORMATO_HORARIO_DEFAULT;
+  });
   const fileInputRefHorario = useRef<HTMLInputElement>(null);
 
   // Aplicar tema del localStorage (igual que App.tsx / DialogoCorreccionHorarios)
@@ -116,6 +120,7 @@ export function DialogoEnviarHorario() {
         adjuntoPdf,
         adjuntoHtml,
         adjuntoFormulario,
+        formato,
         adjuntoPersonalizado: adjuntoPersonalizado ?? undefined,
         asignaturas: asignaturasSeleccionadas.size < todasAsignaturas.size
           ? [...asignaturasSeleccionadas]
@@ -225,6 +230,37 @@ export function DialogoEnviarHorario() {
                 </div>
               );
             })()}
+
+            {/* Formato del horario */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "var(--tc-ink-mute)" }}>
+                Formato del horario
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: "notas", titulo: "Notas adhesivas", desc: "Colorido, hecho a mano" },
+                  { id: "clasico", titulo: "Clásico", desc: "Sobrio, con logos" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    disabled={enviando || enviado}
+                    onClick={() => setFormato(opt.id)}
+                    className={
+                      "text-left px-3 py-2 rounded-lg border text-sm transition disabled:opacity-50 " +
+                      (formato === opt.id
+                        ? "border-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
+                        : "border-[var(--tc-border)] bg-[var(--tc-bg)] hover:bg-[var(--tc-bg-panel)]")
+                    }
+                  >
+                    <span className="block font-semibold" style={{ color: formato === opt.id ? "var(--tc-primary)" : "var(--tc-ink)" }}>
+                      {opt.titulo}
+                    </span>
+                    <span className="block text-[11px]" style={{ color: "var(--tc-ink-mute)" }}>{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Selección de archivos adjuntos */}
             <div>

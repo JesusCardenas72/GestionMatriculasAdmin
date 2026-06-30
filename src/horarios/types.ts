@@ -49,6 +49,16 @@ export function buildCursoLabel(ensenanzaCurso: string, especialidad: string): s
   return especialidad ? `${base} de ${especialidad}` : base;
 }
 
+/**
+ * Estilo visual del horario individual:
+ *   - "notas"   → notas adhesivas (rotulador, papel pegado). Por defecto.
+ *   - "clasico" → cabecera con logos, tipografía serif elegante.
+ */
+export type FormatoHorario = 'clasico' | 'notas';
+
+/** Formato que se usa cuando no se indica otro (pantalla, descarga y email). */
+export const FORMATO_HORARIO_DEFAULT: FormatoHorario = 'notas';
+
 /** Resultado de leer y agrupar un Excel relleno. */
 export interface CargaHorarios {
   fileName: string;

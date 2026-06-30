@@ -28,6 +28,7 @@ function fila(
     cp: null,
     fechaInscripcion: "",
     createdon: "",
+    modifiedon: "",
     cursoEscolar: "25/26",
     ensenanzaCurso,
     especialidad,

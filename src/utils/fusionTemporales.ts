@@ -83,6 +83,7 @@ function buildFila(m: MatriculaLocal, estado: EstadoTramite): FilaInforme {
     cp: m.cp,
     fechaInscripcion: m.fechaInscripcion,
     createdon: m.createdon,
+    modifiedon: m._modificadoEn ?? m.createdon,
     cursoEscolar: m.cursoEscolar,
     ensenanzaCurso: m.ensenanzaCurso,
     especialidad: m.especialidad,

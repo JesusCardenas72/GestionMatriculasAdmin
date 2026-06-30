@@ -9,6 +9,20 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.5.0] - 2026-06-30
+
+### Añadido
+
+- **Nuevo formato de horario "Notas adhesivas"**: el horario individual puede mostrarse con un diseño tipo tablón de corcho — título a rotulador **"HORARIO SEMANAL (Curso escolar 26/27)"** (el curso se actualiza solo cada año), cuadrícula con bordes gruesos y cada clase como una nota de color con efecto de papel pegado y cinta adhesiva. Tipografías Permanent Marker + Caveat.
+- **Elección de formato (Notas adhesivas / Clásico)**: se puede elegir entre los dos diseños tanto en la **vista previa en pantalla** (conmutador en la barra superior, se recuerda entre sesiones) como en el **envío por email** (selector en las ventanas de envío individual y de campaña). El formato por defecto es "Notas adhesivas".
+- **Fuentes incrustadas**: las tipografías del nuevo formato viajan dentro del PDF y del HTML, de modo que el alumno ve la letra correcta aunque abra el horario sin conexión a internet.
+
+### Cambiado
+
+- **Lógica de parrilla compartida**: la colocación de clases en la cuadrícula (medias horas, clases de varias horas, huecos "sin clases") se ha extraído a un módulo común que usan los dos formatos, evitando duplicar código.
+
+---
+
 ## [1.4.0] - 2026-06-29
 
 ### Añadido
