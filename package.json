@@ -1,6 +1,6 @@
 {
   "name": "gestion-matriculas-admin",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "private": true,
   "description": "App de escritorio para administradores de solicitudes de matricula",
   "main": "dist-electron/main.js",
