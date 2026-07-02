@@ -35,6 +35,11 @@ export interface HorarioAlumno {
   /** Especialidad / instrumento (cabecera "Instrumento"). */
   especialidad: string;
   clases: ClaseHorario[];
+  /**
+   * Profesor de la asignatura Instrumento, aunque esa fila del Excel aún no
+   * tenga día/hora asignados (y por tanto no genere ninguna ClaseHorario).
+   */
+  profesorInstrumento?: string;
 }
 
 /**
@@ -63,7 +68,7 @@ export const FORMATO_HORARIO_DEFAULT: FormatoHorario = 'notas';
 export interface CargaHorarios {
   fileName: string;
   alumnos: HorarioAlumno[];
-  /** Filas con profesor pero a las que les faltó algún dato obligatorio (aviso). */
+  /** Filas de alumno con algún dato obligatorio de horario incompleto (aviso). */
   incompletas: number;
 }
 

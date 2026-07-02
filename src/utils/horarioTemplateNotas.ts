@@ -39,9 +39,25 @@ function rangoHoras(entrada: string, salida: string): string {
 }
 
 export function buildHorarioNotasHtml(alumno: HorarioAlumno, anio: string): string {
-  const { asigResumen, totalMinutos, nDias, ocup, hourSlots, groups } = computeHorarioGrid(alumno);
+  const { asigResumen, totalMinutos, nDias, ocup, hourSlots, groups, nHours } = computeHorarioGrid(alumno);
 
   const colorMap = new Map(asigResumen.map(([nombre], i) => [nombre, PALETA[i % PALETA.length]]));
+
+  // ── Presupuesto de alto para que la parrilla quepa siempre en una sola hoja
+  // A4 apaisado (210mm de alto) al imprimir/exportar a PDF. El título, los datos
+  // del alumno, la cabecera de la tabla y el resumen de asignaturas ocupan un
+  // alto fijo aproximado; el resto se reparte entre las filas de horas (más los
+  // separadores "sin clases"), con un mínimo legible por fila.
+  const sepCount = groups.filter(g => g === 'sep').length;
+  const SEP_ALTO_MM = 6;
+  const ALTO_DISPONIBLE_FILAS_MM = 124;
+  // Mínimo 12mm: por debajo, una celda partida en dos (clases de 30 min) deja
+  // demasiado poco alto útil a cada mitad para su nota, aunque la geometría de
+  // la nota en impresión ya es proporcional (ver .note.pos-top/pos-bottom).
+  const altoFilaMm = Math.min(
+    18,
+    Math.max(12, (ALTO_DISPONIBLE_FILAS_MM - sepCount * SEP_ALTO_MM) / Math.max(nHours, 1)),
+  );
 
   const asigGridHtml = asigResumen.map(([nombre, minutos]) => `
     <div class="asig-row ${colorMap.get(nombre) ?? PALETA[0]}" data-subj="${esc(nombre)}">
@@ -187,7 +203,8 @@ td.cell{height:88px;background:var(--bg);vertical-align:top;padding:0;overflow:v
   width:36px;height:14px;background:rgba(240,230,190,.65);border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,.12);z-index:3;}
 .note .tr{font-family:var(--font-hand);font-size:15px;font-weight:600;opacity:.65;line-height:1;}
 .note .subj{font-family:var(--font-marker);font-size:16px;text-align:center;line-height:1.15;
-  text-transform:uppercase;color:var(--ink);overflow:hidden;}
+  text-transform:uppercase;color:var(--ink);overflow:hidden;width:100%;
+  overflow-wrap:anywhere;word-break:break-word;}
 .note.is-breve{padding:4px 8px;}
 /* Colores */
 .n-blue{background-color:var(--blue);}.n-green{background-color:var(--green);}
@@ -242,9 +259,46 @@ tr.sep-row td{height:30px;padding:0;border:none !important;background:transparen
   border-bottom:2px solid var(--border-soft);padding:2px 0 3px;line-height:1.25;min-height:26px;}
 @page{size:A4 landscape;margin:0;}
 @media print{
-  body{background:#fff;padding:0;margin:0;}
-  .page{box-shadow:none;width:100%;padding:20px 26px;}
-  .title{font-size:36px;}
+  html,body{background:#fff;}
+  body{padding:0;margin:0;}
+  .page{
+    box-shadow:none;background:#fff;background-image:none;
+    width:297mm;height:210mm;padding:8mm 10mm;
+  }
+  .page::before{display:none;}
+  .title{font-size:26px;margin:0 0 3mm;}
+  .title .title-year{font-size:15px;}
+  .info{margin-bottom:3mm;}
+  .info-row{font-size:14px;margin-bottom:1.5mm;}
+  .lbl{font-size:12px;}
+  .val{font-size:14px;min-width:100px;padding:0 4px 1px;}
+  .sep{margin:0;}
+  table.tt{margin-top:2mm;}
+  table.tt thead th{font-size:12px;padding:1.5mm 1mm;}
+  td.time{font-size:10px;width:16mm;}
+  td.time br{line-height:.5;}
+  td.cell,td.time{height:${altoFilaMm.toFixed(2)}mm;}
+  tr.sep-row td{height:${SEP_ALTO_MM}mm;}
+  .sep-inner{height:${SEP_ALTO_MM}mm;}
+  .sep-inner::before{top:4px;}
+  .sep-inner::after{bottom:4px;}
+  .sep-label{font-size:9px;letter-spacing:2px;}
+  /* Geometría de las notas en % (no en px fijos): con filas más bajas para
+     caber en una hoja, un margen fijo en px se comería casi toda la nota. */
+  .note{padding:3px 5px;}
+  .note.pos-full{top:4%;bottom:4%;left:5%;right:5%;}
+  .note.pos-top{top:4%;left:5%;right:5%;height:46%;}
+  .note.pos-bottom{top:50%;left:5%;right:5%;bottom:4%;}
+  .note.pos-bottom-tall{top:22%;left:5%;right:5%;bottom:4%;}
+  .note.taped::after{top:-6px;width:26px;height:10px;}
+  .note .tr{font-size:9px;}
+  .asig-section{margin-top:3mm;padding-top:2mm;}
+  .asig-header{margin-bottom:1.5mm;}
+  .asig-title,.asig-total{font-size:12px;}
+  .asig-grid{gap:1mm;grid-template-columns:repeat(auto-fill,minmax(38mm,1fr));}
+  .asig-row{padding:1mm 2mm;}
+  .asig-nombre{font-size:10px;}
+  .asig-horas{font-size:12px;}
   .note{box-shadow:1px 2px 4px rgba(0,0,0,.16);}
   .modal-overlay{display:none !important;}
 }
@@ -305,27 +359,51 @@ tr.sep-row td{height:30px;padding:0;border:none !important;background:transparen
 </div>
 
 <script>
-  /* Ajuste dinámico del tamaño de la asignatura en cada nota */
+  /* Ajuste dinámico del tamaño de la asignatura en cada nota. Si ni al tamaño
+     mínimo cabe (asignatura larga en una nota partida arriba/abajo), se oculta
+     la hora para dejarle todo el hueco al nombre y evitar que el texto se corte. */
   function fitNotes(){
     document.querySelectorAll('.note').forEach(function(note){
       var subj=note.querySelector('.subj');
       if(!subj)return;
-      var isBreve=note.classList.contains('is-breve');
-      var maxPx=isBreve?14:22;
-      var minPx=8;
       var tr=note.querySelector('.tr');
-      var avail=note.clientHeight-12-(tr?tr.offsetHeight+1:0);
-      if(avail<=0)return;
-      for(var px=maxPx;px>=minPx;px--){
-        subj.style.fontSize=px+'px';
-        if(subj.scrollHeight<=avail)break;
+      var isBreve=note.classList.contains('is-breve');
+      var maxPx=isBreve?13:18;
+      function avail(){
+        var trH=(tr&&tr.style.display!=='none')?tr.offsetHeight+1:0;
+        return note.clientHeight-12-trH;
       }
+      function shrinkTo(minPx){
+        var a=avail();
+        // Aunque no quede hueco, fijamos el tamaño mínimo: dejar el tamaño por
+        // defecto (mayor) haría que el texto quedara totalmente invisible en
+        // vez de simplemente apretado.
+        subj.style.fontSize=minPx+'px';
+        if(a<=0)return false;
+        for(var px=maxPx;px>=minPx;px--){
+          subj.style.fontSize=px+'px';
+          if(subj.scrollHeight<=a)return true;
+        }
+        return false;
+      }
+      if(shrinkTo(8))return;
+      if(tr&&tr.style.display!=='none'){
+        tr.style.display='none';
+        if(shrinkTo(8))return;
+      }
+      shrinkTo(6);
     });
   }
   function runFit(){
-    if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fitNotes);}else{setTimeout(fitNotes,400);}
+    return new Promise(function(resolve){
+      function listo(){ fitNotes(); resolve(); }
+      if(document.fonts&&document.fonts.ready){document.fonts.ready.then(listo,listo);}else{setTimeout(listo,400);}
+    });
   }
-  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',runFit);}else{runFit();}
+  window.__pdfReady=(document.readyState==='loading'
+    ? new Promise(function(res){document.addEventListener('DOMContentLoaded',res);})
+    : Promise.resolve()
+  ).then(runFit);
 
   var overlay=document.getElementById('modal-overlay');
   var colorMap=${JSON.stringify(COLOR_HEX)};

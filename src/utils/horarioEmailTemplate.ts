@@ -24,7 +24,7 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
   const claseInstrumento = alumno.clases.find(c =>
     c.asignatura.toLowerCase().includes('instrumento')
   );
-  const tutor = claseInstrumento?.profesor?.trim() ||
+  const tutor = alumno.profesorInstrumento?.trim() || claseInstrumento?.profesor?.trim() ||
     'No disponible. Será asignado por la Delegación de Educación';
 
   const nClases = alumno.clases.length;
@@ -87,8 +87,8 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
         <p style="margin:0;font-size:19px;color:#0f172a;font-weight:700;">Estimado/a ${esc(alumno.nombre)},</p>
         <p style="margin:14px 0 0;font-size:15px;color:#475569;line-height:1.75;">
           Adjunto a este correo encontrarás tu
-          <strong style="color:#6d28d9;background:#ede9fe;padding:2px 7px;border-radius:5px;">horario semanal de clases</strong>
-          para el presente curso escolar. El horario se ha generado con las asignaciones realizadas por el equipo docente.
+          <strong style="color:#6d28d9;background:#ede9fe;padding:2px 7px;border-radius:5px;">horario semanal de clases</strong>.
+          El horario se ha generado con las asignaciones realizadas por el equipo docente.
         </p>
         ${mensajePersonalizado ? `
         <div style="margin:18px 0 0;padding:16px 20px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;">
@@ -181,16 +181,6 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
             </td>
           </tr>
         </table>
-      </td>
-    </tr>
-
-    <!-- DIRECTORIO PROFESORADO -->
-    <tr>
-      <td style="padding:28px 40px 0;text-align:center;">
-        <a href="https://www.conservatoriociudadreal.es/profesorado/"
-          style="display:inline-block;padding:13px 28px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:30px;box-shadow:0 4px 14px rgba(109,40,217,0.35);letter-spacing:0.3px;">
-          👨‍🏫 &nbsp;Directorio Profesorado
-        </a>
       </td>
     </tr>
 

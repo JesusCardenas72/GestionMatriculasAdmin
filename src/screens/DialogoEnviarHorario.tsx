@@ -52,7 +52,7 @@ export function DialogoEnviarHorario() {
   const [asignaturasSeleccionadas, setAsignaturasSeleccionadas] = useState<Set<string>>(new Set());
   const [adjuntoPdf, setAdjuntoPdf] = useState(true);
   const [adjuntoHtml, setAdjuntoHtml] = useState(true);
-  const [adjuntoFormulario, setAdjuntoFormulario] = useState(false);
+  const [adjuntoFormulario, setAdjuntoFormulario] = useState(true);
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
   const [formato, setFormato] = useState<FormatoHorario>(() => {
     const saved = localStorage.getItem("horario:formato");

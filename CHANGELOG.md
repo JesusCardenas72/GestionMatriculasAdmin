@@ -9,6 +9,24 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.5.2] - 2026-07-02
+
+### Corregido
+
+- **Campos de texto/búsqueda que dejaban de responder al clic**: al cerrar una ventana secundaria (corrección de horarios, envío individual, envío de campaña, visor de PDF), la ventana principal recuperaba el foco de teclado pero Chromium no siempre reactivaba el foco del campo bajo el cursor, por lo que a veces no se podía escribir ni pulsar en un buscador o formulario hasta hacer clic en otro sitio. Ahora se reactiva el foco de la ventana principal explícitamente al cerrarse cada ventana secundaria.
+
+---
+
+## [1.5.1] - 2026-07-01
+
+### Corregido
+
+- **PDF de horario a dos hojas**: el PDF de horario individual (formatos "Notas adhesivas" y "Clásico") podía salir en dos hojas A4 apaisadas en vez de una, porque el alto de cada fila de la cuadrícula era fijo independientemente del número de horas del alumno. Ahora, al exportar a PDF, el alto de fila se calcula para que la parrilla completa quepa siempre en una sola hoja.
+- **Texto de las asignaturas cortado en las notas**: en clases de media hora (nota partida en dos) o con nombres de asignatura largos, el texto podía quedar cortado por arriba/abajo o por los lados. Se ha mejorado el ajuste automático de la letra (oculta la hora si hace falta sitio, permite partir palabras largas) y se ha corregido la geometría de las notas partidas para que no se aplasten al reducir el alto de fila.
+- **Generación del PDF**: ahora se espera a que las fuentes y el ajuste de texto terminen antes de capturar el PDF, evitando que se generara con el tamaño de letra por defecto (más grande) en vez del ya ajustado.
+
+---
+
 ## [1.5.0] - 2026-06-30
 
 ### Añadido

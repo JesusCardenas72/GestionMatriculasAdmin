@@ -680,6 +680,21 @@ function registerIpcHandlers() {
         return { success: false, error: (err as Error).message };
       }
 
+      // Si la plantilla expone `window.__pdfReady` (horarios: fuentes cargadas +
+      // ajuste dinámico del texto de las notas), esperamos a que resuelva antes
+      // de capturar el PDF, con un margen de seguridad por si nunca resolviera.
+      try {
+        await Promise.race([
+          pdfWin.webContents.executeJavaScript(
+            "(window.__pdfReady || Promise.resolve())",
+            true,
+          ),
+          new Promise((resolve) => setTimeout(resolve, 2000)),
+        ]);
+      } catch {
+        /* si la espera falla, seguimos igualmente con el PDF ya cargado */
+      }
+
       try {
         const pdfBuffer = await pdfWin.webContents.printToPDF({
           pageSize: "A4",
@@ -1092,6 +1107,14 @@ function registerIpcHandlers() {
           } catch {
             /* empty */
           }
+          // Al cerrar una ventana hija, Windows devuelve el foco de teclado a la
+          // ventana principal pero Chromium no siempre reactiva el foco del campo
+          // en el que estaba el cursor: forzamos el refoco para evitar que los
+          // campos de texto/búsqueda queden "sordos" hasta el siguiente clic.
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
         });
 
         await viewWin.loadFile(tmpPath);
@@ -1142,6 +1165,11 @@ function registerIpcHandlers() {
         // Si el usuario cierra la ventana directamente → cancelar
         dialogWin.on("closed", () => {
           if (dialogResolvers.has(dialogId)) cleanup(null);
+          // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
         });
 
         const hash = `dialog-correccion?id=${encodeURIComponent(dialogId)}`;
@@ -1182,6 +1210,11 @@ function registerIpcHandlers() {
 
       enviarWin.on("closed", () => {
         dialogData.delete(dialogId);
+        // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+        if (win && !win.isDestroyed()) {
+          win.focus();
+          win.webContents.focus();
+        }
       });
 
       const hash = `dialog-enviar-horario?id=${encodeURIComponent(dialogId)}`;
@@ -1221,6 +1254,11 @@ function registerIpcHandlers() {
 
       campWin.on("closed", () => {
         dialogData.delete(dialogId);
+        // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+        if (win && !win.isDestroyed()) {
+          win.focus();
+          win.webContents.focus();
+        }
       });
 
       const hash = `dialog-enviar-campanya?id=${encodeURIComponent(dialogId)}`;

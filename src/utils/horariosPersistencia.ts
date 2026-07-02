@@ -217,17 +217,44 @@ function construirAliasFantasma(matriculas: MatriculaLocal[]): AliasFantasma {
  * Los emails quedan vacíos (el almacén no los guarda); se completan luego al
  * enriquecer con las matrículas locales.
  */
+/**
+ * Busca en el almacén el profesor de Instrumento de un alumno (nombre completo
+ * "Apellidos, Nombre" + enseñanza/curso + especialidad), aunque esa entrada
+ * todavía no tenga día/hora asignados. Se usa en la ficha Local para mostrar
+ * el Tutor/a en el encabezado sin depender de que el horario esté completo.
+ */
+export function buscarProfesorInstrumento(
+  data: HorariosCursoData,
+  nombreCompleto: string,
+  ensenanzaCurso: string,
+  especialidad: string,
+): string | null {
+  const nNombre = norm(nombreCompleto);
+  const nCurso = norm(ensenanzaCurso);
+  const nEsp = norm(especialidad);
+  const entry = data.entries.find(
+    (e) =>
+      norm(e.nombreCompleto) === nNombre &&
+      norm(e.ensenanzaCurso) === nCurso &&
+      norm(e.especialidad) === nEsp &&
+      e.asignatura.toLowerCase().includes("instrumento") &&
+      (e.h.h_prof ?? "").trim() !== "",
+  );
+  return entry ? entry.h.h_prof!.trim() : null;
+}
+
 export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios {
   const mapa = new Map<string, HorarioAlumno>();
   let incompletas = 0;
 
   for (const entry of data.entries) {
     const h = sanearValoresH(entry.h);
-    const profesor = (h.h_prof ?? "").trim();
-    if (!profesor) continue; // sin profesor → fila sin clase asignada
-
     const nombre = entry.nombreCompleto;
     if (!norm(nombre)) continue;
+
+    // El profesor puede faltar (aún no asignado): la clase se mantiene igual,
+    // mostrando "Sin Asignar" en vez de descartar la fila por completo.
+    const profesor = (h.h_prof ?? "").trim() || "Sin Asignar";
     const ensenanzaCurso = entry.ensenanzaCurso;
     const especialidad = entry.especialidad;
 
@@ -251,6 +278,12 @@ export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios
     const asignatura = entry.asignatura || "Clase";
     const aula = (h.h_aula ?? "").trim();
     const grupo = (h.h_grupo ?? "").trim();
+
+    // El profesor de Instrumento se guarda aparte aunque esta entrada todavía
+    // no tenga día/hora (así el email puede mostrar el Tutor/a igualmente).
+    if (asignatura.toLowerCase().includes("instrumento") && !alumno.profesorInstrumento) {
+      alumno.profesorInstrumento = profesor;
+    }
 
     const addTramo = (dia?: string, entrada?: string, salida?: string): boolean => {
       const d = (dia ?? "").trim();

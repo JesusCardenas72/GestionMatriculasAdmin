@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import type { FilaInforme } from '../api/types';
 import {
   ESTADO_ASIGNATURA_LABELS,
@@ -299,8 +300,9 @@ export async function generarExcelHorarios(
           allowBlank: true,
           formulae: [c.lista],
           showErrorMessage: true,
-          errorStyle: 'warning',
-          error: 'Elige un valor de la lista desplegable.',
+          errorStyle: 'stop',
+          errorTitle: 'Valor no permitido',
+          error: 'Solo se puede elegir un valor de la lista desplegable.',
         };
         cell.protection = { locked: false };
         cell.fill = {
@@ -579,7 +581,37 @@ export async function generarExcelHorarios(
 
   // ── base64 ──────────────────────────────────────────────────────────────
   const buffer = await wb.xlsx.writeBuffer();
-  const bytes = new Uint8Array(buffer);
+
+  // Ocultar la barra de fórmulas del libro: ExcelJS no expone esta opción,
+  // así que se retoca directamente el XML interno (xl/workbook.xml) tras
+  // generar el archivo. Así los profesores solo ven el desplegable de la
+  // celda y no la barra donde podrían escribir cualquier texto.
+  const zip = await JSZip.loadAsync(buffer);
+  const workbookXmlPath = 'xl/workbook.xml';
+  const workbookXmlFile = zip.file(workbookXmlPath);
+  if (workbookXmlFile) {
+    const xml = await workbookXmlFile.async('string');
+    let xmlSinBarraFormulas: string;
+    if (/<workbookView[^>]*>/.test(xml)) {
+      // Ya hay <workbookView>: se añade o sustituye el atributo.
+      xmlSinBarraFormulas = /showFormulaBar=/.test(xml)
+        ? xml.replace(/showFormulaBar="[^"]*"/, 'showFormulaBar="0"')
+        : xml.replace('<workbookView ', '<workbookView showFormulaBar="0" ');
+    } else {
+      // No hay <bookViews>/<workbookView> (caso normal): el esquema OOXML
+      // exige que <bookViews> vaya justo antes de <sheets>, así que se
+      // inserta ahí (insertarlo tras la etiqueta raíz dejaría el XML en
+      // un orden inválido y Excel repararía o rechazaría el archivo).
+      xmlSinBarraFormulas = xml.replace(
+        '<sheets>',
+        '<bookViews><workbookView showFormulaBar="0"/></bookViews><sheets>',
+      );
+    }
+    zip.file(workbookXmlPath, xmlSinBarraFormulas);
+  }
+  const bufferFinal = await zip.generateAsync({ type: 'uint8array' });
+
+  const bytes = bufferFinal;
   let binary = '';
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {

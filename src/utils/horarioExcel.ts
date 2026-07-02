@@ -162,8 +162,6 @@ export async function parseHorariosExcel(
 
   ws.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // cabecera
-    const profesor = txt(row, cProf);
-    if (!profesor) return; // sin profesor → fila sin clase asignada
 
     const email = txt(row, cEmail).toLowerCase();
     const nombre = nombreDe(row);
@@ -174,7 +172,11 @@ export async function parseHorariosExcel(
     // El email NO es clave porque dos hermanos pueden compartir correo
     // pero son alumnos distintos y deben recibir horarios separados.
     const claveBase = norm(nombre) + '|||' + norm(ensenanzaCurso) + '|||' + norm(especialidad);
-    if (!norm(nombre)) return;
+    if (!norm(nombre)) return; // fila vacía, sin alumno
+
+    // El profesor puede faltar (aún no asignado): la clase se mantiene igual,
+    // mostrando "Sin Asignar" en vez de descartar la fila por completo.
+    const profesor = txt(row, cProf) || 'Sin Asignar';
 
     let alumno = mapa.get(claveBase);
     if (!alumno) {
@@ -193,6 +195,12 @@ export async function parseHorariosExcel(
     const aula = txt(row, cAula);
     const grupo = txt(row, cGrupo);
     const idAlumnoAsignatura = cId ? txt(row, cId) || undefined : undefined;
+
+    // El profesor de Instrumento se guarda aparte aunque esta fila todavía no
+    // tenga día/hora (así el email puede mostrar el Tutor/a igualmente).
+    if (asignatura.toLowerCase().includes('instrumento') && !alumno.profesorInstrumento) {
+      alumno.profesorInstrumento = profesor;
+    }
 
     const addTramo = (dia: string, entrada: string, salida: string) => {
       if (!dia || !entrada || !salida) return false;

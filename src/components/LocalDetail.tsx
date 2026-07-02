@@ -57,6 +57,8 @@ import {
 import { ensenanzaDesdeCode, getCatalogoLocal, getCatalogoParaCurso } from "../data/catalogoLocal";
 import { nombreVisibleTemporal, nombresTemporalRealCoinciden } from "../utils/temporales";
 import { EstadoBadge } from "./SolicitudDetail";
+import { nombreCompletoDe } from "../utils/fusionHorarios";
+import { buscarProfesorInstrumento } from "../utils/horariosPersistencia";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
 
@@ -204,6 +206,30 @@ export default function LocalDetail({
     })();
     return () => { cancelado = true; };
   }, [curso]);
+
+  // Tutor/a (profesor de Instrumento) mostrado en el encabezado, junto a Curso
+  // y Especialidad. Se busca en el almacén de horarios del curso; puede no
+  // haber datos si aún no se cargó ningún Excel de horarios.
+  const [tutor, setTutor] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const storeData = await window.adminAPI.horarios.data.obtener(curso);
+        const nombreCompleto = nombreCompletoDe(m.apellidos, m.nombre);
+        const encontrado = buscarProfesorInstrumento(
+          storeData,
+          nombreCompleto,
+          m.ensenanzaCurso,
+          m.especialidad ?? "",
+        );
+        if (!cancelado) setTutor(encontrado);
+      } catch {
+        if (!cancelado) setTutor(null);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [curso, m.apellidos, m.nombre, m.ensenanzaCurso, m.especialidad]);
 
   // Clave con la que se guarda el fichero PDF:
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
@@ -628,6 +654,13 @@ export default function LocalDetail({
               <span style={{ color: "var(--tc-border)" }}>|</span>
               <span className="font-bold uppercase tracking-wide text-[10.5px]">Esp.</span>
               <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{m.especialidad ?? "—"}</span>
+              {tutor && (
+                <>
+                  <span style={{ whiteSpace: "pre" }}>{"\t"}</span>
+                  <span className="font-bold uppercase tracking-wide text-[10.5px]">Tutor/a</span>
+                  <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{tutor}</span>
+                </>
+              )}
             </div>
 
             {/* Temporal: aviso (el selector "Sustituye a…" de matrículas reales está en Datos Personales) */}
