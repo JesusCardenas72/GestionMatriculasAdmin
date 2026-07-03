@@ -195,7 +195,18 @@ export interface CrearAmpliacionInput {
 export type CampoKeyAlumno = keyof Omit<Solicitud, 'rowId' | 'nombreMatricula'>;
 export type CampoKeyAsignatura = 'asigNombre' | 'asigCodigo' | 'asigEstado' | 'asigHorario';
 export type CampoKeyCalculado = 'nombreCompleto';
-export type CampoKey = CampoKeyAlumno | CampoKeyAsignatura | CampoKeyCalculado;
+/**
+ * Campos de horario que se vuelcan desde el almacén interno de horarios al
+ * informe (solo en modo «asignatura»). `h_*` son los 9 valores sueltos del
+ * Excel de horarios; `horario1`/`horario2` son combinados legibles
+ * («Lun 16:00–17:00») para imprimir.
+ */
+export type CampoKeyHorario =
+  | 'h_prof' | 'h_grupo' | 'h_aula'
+  | 'h_dia1' | 'h_ent1' | 'h_sal1'
+  | 'h_dia2' | 'h_ent2' | 'h_sal2'
+  | 'horario1' | 'horario2';
+export type CampoKey = CampoKeyAlumno | CampoKeyAsignatura | CampoKeyHorario | CampoKeyCalculado;
 
 /** Fila de informe: alumno + (opcionalmente) campos de la asignatura matriculada en modo asignatura */
 export interface FilaInforme extends Solicitud {
@@ -209,6 +220,22 @@ export interface FilaInforme extends Solicitud {
   esTemporal?: boolean;
   /** ID "{nOrden}_{asciiSum(asigNombre)}" que identifica de forma única la fila alumno × asignatura. */
   idAlumnoAsignatura?: string;
+  /** localId de la MatrículaLocal de origen (solo filas con datos locales; permite editarlas). */
+  _localId?: string;
+  // ── Horario (volcado del almacén interno; solo modo asignatura) ──
+  h_prof?: string | null;
+  h_grupo?: string | null;
+  h_aula?: string | null;
+  h_dia1?: string | null;
+  h_ent1?: string | null;
+  h_sal1?: string | null;
+  h_dia2?: string | null;
+  h_ent2?: string | null;
+  h_sal2?: string | null;
+  /** Combinado legible del primer tramo: "Día Entrada–Salida". */
+  horario1?: string | null;
+  /** Combinado legible del segundo tramo. */
+  horario2?: string | null;
 }
 
 export type OperadorFiltro =
@@ -222,7 +249,14 @@ export type OperadorFiltro =
   | 'mayor_que'
   | 'menor_que'
   | 'mayor_igual'
-  | 'menor_igual';
+  | 'menor_igual'
+  /**
+   * Selección de valores tipo Excel (lista de casillas). `valor` es un JSON con
+   * el array de valores mostrados seleccionados; la fila pasa si su valor
+   * mostrado está en la lista. Se gestiona desde la lista del popover de
+   * columna, no desde el desplegable de condiciones.
+   */
+  | 'en_lista';
 
 export interface FiltroInforme {
   id: string;

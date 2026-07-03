@@ -451,6 +451,52 @@ export function detectarHuerfanasAlmacen(
   return huerfanas;
 }
 
+/** Combina día + entrada–salida en un texto corto: "Lun 16:00–17:00". */
+function tramoTexto(dia?: string, ent?: string, sal?: string): string {
+  const d = (dia ?? "").trim();
+  const e = (ent ?? "").trim();
+  const s = (sal ?? "").trim();
+  if (!d && !e && !s) return "";
+  const horas = e && s ? `${e}–${s}` : e || s;
+  return [d, horas].filter(Boolean).join(" ");
+}
+
+/**
+ * Enriquece las filas de un informe (modo asignatura) con los valores de horario
+ * guardados en el almacén: vuelca los 9 campos sueltos (`h_*`) y calcula dos
+ * combinados legibles (`horario1`/`horario2`). Reutiliza el mismo emparejamiento
+ * por ID/texto/herencia que `obtenerValoresHorario`, así que no duplica lógica.
+ *
+ * Devuelve filas nuevas (no muta las de entrada). Las filas sin horario en el
+ * almacén se devuelven tal cual (los campos de horario quedan `undefined` → "—").
+ */
+export function enriquecerFilasConHorario<T extends FilaInforme>(
+  filas: T[],
+  entries: HorariosEntry[],
+  matriculas: MatriculaLocal[],
+): T[] {
+  if (entries.length === 0) return filas;
+  const { valoresHorario } = obtenerValoresHorario(filas, entries, matriculas);
+  return filas.map((fila, i) => {
+    const h = valoresHorario[i];
+    if (!h) return fila;
+    return {
+      ...fila,
+      h_prof: h.h_prof ?? null,
+      h_grupo: h.h_grupo ?? null,
+      h_aula: h.h_aula ?? null,
+      h_dia1: h.h_dia1 ?? null,
+      h_ent1: h.h_ent1 ?? null,
+      h_sal1: h.h_sal1 ?? null,
+      h_dia2: h.h_dia2 ?? null,
+      h_ent2: h.h_ent2 ?? null,
+      h_sal2: h.h_sal2 ?? null,
+      horario1: tramoTexto(h.h_dia1, h.h_ent1, h.h_sal1) || null,
+      horario2: tramoTexto(h.h_dia2, h.h_ent2, h.h_sal2) || null,
+    };
+  });
+}
+
 export function obtenerValoresHorario(
   filas: FilaInforme[],
   entries: HorariosEntry[],

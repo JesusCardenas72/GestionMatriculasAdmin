@@ -41,16 +41,45 @@ export const CAMPOS_ASIGNATURA: CampoMeta[] = [
   { key: 'asigNombre',  label: 'Asignatura',         tipo: 'texto',            valorType: 'select_data' },
   { key: 'asigCodigo',  label: 'Código',             tipo: 'numero'   },
   { key: 'asigEstado',  label: 'Estado asignatura',  tipo: 'estado_asignatura' },
-  { key: 'asigHorario', label: 'Horario',            tipo: 'texto'    },
+  { key: 'asigHorario', label: 'Horario (nube)',     tipo: 'texto'    },
 ];
 
+/**
+ * Campos de horario volcados del almacén interno (Excel de horarios). Solo
+ * disponibles en modo «asignatura». Las cinco columnas categóricas (profesor,
+ * grupo, aula, día 1 y día 2) usan desplegable de valores para filtrar sin teclear.
+ */
+export const CAMPOS_HORARIO: CampoMeta[] = [
+  { key: 'h_prof',   label: 'Profesor/a',    tipo: 'texto', valorType: 'select_data' },
+  { key: 'h_grupo',  label: 'Grupo',         tipo: 'texto', valorType: 'select_data' },
+  { key: 'h_aula',   label: 'Aula',          tipo: 'texto', valorType: 'select_data' },
+  { key: 'h_dia1',   label: 'Día 1',         tipo: 'texto', valorType: 'select_data' },
+  { key: 'h_ent1',   label: 'Entrada 1',     tipo: 'texto' },
+  { key: 'h_sal1',   label: 'Salida 1',      tipo: 'texto' },
+  { key: 'h_dia2',   label: 'Día 2',         tipo: 'texto', valorType: 'select_data' },
+  { key: 'h_ent2',   label: 'Entrada 2',     tipo: 'texto' },
+  { key: 'h_sal2',   label: 'Salida 2',      tipo: 'texto' },
+  { key: 'horario1', label: 'Horario 1',     tipo: 'texto' },
+  { key: 'horario2', label: 'Horario 2',     tipo: 'texto' },
+];
+
+/** Claves de los campos de horario, para distinguirlos del resto de columnas. */
+export const HORARIO_KEYS = new Set<CampoKey>(CAMPOS_HORARIO.map(c => c.key));
+
+/** ¿La columna proviene del almacén de horarios (no debe entrar en el Excel de horarios)? */
+export function esCampoHorario(key: CampoKey): boolean {
+  return HORARIO_KEYS.has(key);
+}
+
 export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
-  [...CAMPOS_META, ...CAMPOS_ASIGNATURA].map(c => [c.key, c]),
+  [...CAMPOS_META, ...CAMPOS_ASIGNATURA, ...CAMPOS_HORARIO].map(c => [c.key, c]),
 );
 
-/** Campos disponibles según el modo del informe. En modo asignatura se ofrecen también los del alumno. */
+/** Campos disponibles según el modo del informe. En modo asignatura se ofrecen también los del alumno y los de horario. */
 export function camposDeModo(modo: ConfigInforme['modo']): CampoMeta[] {
-  return modo === 'asignatura' ? [...CAMPOS_ASIGNATURA, ...CAMPOS_META] : CAMPOS_META;
+  return modo === 'asignatura'
+    ? [...CAMPOS_ASIGNATURA, ...CAMPOS_HORARIO, ...CAMPOS_META]
+    : CAMPOS_META;
 }
 
 // ── Operadores por tipo ────────────────────────────────────────────────────────
@@ -183,5 +212,20 @@ export const INFORMES_PREDEFINIDOS: ConfigInforme[] = [
       { id: 'o1', campo: 'asigNombre', direccion: 'asc' },
     ],
     agruparPor: 'apellidos',
+  },
+  {
+    id: 'clases-por-profesor',
+    nombre: 'Clases por profesor/a',
+    descripcion: 'Una sección por profesor/a con sus clases (alumno, asignatura, día y hora, aula), a partir de los horarios importados',
+    predefinido: true,
+    modo: 'asignatura',
+    camposVisibles: ['nombreCompleto', 'asigNombre', 'horario1', 'horario2', 'h_aula'],
+    filtros: [
+      { id: 'f1', campo: 'h_prof', operador: 'no_vacio', valor: '' },
+    ],
+    orden: [
+      { id: 'o1', campo: 'nombreCompleto', direccion: 'asc' },
+    ],
+    agruparPor: 'h_prof',
   },
 ];

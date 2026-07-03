@@ -10,9 +10,11 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
+  FilterX,
   GripVertical,
   Maximize2,
   MoreVertical,
+  Pencil,
   Plus,
   Printer,
   RotateCcw,
@@ -36,17 +38,21 @@ import type {
 } from '../api/types';
 import { ESTADO } from '../api/types';
 import { useCursoContext } from '../contexts/CursoContextProvider';
+import { useAppMode } from '../contexts/AppModeProvider';
 import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
 import { useSolicitudes } from '../hooks/useSolicitudes';
+import LocalEditModal from '../components/LocalEditModal';
 import {
   CAMPO_MAP,
   CAMPOS_ASIGNATURA,
+  CAMPOS_HORARIO,
   CAMPOS_META,
   ESTADO_ASIGNATURA_LABELS,
   ESTADO_TRAMITE_LABELS,
   INFORME_VACIO,
   INFORMES_PREDEFINIDOS,
   camposDeModo,
+  esCampoHorario,
   getOperadores,
   type CampoMeta,
 } from '../data/informesConfig';
@@ -58,10 +64,11 @@ import {
   obtenerValoresHorario,
   actualizarHorariosStore,
   detectarHuerfanasAlmacen,
+  enriquecerFilasConHorario,
   type HuerfanaAlmacen,
 } from '../utils/horariosPersistencia';
 import { asignaturasCursadas } from '../utils/repetidorSuelta';
-import type { HorariosCursoData, FormatoHorarios } from '../../electron/horarios-data-store';
+import type { HorariosCursoData, FormatoHorarios, HorariosEntry } from '../../electron/horarios-data-store';
 
 interface Props {
   config: AppConfig;
@@ -112,7 +119,17 @@ function formatCelda(s: FilaInforme, campo: CampoMeta): string {
   return String(val) || '—';
 }
 
-function aplicarFiltros(solicitudes: FilaInforme[], filtros: FiltroInforme[]): FilaInforme[] {
+/** Deserializa el `valor` de un filtro `en_lista` (JSON de valores mostrados). */
+export function parseListaValor(valor: string): string[] {
+  try {
+    const arr = JSON.parse(valor);
+    return Array.isArray(arr) ? arr.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function aplicarFiltros(solicitudes: FilaInforme[], filtros: FiltroInforme[]): FilaInforme[] {
   if (filtros.length === 0) return solicitudes;
   return solicitudes.filter(s =>
     filtros.every(f => {
@@ -129,6 +146,16 @@ function aplicarFiltros(solicitudes: FilaInforme[], filtros: FiltroInforme[]): F
         case 'menor_que':   { const n = Number(val); const v = Number(f.valor); return !isNaN(n) && !isNaN(v) && n < v; }
         case 'mayor_igual': { const n = Number(val); const v = Number(f.valor); return !isNaN(n) && !isNaN(v) && n >= v; }
         case 'menor_igual': { const n = Number(val); const v = Number(f.valor); return !isNaN(n) && !isNaN(v) && n <= v; }
+        case 'en_lista': {
+          const seleccion = parseListaValor(f.valor);
+          // Sin selección no hay criterio: no filtra (se muestran todas las filas).
+          if (seleccion.length === 0) return true;
+          // Comparamos contra el valor MOSTRADO (igual que las casillas de la
+          // lista), para que Sí/No, estados y fechas casen con lo que ve el usuario.
+          const meta = CAMPO_MAP.get(f.campo);
+          const mostrado = meta ? formatCelda(s, meta) : String(val ?? '—');
+          return seleccion.includes(mostrado);
+        }
         default:         return true;
       }
     }),
@@ -148,12 +175,32 @@ function aplicarOrden(solicitudes: FilaInforme[], orden: { id: string; campo: Ca
   });
 }
 
-function describeFiltro(f: FiltroInforme): string {
+export function describeFiltro(f: FiltroInforme): string {
   const meta = CAMPO_MAP.get(f.campo);
+  if (f.operador === 'en_lista') {
+    const vals = parseListaValor(f.valor).map(v => (v === '—' ? '(vacías)' : v));
+    if (vals.length === 0) return `${meta?.label ?? f.campo}: (ninguno)`;
+    const muestra = vals.slice(0, 2).join(', ');
+    const resto = vals.length > 2 ? ` +${vals.length - 2}` : '';
+    return `${meta?.label ?? f.campo}: ${muestra}${resto}`;
+  }
   const ops  = getOperadores(meta?.tipo ?? 'texto');
   const op   = ops.find(o => o.key === f.operador) ?? ops[0];
   const valorPart = op.needsValor && f.valor ? ` "${valorLabel(meta, f.valor)}"` : '';
   return `${meta?.label ?? f.campo} ${op.label}${valorPart}`;
+}
+
+/**
+ * ¿El filtro tiene un criterio real y por tanto debe considerarse "activo"?
+ * Una condición sin valor (p. ej. «es igual a» vacío) o una lista sin ninguna
+ * selección no restringen nada: no cuentan como filtro activo.
+ */
+export function esFiltroActivo(f: FiltroInforme): boolean {
+  if (f.operador === 'en_lista') return parseListaValor(f.valor).length > 0;
+  const meta = CAMPO_MAP.get(f.campo);
+  const op = getOperadores(meta?.tipo ?? 'texto').find(o => o.key === f.operador);
+  if (op && !op.needsValor) return true; // es Sí/No, está vacío, no está vacío…
+  return f.valor.trim() !== '';
 }
 
 /** Etiqueta legible de un valor de filtro (traduce códigos de estado a su texto). */
@@ -214,6 +261,7 @@ function localToSolicitud(r: MatriculaLocal, estado: EstadoTramite): FilaInforme
     ampliada: r.ampliada,
     repetidor: r.repetidor,
     esTemporal: !!r.esTemporal && r.temporalEstado !== "sustituido",
+    _localId: r.localId,
   };
 }
 
@@ -282,9 +330,88 @@ function buildFilasAsignatura(
   return filas;
 }
 
+/**
+ * Lista de valores tipo Excel para el popover de una columna: casillas con
+ * buscador y "(Seleccionar todo)". `seleccionados === null` significa que están
+ * todos marcados (sin restricción). Componente a nivel de módulo para que
+ * conserve el texto de búsqueda entre renders del padre.
+ */
+function ListaValoresFiltro({
+  valores,
+  seleccionados,
+  onToggleValor,
+  onToggleTodos,
+}: {
+  valores: string[];
+  seleccionados: Set<string> | null;
+  onToggleValor: (valor: string) => void;
+  onToggleTodos: (marcarTodos: boolean) => void;
+}) {
+  const [busqueda, setBusqueda] = useState('');
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  const etiqueta = (v: string) => (v === '—' ? '(Vacías)' : v);
+  const q = busqueda.trim().toLowerCase();
+  const visibles = q ? valores.filter(v => etiqueta(v).toLowerCase().includes(q)) : valores;
+
+  const total = valores.length;
+  const marcados = seleccionados === null ? total : seleccionados.size;
+  const todos = marcados === total;
+  const ninguno = marcados === 0;
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = !todos && !ninguno;
+  }, [todos, ninguno]);
+
+  const estaMarcado = (v: string) => seleccionados === null || seleccionados.has(v);
+
+  return (
+    <div className="mt-1">
+      <input
+        type="text"
+        value={busqueda}
+        onChange={e => setBusqueda(e.target.value)}
+        placeholder="Buscar…"
+        className="w-full text-xs border border-slate-200 rounded-md px-2 py-1 mb-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
+      />
+      <label className="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-amber-50/60 cursor-pointer select-none">
+        <input
+          ref={selectAllRef}
+          type="checkbox"
+          checked={todos}
+          onChange={() => onToggleTodos(!todos)}
+          className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+        />
+        <span className="text-[11px] font-semibold text-slate-600">(Seleccionar todo)</span>
+      </label>
+      <div className="max-h-44 overflow-y-auto border border-slate-100 rounded-md">
+        {visibles.length === 0 ? (
+          <div className="text-[11px] text-slate-400 px-2 py-2">Sin coincidencias.</div>
+        ) : (
+          visibles.map(v => (
+            <label
+              key={v}
+              className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-amber-50/60 cursor-pointer select-none"
+            >
+              <input
+                type="checkbox"
+                checked={estaMarcado(v)}
+                onChange={() => onToggleValor(v)}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+              />
+              <span className="text-xs text-slate-700 truncate" title={etiqueta(v)}>{etiqueta(v)}</span>
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function InformesScreen({ config }: Props) {
   const { curso } = useCursoContext();
-  const { matriculas, isLoading: loadingLocal } = useLocalMatriculas(curso);
+  const { isSoloLectura } = useAppMode();
+  const { matriculas, isLoading: loadingLocal, actualizar } = useLocalMatriculas(curso);
   const q1 = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
   const q2 = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION, curso);
   const q3 = useSolicitudes(config, ESTADO.TRAMITADO, curso);
@@ -296,10 +423,29 @@ export default function InformesScreen({ config }: Props) {
     deepClone(informeEnCurso ?? INFORME_VACIO),
   );
 
+  // Edición directa de una matrícula local desde el informe (queda pendiente de
+  // subir a la nube; el cambio es solo local).
+  const [editando, setEditando] = useState<MatriculaLocal | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function handleGuardarEdicion(changes: Partial<MatriculaLocal>) {
+    if (!editando) return;
+    setIsSaving(true);
+    try {
+      await actualizar(editando.localId, changes);
+      setEditando(null);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   // Recuerda el informe activo para conservarlo al volver a esta pestaña.
   useEffect(() => {
     informeEnCurso = informe;
   }, [informe]);
+
+  // Entradas del almacén de horarios del curso (para volcar las columnas de horario al informe)
+  const [entriesHorario, setEntriesHorario] = useState<HorariosEntry[]>([]);
 
   const solicitudesRemotas = useMemo(
     () => [
@@ -311,10 +457,16 @@ export default function InformesScreen({ config }: Props) {
   );
 
   const allRows = useMemo(
-    () => informe.modo === 'asignatura'
-      ? buildFilasAsignatura(solicitudesRemotas, matriculas)
-      : buildFilasAlumno(solicitudesRemotas, matriculas),
-    [solicitudesRemotas, matriculas, informe.modo],
+    () => {
+      if (informe.modo === 'asignatura') {
+        const filas = buildFilasAsignatura(solicitudesRemotas, matriculas);
+        // Volcamos las columnas de horario (profesor, aula, día, horas…) desde el
+        // almacén, reutilizando el mismo emparejamiento por ID/texto/herencia.
+        return enriquecerFilasConHorario(filas, entriesHorario, matriculas);
+      }
+      return buildFilasAlumno(solicitudesRemotas, matriculas);
+    },
+    [solicitudesRemotas, matriculas, informe.modo, entriesHorario],
   );
 
   const selectOptions = useMemo((): Map<CampoKey, string[]> => {
@@ -413,13 +565,26 @@ export default function InformesScreen({ config }: Props) {
     window.adminAPI.presets.ocultosListar().then(setOcultos);
   }, []);
 
-  // Carga el formato de horarios guardado para el curso activo (se resetea al cambiar curso)
+  // Carga el formato y las entradas de horarios del curso activo (se resetea al cambiar curso)
   useEffect(() => {
     setFormatoHorarios(null);
+    setEntriesHorario([]);
     window.adminAPI.horarios.data.obtener(curso).then((data: HorariosCursoData) => {
       setFormatoHorarios(data.formatoHorarios ?? null);
+      setEntriesHorario(data.entries ?? []);
     }).catch(() => {});
   }, [curso]);
+
+  // Al cerrar los popovers de filtro, descartamos los filtros sin criterio
+  // (condición sin valor, lista sin selección) para que no queden como filtros
+  // "fantasma" ni cuenten como columna filtrada.
+  useEffect(() => {
+    if (filterPopoverCampo !== null || chipFiltroId !== null) return;
+    setInforme(prev => {
+      const limpio = prev.filtros.filter(esFiltroActivo);
+      return limpio.length === prev.filtros.length ? prev : { ...prev, filtros: limpio };
+    });
+  }, [filterPopoverCampo, chipFiltroId]);
 
   // Close add-field dropdown when clicking outside
   useEffect(() => {
@@ -535,6 +700,18 @@ export default function InformesScreen({ config }: Props) {
   const camposOcultos = informe.camposOcultos ?? [];
   const camposEnTabla = camposVisibles.filter(c => !camposOcultos.includes(c.key));
 
+  // Columnas para el Excel de horarios y su formato registrado: se excluyen las
+  // columnas de horario (son datos volcados, no columnas del Excel de profesores).
+  // Así, ver el horario en pantalla no rompe el formato ni duplica columnas.
+  const camposEnTablaSinHorario = camposEnTabla.filter(c => !esCampoHorario(c.key));
+
+  // Filtros con criterio real (los que de verdad restringen). Se usan para el
+  // PDF y el resaltado de columna filtrada.
+  const filtrosActivos = informe.filtros.filter(esFiltroActivo);
+  // Cápsulas visibles: los activos + el que se esté editando ahora mismo (para
+  // que no desaparezca al vaciar su valor a mitad de edición).
+  const chipsVisibles = informe.filtros.filter(f => esFiltroActivo(f) || f.id === chipFiltroId);
+
   // ── Separadores verticales de columna ─────────────────────────────────────
   // En la cabecera la línea ES el propio handle de redimensionado (ver abajo),
   // así coincide exactamente con el punto donde se cambia el ancho. Aquí solo
@@ -586,22 +763,29 @@ export default function InformesScreen({ config }: Props) {
     c => !informe.camposVisibles.includes(c.key),
   );
 
-  // Para el desplegable "+": separamos en dos grupos (matrícula y asignatura)
-  // y los ordenamos alfabéticamente por etiqueta dentro de cada grupo.
+  // Para el desplegable "+": separamos en tres grupos (matrícula, asignatura y
+  // horario) y los ordenamos alfabéticamente por etiqueta dentro de cada grupo.
   const asignaturaKeys = useMemo(
     () => new Set(CAMPOS_ASIGNATURA.map(c => c.key)),
+    [],
+  );
+  const horarioKeys = useMemo(
+    () => new Set(CAMPOS_HORARIO.map(c => c.key)),
     [],
   );
   const sortByLabel = (a: CampoMeta, b: CampoMeta) =>
     a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
   const camposDispMatricula = camposDisponibles
-    .filter(c => !asignaturaKeys.has(c.key))
+    .filter(c => !asignaturaKeys.has(c.key) && !horarioKeys.has(c.key))
     .slice()
     .sort(sortByLabel);
   const camposDispAsignatura = camposDisponibles
     .filter(c => asignaturaKeys.has(c.key))
     .slice()
     .sort(sortByLabel);
+  // El horario respeta el orden natural de CAMPOS_HORARIO (Profesor, Grupo, Aula,
+  // Día/Entrada/Salida…), más intuitivo que el alfabético.
+  const camposDispHorario = camposDisponibles.filter(c => horarioKeys.has(c.key));
 
   const resultados = useMemo(() => {
     const filtered = aplicarFiltros(allRows, informe.filtros);
@@ -797,6 +981,12 @@ export default function InformesScreen({ config }: Props) {
     setInforme(prev => ({ ...prev, filtros: prev.filtros.filter(f => f.id !== id) }));
   }
 
+  // Quita TODOS los filtros de una columna (condiciones + lista de valores), como
+  // el "Borrar filtro de…" de Excel.
+  function quitarFiltrosDeCampo(campo: CampoKey) {
+    setInforme(prev => ({ ...prev, filtros: prev.filtros.filter(f => f.campo !== campo) }));
+  }
+
   function updateFiltro(id: string, changes: Partial<FiltroInforme>) {
     setInforme(prev => ({
       ...prev,
@@ -811,6 +1001,41 @@ export default function InformesScreen({ config }: Props) {
         return updated;
       }),
     }));
+  }
+
+  // Valores distintos MOSTRADOS de una columna (tal como se ven en la tabla),
+  // para poblar la lista de casillas del popover.
+  function valoresDistintosDeCampo(campoKey: CampoKey): string[] {
+    const meta = CAMPO_MAP.get(campoKey);
+    const set = new Set<string>();
+    for (const r of allRows) {
+      set.add(meta ? formatCelda(r, meta) : String(r[campoKey as keyof FilaInforme] ?? '—'));
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' }));
+  }
+
+  // Aplica la selección de la lista de casillas de una columna. `null` (o todos
+  // marcados) borra el filtro de lista; en otro caso lo crea/actualiza en su sitio.
+  function setSeleccionLista(campo: CampoKey, valoresSel: string[] | null) {
+    setInforme(prev => {
+      if (valoresSel === null) {
+        return { ...prev, filtros: prev.filtros.filter(f => !(f.campo === campo && f.operador === 'en_lista')) };
+      }
+      const valor = JSON.stringify(valoresSel);
+      const existe = prev.filtros.some(f => f.campo === campo && f.operador === 'en_lista');
+      if (existe) {
+        return {
+          ...prev,
+          filtros: prev.filtros.map(f =>
+            f.campo === campo && f.operador === 'en_lista' ? { ...f, valor } : f,
+          ),
+        };
+      }
+      return {
+        ...prev,
+        filtros: [...prev.filtros, { id: crypto.randomUUID(), campo, operador: 'en_lista' as const, valor }],
+      };
+    });
   }
 
   // Render del control de valor según el tipo de campo. Reutilizado por el
@@ -875,7 +1100,24 @@ export default function InformesScreen({ config }: Props) {
   // comparten exactamente el mismo contenido editable).
   function renderFiltroPopoverBody(campoKey: CampoKey, onClose: () => void) {
     const label = CAMPO_MAP.get(campoKey)?.label ?? campoKey;
-    const condiciones = informe.filtros.filter(f => f.campo === campoKey);
+    // Las condiciones excluyen el filtro de lista (que se gestiona con las casillas).
+    const condiciones = informe.filtros.filter(f => f.campo === campoKey && f.operador !== 'en_lista');
+
+    // Lista de valores tipo Excel.
+    const valores = valoresDistintosDeCampo(campoKey);
+    const filtroLista = informe.filtros.find(f => f.campo === campoKey && f.operador === 'en_lista');
+    const seleccionados = filtroLista ? new Set(parseListaValor(filtroLista.valor)) : null;
+    const onToggleValor = (v: string) => {
+      const base = seleccionados ? new Set(seleccionados) : new Set(valores);
+      if (base.has(v)) base.delete(v);
+      else base.add(v);
+      setSeleccionLista(campoKey, base.size === valores.length ? null : [...base]);
+    };
+    const onToggleTodos = (marcarTodos: boolean) =>
+      setSeleccionLista(campoKey, marcarTodos ? null : []);
+
+    const hayFiltroActivo = informe.filtros.some(f => f.campo === campoKey && esFiltroActivo(f));
+
     return (
       <>
         <div className="flex items-center justify-between mb-2">
@@ -888,6 +1130,16 @@ export default function InformesScreen({ config }: Props) {
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
+        {hayFiltroActivo && (
+          <button
+            onClick={() => { quitarFiltrosDeCampo(campoKey); onClose(); }}
+            className="flex items-center gap-1.5 w-full text-[11px] font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md px-1.5 py-1 mb-2 transition-colors"
+            title="Quitar el filtro de esta columna"
+          >
+            <FilterX className="w-3.5 h-3.5" />
+            Quitar filtro de esta columna
+          </button>
+        )}
         <div className="flex flex-col gap-2">
           {condiciones.length === 0 && (
             <span className="text-[11px] text-slate-400">Sin condiciones.</span>
@@ -932,6 +1184,23 @@ export default function InformesScreen({ config }: Props) {
             <Plus className="w-3.5 h-3.5" />
             Añadir condición
           </button>
+        </div>
+
+        {/* Lista de valores (estilo Excel), combinada con las condiciones (Y) */}
+        <div className="mt-2.5 pt-2 border-t border-slate-100">
+          <span className="text-[11px] font-semibold text-slate-600">Seleccionar valores</span>
+          {valores.length === 0 ? (
+            <div className="text-[11px] text-slate-400 mt-1">
+              {isLoading ? 'Cargando…' : 'Sin datos.'}
+            </div>
+          ) : (
+            <ListaValoresFiltro
+              valores={valores}
+              seleccionados={seleccionados}
+              onToggleValor={onToggleValor}
+              onToggleTodos={onToggleTodos}
+            />
+          )}
         </div>
       </>
     );
@@ -1204,7 +1473,7 @@ export default function InformesScreen({ config }: Props) {
     if (!showPreview) return '';
     return buildHtmlInforme({
       nombre: informe.nombre,
-      filtrosDesc: describeFiltros(informe.filtros),
+      filtrosDesc: describeFiltros(informe.filtros.filter(esFiltroActivo)),
       campos: camposEnTabla,
       rows: resultados,
       orientacion: previewOrientacion,
@@ -1409,7 +1678,7 @@ export default function InformesScreen({ config }: Props) {
 
     const base64 = await generarExcelHorarios(
       resultados,
-      camposEnTabla,
+      camposEnTablaSinHorario,
       profesores,
       opciones,
       valoresHorario,
@@ -1504,7 +1773,7 @@ export default function InformesScreen({ config }: Props) {
         congelarHasta: hCongelar ? hCongelarHasta : null,
         insertarTras: hInsertarTras,
       };
-      const currentKeys = camposEnTabla.map(c => c.key);
+      const currentKeys = camposEnTablaSinHorario.map(c => c.key);
 
       // Verificar coherencia de formato (o guardarlo si es la primera vez)
       const ok = await guardarOEnforzarFormato(currentKeys, opciones, hModoFusion);
@@ -1617,7 +1886,7 @@ export default function InformesScreen({ config }: Props) {
     try {
       const base64 = await generarExcelHorarios(
         resultados,
-        camposEnTabla,
+        camposEnTablaSinHorario,
         fusionPendiente.profesores,
         fusionPendiente.opciones,
         fusionPendiente.resultado.valoresHorario,
@@ -1631,6 +1900,7 @@ export default function InformesScreen({ config }: Props) {
         const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
         actualizarHorariosStore(storeData, fusionPendiente.crudas, 'carga_excel', fusionPendiente.fileName);
         await window.adminAPI.horarios.data.guardar(curso, storeData);
+        setEntriesHorario([...storeData.entries]);
         setFusionPendiente(null);
         // Aviso de clases guardadas que no han entrado en el Excel fusionado.
         const huerf = detectarHuerfanasAlmacen(resultados, storeData.entries, matriculas);
@@ -2010,15 +2280,15 @@ export default function InformesScreen({ config }: Props) {
       </div>
 
       {/* ── Resumen de filtros / orden / agrupamiento / campos ocultos ───────── */}
-      {(informe.filtros.length > 0 || informe.orden.length > 0 || nivelesAgrupacion(informe.agruparPor).length > 0 || camposOcultos.length > 0) && (
+      {(chipsVisibles.length > 0 || informe.orden.length > 0 || nivelesAgrupacion(informe.agruparPor).length > 0 || camposOcultos.length > 0) && (
         <div className="shrink-0 bg-amber-50/40 border-x border-b border-[#c7c4d8] px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
           {/* Filtros, en su orden de creación */}
-          {informe.filtros.length > 0 && (
+          {chipsVisibles.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-semibold text-amber-700 uppercase tracking-wide flex items-center gap-1">
                 <Filter className="w-3 h-3" /> Filtros
               </span>
-              {informe.filtros.map((f, i) => (
+              {chipsVisibles.map((f, i) => (
                 <span
                   key={f.id}
                   className="relative inline-flex items-center gap-1 bg-white border border-amber-200 rounded-full pl-1.5 pr-0.5 py-0.5 text-slate-700"
@@ -2227,6 +2497,25 @@ export default function InformesScreen({ config }: Props) {
                           ))}
                         </>
                       )}
+                      {camposDispHorario.length > 0 && (
+                        <>
+                          {(camposDispMatricula.length > 0 || camposDispAsignatura.length > 0) && (
+                            <div className="h-px bg-slate-100 my-1" />
+                          )}
+                          <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
+                            Horario
+                          </div>
+                          {camposDispHorario.map(c => (
+                            <button
+                              key={c.key}
+                              onClick={() => addCampoInline(c.key)}
+                              className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                            >
+                              {c.label}
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2264,7 +2553,7 @@ export default function InformesScreen({ config }: Props) {
                       const isDragging = colDrag?.colIdx === item.originalIdx;
                       const ordenEntry = informe.orden.find(o => o.campo === c.key);
                       const ordenIdx   = informe.orden.indexOf(ordenEntry!);
-                      const nFiltrosCol = informe.filtros.filter(f => f.campo === c.key).length;
+                      const nFiltrosCol = informe.filtros.filter(f => f.campo === c.key && esFiltroActivo(f)).length;
                       const popoverAbierto = filterPopoverCampo === c.key;
                       const anchoCol = getAnchoColumna(c.key);
                       const colapsado = anchoCol !== undefined && anchoCol < UMBRAL_COLAPSO_COL;
@@ -2371,12 +2660,7 @@ export default function InformesScreen({ config }: Props) {
                                   data-filter-funnel
                                   onMouseDown={e => e.stopPropagation()}
                                   onClick={() => {
-                                    if (popoverAbierto) {
-                                      setFilterPopoverCampo(null);
-                                    } else {
-                                      if (nFiltrosCol === 0) addFiltroParaCampo(c.key);
-                                      setFilterPopoverCampo(c.key);
-                                    }
+                                    setFilterPopoverCampo(popoverAbierto ? null : c.key);
                                   }}
                                   title={nFiltrosCol > 0 ? `${nFiltrosCol} filtro(s) en esta columna` : 'Filtrar esta columna'}
                                   className={
@@ -2474,7 +2758,6 @@ export default function InformesScreen({ config }: Props) {
                                     <button
                                       onClick={() => {
                                         setColMenuCampo(null);
-                                        if (nFiltrosCol === 0) addFiltroParaCampo(c.key);
                                         setFilterPopoverCampo(c.key);
                                       }}
                                       className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
@@ -2602,6 +2885,25 @@ export default function InformesScreen({ config }: Props) {
                                 ))}
                               </>
                             )}
+                            {camposDispHorario.length > 0 && (
+                              <>
+                                {(camposDispMatricula.length > 0 || camposDispAsignatura.length > 0) && (
+                                  <div className="h-px bg-slate-100 my-1" />
+                                )}
+                                <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
+                                  Horario
+                                </div>
+                                {camposDispHorario.map(c => (
+                                  <button
+                                    key={c.key}
+                                    onClick={() => addCampoInline(c.key)}
+                                    className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                  >
+                                    {c.label}
+                                  </button>
+                                ))}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2697,7 +2999,24 @@ export default function InformesScreen({ config }: Props) {
                             </td>
                           );
                         })}
-                        <td className="px-2" />
+                        <td className="px-1.5 text-center">
+                          {s._localId && !s.esTemporal && (() => {
+                            const m = matriculas.find(mm => mm.localId === s._localId);
+                            if (!m) return null;
+                            return (
+                              <button
+                                onClick={() => !isSoloLectura && setEditando(m)}
+                                disabled={isSoloLectura}
+                                title={isSoloLectura
+                                  ? 'No disponible en modo Solo Lectura'
+                                  : 'Editar en Local (quedará pendiente de subir)'}
+                                className="p-1 rounded text-slate-400 hover:text-amber-700 hover:bg-amber-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            );
+                          })()}
+                        </td>
                       </tr>
                     );
                     return rows;
@@ -2726,6 +3045,16 @@ export default function InformesScreen({ config }: Props) {
             </span>
           </div>
         </div>
+      )}
+
+      {/* ── Modal: edición directa de una matrícula local ──────────────────── */}
+      {editando && !isSoloLectura && (
+        <LocalEditModal
+          matricula={editando}
+          isSaving={isSaving}
+          onClose={() => setEditando(null)}
+          onSave={(changes) => void handleGuardarEdicion(changes)}
+        />
       )}
 
       {/* ── Modal Configuración Excel Horarios ─────────────────────────────── */}
@@ -2827,7 +3156,7 @@ export default function InformesScreen({ config }: Props) {
                       disabled={!hCongelar}
                       className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white disabled:bg-slate-50 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     >
-                      {camposEnTabla.map(c => (
+                      {camposEnTablaSinHorario.map(c => (
                         <option key={c.key} value={c.key}>{c.label}</option>
                       ))}
                     </select>
@@ -2857,7 +3186,7 @@ export default function InformesScreen({ config }: Props) {
                       className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     >
                       <option value="__inicio__">Al principio (antes de todas las columnas)</option>
-                      {camposEnTabla.map(c => (
+                      {camposEnTablaSinHorario.map(c => (
                         <option key={c.key} value={c.key}>Después de: {c.label}</option>
                       ))}
                     </select>
@@ -3110,7 +3439,7 @@ export default function InformesScreen({ config }: Props) {
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-bold text-[#1b1b24] truncate">{informe.nombre}</h3>
                   <p className="text-[11px] text-slate-400 truncate">
-                    {describeFiltros(informe.filtros) || 'Sin filtros'}
+                    {describeFiltros(filtrosActivos) || 'Sin filtros'}
                   </p>
                 </div>
 

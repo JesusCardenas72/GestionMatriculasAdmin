@@ -3,6 +3,7 @@ import {
   obtenerValoresHorario,
   detectarHuerfanasAlmacen,
   fantasmaTieneHorario,
+  enriquecerFilasConHorario,
 } from "../horariosPersistencia";
 import { idCompuesto } from "../asigId";
 import { norm } from "../horarioExcel";
@@ -443,5 +444,50 @@ describe("Flujo completo: carga del Excel del fantasma, después regeneración c
     // 3. Las entradas del fantasma NO son huérfanas (el real las consume)
     const huerfanas = detectarHuerfanasAlmacen(filasReales, data.entries, [temporal, real]);
     expect(huerfanas).toHaveLength(0);
+  });
+});
+
+// ── enriquecerFilasConHorario ─────────────────────────────────────────────────
+
+describe("enriquecerFilasConHorario", () => {
+  it("vuelca los campos sueltos y calcula los combinados cuando casa por ID", () => {
+    const entries = [
+      entry("435_503", "Piano", {
+        h_prof: "Martín", h_aula: "A1", h_grupo: "G2",
+        h_dia1: "Lunes", h_ent1: "16:00", h_sal1: "17:00",
+        h_dia2: "Miércoles", h_ent2: "18:00", h_sal2: "19:00",
+      }),
+    ];
+    const [fila] = enriquecerFilasConHorario([filaInforme(435, "Piano")], entries, []);
+    expect(fila.h_prof).toBe("Martín");
+    expect(fila.h_aula).toBe("A1");
+    expect(fila.h_grupo).toBe("G2");
+    expect(fila.horario1).toBe("Lunes 16:00–17:00");
+    expect(fila.horario2).toBe("Miércoles 18:00–19:00");
+  });
+
+  it("deja los campos de horario sin poner cuando no hay entrada que case", () => {
+    const [fila] = enriquecerFilasConHorario([filaInforme(435, "Piano")], [], []);
+    expect(fila.h_prof).toBeUndefined();
+    expect(fila.horario1).toBeUndefined();
+  });
+
+  it("horario2 queda null cuando solo hay un tramo", () => {
+    const entries = [
+      entry("435_503", "Piano", { h_prof: "Martín", h_dia1: "Lunes", h_ent1: "16:00", h_sal1: "17:00" }),
+    ];
+    const [fila] = enriquecerFilasConHorario([filaInforme(435, "Piano")], entries, []);
+    expect(fila.horario1).toBe("Lunes 16:00–17:00");
+    expect(fila.horario2).toBeNull();
+  });
+
+  it("el alumno real hereda el horario del fantasma sustituido", () => {
+    const temporal = matricula({ localId: "t1", nOrden: 905, esTemporal: true, temporalEstado: "sustituido", sustituidoPorLocalId: "r1" });
+    const real = matricula({ localId: "r1", nOrden: 435 });
+    const entries = [entry("905_503", "Piano", { h_prof: "García", h_dia1: "Martes", h_ent1: "10:00", h_sal1: "11:00" })];
+
+    const [fila] = enriquecerFilasConHorario([filaInforme(435, "Piano")], entries, [temporal, real]);
+    expect(fila.h_prof).toBe("García");
+    expect(fila.horario1).toBe("Martes 10:00–11:00");
   });
 });
