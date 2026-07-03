@@ -2,18 +2,18 @@ import type { AppConfig } from '../../electron/config-store';
 import { assertEscribible } from '../config/modeGuard';
 import { postFlow } from './client';
 
+/** Un adjunto listo para el Send an email V2 del Flow (Name + ContentBytes en base64). */
+export interface AdjuntoEmail {
+  Name: string;
+  ContentBytes: string;
+}
+
 export interface EnviarEmailHorarioInput {
   email: string;
   nombre: string;
   emailHtml: string;
-  pdfBase64?: string;
-  pdfNombre?: string;
-  htmlBase64?: string;
-  htmlNombre?: string;
-  formularioBase64?: string;
-  formularioNombre?: string;
-  adjuntoPersonalizadoBase64?: string;
-  adjuntoPersonalizadoNombre?: string;
+  /** Solo los adjuntos activados. El Flow los pasa tal cual a emailMessage/Attachments. */
+  adjuntos: AdjuntoEmail[];
 }
 
 export function enviarEmailHorario(

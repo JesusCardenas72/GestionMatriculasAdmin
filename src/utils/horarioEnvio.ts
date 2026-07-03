@@ -2,7 +2,7 @@ import type { AppConfig } from '../../electron/config-store';
 import type { HorarioAlumno } from '../horarios/types';
 import { buildHorarioHtml } from './horarioTemplate';
 import { buildHorarioEmailHtml } from './horarioEmailTemplate';
-import { enviarEmailHorario } from '../api/horarios';
+import { enviarEmailHorario, type AdjuntoEmail } from '../api/horarios';
 
 /**
  * Texto suplementario por defecto del correo de horarios. Es editable antes de
@@ -60,36 +60,41 @@ export async function enviarHorarioAlumno(
   const emailHtml = buildHorarioEmailHtml(alumnoFiltrado, anio, mensaje?.trim() || undefined);
   const nombreBase = `Horario ${alumno.nombre}`.replace(/[\\/:*?"<>|]/g, '_');
 
-  const payload: Parameters<typeof enviarEmailHorario>[1] = {
-    email: alumno.email,
-    nombre: alumno.nombre,
-    emailHtml,
-  };
+  // Construimos la lista de adjuntos incluyendo SOLO los que están activados,
+  // para que el Flow nunca reciba huecos vacíos que rompan el Send an email.
+  const adjuntos: AdjuntoEmail[] = [];
 
   if (adjuntoPdf) {
     const pdfRes = await window.adminAPI.pdf.generarBase64(horarioHtml, true);
     if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? 'PDF no generado');
-    payload.pdfBase64 = pdfRes.base64;
-    payload.pdfNombre = `${nombreBase}.pdf`;
+    adjuntos.push({ Name: `${nombreBase}.pdf`, ContentBytes: pdfRes.base64 });
   }
 
   if (adjuntoHtml) {
-    payload.htmlBase64 = btoa(unescape(encodeURIComponent(horarioHtml)));
-    payload.htmlNombre = `${nombreBase}.html`;
+    adjuntos.push({
+      Name: `${nombreBase}.html`,
+      ContentBytes: btoa(unescape(encodeURIComponent(horarioHtml))),
+    });
   }
 
   if (adjuntoFormulario) {
     const formularioBase64 = await window.adminAPI.assets.solicitudCambioGrupoBase64();
     if (formularioBase64) {
-      payload.formularioBase64 = formularioBase64;
-      payload.formularioNombre = 'SolicitudCambioGrupo.pdf';
+      adjuntos.push({ Name: 'SolicitudCambioGrupo.pdf', ContentBytes: formularioBase64 });
     }
   }
 
   if (opciones?.adjuntoPersonalizado) {
-    payload.adjuntoPersonalizadoBase64 = opciones.adjuntoPersonalizado.base64;
-    payload.adjuntoPersonalizadoNombre = opciones.adjuntoPersonalizado.nombre;
+    adjuntos.push({
+      Name: opciones.adjuntoPersonalizado.nombre,
+      ContentBytes: opciones.adjuntoPersonalizado.base64,
+    });
   }
 
-  await enviarEmailHorario(config, payload);
+  await enviarEmailHorario(config, {
+    email: alumno.email,
+    nombre: alumno.nombre,
+    emailHtml,
+    adjuntos,
+  });
 }
