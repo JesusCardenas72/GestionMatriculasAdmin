@@ -88,8 +88,13 @@ export default function ConexionModal({ initial, onSave, onClose }: Props) {
   const [test, setTest] = useState<TestState>({ status: "idle" });
 
   async function onSubmit(values: FormValues) {
-    await onSave(values);
-    onClose();
+    try {
+      await onSave(values);
+      alert("✅ Configuración guardada correctamente.");
+      onClose();
+    } catch (e) {
+      alert(`❌ Error al guardar la configuración:\n${(e as Error).message}`);
+    }
   }
 
   async function probarConexion() {

@@ -1,73 +1,47 @@
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import { DIAS } from '../data/horariosListas';
-import type { ClaseHorario, HorarioAlumno } from '../horarios/types';
-import { buildCursoLabel } from '../horarios/types';
+import type { HorarioAlumno, FormatoHorario } from '../horarios/types';
+import { buildCursoLabel, FORMATO_HORARIO_DEFAULT } from '../horarios/types';
+import {
+  esc, aMin, aHHMM, fmtMin, rotacion, bottomOverridePct, computeHorarioGrid,
+} from './horarioGrid';
+import type { OcupEntry, HourSlotData } from './horarioGrid';
+import { buildHorarioNotasHtml } from './horarioTemplateNotas';
 
 const PALETA = ['n-info', 'n-olive', 'n-warn', 'n-violet', 'n-tint', 'n-pink'];
 
-function esc(s: string): string {
-  return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/**
+ * Punto de entrada único: elige el renderizador según el formato pedido.
+ * Por defecto usa el formato "notas" (notas adhesivas).
+ */
+export function buildHorarioHtml(
+  alumno: HorarioAlumno,
+  anio: string,
+  formato: FormatoHorario = FORMATO_HORARIO_DEFAULT,
+): string {
+  return formato === 'clasico'
+    ? buildHorarioClasicoHtml(alumno, anio)
+    : buildHorarioNotasHtml(alumno, anio);
 }
 
-function aMin(h: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec((h ?? '').trim());
-  if (!m) return null;
-  return Number(m[1]) * 60 + Number(m[2]);
-}
-
-function aHHMM(min: number): string {
-  return `${Math.floor(min / 60)}:${(min % 60).toString().padStart(2, '0')}`;
-}
-
-
-function rotacion(seed: number): string {
-  const ang = (((seed * 2654435761) % 1000) / 1000 - 0.5) * 5;
-  const dx = (((seed * 40503) % 100) / 100 - 0.5) * 6;
-  const dy = (((seed * 12289) % 100) / 100 - 0.5) * 4;
-  return `transform:rotate(${ang.toFixed(1)}deg) translate(${dx.toFixed(0)}px,${dy.toFixed(0)}px)`;
-}
-
-interface OcupEntry {
-  clase: ClaseHorario;
-  position: 'full' | 'top' | 'bottom';
-  rowspan: number;
-}
-
-interface HourSlotData {
-  full?: OcupEntry;
-  top?: OcupEntry;
-  bottom?: OcupEntry;
-}
-
-type Slot = HourSlotData | 'cov' | undefined;
-
-export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
-  const conMin = alumno.clases
-    .map(c => ({ c, ini: aMin(c.entrada), fin: aMin(c.salida) }))
-    .filter((x): x is { c: ClaseHorario; ini: number; fin: number } =>
-      x.ini !== null && x.fin !== null && x.fin > x.ini
-    );
-
-  // ── Resumen de asignaturas + horas semanales ───────────────────────────────
-  const horasPorAsig = new Map<string, number>();
-  for (const { c, ini, fin } of conMin) {
-    horasPorAsig.set(c.asignatura, (horasPorAsig.get(c.asignatura) ?? 0) + (fin - ini));
-  }
-  const asigResumen = [...horasPorAsig.entries()]
-    .sort((a, b) => b[1] - a[1]);
+/** Formato clásico: cabecera con logos institucionales y tipografía serif. */
+export function buildHorarioClasicoHtml(alumno: HorarioAlumno, anio: string): string {
+  const { asigResumen, totalMinutos, nDias, ocup, hourSlots, groups, nHours } = computeHorarioGrid(alumno);
 
   const colorMap = new Map(asigResumen.map(([nombre], i) => [nombre, PALETA[i % PALETA.length]]));
 
-  function fmtMin(min: number): string {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    if (h > 0 && m > 0) return `${h}h ${m}min`;
-    if (h > 0) return `${h}h`;
-    return `${m}min`;
-  }
-
-  const totalMinutos = asigResumen.reduce((s, [, m]) => s + m, 0);
-  const nDias = new Set(conMin.map(({ c }) => c.dia)).size;
+  // ── Presupuesto de alto para que la parrilla quepa siempre en una sola hoja
+  // A4 apaisado al imprimir/exportar a PDF (ver misma lógica en horarioTemplateNotas.ts).
+  const sepCount = groups.filter(g => g === 'sep').length;
+  const SEP_ALTO_MM = 6;
+  const ALTO_DISPONIBLE_FILAS_MM = 124;
+  // Mínimo 12mm: por debajo, una celda partida en dos (clases de 30 min) deja
+  // demasiado poco alto útil a cada mitad para su nota, aunque la geometría de
+  // la nota en impresión ya es proporcional (ver .note.pos-top/pos-bottom).
+  const altoFilaMm = Math.min(
+    18,
+    Math.max(12, (ALTO_DISPONIBLE_FILAS_MM - sepCount * SEP_ALTO_MM) / Math.max(nHours, 1)),
+  );
 
   const asigGridHtml = asigResumen.map(([nombre, minutos]) => `
     <div class="asig-row ${colorMap.get(nombre) ?? PALETA[0]}" data-subj="${esc(nombre)}">
@@ -75,94 +49,10 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
       <span class="asig-horas">${fmtMin(minutos)}</span>
     </div>`).join('');
 
-  // ── Hourly grid range ─────────────────────────────────────────────────────
-  let gridIni = 9 * 60;
-  let gridFin = 21 * 60;
-  if (conMin.length) {
-    gridIni = Math.floor(Math.min(...conMin.map(x => x.ini)) / 60) * 60;
-    gridFin = Math.ceil(Math.max(...conMin.map(x => x.fin)) / 60) * 60;
-  }
-  const nHours = Math.max(1, (gridFin - gridIni) / 60);
-  const hourSlots = Array.from({ length: nHours }, (_, i) => gridIni + i * 60);
-
-  // ── Occupancy matrix [day][hour] ──────────────────────────────────────────
-  const ocup: Slot[][] = DIAS.map(() =>
-    Array.from({ length: nHours }, (): Slot => undefined)
-  );
-
-  let semilla = 0;
-
-  conMin.forEach(({ c, ini, fin }) => {
-    const d = DIAS.indexOf(c.dia);
-    if (d < 0) return;
-    const h = Math.floor((ini - gridIni) / 60);
-    if (h < 0 || h >= nHours) return;
-
-    const hourStart = gridIni + h * 60;
-    const startsAtHalf = ini >= hourStart + 30;
-    const duration = fin - ini;
-
-    if (startsAtHalf) {
-      // Empieza en la media hora: arranca en la mitad inferior de esta fila y se
-      // extiende hacia abajo tantas filas como dure (no se aplasta en media celda).
-      const prev = ocup[d][h];
-      if (prev === 'cov') return;
-      const data: HourSlotData = (prev as HourSlotData) ?? {};
-      if (data.full || data.bottom) return;
-      const endRow = Math.min(Math.floor((fin - 1 - gridIni) / 60), nHours - 1);
-      let span = 1;
-      for (let r = 1; r <= endRow - h; r++) {
-        if (ocup[d][h + r] !== undefined) break;
-        span = r + 1;
-      }
-      data.bottom = { clase: c, position: 'bottom', rowspan: span };
-      ocup[d][h] = data;
-      for (let r = 1; r < span; r++) ocup[d][h + r] = 'cov';
-    } else if (duration <= 30) {
-      // Top half, rowspan 1
-      const prev = ocup[d][h];
-      if (prev === 'cov') return;
-      const data: HourSlotData = (prev as HourSlotData) ?? {};
-      if (data.full || data.top) return;
-      data.top = { clase: c, position: 'top', rowspan: 1 };
-      ocup[d][h] = data;
-    } else {
-      // Full cell, possible multi-row span
-      const rowspan = Math.min(Math.ceil(duration / 60), nHours - h);
-      let free = true;
-      for (let r = 0; r < rowspan; r++) {
-        if (ocup[d][h + r] !== undefined) { free = false; break; }
-      }
-      if (!free) return;
-      ocup[d][h] = { full: { clase: c, position: 'full', rowspan } };
-      for (let r = 1; r < rowspan; r++) ocup[d][h + r] = 'cov';
-    }
-  });
-
-  // ── Find active hour slots and group with separators ──────────────────────
-  const active = new Set<number>();
-  for (let h = 0; h < nHours; h++) {
-    for (let d = 0; d < DIAS.length; d++) {
-      if (ocup[d][h] !== undefined) { active.add(h); break; }
-    }
-  }
-
-  const groups: (number[] | 'sep')[] = [];
-  let cur: number[] = [];
-  for (let h = 0; h < nHours; h++) {
-    if (active.has(h)) {
-      cur.push(h);
-    } else if (cur.length) {
-      groups.push(cur);
-      groups.push('sep');
-      cur = [];
-    }
-  }
-  if (cur.length) groups.push(cur);
-
   // ── Render rows ───────────────────────────────────────────────────────────
   const nTotalDias = DIAS.length;
   let filas = '';
+  let semilla = 0;
 
   for (const grp of groups) {
     if (grp === 'sep') {
@@ -200,10 +90,13 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
               ? 'pos-top'
               : e.rowspan > 1 ? 'pos-bottom pos-bottom-tall' : 'pos-bottom';
           // Clases de 30 min ocupan media celda: no caben las dos líneas, mostramos solo la asignatura.
-          const ini = aMin(e.clase.entrada);
-          const fin = aMin(e.clase.salida);
-          const esBreve = ini !== null && fin !== null && fin - ini <= 30;
-          return `<div class="note ${color} ${posClass}${esBreve ? ' is-breve' : ''}" style="${rotacion(semilla)}"
+          const iniMin = aMin(e.clase.entrada);
+          const finMin = aMin(e.clase.salida);
+          const esBreve = iniMin !== null && finMin !== null && finMin - iniMin <= 30;
+          const bottomOverride = bottomOverridePct(e);
+          // Cinta adhesiva en todas las notas, con ángulo ligeramente distinto.
+          const tapeRot = ((semilla * 37) % 9) - 4; // -4..4 grados
+          return `<div class="note ${color} ${posClass} taped${esBreve ? ' is-breve' : ''}" style="${rotacion(semilla)}${bottomOverride};--tape-rot:${tapeRot}deg"
             data-subj="${esc(e.clase.asignatura)}" data-time="${horas}" data-day="${esc(e.clase.dia)}"
             data-prof="${esc(e.clase.profesor)}" data-room="${esc(e.clase.aula)}" data-notes="${esc(nota)}">
             ${esBreve ? '' : `<span class="n-time">${horas}</span>`}
@@ -227,9 +120,11 @@ export function buildHorarioHtml(alumno: HorarioAlumno, anio: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Horario Semanal — ${esc(alumno.nombre)}</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 :root{
   --font:'DM Sans',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   --display:'DM Serif Display',Georgia,serif;
+  --caveat:'Caveat',cursive;
   --bg:#f7f1e8;--bg-panel:#f0e8da;--card:#fffaf2;--ink:#2d241d;--ink-soft:#5e4f43;
   --ink-mute:#9c8a7a;--border:#e6dac6;--border-soft:#efe5d3;--primary:#b85c3a;
   --primary-dark:#9d4a2c;--primary-tint:#fbe7dc;--primary-border:#e8b8a3;
@@ -249,7 +144,7 @@ body{font-family:var(--display);color:var(--ink);min-height:100vh;
 .header-logos img{display:block;height:56px;width:auto;max-width:38%;object-fit:contain;flex-shrink:0;}
 .doc-title{flex:1 1 auto;min-width:0;font-family:var(--display);font-size:38px;line-height:1;margin:0;text-align:center;color:#0a478f;}
 .doc-year{text-align:center;font-size:26px;font-weight:500;color:#148180;letter-spacing:1.2px;margin:6px 0 16px;line-height:1;}
-.doc-meta{display:flex;flex-direction:column;gap:8px;padding:14px 0 16px;border-top:1px solid var(--border);border-bottom:2px solid var(--ink);}
+.doc-meta{display:flex;flex-direction:column;gap:8px;padding:14px 0 16px;border-top:1px solid var(--border);}
 .meta-row{display:flex;align-items:baseline;gap:10px;font-size:15px;flex-wrap:wrap;}
 .meta-label{font-family:var(--font);font-size:11px;font-weight:700;color:var(--ink-mute);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;}
 .meta-val{font-family:var(--display);font-size:18px;color:var(--ink);border-bottom:1.5px solid var(--border);padding:0 6px 1px;min-width:140px;line-height:1.2;}
@@ -285,14 +180,16 @@ td.cell{height:90px;background:var(--bg);vertical-align:top;padding:0;overflow:v
 .note.pos-bottom{top:calc(50% + 4px);bottom:8px;}
 /* Empieza a la media hora pero abarca varias filas: el alto lo da el rowspan del td. */
 .note.pos-bottom-tall{top:48px;bottom:8px;}
-.note .n-time{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;line-height:1;transition:font-size .18s;}
-.note .n-subj{font-family:var(--display);font-size:14px;font-weight:400;text-align:center;line-height:1.2;color:var(--ink);
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;transition:font-size .18s,font-weight .18s;}
-.note.selected .n-time{font-size:11px;}
-.note.selected .n-subj{font-size:16px;font-weight:700;-webkit-line-clamp:3;}
-/* Clases de 30 min (media celda): solo asignatura, ajustada a 2 líneas */
+/* Cinta adhesiva en la parte superior de cada nota */
+.note.taped::after{content:'';position:absolute;top:-8px;left:50%;transform:translateX(-50%) rotate(var(--tape-rot,-1.5deg));
+  width:34px;height:13px;background:rgba(240,230,190,.6);border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,.12);z-index:3;}
+.note .n-time{font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.6;line-height:1;}
+.note .n-subj{font-family:var(--caveat);font-weight:400;text-align:center;line-height:1.2;color:var(--ink);overflow:hidden;
+  width:100%;overflow-wrap:anywhere;word-break:break-word;}
+.note.selected .n-subj{font-weight:700;}
+/* Clases de 30 min (media celda): solo asignatura */
 .note.is-breve{padding:4px 8px;}
-.note.is-breve .n-subj{font-size:12px;line-height:1.15;-webkit-line-clamp:2;}
+.note.is-breve .n-subj{line-height:1.15;}
 .n-info{background-color:var(--info-bg);border:1px solid var(--info-border);}
 .n-olive{background-color:var(--olive-tint);border:1px solid var(--olive-border);}
 .n-warn{background-color:var(--warn-bg);border:1px solid var(--warn-border);}
@@ -336,6 +233,39 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
 .modal-field .field-value{font-family:var(--display);font-size:17px;color:var(--ink);border-bottom:1.5px solid var(--border);padding:2px 0 3px;line-height:1.3;min-height:24px;}
 @page{size:A4 landscape;margin:0;}
 @media print{
+  html,body{background:#fff;}
+  body{padding:0;margin:0;}
+  .page{box-shadow:none;background:#fff;width:297mm;height:210mm;padding:8mm 10mm 10mm;}
+  .header-logos img{height:34px;}
+  .doc-title{font-size:26px;}
+  .doc-year{font-size:16px;margin:3px 0 6px;}
+  .doc-meta{padding:6px 0 8px;}
+  .meta-row{font-size:13px;}
+  .meta-label{font-size:9px;}
+  .meta-val{font-size:14px;min-width:100px;}
+  table.tt{margin-top:6px;}
+  table.tt thead th{font-size:11px;padding:5px 4px;}
+  td.time{font-size:10px;width:16mm;padding:2px 4px;}
+  td.cell,td.time{height:${altoFilaMm.toFixed(2)}mm;}
+  tr.sep-row td{height:${SEP_ALTO_MM}mm;}
+  .sep-inner{height:${SEP_ALTO_MM}mm;}
+  .sep-inner::before{top:4px;}
+  .sep-inner::after{bottom:4px;}
+  /* Geometría de las notas en % (no en px fijos): con filas más bajas para
+     caber en una hoja, un margen fijo en px se comería casi toda la nota. */
+  .note{padding:3px 5px;}
+  .note.pos-full{top:4%;bottom:4%;}
+  .note.pos-top{top:4%;height:46%;}
+  .note.pos-bottom{top:50%;bottom:4%;}
+  .note.pos-bottom-tall{top:22%;bottom:4%;}
+  .note.taped::after{top:-6px;width:26px;height:10px;}
+  .note .n-time{font-size:9px;}
+  .asig-bottom-section{margin-top:6px;padding-top:5px;}
+  .asig-panel-title,.asig-total{font-size:9px;}
+  .asig-bottom{gap:3px;grid-template-columns:repeat(auto-fill,minmax(38mm,1fr));}
+  .asig-row{padding:3px 8px;}
+  .asig-nombre{font-size:11px;}
+  .asig-horas{font-size:10px;}
   .pdf-btn,.modal-overlay{display:none !important;}
 }
 </style>
@@ -383,7 +313,6 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
       <button class="modal-close" id="modal-close">&times;</button>
     </div>
     <div class="modal-body">
-      <div class="modal-field"><span class="field-label">D&#237;a</span><div class="field-value" id="modal-day"></div></div>
       <div class="modal-field"><span class="field-label">Profesor/a</span><div class="field-value" id="modal-prof"></div></div>
       <div class="modal-field"><span class="field-label">Aula / Sala</span><div class="field-value" id="modal-room"></div></div>
       <div class="modal-field"><span class="field-label">Grupo / Notas</span><div class="field-value" id="modal-notes"></div></div>
@@ -392,6 +321,57 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
 </div>
 
 <script>
+  /* ── Ajuste dinámico de fuente en cada card de clase ── */
+  function fitNotes() {
+    document.querySelectorAll('.note').forEach(function(note) {
+      var subj = note.querySelector('.n-subj');
+      if (!subj) return;
+      var time = note.querySelector('.n-time');
+      var isBreve = note.classList.contains('is-breve');
+      var maxPx = isBreve ? 14 : 20;
+      function avail() {
+        var timeH = (time && time.style.display !== 'none') ? time.offsetHeight + 3 : 0;
+        return note.clientHeight - 12 - timeH;
+      }
+      function shrinkTo(minPx) {
+        var a = avail();
+        // Aunque no quede hueco, fijamos el tamaño mínimo: dejar el tamaño por
+        // defecto (mayor) haría que el texto quedara totalmente invisible en
+        // vez de simplemente apretado.
+        subj.style.fontSize = minPx + 'px';
+        if (a <= 0) return false;
+        for (var px = maxPx; px >= minPx; px--) {
+          subj.style.fontSize = px + 'px';
+          if (subj.scrollHeight <= a) return true;
+        }
+        return false;
+      }
+      /* Si ni al tamaño mínimo cabe (nota partida arriba/abajo con asignatura
+         larga), se oculta la hora para dejarle todo el hueco al nombre. */
+      if (shrinkTo(8)) return;
+      if (time && time.style.display !== 'none') {
+        time.style.display = 'none';
+        if (shrinkTo(8)) return;
+      }
+      shrinkTo(6);
+    });
+  }
+  /* Esperar a que Caveat esté cargada antes de medir */
+  function runFit() {
+    return new Promise(function(resolve) {
+      function listo() { fitNotes(); resolve(); }
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(listo, listo);
+      } else {
+        setTimeout(listo, 400);
+      }
+    });
+  }
+  window.__pdfReady = (document.readyState === 'loading'
+    ? new Promise(function(res) { document.addEventListener('DOMContentLoaded', res); })
+    : Promise.resolve()
+  ).then(runFit);
+
   var overlay=document.getElementById('modal-overlay');
   var colorMap={'n-info':'#e1eaee','n-olive':'#e8ecd4','n-warn':'#fae0bf','n-violet':'#e8dde6','n-tint':'#fbe7dc','n-pink':'#fadcd5'};
   function set(id,v){document.getElementById(id).textContent=v||'—';}
@@ -423,7 +403,7 @@ tr.sep-row td{height:32px;padding:0;border:none !important;background:transparen
       var d=note.dataset;
       set('modal-subj',d.subj);
       document.getElementById('modal-time').textContent=d.day+'  ·  '+d.time;
-      set('modal-day',d.day);set('modal-prof',d.prof);set('modal-room',d.room);set('modal-notes',d.notes);
+      set('modal-prof',d.prof);set('modal-room',d.room);set('modal-notes',d.notes);
       var cls=[].slice.call(note.classList).find(function(c){return c.indexOf('n-')===0;});
       document.getElementById('modal-bar').style.background=colorMap[cls]||'#e6dac6';
       overlay.classList.add('open');

@@ -13,8 +13,8 @@ import type { HorariosSnapshot } from "../../electron/horarios-data-store";
 import { buildHorarioHtml } from "../utils/horarioTemplate";
 import { buildListadoHtml, listarAsignaturasUnicas, type VersionListado, type NivelAgrupacion } from "../utils/horarioListadoTemplate";
 import { normNombre } from "../utils/horarioEnvio";
-import type { CargaHorarios, HorarioAlumno, CampanyaEnvio } from "../horarios/types";
-import { buildCursoLabel } from "../horarios/types";
+import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, FormatoHorario } from "../horarios/types";
+import { buildCursoLabel, FORMATO_HORARIO_DEFAULT } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
 import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
 import ResizableColumns from "../components/ResizableColumns";
@@ -78,6 +78,17 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
   const [descargandoHtml, setDescargandoHtml] = useState(false);
   const [panelDerecho, setPanelDerecho] = useState<PanelDerecho>("preview");
   const [vistaPrincipal, setVistaPrincipal] = useState<VistaPrincipal>("individuales");
+
+  // Formato visual del horario (vista previa, descargas y email). Se recuerda
+  // entre sesiones; por defecto, el formato de notas adhesivas.
+  const [formato, setFormato] = useState<FormatoHorario>(() => {
+    const saved = localStorage.getItem("horario:formato");
+    return saved === "clasico" || saved === "notas" ? saved : FORMATO_HORARIO_DEFAULT;
+  });
+  const cambiarFormato = useCallback((f: FormatoHorario) => {
+    setFormato(f);
+    localStorage.setItem("horario:formato", f);
+  }, []);
   const [campanyas, setCampanyas] = useState<CampanyaEnvio[]>([]);
   const [campanytaSeleccionada, setCampanyaSeleccionada] = useState<string | null>(null);
 
@@ -315,16 +326,47 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       if (formatoDetectado) setModalFormatoDetectado(formatoDetectado);
 
       if (carga && carga.alumnos.length > 0) {
-        const existentes = new Set(carga.alumnos.map(a => a.clave));
-        const nuevos = alumnosEnriquecidos.filter(a => !existentes.has(a.clave));
+        const mapaExistentes = new Map(carga.alumnos.map(a => [a.clave, a]));
+        const nuevos: HorarioAlumno[] = [];
+        let clasesNuevasTotal = 0;
+
+        for (const alumnoNuevo of alumnosEnriquecidos) {
+          const existente = mapaExistentes.get(alumnoNuevo.clave);
+          if (!existente) {
+            nuevos.push(alumnoNuevo);
+          } else {
+            // Fusionar clases: añadir solo las que no estén ya (por idAlumnoAsignatura o asignatura+día+entrada)
+            const clavesExistentes = new Set(
+              existente.clases.map(c =>
+                c.idAlumnoAsignatura ?? `${c.asignatura}|${c.dia}|${c.entrada}`,
+              ),
+            );
+            const clasesAñadir = alumnoNuevo.clases.filter(c => {
+              const k = c.idAlumnoAsignatura ?? `${c.asignatura}|${c.dia}|${c.entrada}`;
+              return !clavesExistentes.has(k);
+            });
+            clasesNuevasTotal += clasesAñadir.length;
+            mapaExistentes.set(alumnoNuevo.clave, {
+              ...existente,
+              email: existente.email || alumnoNuevo.email,
+              telefono: existente.telefono || alumnoNuevo.telefono,
+              clases: [...existente.clases, ...clasesAñadir],
+            });
+          }
+        }
+
+        const alumnosMerged = [...mapaExistentes.values(), ...nuevos]
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+
         const merged: CargaHorarios = {
           fileName: res.fileName,
-          alumnos: [...carga.alumnos, ...nuevos].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+          alumnos: alumnosMerged,
           incompletas: carga.incompletas + res.incompletas,
         };
         setCarga(merged);
         if (nuevos.length > 0) setSelectedClave(nuevos[0].clave);
-        else setError("No hay alumnos nuevos en ese Excel (todos ya están cargados).");
+        else if (clasesNuevasTotal > 0) setError(`Fusionadas ${clasesNuevasTotal} clases nuevas en alumnos ya cargados.`);
+        else setError("No hay datos nuevos en ese Excel (todas las clases ya estaban cargadas).");
       } else {
         const cargaFinal: CargaHorarios = { ...res, alumnos: alumnosEnriquecidos };
         setCarga(cargaFinal);
@@ -480,8 +522,8 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
   }, [seleccionado, esFantasma, carga]);
 
   const html = useMemo(
-    () => (seleccionado ? buildHorarioHtml(seleccionado, anio) : ""),
-    [seleccionado, anio],
+    () => (seleccionado ? buildHorarioHtml(seleccionado, anio, formato) : ""),
+    [seleccionado, anio, formato],
   );
 
   const generarPdfBase64 = async (htmlStr: string): Promise<string | null> => {
@@ -551,7 +593,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
     // Abre la ventana nativa flotante del SO (autónoma: envía, guarda la campaña
     // y avisa para refrescar el historial).
     void window.adminAPI.dialogoEnviarCampanya.abrir(
-      JSON.stringify({ destinatarios, config, anio }),
+      JSON.stringify({ destinatarios, config, anio, formato }),
     );
   };
 
@@ -1014,6 +1056,28 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
                     {seleccionado.nombre} — {buildCursoLabel(seleccionado.ensenanzaCurso, seleccionado.especialidad)}
                   </span>
                   <div className="flex items-center gap-2">
+                    <div className="flex items-center rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] p-0.5 mr-1">
+                      {([
+                        { id: "notas", label: "Notas" },
+                        { id: "clasico", label: "Clásico" },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => cambiarFormato(opt.id)}
+                          title={opt.id === "notas"
+                            ? "Formato de notas adhesivas (hecho a mano)"
+                            : "Formato clásico con logos"}
+                          className={
+                            "px-2.5 py-1 rounded-md text-xs font-medium transition " +
+                            (formato === opt.id
+                              ? "bg-[var(--tc-primary)] text-white"
+                              : "text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)]")
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                     <button
                       onClick={handleImprimirPdf}
                       disabled={imprimiendo || generandoPdf || descargandoHtml}
@@ -1376,8 +1440,8 @@ function ModalExportarListado({
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: "var(--tc-primary)" }}
           >
-            {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (accion === "imprimir" ? <Printer className="w-3.5 h-3.5" /> : <FileCode2 className="w-3.5 h-3.5" />)}
-            {accion === "imprimir" ? "Imprimir" : "Generar HTML"}
+            {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCode2 className="w-3.5 h-3.5" />}
+            Generar HTML
           </button>
         </div>
       </div>

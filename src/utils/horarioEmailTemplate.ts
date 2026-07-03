@@ -21,6 +21,12 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
+  const claseInstrumento = alumno.clases.find(c =>
+    c.asignatura.toLowerCase().includes('instrumento')
+  );
+  const tutor = alumno.profesorInstrumento?.trim() || claseInstrumento?.profesor?.trim() ||
+    'No disponible. Será asignado por la Delegación de Educación';
+
   const nClases = alumno.clases.length;
   const diasSet = new Set(alumno.clases.map(c => c.dia));
   const diasResumen = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
@@ -81,8 +87,8 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
         <p style="margin:0;font-size:19px;color:#0f172a;font-weight:700;">Estimado/a ${esc(alumno.nombre)},</p>
         <p style="margin:14px 0 0;font-size:15px;color:#475569;line-height:1.75;">
           Adjunto a este correo encontrarás tu
-          <strong style="color:#6d28d9;background:#ede9fe;padding:2px 7px;border-radius:5px;">horario semanal de clases</strong>
-          para el presente curso escolar. El horario se ha generado con las asignaciones realizadas por el equipo docente.
+          <strong style="color:#6d28d9;background:#ede9fe;padding:2px 7px;border-radius:5px;">horario semanal de clases</strong>.
+          El horario se ha generado con las asignaciones realizadas por el equipo docente.
         </p>
         ${mensajePersonalizado ? `
         <div style="margin:18px 0 0;padding:16px 20px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;">
@@ -109,9 +115,15 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
                   <td style="padding:12px 0 0;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td>
+                        <td style="padding-bottom:12px;border-bottom:1px solid #ddd6fe;">
                           <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Curso</span><br>
                           <span style="font-size:14px;color:#4c1d95;font-weight:700;margin-top:3px;display:block;">${esc(buildCursoLabel(alumno.ensenanzaCurso, alumno.especialidad)) || '—'}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-top:12px;">
+                          <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Tutor/a:</span><br>
+                          <span style="font-size:14px;color:#4c1d95;font-weight:700;margin-top:3px;display:block;">${esc(tutor)}</span>
                         </td>
                       </tr>
                     </table>

@@ -1,5 +1,6 @@
 import type { AppConfig } from '../../electron/config-store';
-import type { HorarioAlumno } from '../horarios/types';
+import type { HorarioAlumno, FormatoHorario } from '../horarios/types';
+import { FORMATO_HORARIO_DEFAULT } from '../horarios/types';
 import { buildHorarioHtml } from './horarioTemplate';
 import { buildHorarioEmailHtml } from './horarioEmailTemplate';
 import { enviarEmailHorario, type AdjuntoEmail } from '../api/horarios';
@@ -9,7 +10,7 @@ import { enviarEmailHorario, type AdjuntoEmail } from '../api/horarios';
  * cada envío (tanto en la campaña masiva de Horarios Individuales como en el
  * envío individual desde la ficha de Local), para poder rectificarlo.
  */
-export const MENSAJE_HORARIO_DEFAULT = `Les recordamos que el plazo para solicitar el cambio de grupo finaliza el próximo 8 de julio.\nPor otra parte, les aclaramos que los horarios facilitados corresponden únicamente a las clases grupales. El resto de las clases se irán conformando más adelante directamente por el equipo docente de cada alumno.\nPara realizar la solicitud de cambio, pueden elegir una de las siguientes vías:\nPor correo electrónico: Respondiendo a este mismo mensaje y adjuntando el formulario que le adjuntamos, debidamente cumplimentado.\nDe forma presencial: Acudiendo a la Secretaría del Conservatorio y presentando el mismo modelo de solicitud. Les recordamos que nuestro horario de atención al público es de 9:00 a 14:00 horas.`;
+export const MENSAJE_HORARIO_DEFAULT = `Les recordamos que el plazo para solicitar el cambio de grupo finaliza el próximo 8 de julio. Por otra parte, les aclaramos que los horarios facilitados corresponden únicamente a las clases grupales. El resto de horarios se fijarán en la primera semana de Septiembre. Para realizar la solicitud de cambio, pueden elegir una de las siguientes vías:\n\n- Por correo electrónico: Respondiendo a este mismo mensaje y adjuntando el formulario que le adjuntamos, debidamente cumplimentado.\n- De forma presencial: Acudiendo a la Secretaría del Conservatorio y presentando el mismo modelo de solicitud.\n\nLes recordamos que nuestro horario de atención al público es de 9:00 a 14:00 horas.\n\nNota: La publicación de los horarios grupales definitivos se realizará el día 14 de julio.`;
 
 /** Normaliza un nombre para buscar coincidencias (sin acentos, minúsculas, espacios simples). */
 export function normNombre(s: string): string {
@@ -32,6 +33,8 @@ export interface OpcionesEnvioHorario {
   adjuntoFormulario?: boolean;
   /** Archivo personalizado del PC para adjuntar (base64 + nombre de fichero). */
   adjuntoPersonalizado?: { nombre: string; base64: string };
+  /** Formato visual del horario adjunto (PDF + HTML). Por defecto "notas". */
+  formato?: FormatoHorario;
 }
 
 /**
@@ -56,9 +59,9 @@ export async function enviarHorarioAlumno(
       ? { ...alumno, clases: alumno.clases.filter(c => opciones.asignaturas!.includes(c.asignatura)) }
       : alumno;
 
-  const horarioHtml = buildHorarioHtml(alumnoFiltrado, anio);
+  const horarioHtml = buildHorarioHtml(alumnoFiltrado, anio, opciones?.formato ?? FORMATO_HORARIO_DEFAULT);
   const emailHtml = buildHorarioEmailHtml(alumnoFiltrado, anio, mensaje?.trim() || undefined);
-  const nombreBase = `Horario ${alumno.nombre}`.replace(/[\\/:*?"<>|]/g, '_');
+  const nombreBase = `Horario_${alumno.nombre}`.replace(/[\\/:*?"<>|]/g, '_');
 
   // Construimos la lista de adjuntos incluyendo SOLO los que están activados,
   // para que el Flow nunca reciba huecos vacíos que rompan el Send an email.

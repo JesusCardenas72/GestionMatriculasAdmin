@@ -233,6 +233,15 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
   border-radius:10px;background:var(--primary);color:#fff;cursor:pointer;}
 .modal-cerrar:hover{opacity:.85;}
 
+.modal-box-ayuda{width:min(640px,100%);}
+.ayuda-body{overflow-y:auto;margin:0 24px 4px;display:flex;flex-direction:column;gap:16px;}
+.ayuda-sec h4{font-family:var(--font);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--primary);margin:0 0 6px;}
+.ayuda-list{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-soft);line-height:1.75;}
+.ayuda-list li{margin-bottom:2px;}
+.ayuda-list b{color:var(--ink);}
+.ayuda-list kbd{font-family:monospace;background:var(--border-soft);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11.5px;}
+
 @media print{.modal-overlay,.float-tip{display:none !important;}.chk-cell,.chk-alumno,.chk-grupo,.btn-copiar,#agrup-wrap{display:none !important;}}
 .tabla-wrap{padding:0 0 0 20px;}
 
@@ -374,6 +383,54 @@ ${esProfes ? `
     </div>
   </div>
 </div>` : ''}
+
+<div id="modal-ayuda" class="modal-overlay" style="display:none">
+  <div class="modal-box modal-box-ayuda">
+    <div class="modal-head">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
+      <h2 class="modal-titulo">Gu&iacute;a de uso del listado</h2>
+    </div>
+    <div class="ayuda-body">
+      <div class="ayuda-sec">
+        <h4>Buscar y navegar</h4>
+        <ul class="ayuda-list">
+          <li><b>Buscador</b>: filtra por nombre de alumno en tiempo real, en todas las asignaturas a la vez.</li>
+          <li><b>&Iacute;ndice de asignaturas</b>: pulsa una o varias para mostrar solo esas asignaturas; vuelve a pulsarlas para quitarlas del filtro.</li>
+          <li><b>Expandir / Contraer todo</b>: cada clic abre o cierra una capa del &aacute;rbol (asignatura &rarr; curso &rarr; grupo).</li>
+        </ul>
+      </div>
+      <div class="ayuda-sec">
+        <h4>Agrupar</h4>
+        <ul class="ayuda-list">
+          <li>El bot&oacute;n <b>Agrupar</b> controla los niveles intermedios del &aacute;rbol: <b>Asignatura</b> y <b>Curso</b>.</li>
+          <li>A&ntilde;ade, quita o reordena estos niveles con las flechas y la &times;; el nivel <b>Grupo</b> siempre queda al final.</li>
+          <li><b>Restablecer</b> vuelve al orden por defecto (Asignatura &rarr; Curso &rarr; Grupo).</li>
+        </ul>
+      </div>
+      ${esProfes ? `
+      <div class="ayuda-sec">
+        <h4>Filtros de profesorado</h4>
+        <ul class="ayuda-list">
+          <li><b>Filtro por profesor</b>: muestra solo los grupos que imparte el profesor seleccionado.</li>
+          <li><b>Filtro por especialidad</b> y <b>Filtro por curso</b>: acotan el listado; se combinan entre s&iacute; y con la b&uacute;squeda.</li>
+          <li><b>Solo pendientes</b>: muestra &uacute;nicamente alumnos con la asignatura pendiente de otro curso (etiqueta <b>Pendiente</b>).</li>
+          <li><b>Copiar email</b>: marca alumnos con las casillas (o la casilla de grupo para marcar todos) y copia sus correos separados por punto y coma, listos para pegar con <kbd>Ctrl+V</kbd> en el campo CCO de Outlook.</li>
+        </ul>
+      </div>` : ''}
+      <div class="ayuda-sec">
+        <h4>Exportar</h4>
+        <ul class="ayuda-list">
+          <li>El bot&oacute;n <b>PDF</b> abre la impresi&oacute;n del sistema con los filtros, la agrupaci&oacute;n y las asignaturas activas resumidos al inicio del documento.</li>
+          <li>Desde la app puedes adem&aacute;s <b>Imprimir</b> o <b>Generar HTML</b> eligiendo qu&eacute; asignaturas incluir.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-total">${esProfes ? 'Vista Profesorado' : 'Vista Alumnado'}</span>
+      <button class="modal-cerrar" id="modal-ayuda-cerrar" type="button">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <div id="ftip" class="float-tip"><div class="float-tip-head"><div class="float-tip-title" id="ftip-title"></div></div><div class="float-tip-body" id="ftip-body"></div></div>
 
@@ -963,6 +1020,20 @@ if(btnCopiar){
       wasCollapsed.forEach(function(el){if(!el.classList.contains('is-collapsed')) el.classList.add('is-collapsed');});
     },2000);
   });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOTÓN AYUDA
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function(){
+  var btnAyuda=document.getElementById('btn-ayuda');
+  var modal=document.getElementById('modal-ayuda');
+  if(!btnAyuda||!modal) return;
+  btnAyuda.addEventListener('click',function(){modal.style.display='flex';});
+  var cerrar=document.getElementById('modal-ayuda-cerrar');
+  if(cerrar) cerrar.addEventListener('click',function(){modal.style.display='none';});
+  document.addEventListener('click',function(e){if(e.target===modal) modal.style.display='none';});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modal.style.display==='flex') modal.style.display='none';});
 })();
 
 /* ═══════════════════════════════════════════════════════════════════════════

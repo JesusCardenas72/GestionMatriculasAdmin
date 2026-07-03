@@ -45,7 +45,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, Download, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -57,6 +57,8 @@ import {
 import { ensenanzaDesdeCode, getCatalogoLocal, getCatalogoParaCurso } from "../data/catalogoLocal";
 import { nombreVisibleTemporal, nombresTemporalRealCoinciden } from "../utils/temporales";
 import { EstadoBadge } from "./SolicitudDetail";
+import { nombreCompletoDe } from "../utils/fusionHorarios";
+import { buscarProfesorInstrumento } from "../utils/horariosPersistencia";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
 
@@ -162,7 +164,7 @@ export default function LocalDetail({
   onSubirNube,
   onSubirNubeTodo,
   pendingUploads = 0,
-  onGenerarPdf,
+  onGenerarPdf: _unusedGenerarPdf,
   onBorrar,
   onEnviarCorreo,
   onEnviarHorario,
@@ -205,6 +207,30 @@ export default function LocalDetail({
     return () => { cancelado = true; };
   }, [curso]);
 
+  // Tutor/a (profesor de Instrumento) mostrado en el encabezado, junto a Curso
+  // y Especialidad. Se busca en el almacén de horarios del curso; puede no
+  // haber datos si aún no se cargó ningún Excel de horarios.
+  const [tutor, setTutor] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const storeData = await window.adminAPI.horarios.data.obtener(curso);
+        const nombreCompleto = nombreCompletoDe(m.apellidos, m.nombre);
+        const encontrado = buscarProfesorInstrumento(
+          storeData,
+          nombreCompleto,
+          m.ensenanzaCurso,
+          m.especialidad ?? "",
+        );
+        if (!cancelado) setTutor(encontrado);
+      } catch {
+        if (!cancelado) setTutor(null);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [curso, m.apellidos, m.nombre, m.ensenanzaCurso, m.especialidad]);
+
   // Clave con la que se guarda el fichero PDF:
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
   //   - localId si es un registro puramente local (ampliación sin subir, etc.)
@@ -229,24 +255,6 @@ export default function LocalDetail({
     return { realLocalId: real.localId, revisada: !!real.discrepanciaRevisada };
   }, [m, sustitutoReal, todosTemporales]);
 
-  async function abrirVisorPdf() {
-    if (pdfBase64Preview) {
-      setShowPdfPreview(true);
-      return;
-    }
-    setLoadingPdf(true);
-    try {
-      let base64 = await cursosStore.leerPdf(curso, pdfKey);
-      if (!base64 && m.localId) {
-        base64 = await cursosStore.leerPdf(curso, m.localId);
-      }
-      if (!base64) return;
-      setPdfBase64Preview(base64);
-      setShowPdfPreview(true);
-    } finally {
-      setLoadingPdf(false);
-    }
-  }
 
   async function loadInlinePdf() {
     if (pdfBase64Preview && showInlinePdf) {
@@ -514,8 +522,7 @@ export default function LocalDetail({
               {estado != null && <EstadoBadge estado={estado} />}
               {m._fueEditado && !m._pendienteSubida && (
                 <span
-                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border"
-                  style={{ background: "var(--tc-success-bg)", color: "var(--tc-success-ink)", borderColor: "var(--tc-success-border)" }}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border bg-purple-100 text-purple-600 border-purple-200"
                 >
                   Editado
                 </span>
@@ -647,6 +654,13 @@ export default function LocalDetail({
               <span style={{ color: "var(--tc-border)" }}>|</span>
               <span className="font-bold uppercase tracking-wide text-[10.5px]">Esp.</span>
               <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{m.especialidad ?? "—"}</span>
+              {tutor && (
+                <>
+                  <span style={{ whiteSpace: "pre" }}>{"\t"}</span>
+                  <span className="font-bold uppercase tracking-wide text-[10.5px]">Tutor/a</span>
+                  <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{tutor}</span>
+                </>
+              )}
             </div>
 
             {/* Temporal: aviso (el selector "Sustituye a…" de matrículas reales está en Datos Personales) */}
@@ -758,7 +772,7 @@ export default function LocalDetail({
                   >
                     <button
                       type="button"
-                      onClick={() => { if (!readOnly) { onSubirNube(); setMenuOpen(false); } }}
+                      onClick={() => { if (!readOnly) { onSubirNube(); setMenuOpen(false); }}}
                       disabled={isSaving || !m._pendienteSubida || readOnly}
                       title={readOnly ? "No disponible en modo Solo Lectura" : undefined}
                       className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--tc-bg-panel)]"
@@ -1184,58 +1198,136 @@ export default function LocalDetail({
               {listaVisible.length === 0 && !showAdd && (
                 <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Sin asignaturas</p>
               )}
-              {listaVisible.map((item) => (
-                <div
-                  key={item.localId}
-                  className="flex items-center gap-3 p-3 rounded-lg"
-                  style={{
-                    background: "var(--tc-bg-panel)",
-                    border: "1px solid var(--tc-border-soft)",
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--tc-ink)" }}>{item.nombre}</p>
-                  </div>
-                  <select
-                    value={item.estado}
-                    onChange={(e) =>
-                      cambiarEstadoAsig(item.localId, Number(e.target.value) as EstadoAsignatura)
-                    }
-                    disabled={readOnly}
-                    className="text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{
-                      borderColor: "var(--tc-border)",
-                      background: "var(--tc-card)",
-                      color: "var(--tc-ink)",
-                    }}
-                  >
-                    {Object.entries(ESTADO_ASIGNATURA).map(([, val]) => (
-                      <option key={val} value={val}>
-                        {ESTADO_ASIGNATURA_LABEL[val as EstadoAsignatura]}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => !readOnly && eliminarAsig(item.localId)}
-                    disabled={readOnly}
-                    className="p-1 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    style={{ color: "var(--tc-ink-mute)" }}
-                    onMouseEnter={(e) => {
-                      if (!readOnly) {
-                        (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
-                        (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.color = "var(--tc-ink-mute)";
-                      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                    }}
-                    title={readOnly ? "No disponible en modo Solo Lectura" : "Eliminar asignatura"}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+              {(() => {
+                // Agrupar asignaturas por estado
+                const agrupadas: Record<EstadoAsignatura, AsignaturaEdit[]> = {
+                  [ESTADO_ASIGNATURA.MATRICULADA]: [],
+                  [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: [],
+                  [ESTADO_ASIGNATURA.CONVALIDADA]: [],
+                  [ESTADO_ASIGNATURA.SIMULTANEADA]: [],
+                  [ESTADO_ASIGNATURA.PENDIENTE]: [],
+                };
+                listaVisible.forEach((item) => {
+                  agrupadas[item.estado].push(item);
+                });
+
+                // Colores según estado (de la plantilla HTML)
+                const coloresPorEstado: Record<EstadoAsignatura, { bg: string; text: string; border: string; label: string }> = {
+                  [ESTADO_ASIGNATURA.MATRICULADA]: {
+                    bg: "#EFF6FF",
+                    text: "#1D4ED8",
+                    border: "#BFDBFE",
+                    label: "Matriculadas"
+                  },
+                  [ESTADO_ASIGNATURA.SOLICITUD_CONVALIDACION]: {
+                    bg: "#F3E8FF",
+                    text: "#7E22CE",
+                    border: "#E9D5FF",
+                    label: "Solicitud de Convalidación"
+                  },
+                  [ESTADO_ASIGNATURA.CONVALIDADA]: {
+                    bg: "#DCFCE7",
+                    text: "#15803D",
+                    border: "#BBF7D0",
+                    label: "Convalidadas"
+                  },
+                  [ESTADO_ASIGNATURA.SIMULTANEADA]: {
+                    bg: "#F3E8FF",
+                    text: "#7E22CE",
+                    border: "#E9D5FF",
+                    label: "Simultaneadas"
+                  },
+                  [ESTADO_ASIGNATURA.PENDIENTE]: {
+                    bg: "#FFF7ED",
+                    text: "#92400E",
+                    border: "#FED7AA",
+                    label: "Pendientes"
+                  },
+                };
+
+                // Renderizar grupos con contenido
+                return Object.entries(ESTADO_ASIGNATURA).map(([, estado]) => {
+                  const asigs = agrupadas[estado as EstadoAsignatura];
+                  if (asigs.length === 0) return null;
+
+                  const estilos = coloresPorEstado[estado as EstadoAsignatura];
+
+                  return (
+                    <div key={estado} className="space-y-2">
+                      <div
+                        className="px-3 py-2 rounded-lg"
+                        style={{
+                          background: estilos.bg,
+                          border: `1px solid ${estilos.border}`,
+                        }}
+                      >
+                        <h4
+                          className="text-xs font-bold uppercase tracking-wide mb-2"
+                          style={{ color: estilos.text }}
+                        >
+                          {estilos.label}
+                        </h4>
+                        <div className="space-y-1">
+                          {asigs.map((item) => (
+                            <div
+                              key={item.localId}
+                              className="flex items-center gap-3 p-2 rounded-lg"
+                              style={{
+                                background: "#fff",
+                                border: `1px solid ${estilos.border}`,
+                              }}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate" style={{ color: "var(--tc-ink)" }}>
+                                  {item.nombre}
+                                </p>
+                              </div>
+                              <select
+                                value={item.estado}
+                                onChange={(e) =>
+                                  cambiarEstadoAsig(item.localId, Number(e.target.value) as EstadoAsignatura)
+                                }
+                                disabled={readOnly}
+                                className="text-xs border rounded-md px-2 py-1 focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                style={{
+                                  borderColor: estilos.border,
+                                  background: estilos.bg,
+                                  color: estilos.text,
+                                }}
+                              >
+                                {Object.entries(ESTADO_ASIGNATURA).map(([, val]) => (
+                                  <option key={val} value={val}>
+                                    {ESTADO_ASIGNATURA_LABEL[val as EstadoAsignatura]}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => !readOnly && eliminarAsig(item.localId)}
+                                disabled={readOnly}
+                                className="p-1 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                style={{ color: estilos.text }}
+                                onMouseEnter={(e) => {
+                                  if (!readOnly) {
+                                    (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
+                                    (e.currentTarget as HTMLButtonElement).style.background = "#fef2f2";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  (e.currentTarget as HTMLButtonElement).style.color = estilos.text;
+                                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                                }}
+                                title={readOnly ? "No disponible en modo Solo Lectura" : "Eliminar asignatura"}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
 
               {showAdd && !readOnly ? (
                 <div

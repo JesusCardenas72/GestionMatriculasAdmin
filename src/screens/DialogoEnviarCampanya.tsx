@@ -4,7 +4,8 @@ import {
   FileText, FileCode2,
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
-import type { HorarioAlumno, CampanyaEnvio, ResultadoEnvio } from "../horarios/types";
+import type { HorarioAlumno, CampanyaEnvio, ResultadoEnvio, FormatoHorario } from "../horarios/types";
+import { FORMATO_HORARIO_DEFAULT } from "../horarios/types";
 import {
   MENSAJE_HORARIO_DEFAULT,
   enviarHorarioAlumno,
@@ -17,6 +18,8 @@ interface PayloadEnviarCampanya {
   destinatarios: HorarioAlumno[];
   config: AppConfig;
   anio: string;
+  /** Formato del horario elegido en la pantalla; sirve de valor inicial. */
+  formato?: FormatoHorario;
 }
 
 /** Extrae el dialogId del hash de la URL (#dialog-enviar-campanya?id=xxx). */
@@ -37,8 +40,9 @@ export function DialogoEnviarCampanya() {
   const [asignaturasSeleccionadas, setAsignaturasSeleccionadas] = useState<Set<string>>(new Set());
   const [adjuntoPdf, setAdjuntoPdf] = useState(true);
   const [adjuntoHtml, setAdjuntoHtml] = useState(true);
-  const [adjuntoFormulario, setAdjuntoFormulario] = useState(false);
+  const [adjuntoFormulario, setAdjuntoFormulario] = useState(true);
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
+  const [formato, setFormato] = useState<FormatoHorario>(FORMATO_HORARIO_DEFAULT);
   const [enviando, setEnviando] = useState(false);
   const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
   const [resultado, setResultado] = useState<ResultadoEnvio[] | null>(null);
@@ -61,7 +65,10 @@ export function DialogoEnviarCampanya() {
   useEffect(() => {
     if (!dialogId) return;
     window.adminAPI.dialogoCorreccion.getData(dialogId).then((json) => {
-      if (json) setPayload(JSON.parse(json) as PayloadEnviarCampanya);
+      if (!json) return;
+      const data = JSON.parse(json) as PayloadEnviarCampanya;
+      setPayload(data);
+      if (data.formato) setFormato(data.formato);
     });
   }, [dialogId]);
 
@@ -164,6 +171,7 @@ export function DialogoEnviarCampanya() {
           adjuntoPdf,
           adjuntoHtml,
           adjuntoFormulario,
+          formato,
           adjuntoPersonalizado: adjuntoPersonalizado ?? undefined,
           asignaturas: asignaturasSeleccionadas.size < asignaturasDisponibles.length
             ? [...asignaturasSeleccionadas]
@@ -297,6 +305,37 @@ export function DialogoEnviarCampanya() {
                 )}
               </div>
             )}
+
+            {/* Formato del horario */}
+            <div>
+              <label className="block text-xs font-semibold text-[var(--tc-ink-soft)] mb-1.5 uppercase tracking-wide">
+                Formato del horario
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: "notas", titulo: "Notas adhesivas", desc: "Colorido, hecho a mano" },
+                  { id: "clasico", titulo: "Clásico", desc: "Sobrio, con logos" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    disabled={enviando}
+                    onClick={() => setFormato(opt.id)}
+                    className={
+                      "text-left px-3 py-2 rounded-lg border text-sm transition disabled:opacity-50 " +
+                      (formato === opt.id
+                        ? "border-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
+                        : "border-[var(--tc-border)] bg-[var(--tc-bg)] hover:bg-[var(--tc-bg-panel)]")
+                    }
+                  >
+                    <span className="block font-semibold" style={{ color: formato === opt.id ? "var(--tc-primary)" : "var(--tc-ink)" }}>
+                      {opt.titulo}
+                    </span>
+                    <span className="block text-[11px]" style={{ color: "var(--tc-ink-mute)" }}>{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Archivos adjuntos */}
             <div>

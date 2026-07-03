@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, MenuItem } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -181,6 +181,74 @@ function createWindow() {
   win.on("resize", persistState);
   win.on("move", persistState);
   win.on("close", persistState);
+
+  // Corrector ortográfico: Chromium subraya en zigzag los errores, pero el menú
+  // contextual con las sugerencias NO aparece solo en Electron; hay que armarlo
+  // a mano a partir de `params.dictionarySuggestions`. Fijamos el idioma en
+  // español (con respaldo al inglés) para que el diccionario sea el correcto.
+  try {
+    win.webContents.session.setSpellCheckerLanguages(["es-ES", "en-US"]);
+  } catch {
+    // Algún build/plataforma podría no soportar ese idioma; se ignora.
+  }
+
+  win.webContents.on("context-menu", (_event, params) => {
+    const menu = new Menu();
+
+    // Sugerencias de corrección para la palabra mal escrita bajo el cursor.
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions) {
+        menu.append(
+          new MenuItem({
+            label: suggestion,
+            click: () => win?.webContents.replaceMisspelling(suggestion),
+          }),
+        );
+      }
+      if (params.dictionarySuggestions.length > 0) {
+        menu.append(new MenuItem({ type: "separator" }));
+      } else {
+        menu.append(
+          new MenuItem({ label: "Sin sugerencias", enabled: false }),
+        );
+        menu.append(new MenuItem({ type: "separator" }));
+      }
+      menu.append(
+        new MenuItem({
+          label: "Añadir al diccionario",
+          click: () =>
+            win?.webContents.session.addWordToSpellCheckerDictionary(
+              params.misspelledWord,
+            ),
+        }),
+      );
+      menu.append(new MenuItem({ type: "separator" }));
+    }
+
+    // Acciones de edición estándar sobre campos de texto.
+    if (params.isEditable || params.editFlags.canCopy) {
+      menu.append(
+        new MenuItem({ label: "Cortar", role: "cut", enabled: params.editFlags.canCut }),
+      );
+      menu.append(
+        new MenuItem({ label: "Copiar", role: "copy", enabled: params.editFlags.canCopy }),
+      );
+      menu.append(
+        new MenuItem({ label: "Pegar", role: "paste", enabled: params.editFlags.canPaste }),
+      );
+      menu.append(
+        new MenuItem({
+          label: "Seleccionar todo",
+          role: "selectAll",
+          enabled: params.editFlags.canSelectAll,
+        }),
+      );
+    }
+
+    if (menu.items.length > 0 && win) {
+      menu.popup({ window: win });
+    }
+  });
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
@@ -612,6 +680,21 @@ function registerIpcHandlers() {
         return { success: false, error: (err as Error).message };
       }
 
+      // Si la plantilla expone `window.__pdfReady` (horarios: fuentes cargadas +
+      // ajuste dinámico del texto de las notas), esperamos a que resuelva antes
+      // de capturar el PDF, con un margen de seguridad por si nunca resolviera.
+      try {
+        await Promise.race([
+          pdfWin.webContents.executeJavaScript(
+            "(window.__pdfReady || Promise.resolve())",
+            true,
+          ),
+          new Promise((resolve) => setTimeout(resolve, 2000)),
+        ]);
+      } catch {
+        /* si la espera falla, seguimos igualmente con el PDF ya cargado */
+      }
+
       try {
         const pdfBuffer = await pdfWin.webContents.printToPDF({
           pageSize: "A4",
@@ -1024,6 +1107,14 @@ function registerIpcHandlers() {
           } catch {
             /* empty */
           }
+          // Al cerrar una ventana hija, Windows devuelve el foco de teclado a la
+          // ventana principal pero Chromium no siempre reactiva el foco del campo
+          // en el que estaba el cursor: forzamos el refoco para evitar que los
+          // campos de texto/búsqueda queden "sordos" hasta el siguiente clic.
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
         });
 
         await viewWin.loadFile(tmpPath);
@@ -1074,6 +1165,11 @@ function registerIpcHandlers() {
         // Si el usuario cierra la ventana directamente → cancelar
         dialogWin.on("closed", () => {
           if (dialogResolvers.has(dialogId)) cleanup(null);
+          // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
         });
 
         const hash = `dialog-correccion?id=${encodeURIComponent(dialogId)}`;
@@ -1114,6 +1210,11 @@ function registerIpcHandlers() {
 
       enviarWin.on("closed", () => {
         dialogData.delete(dialogId);
+        // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+        if (win && !win.isDestroyed()) {
+          win.focus();
+          win.webContents.focus();
+        }
       });
 
       const hash = `dialog-enviar-horario?id=${encodeURIComponent(dialogId)}`;
@@ -1153,6 +1254,11 @@ function registerIpcHandlers() {
 
       campWin.on("closed", () => {
         dialogData.delete(dialogId);
+        // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+        if (win && !win.isDestroyed()) {
+          win.focus();
+          win.webContents.focus();
+        }
       });
 
       const hash = `dialog-enviar-campanya?id=${encodeURIComponent(dialogId)}`;

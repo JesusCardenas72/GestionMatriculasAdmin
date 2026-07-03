@@ -37,7 +37,7 @@ export function contarTemporales(matriculas: MatriculaLocal[]): ContadoresTempor
  */
 export function pasoHecho(
   n: number,
-  contadores: ContadoresTemporales,
+  _contadores: ContadoresTemporales,
   estado: Pick<AsistenteTemporalesEstado, "fechaExcelGenerado">,
 ): boolean {
   switch (n) {

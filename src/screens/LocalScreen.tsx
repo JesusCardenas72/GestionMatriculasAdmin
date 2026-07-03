@@ -7,6 +7,7 @@ import {
   type AsignaturaLocal,
   type EstadoTramite,
   type MatriculaLocal,
+  type Solicitud,
 } from "../api/types";
 import { cursosStore } from "../api/cursosStore";
 import { actualizarSolicitud, crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
@@ -25,6 +26,10 @@ import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { solicitudALocal } from "../utils/solicitudALocal";
 import { normNombre } from "../utils/horarioEnvio";
+import { ConflictoNubeModal } from "../components/modals/ConflictoNubeModal";
+import ConfirmDialog from "../components/ConfirmDialog";
+import ProgressDialog from "../components/modals/ProgressDialog";
+
 
 function LocalEmailModal({
   matricula,
@@ -139,6 +144,21 @@ export default function LocalScreen({ config }: Props) {
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [conflictoNube, setConflictoNube] = useState<{ local: MatriculaLocal; nube: Solicitud } | null>(null);
+  const [isActualizandoDesdeNube, setIsActualizandoDesdeNube] = useState(false);
+
+  // Estados para diálogos de confirmación y progreso de nube
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    tone?: "primary" | "danger";
+    onConfirm: () => void;
+  } | null>(null);
+  const [progressDialog, setProgressDialog] = useState<{
+    title: string;
+    current: number;
+    total: number;
+  } | null>(null);
 
   // Auto-sincronización: descarga matrículas telemáticas de Dataverse que no estén en local
   // (estados: Pendiente de tramitación, Pendiente de validación y Tramitado)
@@ -163,12 +183,16 @@ export default function LocalScreen({ config }: Props) {
       (tramitadasQuery.data.total === 0 ||
         tramitadasQuery.data.solicitudes.length >= tramitadasQuery.data.total);
 
+    // Mapa para «actualizar desde la nube»: SOLO registros sin cambios pendientes,
+    // para no pisar ediciones locales aún sin subir.
     const localPorRowId = new Map(
       matriculas
         .filter((m) => m.rowId !== null && !m._pendienteSubida && !m.esTemporal)
         .map((m) => [m.rowId!, m]),
     );
-    // Incluir también los rowIds con cambios pendientes para evitar re-descargarlos
+    // Conjunto para detectar re-descargas: TODOS los registros reales con rowId,
+    // INCLUIDOS los pendientes de subida. Si se excluyeran, al editar una matrícula
+    // su gemela de la nube se volvería a descargar como un duplicado nuevo.
     const localRowIds = new Set(
       matriculas
         .filter((m) => m.rowId !== null && !m.esTemporal)
@@ -188,12 +212,57 @@ export default function LocalScreen({ config }: Props) {
       return true;
     });
 
+    // Detecta duplicados y huérfanos. Solo se borra si la lista de la nube llegó
+    // completa (red de seguridad). Se agrupan los registros reales por rowId:
+    //  · Huérfano (rowId ya no está en la nube): se borran los NO pendientes.
+    //  · Duplicado (varios registros con el mismo rowId): si alguno tiene cambios
+    //    pendientes se conservan TODOS los pendientes y se borran las copias
+    //    re-descargadas; si ninguno es pendiente, se conserva el primero.
+    const obsoletosSet = new Set<string>();
+    if (listaCompleta) {
+      const porRowId = new Map<string, MatriculaLocal[]>();
+      for (const m of matriculas) {
+        if (m.esTemporal) continue; // placeholder de horarios, nunca existe en la nube
+        if (m.rowId === null) continue; // creación local en curso (ampliación no subida)
+        if (!porRowId.has(m.rowId)) porRowId.set(m.rowId, []);
+        porRowId.get(m.rowId)!.push(m);
+      }
+      for (const [rowId, grupo] of porRowId) {
+        if (!remoteRowIds.has(rowId)) {
+          for (const m of grupo) {
+            if (!m._pendienteSubida) obsoletosSet.add(m.localId);
+          }
+          continue;
+        }
+        if (grupo.length <= 1) continue;
+        if (grupo.some((m) => m._pendienteSubida)) {
+          // Conservar el trabajo local: borrar solo las copias re-descargadas.
+          for (const m of grupo) {
+            if (!m._pendienteSubida) obsoletosSet.add(m.localId);
+          }
+        } else {
+          // Todas son copias de la nube: conservar la primera, borrar el resto.
+          let conservado = false;
+          for (const m of grupo) {
+            if (!conservado) {
+              conservado = true;
+              continue;
+            }
+            obsoletosSet.add(m.localId);
+          }
+        }
+      }
+    }
+    const obsoletos: string[] = [...obsoletosSet];
+
     // Detecta registros que ya existen en local pero que la nube ha modificado desde
     // la última sincronización (compara modifiedon de Dataverse con _nubeModificadoEn).
+    // Se omiten los marcados como obsoletos (se van a borrar en este mismo ciclo).
     const vistosAct = new Set<string>();
     const actualizadas = remotas.filter((s) => {
       const local = localPorRowId.get(s.rowId);
       if (!local) return false;
+      if (obsoletosSet.has(local.localId)) return false;
       if (vistosAct.has(s.rowId)) return false;
       vistosAct.add(s.rowId);
       if (!local._nubeModificadoEn) return true; // sin marca de sincronización → re-descargar
@@ -214,7 +283,7 @@ export default function LocalScreen({ config }: Props) {
     }
 
     const conservados = new Set<string>();
-    const obsoletos: string[] = [];
+    const huerfanos: string[] = [];
     if (listaCompleta) {
       for (const m of matriculas) {
         if (m.esTemporal) continue; // placeholder de horarios, nunca existe en la nube
@@ -236,6 +305,8 @@ export default function LocalScreen({ config }: Props) {
         conservados.add(m.rowId);
       }
     }
+
+    obsoletos.push(...huerfanos);
 
     if (nuevas.length === 0 && obsoletos.length === 0 && actualizadas.length === 0) return;
 
@@ -663,71 +734,163 @@ export default function LocalScreen({ config }: Props) {
     );
   }
 
-  async function handleSubirNube() {
-    if (!selected) return;
-    setIsSaving(true);
-    setSubirError(null);
+  function buscarEnNube(rowId: string): Solicitud | undefined {
+    const remotas = [
+      ...(pendienteTramitacionQuery.data?.solicitudes ?? []),
+      ...(pendienteValidacionQuery.data?.solicitudes ?? []),
+      ...(tramitadasQuery.data?.solicitudes ?? []),
+    ];
+    return remotas.find((s) => s.rowId === rowId);
+  }
+
+  async function handleActualizarDesdeNube(local: MatriculaLocal, solicitudNube: Solicitud) {
+    setIsActualizandoDesdeNube(true);
     try {
-      if (selected.rowId) {
+      const asigs = await listarAsignaturasSolicitud(config, { matriculaId: solicitudNube.rowId });
+
+      const horariosPorRowId = new Map<string, string | null>(
+        local.asignaturas
+          .filter((a) => a.rowId !== null)
+          .map((a) => [a.rowId!, a.horario]),
+      );
+
+      const asignaturasActualizadas: AsignaturaLocal[] = asigs.map((a) => ({
+        localId: local.asignaturas.find((la) => la.rowId === a.rowId)?.localId ?? crypto.randomUUID(),
+        rowId: a.rowId,
+        asignaturaId: a.asignaturaId,
+        codigo: local.asignaturas.find((la) => la.rowId === a.rowId)?.codigo ?? 0,
+        nombre: a.nombre,
+        estado: a.estado,
+        observaciones: a.observaciones,
+        horario: horariosPorRowId.get(a.rowId) ?? null,
+      }));
+
+      await actualizar(local.localId, {
+        nOrden: solicitudNube.nOrden,
+        nombreMatricula: solicitudNube.nombreMatricula,
+        nombre: solicitudNube.nombre,
+        apellidos: solicitudNube.apellidos,
+        dni: solicitudNube.dni,
+        email: solicitudNube.email,
+        telefono: solicitudNube.telefono,
+        fechaNacimiento: solicitudNube.fechaNacimiento,
+        domicilio: solicitudNube.domicilio,
+        localidad: solicitudNube.localidad,
+        provincia: solicitudNube.provincia,
+        cp: solicitudNube.cp,
+        ensenanzaCurso: solicitudNube.ensenanzaCurso,
+        especialidad: solicitudNube.especialidad,
+        formaPago: solicitudNube.formaPago,
+        reduccionTasas: solicitudNube.reduccionTasas,
+        autorizacionImagen: solicitudNube.autorizacionImagen,
+        disponibilidadManana: solicitudNube.disponibilidadManana,
+        horaSalida: solicitudNube.horaSalida,
+        docFaltante: solicitudNube.docFaltante,
+        repetidor: solicitudNube.repetidor,
+        asignaturas: asignaturasActualizadas,
+        _nubeModificadoEn: solicitudNube.modifiedon,
+        _pendienteSubida: false,
+        _modificadoEn: new Date().toISOString(),
+      });
+
+      setConflictoNube(null);
+    } finally {
+      setIsActualizandoDesdeNube(false);
+    }
+  }
+
+  async function doSubirNube(m: MatriculaLocal) {
+    if (m.rowId) {
         await subirMatriculaEditada(config, {
-          rowId: selected.rowId,
-          nOrden: selected.nOrden != null ? String(selected.nOrden) : null,
-          nombre: selected.nombre,
-          apellidos: selected.apellidos,
-          dni: selected.dni,
-          email: selected.email,
-          telefono: selected.telefono,
-          fechaNacimiento: toIsoDate(selected.fechaNacimiento),
-          domicilio: selected.domicilio,
-          localidad: selected.localidad,
-          provincia: selected.provincia,
-          cp: selected.cp,
-          ensenanzaCurso: selected.ensenanzaCurso,
-          especialidad: selected.especialidad,
-          formaPago: selected.formaPago,
-          reduccionTasas: selected.reduccionTasas,
-          autorizacionImagen: selected.autorizacionImagen,
-          disponibilidadManana: selected.disponibilidadManana,
-          horaSalida: selected.horaSalida,
-          repetidor: selected.repetidor,
-          asignaturasActualizadas: selected.asignaturas
+          rowId: m.rowId,
+          nOrden: m.nOrden != null ? String(m.nOrden) : null,
+          nombre: m.nombre,
+          apellidos: m.apellidos,
+          dni: m.dni,
+          email: m.email,
+          telefono: m.telefono,
+          fechaNacimiento: toIsoDate(m.fechaNacimiento),
+          domicilio: m.domicilio,
+          localidad: m.localidad,
+          provincia: m.provincia,
+          cp: m.cp,
+          ensenanzaCurso: m.ensenanzaCurso,
+          especialidad: m.especialidad,
+          formaPago: m.formaPago,
+          reduccionTasas: m.reduccionTasas,
+          autorizacionImagen: m.autorizacionImagen,
+          disponibilidadManana: m.disponibilidadManana,
+          horaSalida: m.horaSalida,
+          repetidor: m.repetidor,
+          asignaturasActualizadas: m.asignaturas
             .filter((a) => a.rowId !== null)
             .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
-          asignaturasNuevas: selected.asignaturas
+          asignaturasNuevas: m.asignaturas
             .filter((a) => a.rowId === null)
             .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
         });
-        await actualizar(selected.localId, { _pendienteSubida: false, _fueEditado: true });
+        await actualizar(m.localId, { _pendienteSubida: false, _fueEditado: true });
       } else {
         const result = await crearAmpliacion(config, {
-          nombre: selected.nombre,
-          apellidos: selected.apellidos,
-          dni: selected.dni,
-          email: selected.email,
-          telefono: selected.telefono,
-          fechaNacimiento: toIsoDate(selected.fechaNacimiento),
-          domicilio: selected.domicilio,
-          localidad: selected.localidad,
-          provincia: selected.provincia,
-          cp: selected.cp,
-          ensenanzaCurso: selected.ensenanzaCurso,
-          especialidad: selected.especialidad,
-          formaPago: selected.formaPago,
-          reduccionTasas: selected.reduccionTasas,
-          autorizacionImagen: selected.autorizacionImagen,
-          disponibilidadManana: selected.disponibilidadManana,
-          horaSalida: selected.horaSalida,
-          repetidor: selected.repetidor,
-          cursoEscolar: selected.cursoEscolar ?? calcularCursoEscolar(new Date().toISOString()) ?? "",
-          asignaturas: selected.asignaturas.map((a) => ({
+          nombre: m.nombre,
+          apellidos: m.apellidos,
+          dni: m.dni,
+          email: m.email,
+          telefono: m.telefono,
+          fechaNacimiento: toIsoDate(m.fechaNacimiento),
+          domicilio: m.domicilio,
+          localidad: m.localidad,
+          provincia: m.provincia,
+          cp: m.cp,
+          ensenanzaCurso: m.ensenanzaCurso,
+          especialidad: m.especialidad,
+          formaPago: m.formaPago,
+          reduccionTasas: m.reduccionTasas,
+          autorizacionImagen: m.autorizacionImagen,
+          disponibilidadManana: m.disponibilidadManana,
+          horaSalida: m.horaSalida,
+          repetidor: m.repetidor,
+          cursoEscolar: m.cursoEscolar ?? calcularCursoEscolar(new Date().toISOString()) ?? "",
+          asignaturas: m.asignaturas.map((a) => ({
             codigo: a.codigo,
             nombre: a.nombre,
             estado: a.estado,
           })),
-          pdfBase64: selected._tienePdf ? await cursosStore.leerPdf(curso, selected.localId) : null,
+          pdfBase64: m._tienePdf ? await cursosStore.leerPdf(curso, m.localId) : null,
         });
-        await actualizar(selected.localId, { rowId: result.rowId, _pendienteSubida: false, _fueEditado: true });
+        await actualizar(m.localId, { rowId: result.rowId, _pendienteSubida: false, _fueEditado: true });
       }
+  }
+
+  async function handleSubirNube() {
+    if (!selected) return;
+
+    if (selected.rowId && selected._nubeModificadoEn && !selected.esTemporal) {
+      const solicitudNube = buscarEnNube(selected.rowId);
+      if (solicitudNube && solicitudNube.modifiedon > selected._nubeModificadoEn) {
+        setConflictoNube({ local: selected, nube: solicitudNube });
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    setSubirError(null);
+    try {
+      await doSubirNube(selected);
+    } catch (e) {
+      setSubirError(e instanceof Error ? e.message : "Error desconocido al subir");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSubirNubeConflicto() {
+    if (!conflictoNube) return;
+    setConflictoNube(null);
+    setIsSaving(true);
+    setSubirError(null);
+    try {
+      await doSubirNube(conflictoNube.local);
     } catch (e) {
       setSubirError(e instanceof Error ? e.message : "Error desconocido al subir");
     } finally {
@@ -738,86 +901,83 @@ export default function LocalScreen({ config }: Props) {
   async function handleSubirNubeTodo() {
     const pendientes = matriculas.filter((m) => m._pendienteSubida && !m.esTemporal);
     if (pendientes.length === 0) return;
+    setConfirmDialog({
+      title: "Subir todo a la nube",
+      message: `Se subirán ${pendientes.length} matrícula${pendientes.length > 1 ? "s" : ""} pendiente${pendientes.length > 1 ? "s" : ""} a Dataverse.\n\n¿Desea continuar?`,
+      onConfirm: () => ejecutarSubirNubeTodo(pendientes),
+    });
+  }
+
+  async function ejecutarSubirNubeTodo(pendientes: MatriculaLocal[]) {
+    setConfirmDialog(null);
     setIsSubiendoTodo(true);
     setSubirTodoError(null);
+    setProgressDialog({ title: "Subiendo a la nube…", current: 0, total: pendientes.length });
     let errores = 0;
-    for (const m of pendientes) {
+    for (let i = 0; i < pendientes.length; i++) {
       try {
-        if (m.rowId) {
-          await subirMatriculaEditada(config, {
-            rowId: m.rowId,
-            nOrden: m.nOrden != null ? String(m.nOrden) : null,
-            nombre: m.nombre,
-            apellidos: m.apellidos,
-            dni: m.dni,
-            email: m.email,
-            telefono: m.telefono,
-            fechaNacimiento: toIsoDate(m.fechaNacimiento),
-            domicilio: m.domicilio,
-            localidad: m.localidad,
-            provincia: m.provincia,
-            cp: m.cp,
-            ensenanzaCurso: m.ensenanzaCurso,
-            especialidad: m.especialidad,
-            formaPago: m.formaPago,
-            reduccionTasas: m.reduccionTasas,
-            autorizacionImagen: m.autorizacionImagen,
-            disponibilidadManana: m.disponibilidadManana,
-            horaSalida: m.horaSalida,
-            repetidor: m.repetidor,
-            asignaturasActualizadas: m.asignaturas
-              .filter((a) => a.rowId !== null)
-              .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
-            asignaturasNuevas: m.asignaturas
-              .filter((a) => a.rowId === null)
-              .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
-          });
-          await actualizar(m.localId, { _pendienteSubida: false, _fueEditado: true });
-        } else {
-          const result = await crearAmpliacion(config, {
-            nombre: m.nombre,
-            apellidos: m.apellidos,
-            dni: m.dni,
-            email: m.email,
-            telefono: m.telefono,
-            fechaNacimiento: toIsoDate(m.fechaNacimiento),
-            domicilio: m.domicilio,
-            localidad: m.localidad,
-            provincia: m.provincia,
-            cp: m.cp,
-            ensenanzaCurso: m.ensenanzaCurso,
-            especialidad: m.especialidad,
-            formaPago: m.formaPago,
-            reduccionTasas: m.reduccionTasas,
-            autorizacionImagen: m.autorizacionImagen,
-            disponibilidadManana: m.disponibilidadManana,
-            horaSalida: m.horaSalida,
-            repetidor: m.repetidor,
-            cursoEscolar: m.cursoEscolar ?? calcularCursoEscolar(new Date().toISOString()) ?? "",
-            asignaturas: m.asignaturas.map((a) => ({
-              codigo: a.codigo,
-              nombre: a.nombre,
-              estado: a.estado,
-            })),
-            pdfBase64: m._tienePdf ? await cursosStore.leerPdf(curso, m.localId) : null,
-          });
-          await actualizar(m.localId, { rowId: result.rowId, _pendienteSubida: false, _fueEditado: true });
-        }
+        await doSubirNube(pendientes[i]);
       } catch {
         errores++;
       }
+      setProgressDialog({ title: "Subiendo a la nube…", current: i + 1, total: pendientes.length });
     }
+    setProgressDialog(null);
     setIsSubiendoTodo(false);
     if (errores > 0) {
       setSubirTodoError(`${errores} matrícula${errores > 1 ? "s" : ""} no se pudo${errores > 1 ? "ieron" : ""} subir`);
     }
   }
 
+  async function handleForzarSubidaTodo() {
+    const todos = matriculas.filter((m) => !m.esTemporal && m.rowId);
+    if (todos.length === 0) return;
+    setConfirmDialog({
+      title: "Forzar subida completa",
+      message: `¿Subir TODOS los registros locales a la nube (${todos.length})?\n\nEsto sobreescribirá los datos de Dataverse con los valores actuales en local, incluyendo correcciones de formato de apellidos. La operación puede tardar varios minutos.`,
+      tone: "danger",
+      onConfirm: () => ejecutarForzarSubidaTodo(todos),
+    });
+  }
+
+  async function ejecutarForzarSubidaTodo(todos: MatriculaLocal[]) {
+    setConfirmDialog(null);
+    setIsSubiendoTodo(true);
+    setSubirTodoError(null);
+    setProgressDialog({ title: "Forzando subida completa…", current: 0, total: todos.length });
+    let errores = 0;
+    for (let i = 0; i < todos.length; i++) {
+      try {
+        await doSubirNube(todos[i]);
+      } catch {
+        errores++;
+      }
+      setProgressDialog({ title: "Forzando subida completa…", current: i + 1, total: todos.length });
+    }
+    setProgressDialog(null);
+    setIsSubiendoTodo(false);
+    if (errores > 0) {
+      setSubirTodoError(`${errores} registro${errores > 1 ? "s" : ""} no se pudo${errores > 1 ? "ieron" : ""} subir`);
+    }
+  }
+
   async function handleDescargarNube() {
     if (!selected || !selected.rowId || selected.esTemporal) return;
     if (selected._pendienteSubida) {
-      if (!window.confirm("Este registro tiene cambios sin subir. Si continúas, se perderán. ¿Descargar de todas formas?")) return;
+      setConfirmDialog({
+        title: "Descargar desde la nube",
+        message: "Este registro tiene cambios sin subir. Si continúas, se perderán.\n\n¿Descargar de todas formas?",
+        tone: "danger",
+        onConfirm: () => ejecutarDescargarNube(),
+      });
+      return;
     }
+    await ejecutarDescargarNube();
+  }
+
+  async function ejecutarDescargarNube() {
+    if (!selected || !selected.rowId) return;
+    setConfirmDialog(null);
     setIsSaving(true);
     try {
       const pdfKey = selected.rowId;
@@ -842,19 +1002,30 @@ export default function LocalScreen({ config }: Props) {
     if (conRowId.length === 0) return;
     const pendientes = conRowId.filter((m) => m._pendienteSubida);
     const aviso = pendientes.length > 0
-      ? `${pendientes.length} matrícula${pendientes.length > 1 ? "s tienen" : " tiene"} cambios sin subir y se perderán. `
+      ? `${pendientes.length} matrícula${pendientes.length > 1 ? "s tienen" : " tiene"} cambios sin subir y se perderán.\n\n`
       : "";
-    if (!window.confirm(`${aviso}Se borrarán ${conRowId.length} registros locales y se volverán a descargar desde la nube. ¿Continuar?`)) return;
+    setConfirmDialog({
+      title: "Descargar todo desde la nube",
+      message: `${aviso}Se borrarán ${conRowId.length} registros locales y se volverán a descargar desde Dataverse.\n\n¿Desea continuar?`,
+      tone: pendientes.length > 0 ? "danger" : "primary",
+      onConfirm: () => ejecutarDescargarTodo(conRowId),
+    });
+  }
+
+  async function ejecutarDescargarTodo(conRowId: MatriculaLocal[]) {
+    setConfirmDialog(null);
     setIsDescargandoTodo(true);
     setDescargarTodoError(null);
     setSelected(null);
+    setProgressDialog({ title: "Descargando desde la nube…", current: 0, total: conRowId.length });
     try {
-      await Promise.allSettled(
-        conRowId.map(async (m) => {
-          await cursosStore.eliminarPdf(curso, m.rowId!);
-          await eliminar(m.localId);
-        }),
-      );
+      for (let i = 0; i < conRowId.length; i++) {
+        const m = conRowId[i];
+        await cursosStore.eliminarPdf(curso, m.rowId!);
+        await eliminar(m.localId);
+        setProgressDialog({ title: "Descargando desde la nube…", current: i + 1, total: conRowId.length });
+      }
+      setProgressDialog({ title: "Sincronizando con Dataverse…", current: conRowId.length, total: conRowId.length });
       await Promise.all([
         pendienteTramitacionQuery.refetch(),
         pendienteValidacionQuery.refetch(),
@@ -863,6 +1034,7 @@ export default function LocalScreen({ config }: Props) {
     } catch {
       setDescargarTodoError("Error al limpiar los datos locales");
     } finally {
+      setProgressDialog(null);
       setIsDescargandoTodo(false);
     }
   }
@@ -979,7 +1151,7 @@ export default function LocalScreen({ config }: Props) {
                 void tramitadasQuery.refetch();
               }}
             />
-            {(pendingUploads > 0 || matriculas.some((m) => !m.esTemporal && m.rowId)) && (
+            {(pendingUploads > 0 || !isSoloLectura || matriculas.some((m) => !m.esTemporal && m.rowId)) && (
               <div className="p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
                 {pendingUploads > 0 && (
                   <button
@@ -987,7 +1159,7 @@ export default function LocalScreen({ config }: Props) {
                     disabled={isSubiendoTodo || isSaving || isSoloLectura}
                     title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
                     className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl disabled:opacity-60 text-white text-xs font-semibold transition-colors shadow-sm disabled:cursor-not-allowed"
-                    style={{ background: isSoloLectura ? "var(--tc-border)" : undefined }}
+                    style={{ background: isSoloLectura ? "var(--tc-border)" : "var(--tc-primary)" }}
                   >
                     {isSubiendoTodo ? (
                       <>
@@ -1004,6 +1176,32 @@ export default function LocalScreen({ config }: Props) {
                           <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
                         </svg>
                         Subir todo a la nube ({pendingUploads})
+                      </>
+                    )}
+                  </button>
+                )}
+                {!isSoloLectura && (
+                  <button
+                    onClick={() => void handleForzarSubidaTodo()}
+                    disabled={isSubiendoTodo || isSaving}
+                    title="Sube todos los registros locales a Dataverse, sobreescribiendo los datos de la nube con los valores locales actuales"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl disabled:opacity-60 text-xs font-semibold transition-colors border border-[var(--tc-border)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-ink-mute)] disabled:cursor-not-allowed"
+                  >
+                    {isSubiendoTodo ? (
+                      <>
+                        <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Subiendo…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 16V4m0 0L8 8m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" strokeLinecap="round" />
+                        </svg>
+                        Forzar subida completa
                       </>
                     )}
                   </button>
@@ -1118,6 +1316,36 @@ export default function LocalScreen({ config }: Props) {
           config={config}
           open={showEmailModal}
           onClose={() => setShowEmailModal(false)}
+        />
+      )}
+      {conflictoNube && (
+        <ConflictoNubeModal
+          local={conflictoNube.local}
+          nube={conflictoNube.nube}
+          onSubirMisambios={() => void handleSubirNubeConflicto()}
+          onActualizarDesdeNube={() => void handleActualizarDesdeNube(conflictoNube.local, conflictoNube.nube)}
+          onCancelar={() => setConflictoNube(null)}
+          isLoading={isSaving || isActualizandoDesdeNube}
+        />
+      )}
+      {confirmDialog && (
+        <ConfirmDialog
+          open
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          tone={confirmDialog.tone}
+          confirmLabel="Continuar"
+          cancelLabel="Cancelar"
+          onConfirm={() => void confirmDialog.onConfirm()}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
+      {progressDialog && (
+        <ProgressDialog
+          open
+          title={progressDialog.title}
+          current={progressDialog.current}
+          total={progressDialog.total}
         />
       )}
     </>

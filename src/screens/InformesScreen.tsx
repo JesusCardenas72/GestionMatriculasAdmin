@@ -200,6 +200,7 @@ function localToSolicitud(r: MatriculaLocal, estado: EstadoTramite): FilaInforme
     cp: r.cp,
     fechaInscripcion: r.fechaInscripcion,
     createdon: r.createdon,
+    modifiedon: r._modificadoEn ?? r.createdon,
     cursoEscolar: r.cursoEscolar,
     ensenanzaCurso: r.ensenanzaCurso,
     especialidad: r.especialidad,
