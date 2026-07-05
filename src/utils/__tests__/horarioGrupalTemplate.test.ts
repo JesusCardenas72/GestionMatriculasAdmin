@@ -151,9 +151,11 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
     const html = buildHorarioGrupalHtml(
       [
         entry("García López, Ana", "Lenguaje Musical", {
+          ensenanzaCurso: "EP3",
           h: { h_grupo: "EP3A", h_prof: "Ureña Eiras, José", h_aula: "A39" },
         }),
         entry("Martín Sanz, Beto", "Lenguaje Musical", {
+          ensenanzaCurso: "EP3",
           h: { h_grupo: "EP3A", h_prof: "Ureña Eiras, José", h_aula: "A39" },
         }),
       ],
@@ -162,10 +164,11 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
     // Un único .grupo para los dos alumnos del mismo grupo.
     const grupos = html.match(/<div class="grupo">/g) ?? [];
     expect(grupos.length).toBe(1);
-    // La etiqueta contiene el texto del grupo con el formato pedido:
-    // "Grupo X, Aula: Y" (sin Profesor, que vive solo en el H4 horizontal).
+    // La etiqueta girada muestra "<Curso>, Gr: <CódigoGrupo>, Aula: Y" sin
+    // duplicar el curso (h_grupo ya es "EP3A", no se antepone otro "EP3") y
+    // sin Profesor (que vive solo en el H4 horizontal).
     expect(html).toMatch(
-      /<div class="etiqueta"[^>]*><span class="etiqueta-rot"[^>]*>Grupo EP3A, Aula: A39<\/span><\/div>/,
+      /<div class="etiqueta"[^>]*><span class="etiqueta-rot"[^>]*>EP3, Gr: EP3A, Aula: A39<\/span><\/div>/,
     );
     expect(html).not.toMatch(/etiqueta-rot"[^>]*>[^<]*Profesor/);
     // La tabla está dentro de un .tabla-wrap dentro del .grupo.
@@ -177,23 +180,37 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
   it("crea un .grupo distinto para cada grupo de alumnos", () => {
     const html = buildHorarioGrupalHtml(
       [
-        entry("García López, Ana", "Lenguaje Musical", { h: { h_grupo: "A" } }),
-        entry("Martín Sanz, Beto", "Lenguaje Musical", { h: { h_grupo: "B" } }),
+        entry("García López, Ana", "Lenguaje Musical", { ensenanzaCurso: "EE2", h: { h_grupo: "EE2A" } }),
+        entry("Martín Sanz, Beto", "Lenguaje Musical", { ensenanzaCurso: "EE2", h: { h_grupo: "EE2B" } }),
       ],
       OPCIONES,
     );
     const grupos = html.match(/<div class="grupo">/g) ?? [];
     expect(grupos.length).toBe(2);
-    expect(html).toMatch(/etiqueta-rot"[^>]*>Grupo A/);
-    expect(html).toMatch(/etiqueta-rot"[^>]*>Grupo B/);
+    expect(html).toMatch(/etiqueta-rot"[^>]*>EE2, Gr: EE2A/);
+    expect(html).toMatch(/etiqueta-rot"[^>]*>EE2, Gr: EE2B/);
+  });
+
+  it("no duplica el curso en la etiqueta cuando el grupo ya lo lleva (EE4B, no EE4EE4B)", () => {
+    const html = buildHorarioGrupalHtml(
+      [entry("Vera Lima, Eva", "Lenguaje Musical", { ensenanzaCurso: "EE4", h: { h_grupo: "EE4B", h_aula: "A13" } })],
+      OPCIONES,
+    );
+    // Solo se comprueba el TEXTO visible de la etiqueta (el atributo interno
+    // data-clave sí concatena curso+grupo, pero no se ve).
+    const etiqueta = html.match(/<span class="etiqueta-rot"[^>]*>([^<]+)<\/span>/);
+    expect(etiqueta).not.toBeNull();
+    expect(etiqueta![1]).toBe("EE4, Gr: EE4B, Aula: A13");
+    expect(etiqueta![1]).not.toContain("EE4EE4B");
   });
 
   it("omite Profesor y Aula en la etiqueta cuando están vacíos", () => {
     const html = buildHorarioGrupalHtml(
-      [entry("García López, Ana", "Lenguaje Musical", { h: { h_grupo: "A", h_prof: "", h_aula: "" } })],
+      [entry("García López, Ana", "Lenguaje Musical", { ensenanzaCurso: "EE2", h: { h_grupo: "EE2A", h_prof: "", h_aula: "" } })],
       OPCIONES,
     );
-    expect(html).toMatch(/etiqueta-rot"[^>]*>Grupo A<\/span>/);
+    // Sin aula, la etiqueta termina en el grupo, sin "Aula:" ni Profesor.
+    expect(html).toMatch(/etiqueta-rot"[^>]*>EE2, Gr: EE2A<\/span>/);
     expect(html).not.toMatch(/etiqueta-rot"[^>]*>[^<]*Profesor/);
   });
 
@@ -274,16 +291,17 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
 
   it("muestra Grupo, Aula, Profesor en el H4 horizontal pero solo Grupo y Aula en la etiqueta girada", () => {
     const html = buildHorarioGrupalHtml(
-      [entry("García, Ana", "Lenguaje Musical", { h: { h_grupo: "EP3A", h_prof: "Ureña Eiras, José", h_aula: "A39" } })],
+      [entry("García, Ana", "Lenguaje Musical", { ensenanzaCurso: "EP3", h: { h_grupo: "EP3A", h_prof: "Ureña Eiras, José", h_aula: "A39" } })],
       OPCIONES,
     );
     // H4 horizontal: "Grupo X, Aula: Y, Profesor: Z" (orden solicitado).
     expect(html).toMatch(/Grupo EP3A, Aula: A39, Profesor: Ureña Eiras, José/);
     expect(html).not.toMatch(/Profesor: Ureña Eiras, José, Aula:/);
-    // Etiqueta vertical girada: solo "Grupo X, Aula: Y" (sin Profesor).
+    // Etiqueta vertical girada: "<Curso>, Gr: <CódigoGrupo>, Aula: Y" (sin Profesor,
+    // y sin duplicar el curso: h_grupo "EP3A" → "Gr: EP3A", no "EP3EP3A").
     const etiquetaMatch = html.match(/<span class="etiqueta-rot"[^>]*>([^<]+)<\/span>/);
     expect(etiquetaMatch).not.toBeNull();
-    expect(etiquetaMatch![1]).toBe("Grupo EP3A, Aula: A39");
+    expect(etiquetaMatch![1]).toBe("EP3, Gr: EP3A, Aula: A39");
     expect(etiquetaMatch![1]).not.toMatch(/Profesor/);
     // La etiqueta vertical usa transform:rotate(-90deg) para que Grupo quede abajo y Aula arriba
     expect(html).toMatch(/etiqueta-rot[^}]*transform\s*:\s*rotate\(-?90deg\)/);
@@ -440,6 +458,52 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
       expect(html).toMatch(/href="#sec-0"/);
       expect(html).toMatch(/href="#sec-1"/);
       expect(html).toMatch(/href="#sec-2"/);
+    });
+  });
+
+  describe("alumnado con asignatura pendiente de un curso inferior (sufijo «(Nº)»)", () => {
+    // Alumno de EP6 que arrastra "Lenguaje Musical (5º)" pendiente y asiste con
+    // el grupo A de 5º; un alumno "nativo" de EP5 en el mismo grupo A.
+    const nativoEP5 = entry("Alba Ruiz, Ana", "Lenguaje Musical", {
+      ensenanzaCurso: "EP5",
+      h: { h_grupo: "A", h_prof: "Prof. Y", h_aula: "3", h_dia1: "martes", h_ent1: "16:00", h_sal1: "17:00" },
+    });
+    const pendienteEP6 = entry("Bravo Gil, Beto", "Lenguaje Musical (5º)", {
+      ensenanzaCurso: "EP6",
+      h: { h_grupo: "A", h_prof: "Prof. Y", h_aula: "3", h_dia1: "martes", h_ent1: "16:00", h_sal1: "17:00" },
+    });
+
+    it("por defecto (separar) deja al pendiente en su propio curso, sin «(Pte.)»", () => {
+      const html = buildHorarioGrupalHtml([nativoEP5, pendienteEP6], OPCIONES);
+      // El pendiente queda bajo su curso EP6, no en la tabla de EP5.
+      expect(html).toMatch(/<h3 id="sec-\d+">LENGUAJE MUSICAL EP6<\/h3>/);
+      expect(html).not.toContain("(Pte.)");
+      // La fila del pendiente conserva su curso real EP6.
+      expect(html).toMatch(/Bravo Gil, Beto[\s\S]*?data-curso="EP6"/);
+    });
+
+    it("con integrarPendientes lo mete en el grupo de 5º, alfabético y con «(Pte.)»", () => {
+      const html = buildHorarioGrupalHtml([nativoEP5, pendienteEP6], { ...OPCIONES, integrarPendientes: true });
+      // Ya no aparece un curso EP6 separado para esa asignatura.
+      expect(html).not.toMatch(/LENGUAJE MUSICAL EP6/);
+      // Ambos alumnos caen en la misma tabla de EP5.
+      const tabla = (html.match(/<table class="tg">[\s\S]*?<\/table>/g) ?? []).find(t => t.includes("Alba Ruiz"));
+      expect(tabla).toBeDefined();
+      expect(tabla).toContain("Alba Ruiz, Ana");
+      expect(tabla).toContain("Bravo Gil, Beto (Pte.)");
+      // Orden alfabético: Alba antes que Bravo.
+      expect(tabla!.indexOf("Alba Ruiz")).toBeLessThan(tabla!.indexOf("Bravo Gil"));
+      // La fila del pendiente pasa a curso EP5.
+      expect(html).toMatch(/Bravo Gil, Beto \(Pte\.\)[\s\S]*?data-curso="EP5"/);
+    });
+
+    it("el chequeo de integridad sigue al 100 % con integrarPendientes activado", () => {
+      const entries = [nativoEP5, pendienteEP6];
+      const html = buildHorarioGrupalHtml(entries, { ...OPCIONES, integrarPendientes: true });
+      const reporte = chequearDocumentoGrupal(entries, html, undefined, true);
+      expect(reporte.faltantes).toHaveLength(0);
+      expect(reporte.sobrantes).toHaveLength(0);
+      expect(reporte.ok).toBe(true);
     });
   });
 });

@@ -9,6 +9,21 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.6.1] - 2026-07-05
+
+### Añadido
+
+- **Alumnado con asignatura pendiente en el «Listado Grupos» (renombrado a «Grupos»)**: la pestaña *Listados por asignatura → Grupos* incorpora una opción en su ventana de configuración para tratar a los alumnos que arrastran una asignatura de un curso inferior (aquellos cuyo nombre de asignatura acaba en «(5º)», «(4º)»…):
+  - **Separar** (por defecto): quedan en su propio curso, agrupados por Asignatura-Curso, como hasta ahora.
+  - **Integrar**: se colocan en el grupo del curso de la asignatura (donde realmente asisten a clase), en orden alfabético y con «(Pte.)» tras el nombre.
+  - La opción se guarda y se aplica igual en la vista previa, en el PDF que se imprime/guarda y en el PDF adjunto de los correos (envío individual y campañas), de modo que todos coinciden por construcción.
+
+### Corregido
+
+- **Curso duplicado en la etiqueta lateral del «Listado Grupos»**: la caja girada de cada grupo mostraba el curso repetido (p. ej. «EE4, Gr: EE4EE4B, Aula: A13») cuando el código de grupo ya incluía el curso. Ahora se muestra correctamente «EE4, Gr: EE4B, Aula: A13».
+
+---
+
 ## [1.6.0] - 2026-07-05
 
 ### Añadido

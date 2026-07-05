@@ -148,6 +148,7 @@ export function DialogoEnviarHorario() {
           textoAviso: cfg.textoAviso,
           lineasExtra: cfg.lineasExtra.split("\n").map((s) => s.trim()).filter(Boolean),
           asignaturasIncluidas: incluidas,
+          integrarPendientes: cfg.integrarPendientes,
         });
         const pdfRes = await window.adminAPI.pdf.generarBase64(grupalHtml, true);
         if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "No se pudo generar el Listado de grupos.");

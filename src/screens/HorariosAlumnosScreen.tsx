@@ -1699,6 +1699,40 @@ function ListadosPanel({
   const [toastRefresco, setToastRefresco] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // ── Zoom con la rueda del ratón sobre el documento «Listado Grupos» ──────
+  // Se aplica con la propiedad CSS `zoom` sobre el <body> del iframe (mismo
+  // origen porque usamos srcDoc). Ctrl + rueda para no romper el scroll.
+  const [docZoom, setDocZoom] = useState(1);
+  const docZoomRef = useRef(1);
+  const DOC_ZOOM_MIN = 0.4;
+  const DOC_ZOOM_MAX = 3;
+
+  const aplicarDocZoom = useCallback((z: number) => {
+    docZoomRef.current = z;
+    setDocZoom(z);
+    const body = iframeRef.current?.contentDocument?.body;
+    if (body) body.style.zoom = String(z);
+  }, []);
+
+  // Cada vez que el iframe (re)carga su contenido volvemos a aplicar el zoom
+  // vigente y reconectamos el listener de rueda al nuevo documento.
+  const handleIframeLoad = useCallback(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body) return;
+    doc.body.style.zoom = String(docZoomRef.current);
+    if (version !== "documento") return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return; // Ctrl + rueda = zoom; rueda sola = scroll
+      e.preventDefault();
+      const paso = e.deltaY < 0 ? 0.1 : -0.1;
+      const next = Math.min(DOC_ZOOM_MAX, Math.max(DOC_ZOOM_MIN, +(docZoomRef.current + paso).toFixed(2)));
+      docZoomRef.current = next;
+      setDocZoom(next);
+      doc.body.style.zoom = String(next);
+    };
+    doc.addEventListener("wheel", onWheel, { passive: false });
+  }, [version]);
+
   const guardarDocCfg = useCallback((cfg: DocGrupalCfg) => {
     setDocCfg(cfg);
     const { actualizadoA: _fecha, ...persistible } = cfg;
@@ -1742,6 +1776,7 @@ function ListadosPanel({
       textoAviso: docCfg.textoAviso,
       lineasExtra: docCfg.lineasExtra.split("\n").map(s => s.trim()).filter(Boolean),
       asignaturasIncluidas: docSeleccion,
+      integrarPendientes: docCfg.integrarPendientes,
     });
   }, [version, docEntries, docCfg, curso, docSeleccion]);
 
@@ -1784,7 +1819,7 @@ function ListadosPanel({
     setDocError(null);
     try {
       // Se chequea exactamente el mismo HTML que se guarda/imprime.
-      const reporte = chequearDocumentoGrupal(docEntries, docHtml, docSeleccion);
+      const reporte = chequearDocumentoGrupal(docEntries, docHtml, docSeleccion, docCfg.integrarPendientes);
       setReporteChequeo(reporte);
     } catch (e) {
       setDocError(e instanceof Error ? e.message : "No se pudo chequear el documento.");
@@ -1910,7 +1945,7 @@ function ListadosPanel({
             </button>
             <button
               onClick={() => setVersion("documento")}
-              {...tip("Listado Grupos", [
+              {...tip("Grupos", [
                 "Documento paginado tipo «Horarios grupales» para publicar: portada, índice con páginas y una tabla por grupo.",
                 docEntriesFuenteEtiqueta
                   ? `Se está generando con: ${docEntriesFuenteEtiqueta}.`
@@ -1924,7 +1959,7 @@ function ListadosPanel({
               }
             >
               <FileText className="w-3 h-3" />
-              Listado Grupos
+              Grupos
             </button>
           </div>
 
@@ -2056,13 +2091,28 @@ function ListadosPanel({
       )}
 
       {/* ── Vista previa ─────────────────────────────────────────────────── */}
-      <iframe
-        ref={iframeRef}
-        key={`${version}-${nivelesAgrupacion.join(',')}`}
-        title="Listados por asignatura"
-        srcDoc={version === "documento" ? docHtml : html}
-        className="flex-1 w-full border-0 bg-white"
-      />
+      <div className="relative flex-1 min-h-0">
+        <iframe
+          ref={iframeRef}
+          key={`${version}-${nivelesAgrupacion.join(',')}`}
+          title="Listados por asignatura"
+          srcDoc={version === "documento" ? docHtml : html}
+          onLoad={handleIframeLoad}
+          className="absolute inset-0 w-full h-full border-0 bg-white"
+        />
+
+        {/* Indicador de zoom (solo en el documento y cuando difiere del 100%) */}
+        {version === "documento" && docZoom !== 1 && (
+          <button
+            onClick={() => aplicarDocZoom(1)}
+            title="Zoom con Ctrl + rueda del ratón. Clic para restablecer al 100%."
+            className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--tc-ink)] text-white text-[11px] font-semibold shadow-lg hover:opacity-90 transition"
+          >
+            <Search className="w-3 h-3" />
+            {Math.round(docZoom * 100)}%
+          </button>
+        )}
+      </div>
 
       {toastRefresco && (
         <div
@@ -2355,6 +2405,7 @@ function ModalConfigDocGrupal({
   const [textoPlazo, setTextoPlazo] = useState(cfg.textoPlazo);
   const [textoAviso, setTextoAviso] = useState(cfg.textoAviso);
   const [lineasExtra, setLineasExtra] = useState(cfg.lineasExtra);
+  const [integrarPendientes, setIntegrarPendientes] = useState(cfg.integrarPendientes ?? false);
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(() => new Set(seleccion));
 
   const todasMarcadas = todasAsignaturas.every(a => seleccionadas.has(a));
@@ -2428,7 +2479,7 @@ function ModalConfigDocGrupal({
             </div>
 
             <div>
-              <label className={labelCls} style={labelStyle}>Aviso resaltado en amarillo</label>
+              <label className={labelCls} style={labelStyle}>Aviso resaltado</label>
               <textarea
                 value={textoAviso}
                 onChange={e => setTextoAviso(e.target.value)}
@@ -2449,6 +2500,40 @@ function ModalConfigDocGrupal({
                 className={inputCls + " mt-1 resize-none"}
                 style={inputStyle}
               />
+            </div>
+
+            {/* Alumnos con asignatura pendiente de un curso inferior (sufijo "(5º)") */}
+            <div>
+              <label className={labelCls} style={labelStyle}>Alumnado con asignatura pendiente</label>
+              <p className="text-[11px] mt-0.5 mb-1.5" style={{ color: "var(--tc-ink-mute)" }}>
+                Alumnos cuya asignatura acaba en «(5º)», «(4º)»… es que la arrastran pendiente de un curso inferior.
+              </p>
+              <div className="space-y-1.5">
+                <label className="flex items-start gap-2 cursor-pointer text-[12.5px] select-none">
+                  <input
+                    type="radio"
+                    name="doc-pendientes"
+                    checked={!integrarPendientes}
+                    onChange={() => setIntegrarPendientes(false)}
+                    className="mt-0.5 shrink-0 accent-[var(--tc-primary)]"
+                  />
+                  <span style={{ color: "var(--tc-ink)" }}>
+                    <b>Separar</b> en su propio curso (agrupado por Asignatura-Curso).
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer text-[12.5px] select-none">
+                  <input
+                    type="radio"
+                    name="doc-pendientes"
+                    checked={integrarPendientes}
+                    onChange={() => setIntegrarPendientes(true)}
+                    className="mt-0.5 shrink-0 accent-[var(--tc-primary)]"
+                  />
+                  <span style={{ color: "var(--tc-ink)" }}>
+                    <b>Integrar</b> en el grupo del curso de la asignatura, en orden alfabético y con «(Pte.)» tras el nombre.
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -2516,6 +2601,7 @@ function ModalConfigDocGrupal({
               textoPlazo,
               textoAviso,
               lineasExtra,
+              integrarPendientes,
               asignaturas: [...seleccionadas],
             })}
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"

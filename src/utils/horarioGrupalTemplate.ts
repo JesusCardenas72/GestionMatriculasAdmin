@@ -12,7 +12,7 @@
  * portada con avisos e índice de 3 niveles, y contenido agrupado en
  * Enseñanza (H1) → Asignatura (H2) → Curso (H3) → una tabla por Grupo.
  */
-import { LOGO_CPM_B64 } from '../assets/pdf/logos';
+import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import type { HorariosEntry } from '../../electron/horarios-data-store';
 import { abreviaturaAsignatura } from '../data/catalogoLocal';
 
@@ -31,6 +31,15 @@ export interface OpcionesDocGrupal {
   lineasExtra: string[];
   /** Asignaturas (nombre base) a incluir; undefined o vacío = todas. */
   asignaturasIncluidas?: Set<string>;
+  /**
+   * Trato de los alumnos con una asignatura PENDIENTE de un curso inferior
+   * (el nombre de la asignatura acaba en "(Nº)", p. ej. "Lenguaje Musical (5º)").
+   *   - false (por defecto): quedan SEPARADOS en su propio curso (agrupación
+   *     normal por Asignatura-Curso), como siempre.
+   *   - true: se INTEGRAN en el grupo del curso de la asignatura (el 5º del
+   *     ejemplo), colocados alfabéticamente, con "(Pte.)" tras el nombre.
+   */
+  integrarPendientes?: boolean;
 }
 
 /* ── Geometría de página (mm) ─────────────────────────────────────────────── */
@@ -63,6 +72,32 @@ function baseAsignatura(nombre: string): string {
   return (nombre ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim();
 }
 
+/**
+ * Curso pendiente codificado en el NOMBRE de la asignatura: un paréntesis
+ * final con un número (y "º" opcional), p. ej. "Lenguaje Musical (5º)" → 5.
+ * Devuelve null si la asignatura no lleva ese sufijo. Es la marca de que el
+ * alumno arrastra esa asignatura de un curso inferior.
+ */
+function cursoPendienteDe(nombreAsig: string): number | null {
+  const m = /\(\s*(\d+)\s*º?\s*\)\s*$/.exec(nombreAsig ?? '');
+  return m ? Number(m[1]) : null;
+}
+
+/** Nivel numérico del curso a partir de "EE"/"EP" + dígitos ("EP6" → 6). */
+function nivelCurso(curso: string): number | null {
+  const m = /^(?:EE|EP)\s*(\d+)/.exec((curso ?? '').trim().toUpperCase());
+  return m ? Number(m[1]) : null;
+}
+
+/** Prefijo de enseñanza de un curso ("EP6" → "EP", "EE3" → "EE"). */
+function prefEnsenanza(curso: string): string {
+  const m = /^(EE|EP)/.exec((curso ?? '').trim().toUpperCase());
+  return m ? m[1] : '';
+}
+
+/** Sufijo que se añade tras el nombre de un alumno con asignatura pendiente. */
+const SUFIJO_PENDIENTE = ' (Pte.)';
+
 function ordenCurso(c: string): number {
   const m = /^(EE|EP)(\d+)/.exec((c ?? '').trim().toUpperCase());
   return m ? (m[1] === 'EE' ? 0 : 100) + Number(m[2]) : 9999;
@@ -70,13 +105,6 @@ function ordenCurso(c: string): number {
 
 function cmpEs(a: string, b: string): number {
   return a.localeCompare(b, 'es', { sensitivity: 'base' });
-}
-
-/** "25/26" → "2025_26" (formato del título del documento original). */
-function cursoTitulo(curso: string): string {
-  const m = /^(\d{2})\/(\d{2})$/.exec((curso ?? '').trim());
-  if (m) return `20${m[1]}_${m[2]}`;
-  return (curso ?? '').replace(/\//g, '_');
 }
 
 /* ── Modelo interno ───────────────────────────────────────────────────────── */
@@ -102,12 +130,30 @@ function lineasDe(texto: string): number {
  * fila: la usan tanto el renderizado como el chequeo, de modo que ambos
  * coinciden por construcción.
  */
-function filaDeEntry(e: HorariosEntry): FilaDoc {
+function filaDeEntry(e: HorariosEntry, integrarPendientes = false): FilaDoc {
   const asig = baseAsignatura(e.asignatura);
+  const cursoAlumno = (e.ensenanzaCurso ?? '').trim().toUpperCase();
+
+  // Alumno con asignatura pendiente de un curso inferior: si se ha pedido
+  // integrarlo, se le asigna el curso de la asignatura (para que caiga en su
+  // grupo real) y se marca el nombre con "(Pte.)". En otro caso se deja tal
+  // cual, separado en su propio curso.
+  let nombre = (e.nombreCompleto ?? '').trim();
+  let curso = cursoAlumno;
+  if (integrarPendientes) {
+    const nPend = cursoPendienteDe(e.asignatura);
+    const nAlumno = nivelCurso(cursoAlumno);
+    const pref = prefEnsenanza(cursoAlumno);
+    if (nPend !== null && pref && nPend !== nAlumno) {
+      curso = `${pref}${nPend}`;
+      nombre = `${nombre}${SUFIJO_PENDIENTE}`;
+    }
+  }
+
   return {
-    nombre: (e.nombreCompleto ?? '').trim(),
+    nombre,
     abrev: abreviaturaAsignatura(asig),
-    curso: (e.ensenanzaCurso ?? '').trim().toUpperCase(),
+    curso,
     grupo: (e.h.h_grupo ?? '').trim(),
     prof: (e.h.h_prof ?? '').trim(),
     aula: (e.h.h_aula ?? '').trim(),
@@ -179,12 +225,12 @@ function ensenanzaDe(curso: string): 'EE' | 'EP' | 'OTRAS' {
  * forma que tiene el chequear de saber cuántas filas DEBERÍA tener el
  * documento sin tener que parsear el HTML de vuelta.
  */
-function filasEsperadas(entries: HorariosEntry[], incluidas?: Set<string>): FilaDoc[] {
+function filasEsperadas(entries: HorariosEntry[], incluidas?: Set<string>, integrarPendientes = false): FilaDoc[] {
   const filtradas = entries.filter(e => entryIncluida(e, incluidas));
   type ClaveGrupo = string;
   const porGrupo = new Map<ClaveGrupo, FilaDoc[]>();
   for (const e of filtradas) {
-    const fila = filaDeEntry(e);
+    const fila = filaDeEntry(e, integrarPendientes);
     const ens = ensenanzaDe(fila.curso);
     const asig = baseAsignatura(e.asignatura);
     const k: ClaveGrupo = `${ens}|${asig}|${fila.curso}|${fila.grupo}`;
@@ -212,19 +258,25 @@ function textoGrupo(grupo: string, prof: string, aula: string): string {
 function textoGrupoCorto(curso: string, grupo: string, aula: string): string {
   const partes: string[] = [];
   if (curso) partes.push(curso);
-  partes.push(grupo ? `Gr: ${curso}${grupo}` : 'Gr: —');
+  // `grupo` puede venir como código completo ("EE4B") o solo la letra ("B").
+  // Si ya empieza por el curso, se usa tal cual para no duplicarlo
+  // ("EE4EE4B" → "EE4B"); si es solo la letra, se le antepone el curso.
+  const grupoCompleto = grupo
+    ? (grupo.toUpperCase().startsWith(curso.toUpperCase()) ? grupo : `${curso}${grupo}`)
+    : '';
+  partes.push(grupo ? `Gr: ${grupoCompleto}` : 'Gr: —');
   if (aula) partes.push(`Aula: ${aula}`);
   return partes.join(', ');
 }
 
 /* ── Agrupación: Enseñanza → Asignatura → Curso → Grupo ───────────────────── */
-function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>): { bloques: Bloque[]; tocNiveles: (1 | 2 | 3 | 0)[]; duplicadosPorAlumnoAsignatura: DuplicadoAlumnoAsignatura[] } {
+function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>, integrarPendientes = false): { bloques: Bloque[]; tocNiveles: (1 | 2 | 3 | 0)[]; duplicadosPorAlumnoAsignatura: DuplicadoAlumnoAsignatura[] } {
   const filtradas = entries.filter(e => entryIncluida(e, incluidas));
 
   // ensenanza → asignatura → curso → grupo → filas
   const arbol = new Map<string, Map<string, Map<string, Map<string, FilaDoc[]>>>>();
   for (const e of filtradas) {
-    const fila = filaDeEntry(e);
+    const fila = filaDeEntry(e, integrarPendientes);
     const cursoNivel = fila.curso;
     const pref = /^EE/.test(cursoNivel) ? 'ENSEÑANZA ELEMENTAL' : /^EP/.test(cursoNivel) ? 'ENSEÑANZA PROFESIONAL' : 'OTRAS ENSEÑANZAS';
     const asig = baseAsignatura(e.asignatura);
@@ -526,7 +578,7 @@ function paginarContenido(bloques: Bloque[], tocNiveles: (1 | 2 | 3 | 0)[]): { p
 
 /* ── Documento completo ───────────────────────────────────────────────────── */
 export function buildHorarioGrupalHtml(entries: HorariosEntry[], op: OpcionesDocGrupal): string {
-  const { bloques, tocNiveles } = construirBloques(entries, op.asignaturasIncluidas);
+  const { bloques, tocNiveles } = construirBloques(entries, op.asignaturasIncluidas, op.integrarPendientes);
   const { paginas, toc } = paginarContenido(bloques, tocNiveles);
 
   /* Portada: alturas estimadas de los avisos para saber cuánto índice cabe. */
@@ -552,23 +604,27 @@ export function buildHorarioGrupalHtml(entries: HorariosEntry[], op: OpcionesDoc
     for (const e of chunk) { e.pagina = toc[idx].paginaRel + paginasToc; idx++; }
   }
 
-  const titulo = `HORARIOS <b>${esc(op.estado)}</b> ALUMNADO GRUPOS GRANDES Y COLECTIVAS. CURSO ${esc(cursoTitulo(op.curso))}`;
+  const titulo = `HORARIOS <b>${esc(op.estado)}</b> ALUMNADO GRUPOS GRANDES Y COLECTIVAS.<br>Curso ${esc(op.curso)}`;
+  const subtitulo = `Actualizado a ${esc(op.actualizadoA)}`;
 
   const cabecera =
     '<div class="cab">'
+    + `<img class="cab-logo-izq" src="${LOGO_JCCM_B64}" alt="JCCM">`
     + `<div class="cab-txt"><div class="cab-titulo">${titulo}</div>`
-    + `<div class="cab-fecha">Actualizado a ${esc(op.actualizadoA)}</div></div>`
+    + `<div class="cab-fecha">${subtitulo}</div></div>`
     + `<img class="cab-logo" src="${LOGO_CPM_B64}" alt="CPM">`
     + '</div>';
 
-  function pagina(cuerpo: string, cls = ''): string {
-    return `<div class="pagina${cls ? ' ' + cls : ''}">${cabecera}<div class="cuerpo">${cuerpo}</div></div>`;
+  function pagina(cuerpo: string, cls = '', numPagina?: number): string {
+    const pie = numPagina !== undefined ? `<div class="pie"><span class="pie-numero">${numPagina}</span></div>` : '';
+    return `<div class="pagina${cls ? ' ' + cls : ''}">${cabecera}<div class="cuerpo">${cuerpo}</div>${pie}</div>`;
   }
 
   /* Páginas del índice (la primera lleva además los avisos de portada).
      El bloque del índice lleva id="indice" para que los botones "↑ Subir" de
      cada sección puedan enlazar de vuelta con un anchor interno. */
   const paginasHtml: string[] = [];
+  let numPaginaActual = 1;
   tocChunks.forEach((chunk, i) => {
     let cuerpo = '';
     if (i === 0) {
@@ -581,10 +637,14 @@ export function buildHorarioGrupalHtml(entries: HorariosEntry[], op: OpcionesDoc
     cuerpo += chunk.map(e =>
       `<a href="#${e.id}" class="toc-fila n${e.nivel}"><span class="toc-txt">${esc(e.texto)}</span><span class="toc-dots"></span><span class="toc-pag">${e.pagina}</span></a>`,
     ).join('');
-    paginasHtml.push(pagina(cuerpo, 'pagina-toc'));
+    paginasHtml.push(pagina(cuerpo, 'pagina-toc', numPaginaActual));
+    numPaginaActual++;
   });
 
-  for (const p of paginas) paginasHtml.push(pagina(p.html.join('')));
+  for (const p of paginas) {
+    paginasHtml.push(pagina(p.html.join(''), '', numPaginaActual));
+    numPaginaActual++;
+  }
 
   const totalAlumnos = new Set(entries.map(e => e.nombreCompleto)).size;
 
@@ -614,7 +674,12 @@ body{font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#000;}
 .cab-titulo{font-size:14pt;color:var(--azul);letter-spacing:.2px;line-height:1.15;padding-top:1.5mm;}
 .cab-titulo b{font-weight:700;}
 .cab-fecha{font-size:9.5pt;color:var(--azul);margin-top:.8mm;}
+.cab-logo-izq{position:absolute;top:0;left:0;height:12mm;width:auto;object-fit:contain;}
 .cab-logo{position:absolute;top:0;right:0;height:12mm;width:auto;object-fit:contain;}
+
+/* ── Pie de página ── */
+.pie{position:absolute;bottom:${MARG_BOT - 2}mm;left:0;right:0;text-align:center;height:4mm;}
+.pie-numero{font-size:9pt;color:var(--azul);font-weight:500;}
 
 .cuerpo{height:${CONTENIDO_H + 3}mm;overflow:hidden;padding-top:3mm;}
 
@@ -629,7 +694,7 @@ body{font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#000;}
 /* ── Portada ── */
 .portada{padding-top:1mm;}
 .aviso{font-size:10.5pt;text-align:center;margin:0 0 2mm;line-height:1.25;}
-.aviso mark{background:#FFFF00;padding:0 2px;}
+.aviso mark{background:#FFFF00;padding:0 2px;font-weight:bold;color:#FF0000;}
 .aviso.extra{margin-bottom:1mm;}
 .toc-titulo{font-size:16pt;color:var(--azul);margin:2mm 0 2.5mm;}
 .toc-fila{display:flex;align-items:flex-end;height:${TOC_FILA_H}mm;font-size:10pt;overflow:hidden;
@@ -823,6 +888,7 @@ export function chequearDocumentoGrupal(
   entries: HorariosEntry[],
   html: string,
   incluidas?: Set<string>,
+  integrarPendientes = false,
 ): ReporteChequeo {
   // ── Pasada 1: estadísticas sobre el origen COMPLETO (sin deduplicar) ────────
   const redundanciasOrigen = new Map<string, { fila: FilaChequeo; veces: number }>();
@@ -832,7 +898,7 @@ export function chequearDocumentoGrupal(
 
   for (const e of entries) {
     const base = baseAsignatura(e.asignatura);
-    const fila = filaChequeoDe(filaDeEntry(e));
+    const fila = filaChequeoDe(filaDeEntry(e, integrarPendientes));
     const quien = `${fila.nombre || '(sin nombre)'} · ${base || '(sin asignatura)'} ${fila.curso}`.trim();
 
     if (!base) {
@@ -858,7 +924,7 @@ export function chequearDocumentoGrupal(
   }
 
   // ── Esperado: replicar la agrupación + dedup que hace el render del PDF ────
-  const dedupOrdenadas = filasEsperadas(entries, incluidas);
+  const dedupOrdenadas = filasEsperadas(entries, incluidas, integrarPendientes);
   const esperadoCuenta = new Map<string, number>();
   const esperadoFila = new Map<string, FilaChequeo>();
   for (const fila of dedupOrdenadas) {

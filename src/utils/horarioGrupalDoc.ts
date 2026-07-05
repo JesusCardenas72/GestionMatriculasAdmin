@@ -19,6 +19,13 @@ export interface DocGrupalCfg {
   lineasExtra: string;
   /** Asignaturas seleccionadas; undefined = valor inicial (todas menos Instrumento). */
   asignaturas?: string[];
+  /**
+   * Alumnos con una asignatura pendiente de un curso inferior (nombre acabado
+   * en "(Nº)"): si true, se integran en el grupo del curso de la asignatura con
+   * "(Pte.)" tras el nombre; si false (por defecto), quedan separados en su
+   * propio curso.
+   */
+  integrarPendientes?: boolean;
 }
 
 export const DOC_GRUPAL_DEFAULTS: Omit<DocGrupalCfg, 'actualizadoA'> = {
@@ -28,6 +35,7 @@ export const DOC_GRUPAL_DEFAULTS: Omit<DocGrupalCfg, 'actualizadoA'> = {
   textoAviso:
     'Los horarios individuales no aparecen en este archivo, se completarán en la primera semana de septiembre',
   lineasExtra: '',
+  integrarPendientes: false,
 };
 
 /** Fecha de hoy en formato dd/mm/aaaa (es-ES) para "Actualizado a …". */
