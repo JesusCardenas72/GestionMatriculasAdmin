@@ -39,6 +39,7 @@ import type {
 import { ESTADO } from '../api/types';
 import { useCursoContext } from '../contexts/CursoContextProvider';
 import { useAppMode } from '../contexts/AppModeProvider';
+import { useEscenarioHorario } from '../contexts/EscenarioHorarioContext';
 import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
 import { useSolicitudes } from '../hooks/useSolicitudes';
 import LocalEditModal from '../components/LocalEditModal';
@@ -411,6 +412,8 @@ function ListaValoresFiltro({
 export default function InformesScreen({ config }: Props) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
+  /** Si hay un escenario activo en el contexto, se usan sus entries en lugar del almacén. */
+  const { escenarioActivo } = useEscenarioHorario();
   const { matriculas, isLoading: loadingLocal, actualizar } = useLocalMatriculas(curso);
   const q1 = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
   const q2 = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION, curso);
@@ -1662,17 +1665,23 @@ export default function InformesScreen({ config }: Props) {
       return;
     }
 
-    let valoresHorario: Array<Record<string, string> | null> | undefined;
+    // Fuente de datos: si hay un escenario activo en el contexto, sus entries;
+    // si no, las del almacén. Mantener esta lógica coherente con el resto de
+    // pantallas para que el Excel refleje el mismo estado que ve el usuario.
     const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-    if (storeData.entries.length > 0) {
+    const entriesFuente = escenarioActivo ? escenarioActivo.entries : storeData.entries;
+
+    let valoresHorario: Array<Record<string, string> | null> | undefined;
+    if (entriesFuente.length > 0) {
       const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
         resultados,
-        storeData.entries,
+        entriesFuente,
         matriculas,
       );
       if (conservadas + heredadas > 0) {
         valoresHorario = vh;
-        console.log(`[Horarios] Auto-relleno: ${conservadas} conservados, ${heredadas} heredados del store`);
+        const origen = escenarioActivo ? 'snapshot' : 'store';
+        console.log(`[Horarios] Auto-relleno: ${conservadas} conservados, ${heredadas} heredados del ${origen}`);
       }
     }
 
@@ -1691,7 +1700,7 @@ export default function InformesScreen({ config }: Props) {
 
     // Aviso: clases guardadas que NO han entrado en este Excel (no casan con el
     // informe). Solo abrimos la ventana si hay alguna.
-    const huerf = detectarHuerfanasAlmacen(resultados, storeData.entries, matriculas);
+    const huerf = detectarHuerfanasAlmacen(resultados, entriesFuente, matriculas);
     if (huerf.length > 0) setHuerfanas(huerf);
   }
 

@@ -344,7 +344,7 @@ const MatriculaPdfComponent = ({ formData, academicYear, submitTimestamp, asigna
         <View style={s.card}>
           <Text style={s.sectionTitle}>Datos de Matriculación</Text>
           <View style={s.row}>
-            <View style={{ flex: 1.6 }}><Field label="Tipo de Enseñanza" value={formData.tipoEnsenanza === 'elemental' ? 'Enseñanza Elemental' : formData.tipoEnsenanza === 'profesional' ? 'Enseñanza Profesional' : '—'} /></View>
+            <View style={{ flex: 1.6 }}><Field label="Tipo de Enseñanza" value={formData.tipoEnsenanza === 'elemental' ? 'E. Elemental' : formData.tipoEnsenanza === 'profesional' ? 'E. Profesional' : '—'} /></View>
             <View style={{ width: 42 }}><Field label="Curso" value={formData.curso} /></View>
             <View style={{ flex: 1.4 }}><Field label="Especialidad" value={formData.especialidad} /></View>
             {formData.esRepetidor && (

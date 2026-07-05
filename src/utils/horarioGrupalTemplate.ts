@@ -35,6 +35,7 @@ export interface OpcionesDocGrupal {
 
 /* ── Geometría de página (mm) ─────────────────────────────────────────────── */
 const MARG_X = 9;
+const TOC_MARG_X = 16;
 const MARG_TOP = 6;
 const MARG_BOT = 7;
 const CABECERA_H = 17;
@@ -207,9 +208,11 @@ function textoGrupo(grupo: string, prof: string, aula: string): string {
   return partes.join(', ');
 }
 
-/** Texto corto de la etiqueta vertical girada: solo "Grupo EP3A, Aula: ...", omitiendo los vacíos. */
-function textoGrupoCorto(grupo: string, aula: string): string {
-  const partes: string[] = [grupo ? `Grupo ${grupo}` : 'Sin grupo'];
+/** Texto corto de la etiqueta vertical girada: "EE3, Gr: EE3A, Aula: ..." */
+function textoGrupoCorto(curso: string, grupo: string, aula: string): string {
+  const partes: string[] = [];
+  if (curso) partes.push(curso);
+  partes.push(grupo ? `Gr: ${curso}${grupo}` : 'Gr: —');
   if (aula) partes.push(`Aula: ${aula}`);
   return partes.join(', ');
 }
@@ -302,7 +305,7 @@ function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>): { 
           // Aula; el Profesor se queda en el H4 horizontal.
           bloques.push({
             tipo: 'grupo',
-            texto: textoGrupoCorto(g || 'Sin grupo', ref.aula),
+            texto: textoGrupoCorto(ref.curso, g || '', ref.aula),
             filas: dedup,
           });
           tocNiveles.push(0);
@@ -408,8 +411,8 @@ function renderGrupo(texto: string, filas: FilaDoc[], alturaTablaMm: number): st
 
 /** Texto legible de la enseñanza para la sidebar (primera mayúscula). */
 function enseanzaLegible(e: string): string {
-  if (e === 'ENSEÑANZA ELEMENTAL') return 'Enseñanza Elemental';
-  if (e === 'ENSEÑANZA PROFESIONAL') return 'Enseñanza Profesional';
+  if (e === 'ENSEÑANZA ELEMENTAL') return 'E. Elemental';
+  if (e === 'ENSEÑANZA PROFESIONAL') return 'E. Profesional';
   if (e === 'OTRAS ENSEÑANZAS') return 'Otras enseñanzas';
   return e;
 }
@@ -558,8 +561,8 @@ export function buildHorarioGrupalHtml(entries: HorariosEntry[], op: OpcionesDoc
     + `<img class="cab-logo" src="${LOGO_CPM_B64}" alt="CPM">`
     + '</div>';
 
-  function pagina(cuerpo: string): string {
-    return `<div class="pagina">${cabecera}<div class="cuerpo">${cuerpo}</div></div>`;
+  function pagina(cuerpo: string, cls = ''): string {
+    return `<div class="pagina${cls ? ' ' + cls : ''}">${cabecera}<div class="cuerpo">${cuerpo}</div></div>`;
   }
 
   /* Páginas del índice (la primera lleva además los avisos de portada).
@@ -578,7 +581,7 @@ export function buildHorarioGrupalHtml(entries: HorariosEntry[], op: OpcionesDoc
     cuerpo += chunk.map(e =>
       `<a href="#${e.id}" class="toc-fila n${e.nivel}"><span class="toc-txt">${esc(e.texto)}</span><span class="toc-dots"></span><span class="toc-pag">${e.pagina}</span></a>`,
     ).join('');
-    paginasHtml.push(pagina(cuerpo));
+    paginasHtml.push(pagina(cuerpo, 'pagina-toc'));
   });
 
   for (const p of paginas) paginasHtml.push(pagina(p.html.join('')));
@@ -602,6 +605,7 @@ body{font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#000;}
 
 .pagina{width:297mm;height:210mm;overflow:hidden;background:#fff;position:relative;
   padding:${MARG_TOP}mm ${MARG_X}mm ${MARG_BOT}mm;page-break-after:always;}
+.pagina-toc{padding-left:${TOC_MARG_X}mm;padding-right:${TOC_MARG_X}mm;}
 .pagina:last-child{page-break-after:auto;}
 
 /* ── Cabecera de página ── */

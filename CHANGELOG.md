@@ -9,6 +9,21 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.6.0] - 2026-07-05
+
+### Añadido
+
+- **Documentos comunes en el correo de horarios**: en las ventanas de envío de horarios (envío masivo desde **Horarios** y envío individual desde **Local**) se pueden adjuntar dos listados generales del centro, iguales para todos los destinatarios de la remesa:
+  - **Listado de grupos (PDF)**: el documento de "Horarios grupales" con toda su configuración guardada en *Listado por asignaturas → Listado Grupos* (portada, estado, fecha y asignaturas incluidas). Es idéntico para todos, sin diferenciar por lo que reciba cada alumno.
+  - **Listado de alumnado (HTML interactivo)**: el listado por asignaturas versión alumnado, el mismo para todos, filtrado por las **asignaturas elegidas en la propia ventana de envío**.
+  - Ambos vienen desmarcados por defecto y se generan una sola vez por remesa. La vista previa de *Listado Grupos* y el PDF adjunto usan exactamente el mismo criterio de asignaturas, de modo que coinciden por construcción.
+
+### Cambiado
+
+- **Adjuntos del correo de horarios como lista dinámica**: el envío manda ahora un único array `adjuntos` con SOLO los documentos activados (PDF del horario, HTML interactivo, solicitud de cambio de grupo, listados comunes y documento personalizado), en lugar de huecos fijos. Evita los "adjuntos fantasma" vacíos y permite añadir nuevos documentos sin tocar el Flow de Power Automate.
+
+---
+
 ## [1.5.3] - 2026-07-02
 
 ### Corregido

@@ -33,6 +33,16 @@ export interface OpcionesEnvioHorario {
   adjuntoFormulario?: boolean;
   /** Archivo personalizado del PC para adjuntar (base64 + nombre de fichero). */
   adjuntoPersonalizado?: { nombre: string; base64: string };
+  /**
+   * PDF del "Listado de grupos" (documento grupal), ya generado una sola vez y
+   * común a todos los destinatarios. Se adjunta tal cual si viene presente.
+   */
+  adjuntoGrupalPdf?: { nombre: string; base64: string };
+  /**
+   * HTML interactivo del "Listado por asignaturas — alumnado", generado una sola
+   * vez y común a todos los destinatarios (base64 del HTML). Se adjunta si viene.
+   */
+  adjuntoListadoHtml?: { nombre: string; base64: string };
   /** Formato visual del horario adjunto (PDF + HTML). Por defecto "notas". */
   formato?: FormatoHorario;
 }
@@ -85,6 +95,20 @@ export async function enviarHorarioAlumno(
     if (formularioBase64) {
       adjuntos.push({ Name: 'SolicitudCambioGrupo.pdf', ContentBytes: formularioBase64 });
     }
+  }
+
+  if (opciones?.adjuntoGrupalPdf) {
+    adjuntos.push({
+      Name: opciones.adjuntoGrupalPdf.nombre,
+      ContentBytes: opciones.adjuntoGrupalPdf.base64,
+    });
+  }
+
+  if (opciones?.adjuntoListadoHtml) {
+    adjuntos.push({
+      Name: opciones.adjuntoListadoHtml.nombre,
+      ContentBytes: opciones.adjuntoListadoHtml.base64,
+    });
   }
 
   if (opciones?.adjuntoPersonalizado) {

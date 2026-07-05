@@ -9,6 +9,7 @@ import {
   AlertCircle,
   FileText,
   FileCode2,
+  Users,
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import type { MatriculaLocal } from "../api/types";
@@ -21,6 +22,12 @@ import {
   enviarHorarioAlumno,
 } from "../utils/horarioEnvio";
 import type { OpcionesEnvioHorario } from "../utils/horarioEnvio";
+import { buildHorarioGrupalHtml, listarAsignaturasEntries } from "../utils/horarioGrupalTemplate";
+import { buildListadoHtml } from "../utils/horarioListadoTemplate";
+import {
+  DOC_GRUPAL_DEFAULTS, fechaHoyEs, resolverAsignaturasGrupal,
+  baseAsignaturaDoc, construirEntriesDesdeAlumnos, type DocGrupalCfg,
+} from "../utils/horarioGrupalDoc";
 import { leerArchivoBase64 } from "../utils/fileUtils";
 
 /** Datos que el proceso principal entrega a la ventana nativa de envío. */
@@ -53,6 +60,11 @@ export function DialogoEnviarHorario() {
   const [adjuntoPdf, setAdjuntoPdf] = useState(true);
   const [adjuntoHtml, setAdjuntoHtml] = useState(true);
   const [adjuntoFormulario, setAdjuntoFormulario] = useState(true);
+  // Documentos comunes, desmarcados por defecto (adjuntos grandes y opcionales).
+  const [adjuntoGrupal, setAdjuntoGrupal] = useState(false);
+  const [adjuntoListado, setAdjuntoListado] = useState(false);
+  /** Toda la carga del almacén: fuente de los documentos comunes (grupos y alumnado). */
+  const [cargaAlumnos, setCargaAlumnos] = useState<HorarioAlumno[]>([]);
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
   const [formato, setFormato] = useState<FormatoHorario>(() => {
     const saved = localStorage.getItem("horario:formato");
@@ -90,6 +102,9 @@ export function DialogoEnviarHorario() {
         if (!cancelado) {
           const alumnoFinal = encontrado ? { ...encontrado, email: matricula.email || encontrado.email } : null;
           setAlumno(alumnoFinal);
+          // Los documentos comunes (grupos y alumnado) son listados generales: se
+          // construyen desde TODA la carga del almacén, no solo del destinatario.
+          setCargaAlumnos(carga.alumnos);
           if (alumnoFinal) {
             setAsignaturasSeleccionadas(new Set(alumnoFinal.clases.map((c) => c.asignatura)));
           }
@@ -115,6 +130,41 @@ export function DialogoEnviarHorario() {
     setEnviando(true);
     setError(null);
     try {
+      // Documentos comunes (mismo comportamiento que en el módulo Horarios).
+      // Listado de grupos (PDF): documento general, con TODA su configuración
+      // guardada (portada, estado, fecha y asignaturas incluidas). No se filtra
+      // por lo que reciba este alumno.
+      let adjuntoGrupalPdf: { nombre: string; base64: string } | undefined;
+      if (adjuntoGrupal && cargaAlumnos.length > 0) {
+        const grupalEntries = construirEntriesDesdeAlumnos(cargaAlumnos);
+        const raw = (await window.adminAPI.horarios.docConfig.obtener(curso)) as Partial<DocGrupalCfg> | null;
+        const cfg: DocGrupalCfg = { ...DOC_GRUPAL_DEFAULTS, ...(raw ?? {}), actualizadoA: fechaHoyEs() };
+        const incluidas = resolverAsignaturasGrupal(cfg.asignaturas, listarAsignaturasEntries(grupalEntries));
+        const grupalHtml = buildHorarioGrupalHtml(grupalEntries, {
+          curso,
+          estado: cfg.estado,
+          actualizadoA: cfg.actualizadoA,
+          textoPlazo: cfg.textoPlazo,
+          textoAviso: cfg.textoAviso,
+          lineasExtra: cfg.lineasExtra.split("\n").map((s) => s.trim()).filter(Boolean),
+          asignaturasIncluidas: incluidas,
+        });
+        const pdfRes = await window.adminAPI.pdf.generarBase64(grupalHtml, true);
+        if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "No se pudo generar el Listado de grupos.");
+        const nombreArchivo = `Horarios grupales ${cfg.estado} Curso ${curso}`.replace(/[\\/:*?"<>|]/g, "_");
+        adjuntoGrupalPdf = { nombre: `${nombreArchivo}.pdf`, base64: pdfRes.base64 };
+      }
+
+      // Listado de alumnado (HTML interactivo): igual para todos, filtrado por las
+      // asignaturas elegidas en "Asignaturas a informar".
+      let adjuntoListadoHtml: { nombre: string; base64: string } | undefined;
+      if (adjuntoListado && cargaAlumnos.length > 0) {
+        const incluidas = new Set([...asignaturasSeleccionadas].map(baseAsignaturaDoc));
+        const listadoHtml = buildListadoHtml(cargaAlumnos, `Curso ${curso}`, "alumnos", { asignaturasIncluidas: incluidas });
+        const nombreArchivo = `Listado alumnado Curso ${curso}`.replace(/[\\/:*?"<>|]/g, "_");
+        adjuntoListadoHtml = { nombre: `${nombreArchivo}.html`, base64: btoa(unescape(encodeURIComponent(listadoHtml))) };
+      }
+
       const todasAsignaturas = new Set(alumno.clases.map((c) => c.asignatura));
       const opciones: OpcionesEnvioHorario = {
         adjuntoPdf,
@@ -122,6 +172,8 @@ export function DialogoEnviarHorario() {
         adjuntoFormulario,
         formato,
         adjuntoPersonalizado: adjuntoPersonalizado ?? undefined,
+        adjuntoGrupalPdf,
+        adjuntoListadoHtml,
         asignaturas: asignaturasSeleccionadas.size < todasAsignaturas.size
           ? [...asignaturasSeleccionadas]
           : undefined,
@@ -301,6 +353,42 @@ export function DialogoEnviarHorario() {
                   <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--tc-info-ink, #1d4ed8)" }} />
                   <span style={{ color: "var(--tc-ink)" }}>Solicitud de cambio de grupo</span>
                 </label>
+                {cargaAlumnos.length > 0 && (
+                  <label className={`flex items-start gap-2.5 px-3 py-2 cursor-pointer text-sm select-none ${enviando || enviado ? "opacity-50 cursor-default" : "hover:bg-[var(--tc-bg)]"}`}>
+                    <input
+                      type="checkbox"
+                      checked={adjuntoGrupal}
+                      disabled={enviando || enviado}
+                      onChange={(e) => setAdjuntoGrupal(e.target.checked)}
+                      className="accent-[var(--tc-primary)] w-3.5 h-3.5 shrink-0 mt-0.5"
+                    />
+                    <Users className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--tc-violet-ink, #6d28d9)" }} />
+                    <span className="min-w-0">
+                      <span style={{ color: "var(--tc-ink)" }}>Listado de grupos (PDF)</span>
+                      <span className="block text-[11px] leading-snug" style={{ color: "var(--tc-ink-mute)" }}>
+                        Documento general de horarios grupales, el mismo para todos, con la configuración guardada en Listado Grupos.
+                      </span>
+                    </span>
+                  </label>
+                )}
+                {cargaAlumnos.length > 0 && (
+                  <label className={`flex items-start gap-2.5 px-3 py-2 cursor-pointer text-sm select-none ${enviando || enviado ? "opacity-50 cursor-default" : "hover:bg-[var(--tc-bg)]"}`}>
+                    <input
+                      type="checkbox"
+                      checked={adjuntoListado}
+                      disabled={enviando || enviado}
+                      onChange={(e) => setAdjuntoListado(e.target.checked)}
+                      className="accent-[var(--tc-primary)] w-3.5 h-3.5 shrink-0 mt-0.5"
+                    />
+                    <FileCode2 className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--tc-teal-ink, #148180)" }} />
+                    <span className="min-w-0">
+                      <span style={{ color: "var(--tc-ink)" }}>Listado de alumnado (HTML)</span>
+                      <span className="block text-[11px] leading-snug" style={{ color: "var(--tc-ink-mute)" }}>
+                        Listado interactivo por asignaturas, el mismo para todos, con las asignaturas elegidas arriba.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <div className={`flex items-center gap-2.5 px-3 py-2 text-sm ${enviando || enviado ? "opacity-50" : ""}`}>
                   <input ref={fileInputRefHorario} type="file" className="hidden" disabled={enviando || enviado} onChange={async (e) => { const f = e.target.files?.[0]; if (f) { setAdjuntoPersonalizado({ nombre: f.name, base64: await leerArchivoBase64(f) }); e.target.value = ""; } }} />
                   <button type="button" disabled={enviando || enviado} onClick={() => fileInputRefHorario.current?.click()} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition disabled:opacity-50 hover:bg-[var(--tc-bg)]" style={{ borderColor: "var(--tc-border)", color: "var(--tc-ink-soft)" }}>

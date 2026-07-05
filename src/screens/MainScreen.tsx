@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle, DatabaseBackup, FolderOpen } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle, DatabaseBackup, FolderOpen, History } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
@@ -26,6 +26,7 @@ import BorrarModal from "../components/modals/BorrarModal";
 import AyudaModal from "../components/modals/AyudaModal";
 import CopiaSeguridadModal from "../components/modals/CopiaSeguridadModal";
 import RestaurarCopiaModal from "../components/modals/RestaurarCopiaModal";
+import { EscenarioHorarioProvider, useEscenarioHorario } from "../contexts/EscenarioHorarioContext";
 import type { BackupManifest } from "../../electron/backup-store";
 
 interface Props {
@@ -196,6 +197,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
   }, [current?.data?.solicitudes, convalidacionMap]);
 
   return (
+    <EscenarioHorarioProvider>
     <div className="h-screen flex flex-col bg-[var(--tc-bg)] overflow-hidden">
       <header className="relative h-[72px] shrink-0 bg-[var(--tc-card)] border-b border-[var(--tc-border)] px-7 flex items-center gap-4">
         <span className="fixed bottom-2 right-3 text-[11px] leading-none text-[var(--tc-ink-mute)] pointer-events-none">
@@ -406,6 +408,8 @@ export default function MainScreen({ config, onConfigSave }: Props) {
         </div>
       )}
 
+      <EscenarioActivoBanner />
+
       <ErrorBoundary key={String(active)}>
       {active === "local" ? (
         <LocalScreen config={config} />
@@ -508,6 +512,63 @@ export default function MainScreen({ config, onConfigSave }: Props) {
           onClose={() => setRestaurarData(null)}
         />
       )}
+    </div>
+    </EscenarioHorarioProvider>
+  );
+}
+
+/**
+ * Banner global que aparece en TODAS las pantallas cuando hay un escenario de
+ * horario activo (un snapshot del historial de horarios seleccionado). Indica
+ * al usuario que los datos que ve (lista de alumnos, Excel de Informes,
+ * comprobaciones del Asistente, PDF de horarios) vienen de ESE snapshot y no
+ * del almacén actual. Incluye un botón para volver a la carga más reciente.
+ */
+function EscenarioActivoBanner() {
+  const { escenarioActivo, volverAlActual, cargarSnapshotPorId } = useEscenarioHorario();
+  const { curso } = useCursoContext();
+  if (!escenarioActivo) return null;
+
+  const fecha = new Date(escenarioActivo.timestamp).toLocaleString("es-ES", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+
+  // El botón "Ir a Horarios" navega a la pestaña Horarios y reactiva el
+  // snapshot. Es un atajo para cuando el usuario quiere ver el detalle.
+  const irAHorario = () => {
+    void cargarSnapshotPorId(curso, escenarioActivo.id);
+  };
+
+  return (
+    <div
+      className="shrink-0 flex items-center gap-3 px-7 py-2 bg-amber-50 border-b border-amber-200 text-amber-800"
+      data-testid="escenario-activo-banner"
+    >
+      <History className="w-4 h-4 shrink-0" />
+      <div className="min-w-0 flex-1 text-xs">
+        <span className="font-bold">Escenario de horario activo</span>
+        <span>
+          {" "}— Snapshot del {fecha}
+          {escenarioActivo.fileName ? ` · ${escenarioActivo.fileName}` : ""}.
+          Todas las pantallas (Horarios, Informes, Asistente) usan estos datos
+          en lugar del estado actual del almacén.
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={irAHorario}
+        className="shrink-0 px-2.5 py-1 rounded-md border border-amber-300 bg-white/60 text-[11px] font-semibold hover:bg-white"
+      >
+        Ver en Horarios
+      </button>
+      <button
+        type="button"
+        onClick={volverAlActual}
+        className="shrink-0 px-2.5 py-1 rounded-md bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700"
+      >
+        Volver a la carga actual
+      </button>
     </div>
   );
 }

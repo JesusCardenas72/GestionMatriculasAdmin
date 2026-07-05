@@ -63,6 +63,8 @@ export interface HorariosCursoData {
   lastUpdated: string | null;
   /** Formato de columnas acordado para los Excel de horarios de este curso. */
   formatoHorarios?: FormatoHorarios;
+  /** Configuración del documento PDF de horarios grupales. */
+  docGrupalConfig?: Record<string, unknown>;
 }
 
 function basePath(): string {

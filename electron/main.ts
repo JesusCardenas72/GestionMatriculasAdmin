@@ -533,6 +533,18 @@ function registerIpcHandlers() {
     return horariosDataImportarHistorial(curso, json);
   });
 
+  ipcMain.handle("horarios:docConfig:obtener", (_e, curso: string) => {
+    const data = horariosDataObtener(curso);
+    return data.docGrupalConfig ?? null;
+  });
+
+  ipcMain.handle("horarios:docConfig:guardar", (_e, curso: string, config: Record<string, unknown> | null) => {
+    const data = horariosDataObtener(curso);
+    if (config) data.docGrupalConfig = config;
+    else delete data.docGrupalConfig;
+    horariosDataGuardar(curso, data);
+  });
+
   ipcMain.handle(
     "archivo:seleccionar",
     async (_e, extensiones: string[]): Promise<{ fileName: string; base64: string; path: string } | null> => {
@@ -662,19 +674,31 @@ function registerIpcHandlers() {
         },
       });
 
+      // Escribimos el HTML a un .html temporal y lo cargamos con loadFile.
+      // Las data: URL de varios MB fallan con ERR_INVALID_URL en Chromium
+      // (sucede con listados por asignatura extensos); loadFile no tiene ese
+      // límite y es el mismo patrón que ya usa pdf:openForPrint.
+      const tmpHtmlPath = path.join(
+        app.getPath("temp"),
+        `pdfgen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.html`,
+      );
+      fs.writeFileSync(tmpHtmlPath, payload.html, "utf-8");
+
       const cleanup = () => {
         try {
           if (!pdfWin.isDestroyed()) pdfWin.destroy();
         } catch {
           /* empty */
         }
+        try {
+          fs.unlinkSync(tmpHtmlPath);
+        } catch {
+          /* empty */
+        }
       };
 
       try {
-        const dataUrl =
-          "data:text/html;charset=utf-8;base64," +
-          Buffer.from(payload.html, "utf-8").toString("base64");
-        await pdfWin.loadURL(dataUrl);
+        await pdfWin.loadFile(tmpHtmlPath);
       } catch (err) {
         cleanup();
         return { success: false, error: (err as Error).message };
@@ -726,19 +750,28 @@ function registerIpcHandlers() {
         },
       });
 
+      // Mismo motivo que en pdf:generarPdfBase64: data: URL grandes → ERR_INVALID_URL.
+      const tmpHtmlPath = path.join(
+        app.getPath("temp"),
+        `pdfprint_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.html`,
+      );
+      fs.writeFileSync(tmpHtmlPath, payload.html, "utf-8");
+
       const cleanup = () => {
         try {
           if (!printWin.isDestroyed()) printWin.destroy();
         } catch {
           /* empty */
         }
+        try {
+          fs.unlinkSync(tmpHtmlPath);
+        } catch {
+          /* empty */
+        }
       };
 
       try {
-        const dataUrl =
-          "data:text/html;charset=utf-8;base64," +
-          Buffer.from(payload.html, "utf-8").toString("base64");
-        await printWin.loadURL(dataUrl);
+        await printWin.loadFile(tmpHtmlPath);
       } catch (err) {
         cleanup();
         return { success: false, error: (err as Error).message };

@@ -28,7 +28,11 @@ export interface CargaExcelHorariosResult {
  *
  * Abre el selector de archivo, parsea el Excel, valida los valores contra las
  * listas de los desplegables (abriendo una ventana OS nativa si hay colisiones)
- * y fusiona los datos en el almacén del curso (upsert: nunca borra).
+ * y reemplaza el contenido del almacén del curso con las filas del Excel. El
+ * Excel es la fuente de verdad: las entradas previas que no aparezcan en él
+ * se eliminan para que el PDF de horarios grupales solo muestre alumnos del
+ * Excel recién importado. El estado anterior queda en el historial por si
+ * hay que restaurarlo.
  *
  * Devuelve `null` si el usuario cancela el selector de archivo o el diálogo de
  * corrección.
@@ -47,7 +51,7 @@ export async function cargarExcelHorarios(
   if (crudas === null) return null;
 
   const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-  const resultado = actualizarHorariosStore(storeData, crudas, "carga_excel", sel.fileName);
+  const resultado = actualizarHorariosStore(storeData, crudas, "carga_excel", sel.fileName, undefined, { reemplazar: true });
 
   let formatoDetectado: FormatoDetectado | null = null;
 

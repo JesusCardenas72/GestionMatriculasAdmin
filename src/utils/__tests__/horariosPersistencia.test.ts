@@ -491,3 +491,90 @@ describe("enriquecerFilasConHorario", () => {
     expect(fila.horario1).toBe("Martes 10:00–11:00");
   });
 });
+
+// ── actualizarHorariosStore — modo reemplazar ──────────────────────────────────
+
+describe("actualizarHorariosStore — modo reemplazar", () => {
+  it("vacía el almacén de entradas que no están en el Excel importado", () => {
+    const data = storeVacio();
+    // Alumnos PDTE de una carga anterior que NO estarán en el nuevo Excel
+    data.entries = [
+      entry("100_503", "Saxofón (pendiente 1º)", { h_prof: "García", h_dia1: "Lunes" }),
+      entry("101_503", "Saxofón (pendiente 1º)", { h_prof: "García", h_dia1: "Martes" }),
+    ];
+
+    const resultado = actualizarHorariosStore(
+      data,
+      [cruda("200_1561", "Lenguaje Musical", { h_prof: "Ruiz", h_dia1: "Miércoles" })],
+      "carga_excel",
+      "Horarios 26-27 — FASE 3.xlsx",
+      undefined,
+      { reemplazar: true },
+    );
+
+    expect(data.entries).toHaveLength(1);
+    expect(data.entries[0].idCompuesto).toBe("200_1561");
+    expect(resultado.eliminadas).toBe(2);
+    expect(resultado.anadidas).toBe(1);
+  });
+
+  it("conserva las entradas del Excel que ya existían con el mismo idCompuesto", () => {
+    const data = storeVacio();
+    data.entries = [
+      entry("200_1561", "Lenguaje Musical", { h_prof: "Ruiz", h_dia1: "Lunes" }),
+      entry("999_999", "Eliminado en fase 3", { h_prof: "X", h_dia1: "Viernes" }),
+    ];
+
+    const resultado = actualizarHorariosStore(
+      data,
+      [cruda("200_1561", "Lenguaje Musical", { h_prof: "Ruiz", h_dia1: "Miércoles" })],
+      "carga_excel",
+      undefined,
+      undefined,
+      { reemplazar: true },
+    );
+
+    // Tras reemplazar, la única entrada es la del Excel. En el resumen
+    // "eliminadas" cuenta las entradas previas que ya no están en el
+    // almacén reconstruido (las dos), "anadidas" las que vienen del Excel.
+    expect(data.entries).toHaveLength(1);
+    expect(data.entries[0].h.h_dia1).toBe("Miércoles");
+    expect(resultado.eliminadas).toBe(2);
+    expect(resultado.anadidas).toBe(1);
+    expect(resultado.actualizadas).toBe(0);
+  });
+
+  it("crea un snapshot con la lista resultante (solo entradas del Excel actual)", () => {
+    const data = storeVacio();
+    data.entries = [entry("999_999", "Eliminado", { h_prof: "X", h_dia1: "Viernes" })];
+
+    const resultado = actualizarHorariosStore(
+      data,
+      [cruda("200_1561", "Lenguaje Musical", { h_prof: "Ruiz" })],
+      "carga_excel",
+      "Fase 3.xlsx",
+      undefined,
+      { reemplazar: true },
+    );
+
+    expect(resultado.snapshot).not.toBeNull();
+    expect(resultado.snapshot!.entries).toHaveLength(1);
+    expect(resultado.snapshot!.entries[0].idCompuesto).toBe("200_1561");
+    expect(resultado.snapshot!.resumen.eliminadas).toBe(1);
+  });
+
+  it("por defecto (sin opciones) sigue siendo UPSERT y conserva entradas previas", () => {
+    const data = storeVacio();
+    data.entries = [entry("999_999", "Anterior", { h_prof: "X", h_dia1: "Lunes" })];
+
+    actualizarHorariosStore(
+      data,
+      [cruda("200_1561", "Lenguaje Musical", { h_prof: "Ruiz" })],
+      "carga_excel",
+    );
+
+    expect(data.entries).toHaveLength(2);
+    expect(data.entries.map(e => e.idCompuesto)).toContain("999_999");
+    expect(data.entries.map(e => e.idCompuesto)).toContain("200_1561");
+  });
+});

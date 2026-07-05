@@ -91,6 +91,10 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
     orderHtml = `<div class="orange-num">#${esc(counter)}</div>
         ${cursoShort ? `<div style="font-size:8px; color:#F97316; margin-top:1px;">Curso ${esc(cursoShort)}</div>` : ""}`;
   }
+  const academicYearShort = (() => {
+    const m = academicYear.match(/(\d{4})\s*\/\s*(\d{4})/);
+    return m ? `${m[1].slice(-2)}/${m[2].slice(-2)}` : academicYear;
+  })();
 
   const fechaEnvioValida =
     submitTimestamp instanceof Date && !isNaN(submitTimestamp.getTime());
@@ -385,9 +389,9 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
 
   const tipoEnsenanzaLabel =
     formData.tipoEnsenanza === "elemental"
-      ? "Enseñanza Elemental"
+      ? "E. Elemental"
       : formData.tipoEnsenanza === "profesional"
-        ? "Enseñanza Profesional"
+        ? "E. Profesional"
         : "";
 
   return `<!DOCTYPE html>
@@ -443,12 +447,14 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
   .subject-row { display: flex; align-items: center; gap: 5px; border-radius: 4px; padding: 3px 6px; margin-bottom: 2px; border: 1px solid; }
   .subject-code { font-size: 6.5px; font-weight: 700; padding: 1px 3px; border-radius: 2px; }
   .subject-name { font-size: 8px; color: #374151; flex: 1; }
-  .footer { position: absolute; bottom: 20px; left: 20px; right: 20px; padding-top: 6px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; }
-  .footer-left, .footer-right { display: flex; flex-direction: column; gap: 1.5px; }
+  .footer { position: absolute; bottom: 20px; left: 20px; right: 20px; padding-top: 6px; border-top: 1px solid #E5E7EB; display: grid; grid-template-columns: 1fr auto 1fr; align-items: flex-end; }
+  .footer-left, .footer-right, .footer-center { display: flex; flex-direction: column; gap: 1.5px; }
+  .footer-center { text-align: center; }
   .footer-right { text-align: right; }
   .footer-label { font-size: 7px; font-weight: 700; color: #374151; }
   .footer-text { font-size: 7px; color: #374151; }
   .footer-muted { font-size: 7px; color: #6B7280; }
+  .footer-page { font-size: 7px; color: #6B7280; }
   .orange-badge { background: #F97316; border-radius: 6px; padding: 2px 10px; display: inline-flex; align-items: center; }
   .orange-badge span { font-size: 10px; font-weight: 700; color: #fff; }
   .orange-num { font-size: 22px; font-weight: 700; color: #F97316; line-height: 1; }
@@ -468,7 +474,7 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
     <img src="${LOGO_JCCM_B64}" alt="JCCM" style="height:30px;">
     <div style="text-align:center;">
       <div style="font-size:13px; font-weight:700; color:#111827;">Solicitud de Matrícula</div>
-      <div style="font-size:9px; color:#6B7280; margin-top:1px;">Curso Académico ${esc(academicYear)}</div>
+      <div style="font-size:9px; color:#6B7280; margin-top:1px;">Curso ${esc(academicYearShort)}</div>
       <div style="font-size:8px; color:#9CA3AF;">C.P.M. &quot;Marcos Redondo&quot;, Ciudad Real</div>
     </div>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
@@ -566,6 +572,9 @@ export function buildMatriculaPdfHtml(props: MatriculaPdfProps): string {
       <span class="footer-label">Consejería de Educación, Cultura y Deportes</span>
       <span class="footer-text">Conservatorio Profesional de Música &quot;Marcos Redondo&quot;</span>
       <span class="footer-muted">Calle Pantano del Vicario, 1 — 13004 Ciudad Real</span>
+    </div>
+    <div class="footer-center">
+      <span class="footer-page">Página 1 de 1</span>
     </div>
     <div class="footer-right">
       <span class="footer-label">926 274 154</span>
