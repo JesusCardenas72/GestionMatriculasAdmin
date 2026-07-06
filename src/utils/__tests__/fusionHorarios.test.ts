@@ -279,6 +279,92 @@ describe("fusionarHorarios — matching por ID compuesto", () => {
     expect(r.huerfanas).toHaveLength(1);
   });
 
+  it("hereda aunque la asignatura difiera en acentos/mayúsculas/espacios (respaldo tolerante)", () => {
+    // Caso real: el temporal PDTE. tiene la asignatura del catálogo ("Oboe") y el
+    // alumno real la trae de la nube con otro formato ("  ÓBOE "). El ID exacto no
+    // casa (asciiSum distinto), pero deben emparejarse por nombre normalizado.
+    const temporalSustituido: MatriculaLocal = {
+      ...crearTemporales("25/26", "EE1", "Oboe", 1, [])[0],
+      localId: "t1",
+      nOrden: 996, // PDTE. 97 → 899 + 97
+      temporalEstado: "sustituido",
+      sustituidoPorLocalId: "r1",
+    };
+    const real: MatriculaLocal = {
+      ...temporalSustituido,
+      localId: "r1",
+      origenRowId: "r1",
+      nOrden: 435,
+      esTemporal: undefined,
+      temporalNumero: undefined,
+      temporalEstado: undefined,
+      sustituidoPorLocalId: undefined,
+      nombre: "Claudia",
+      apellidos: "Reina Rodríguez",
+    };
+
+    // El Excel guarda el ID del temporal calculado con "Oboe" y su nombre de asignatura.
+    const filas = [fila("Reina Rodríguez, Claudia", "EE1", "Oboe", "  ÓBOE ", 435)];
+    const crudas = [crudaConId(idCompuesto(996, "Oboe"), "Oboe", { h_prof: "Profe Oboe", h_aula: "C3", h_dia1: "Jueves" })];
+
+    const r = fusionarHorarios(filas, crudas, [temporalSustituido, real]);
+    expect(r.heredadas).toBe(1);
+    expect(r.valoresHorario[0]?.h_prof).toBe("Profe Oboe");
+    expect(r.valoresHorario[0]?.h_aula).toBe("C3");
+    expect(r.huerfanas).toHaveLength(0);
+  });
+
+  it("coincidencia directa tolerante: mismo alumno con asignatura en distinto formato", () => {
+    const filas = [fila("García, Ana", "EP1", "Piano", "piano", 435)]; // minúscula
+    const crudas = [crudaConId("435_503", "Piano", { h_prof: "Martín", h_aula: "A1" })];
+    const r = fusionarHorarios(filas, crudas, []);
+    expect(r.conservadas).toBe(1);
+    expect(r.valoresHorario[0]?.h_prof).toBe("Martín");
+    expect(r.huerfanas).toHaveLength(0);
+  });
+
+  it("hereda por texto cuando la fila del temporal no tiene ID guardado (caso PDTE. 97 → Reina)", () => {
+    // Reproducción del caso real: en el Excel los alumnos reales llevan ID pero
+    // la fila del temporal se guardó con la columna ID vacía. Como hay IDs (los
+    // reales), la fusión está en "modo ID"; debe caer al emparejamiento por texto
+    // para que el alumno real herede el horario del temporal sin ID.
+    const temporalSustituido: MatriculaLocal = {
+      ...crearTemporales("25/26", "EE1", "Oboe", 1, [])[0], // nombre "PDTE. 1 — Oboe EE1"
+      localId: "t1",
+      nOrden: 996,
+      temporalEstado: "sustituido",
+      sustituidoPorLocalId: "r1",
+    };
+    const real: MatriculaLocal = {
+      ...temporalSustituido,
+      localId: "r1",
+      origenRowId: "r1",
+      nOrden: 476,
+      esTemporal: undefined,
+      temporalNumero: undefined,
+      temporalEstado: undefined,
+      sustituidoPorLocalId: undefined,
+      nombre: "Claudia",
+      apellidos: "Reina Rodríguez",
+    };
+
+    const filas = [
+      fila("Reina Rodríguez, Claudia", "EE1", "Oboe", "Instrumento", 476),
+      fila("Otro, Alumno", "EE1", "Oboe", "Instrumento", 460), // real con ID → usaId=true
+    ];
+    const crudas = [
+      // Fila del temporal SIN ID (columna ID vacía) pero con nombre y asignatura.
+      cruda("PDTE. 1 — Oboe EE1", "EE1", "Oboe", "Instrumento", { h_prof: "Profe Oboe", h_aula: "C3" }),
+      crudaConId("460_1192", "Instrumento", { h_prof: "Otro Profe" }),
+    ];
+
+    const r = fusionarHorarios(filas, crudas, [temporalSustituido, real]);
+    expect(r.heredadas).toBe(1);
+    expect(r.conservadas).toBe(1);
+    expect(r.valoresHorario[0]?.h_prof).toBe("Profe Oboe");
+    expect(r.valoresHorario[0]?.h_aula).toBe("C3");
+  });
+
   it("filas de ID sin horario (celdas vacías) no machaca lo que no existe", () => {
     const filas = [fila("García, Ana", "EP1", "Piano", "Piano", 435)];
     const crudas = [crudaConId("435_503", "Piano", {})]; // sin datos de horario

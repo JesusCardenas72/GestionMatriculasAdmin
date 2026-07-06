@@ -270,15 +270,6 @@ export default function MainScreen({ config, onConfigSave }: Props) {
               onMouseLeave={(e) => { if (!settingsMenuOpen) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--tc-ink-mute)'; } }}
             >
               <Settings className="w-5 h-5" />
-              {temporalesPendientes > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[10px] font-bold"
-                  style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }}
-                  title={`${temporalesPendientes} alumno(s) fantasma pendiente(s)`}
-                >
-                  {temporalesPendientes}
-                </span>
-              )}
             </button>
 
             {settingsMenuOpen && (

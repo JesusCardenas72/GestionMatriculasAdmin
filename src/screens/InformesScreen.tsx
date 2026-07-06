@@ -12,6 +12,7 @@ import {
   Filter,
   FilterX,
   GripVertical,
+  ListPlus,
   Maximize2,
   MoreVertical,
   Pencil,
@@ -42,6 +43,14 @@ import { useAppMode } from '../contexts/AppModeProvider';
 import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
 import { useSolicitudes } from '../hooks/useSolicitudes';
 import LocalEditModal from '../components/LocalEditModal';
+import { toTitleCase } from '../utils/formatText';
+import {
+  FORMAS_PAGO,
+  HORAS_SALIDA,
+  REDUCCIONES_TASAS,
+  REDUCCIONES_TASAS_MAP,
+  REDUCCIONES_TASAS_REVERSE,
+} from '../data/matriculaOpciones';
 import {
   CAMPO_MAP,
   CAMPOS_ASIGNATURA,
@@ -213,6 +222,22 @@ function valorLabel(meta: CampoMeta | undefined, valor: string): string {
 
 function describeFiltros(filtros: FiltroInforme[]): string {
   return filtros.map(describeFiltro).join('; ');
+}
+
+/** Describe el orden aplicado (campo + sentido) para la línea de meta del PDF. */
+function describeOrden(orden: { campo: CampoKey; direccion: 'asc' | 'desc' }[]): string {
+  return orden
+    .map(o => {
+      const meta = CAMPO_MAP.get(o.campo);
+      const flecha = o.direccion === 'asc' ? '↑' : '↓';
+      return `${meta?.label ?? o.campo} ${flecha}`;
+    })
+    .join(', ');
+}
+
+/** Describe los niveles de agrupación aplicados para la línea de meta del PDF. */
+function describeAgrupacion(niveles: CampoKey[]): string {
+  return niveles.map(k => CAMPO_MAP.get(k)?.label ?? k).join(' › ');
 }
 
 /** Normaliza el campo `agruparPor` (string | array | null) a una lista ordenada
@@ -408,6 +433,214 @@ function ListaValoresFiltro({
   );
 }
 
+// ── Edición en línea (modo edición del informe) ────────────────────────────
+// Cómo se edita cada columna que corresponde a un campo de la matrícula local.
+// Las claves coinciden con las de MatriculaLocal, así que se guardan directas.
+type TipoEdicion = 'texto' | 'titulo' | 'fecha' | 'booleano' | 'select';
+interface CampoEditable {
+  tipo: TipoEdicion;
+  /** Si el valor vacío debe guardarse como null (en vez de cadena vacía). */
+  anulable: boolean;
+  /** Opciones para los desplegables. */
+  opciones?: string[];
+}
+
+const CAMPOS_EDITABLES: Partial<Record<CampoKey, CampoEditable>> = {
+  nombre:               { tipo: 'titulo', anulable: false },
+  apellidos:            { tipo: 'titulo', anulable: false },
+  dni:                  { tipo: 'texto',  anulable: false },
+  email:                { tipo: 'texto',  anulable: false },
+  telefono:             { tipo: 'texto',  anulable: true  },
+  fechaNacimiento:      { tipo: 'fecha',  anulable: true  },
+  domicilio:            { tipo: 'titulo', anulable: true  },
+  localidad:            { tipo: 'titulo', anulable: true  },
+  provincia:            { tipo: 'titulo', anulable: true  },
+  cp:                   { tipo: 'texto',  anulable: true  },
+  formaPago:            { tipo: 'select', anulable: true, opciones: FORMAS_PAGO },
+  reduccionTasas:       { tipo: 'select', anulable: true, opciones: REDUCCIONES_TASAS },
+  autorizacionImagen:   { tipo: 'booleano', anulable: false },
+  disponibilidadManana: { tipo: 'booleano', anulable: false },
+  horaSalida:           { tipo: 'select', anulable: true, opciones: HORAS_SALIDA },
+  docFaltante:          { tipo: 'texto',  anulable: true  },
+};
+
+/**
+ * Celda editable dentro del informe (solo en modo edición). Mantiene su propio
+ * texto mientras se escribe y guarda en Local al salir del campo (blur) o al
+ * cambiar el desplegable/casilla. La clave del campo coincide con la de
+ * MatriculaLocal, por lo que el cambio se guarda directamente.
+ */
+function CeldaEditableInforme({
+  campoKey,
+  cfg,
+  matricula,
+  onGuardar,
+}: {
+  campoKey: CampoKey;
+  cfg: CampoEditable;
+  matricula: MatriculaLocal;
+  onGuardar: (localId: string, changes: Partial<MatriculaLocal>) => void;
+}) {
+  const rawActual = (matricula as unknown as Record<string, unknown>)[campoKey];
+
+  // Casilla booleana: guarda al instante al marcar/desmarcar.
+  if (cfg.tipo === 'booleano') {
+    return (
+      <input
+        type="checkbox"
+        checked={!!rawActual}
+        onChange={e => onGuardar(matricula.localId, { [campoKey]: e.target.checked, _pendienteSubida: true })}
+        className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+      />
+    );
+  }
+
+  // Valor mostrado en el campo. La reducción de tasas se guarda como código,
+  // pero se muestra con su etiqueta legible.
+  const displayActual =
+    campoKey === 'reduccionTasas'
+      ? REDUCCIONES_TASAS_MAP[String(rawActual ?? '')] ?? String(rawActual ?? '')
+      : String(rawActual ?? '');
+
+  const [val, setVal] = useState<string>(displayActual);
+  // Si el dato cambia por fuera (tras guardar y recargar), refresca el campo.
+  useEffect(() => { setVal(displayActual); }, [displayActual]);
+
+  function guardar() {
+    const t = val.trim();
+    let nuevo: string | null;
+    if (campoKey === 'reduccionTasas') {
+      const code = REDUCCIONES_TASAS_REVERSE[t] ?? t;
+      nuevo = code || null;
+    } else if (cfg.tipo === 'titulo') {
+      nuevo = cfg.anulable ? (toTitleCase(t) || null) : (toTitleCase(t) ?? t);
+    } else {
+      nuevo = cfg.anulable ? (t || null) : t;
+    }
+    const actual = (rawActual ?? (cfg.anulable ? null : '')) as string | null;
+    if (nuevo === actual) return; // sin cambios: no guarda
+    onGuardar(matricula.localId, { [campoKey]: nuevo, _pendienteSubida: true });
+  }
+
+  const inputCls =
+    'w-full text-sm bg-amber-50/60 border border-amber-300/70 rounded px-1.5 py-0.5 ' +
+    'text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500';
+
+  if (cfg.tipo === 'select') {
+    return (
+      <select
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onBlur={guardar}
+        className={inputCls + ' cursor-pointer'}
+      >
+        <option value="">—</option>
+        {cfg.opciones!.map(o => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <input
+      type={cfg.tipo === 'fecha' ? 'date' : 'text'}
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      onBlur={guardar}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      className={inputCls}
+    />
+  );
+}
+
+// ── Menú "Añadir campo" ─────────────────────────────────────────────────────
+// Sección de campos disponibles de un grupo, con un icono en la cabecera que
+// inserta todos los campos del grupo de una vez.
+function GrupoCamposDisponibles({
+  titulo,
+  campos,
+  mostrarSeparador,
+  onAddCampo,
+  onAddGrupo,
+}: {
+  titulo: string;
+  campos: CampoMeta[];
+  mostrarSeparador: boolean;
+  onAddCampo: (key: CampoKey) => void;
+  onAddGrupo: (keys: CampoKey[]) => void;
+}) {
+  if (campos.length === 0) return null;
+  return (
+    <>
+      {mostrarSeparador && <div className="h-px bg-slate-100 my-1" />}
+      <div className="flex items-center justify-between gap-2 px-3 pt-1.5 pb-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
+          {titulo}
+        </span>
+        <button
+          onClick={() => onAddGrupo(campos.map(c => c.key))}
+          title={`Insertar todos los campos de «${titulo}»`}
+          className="flex items-center justify-center w-5 h-5 rounded text-amber-600 hover:bg-amber-100 hover:text-amber-800 transition-colors"
+        >
+          <ListPlus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {campos.map(c => (
+        <button
+          key={c.key}
+          onClick={() => onAddCampo(c.key)}
+          className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+        >
+          {c.label}
+        </button>
+      ))}
+    </>
+  );
+}
+
+/** Contenido del desplegable "Añadir campo": los tres grupos con su icono de
+ *  «insertar todos». Se reutiliza en el estado vacío y en la cabecera de tabla. */
+function MenuAnadirCampo({
+  matricula,
+  asignatura,
+  horario,
+  onAddCampo,
+  onAddGrupo,
+}: {
+  matricula: CampoMeta[];
+  asignatura: CampoMeta[];
+  horario: CampoMeta[];
+  onAddCampo: (key: CampoKey) => void;
+  onAddGrupo: (keys: CampoKey[]) => void;
+}) {
+  return (
+    <>
+      <GrupoCamposDisponibles
+        titulo="Matrícula"
+        campos={matricula}
+        mostrarSeparador={false}
+        onAddCampo={onAddCampo}
+        onAddGrupo={onAddGrupo}
+      />
+      <GrupoCamposDisponibles
+        titulo="Asignaturas matriculadas"
+        campos={asignatura}
+        mostrarSeparador={matricula.length > 0}
+        onAddCampo={onAddCampo}
+        onAddGrupo={onAddGrupo}
+      />
+      <GrupoCamposDisponibles
+        titulo="Horario"
+        campos={horario}
+        mostrarSeparador={matricula.length > 0 || asignatura.length > 0}
+        onAddCampo={onAddCampo}
+        onAddGrupo={onAddGrupo}
+      />
+    </>
+  );
+}
+
 export default function InformesScreen({ config }: Props) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
@@ -427,6 +660,15 @@ export default function InformesScreen({ config }: Props) {
   // subir a la nube; el cambio es solo local).
   const [editando, setEditando] = useState<MatriculaLocal | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Modo edición global: convierte las celdas editables del informe en campos
+  // que se guardan en Local (pendientes de subir) al salir de cada campo.
+  const [modoEdicion, setModoEdicion] = useState(false);
+
+  // Guarda un solo campo de una matrícula local desde la edición en línea.
+  function handleGuardarCampoInline(localId: string, changes: Partial<MatriculaLocal>) {
+    void actualizar(localId, changes);
+  }
 
   async function handleGuardarEdicion(changes: Partial<MatriculaLocal>) {
     if (!editando) return;
@@ -484,11 +726,25 @@ export default function InformesScreen({ config }: Props) {
   const [printing, setPrinting] = useState(false);
   const [presets, setPresets] = useState<ConfigInforme[]>([]);
   const [ocultos, setOcultos] = useState<string[]>([]);
+  // Presets destacados como favoritos (por ID; sirve para los de fábrica y los
+  // de usuario por igual).
+  const [favoritos, setFavoritos] = useState<string[]>([]);
 
   // Vista previa PDF
   const [showPreview, setShowPreview] = useState(false);
   const [previewOrientacion, setPreviewOrientacion] = useState<'portrait' | 'landscape'>('landscape');
   const [previewZoom, setPreviewZoom] = useState(1);
+  // Cabecera editable del PDF: título (por defecto el nombre del preset) y subtítulo.
+  const [previewTitulo, setPreviewTitulo] = useState('');
+  const [previewSubtitulo, setPreviewSubtitulo] = useState('');
+  // Qué datos de selección se muestran en la línea de meta del PDF.
+  const [previewMostrarFiltros, setPreviewMostrarFiltros] = useState(true);
+  const [previewMostrarOrden, setPreviewMostrarOrden] = useState(true);
+  const [previewMostrarAgrupacion, setPreviewMostrarAgrupacion] = useState(true);
+  const [previewMostrarFecha, setPreviewMostrarFecha] = useState(true);
+  // Desplegable del botón "PDF" (Guardar / Imprimir) en la vista previa.
+  const [showPdfMenu, setShowPdfMenu] = useState(false);
+  const pdfMenuRef = useRef<HTMLDivElement>(null);
 
   // UI state
   // Columna cuyo popover de filtro está abierto (null = ninguno).
@@ -561,7 +817,27 @@ export default function InformesScreen({ config }: Props) {
   const [resizing, setResizing] = useState<{ key: CampoKey; width: number } | null>(null);
 
   useEffect(() => {
-    window.adminAPI.presets.listar().then(setPresets);
+    void (async () => {
+      const [lista, favs] = await Promise.all([
+        window.adminAPI.presets.listar(),
+        window.adminAPI.presets.favoritosListar(),
+      ]);
+      // Migración: los antiguos presets "predeterminados" pasan a favoritos y se
+      // limpia su marca, para que ya no exista ningún preset guardado como
+      // predefinido y todos se traten por igual.
+      const antiguos = lista.filter(p => p.predefinido);
+      if (antiguos.length > 0) {
+        for (const p of antiguos) {
+          await window.adminAPI.presets.favoritoMarcar(p.id);
+          await window.adminAPI.presets.guardar({ ...p, predefinido: false });
+        }
+        setPresets(await window.adminAPI.presets.listar());
+        setFavoritos(await window.adminAPI.presets.favoritosListar());
+      } else {
+        setPresets(lista);
+        setFavoritos(favs);
+      }
+    })();
     window.adminAPI.presets.ocultosListar().then(setOcultos);
   }, []);
 
@@ -661,6 +937,17 @@ export default function InformesScreen({ config }: Props) {
       document.removeEventListener('keydown', onKey);
     };
   }, [chipFiltroId]);
+
+  // Close PDF (Guardar/Imprimir) menu when clicking outside
+  useEffect(() => {
+    if (!showPdfMenu) return;
+    function onOutside(e: MouseEvent) {
+      if (pdfMenuRef.current?.contains(e.target as Node)) return;
+      setShowPdfMenu(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [showPdfMenu]);
 
   // Close export menu when clicking outside
   useEffect(() => {
@@ -885,14 +1172,12 @@ export default function InformesScreen({ config }: Props) {
     setInforme(deepClone(INFORME_VACIO));
   }
 
-  /** Marca/desmarca un preset guardado como "predeterminado" (grupo Predefinidos). */
-  async function handleTogglePredeterminado(predefinido: boolean) {
+  /** Marca/desmarca el preset actual (de fábrica o de usuario) como favorito. */
+  async function handleToggleFavorito(favorito: boolean) {
     setShowPresetMenu(false);
-    const actualizado = { ...deepClone(informe), predefinido };
-    await window.adminAPI.presets.guardar(actualizado);
-    const lista = await window.adminAPI.presets.listar();
-    setPresets(lista);
-    setInforme(actualizado);
+    if (favorito) await window.adminAPI.presets.favoritoMarcar(informe.id);
+    else await window.adminAPI.presets.favoritoDesmarcar(informe.id);
+    setFavoritos(await window.adminAPI.presets.favoritosListar());
   }
 
   /** "Borra" un predefinido de fábrica ocultándolo (se puede restaurar). */
@@ -945,6 +1230,16 @@ export default function InformesScreen({ config }: Props) {
   function addCampoInline(key: CampoKey) {
     if (informe.camposVisibles.includes(key)) return;
     setInforme(prev => ({ ...prev, camposVisibles: [...prev.camposVisibles, key] }));
+    setShowAddField(false);
+  }
+
+  // Inserta de golpe todos los campos de un grupo que aún no estén visibles.
+  function addCamposInline(keys: CampoKey[]) {
+    setInforme(prev => {
+      const nuevos = keys.filter(k => !prev.camposVisibles.includes(k));
+      if (nuevos.length === 0) return prev;
+      return { ...prev, camposVisibles: [...prev.camposVisibles, ...nuevos] };
+    });
     setShowAddField(false);
   }
 
@@ -1469,20 +1764,30 @@ export default function InformesScreen({ config }: Props) {
 
   // ── Imprimir ──────────────────────────────────────────────────────────────
 
+  const nivelesAgrup = nivelesAgrupacion(informe.agruparPor);
+
   const previewHtml = useMemo(() => {
     if (!showPreview) return '';
     return buildHtmlInforme({
-      nombre: informe.nombre,
-      filtrosDesc: describeFiltros(informe.filtros.filter(esFiltroActivo)),
+      nombre: previewTitulo,
+      subtitulo: previewSubtitulo,
+      filtrosDesc: previewMostrarFiltros ? describeFiltros(filtrosActivos) : '',
+      ordenDesc: previewMostrarOrden ? describeOrden(informe.orden) : '',
+      agrupacionDesc: previewMostrarAgrupacion ? describeAgrupacion(nivelesAgrup) : '',
+      mostrarFecha: previewMostrarFecha,
       campos: camposEnTabla,
       rows: resultados,
       orientacion: previewOrientacion,
       zoom: previewZoom,
-      agruparPorMetas: nivelesAgrupacion(informe.agruparPor)
+      agruparPorMetas: nivelesAgrup
         .map(k => CAMPO_MAP.get(k))
         .filter(Boolean) as CampoMeta[],
     });
-  }, [showPreview, previewOrientacion, previewZoom, informe.nombre, informe.filtros, camposEnTabla, resultados]);
+  }, [
+    showPreview, previewOrientacion, previewZoom, previewTitulo, previewSubtitulo,
+    previewMostrarFiltros, previewMostrarOrden, previewMostrarAgrupacion, previewMostrarFecha,
+    informe.filtros, informe.orden, informe.agruparPor, camposEnTabla, resultados,
+  ]);
 
   // ── Exportar ──────────────────────────────────────────────────────────────
 
@@ -1914,13 +2219,63 @@ export default function InformesScreen({ config }: Props) {
   function handleAbrirVistaPrevia() {
     setPreviewOrientacion('landscape');
     setPreviewZoom(1);
+    // Recupera la última configuración de cabecera guardada en el preset; el
+    // título toma por defecto el nombre del preset si no hay uno guardado.
+    const c = informe.pdfCabecera;
+    setPreviewTitulo(c?.titulo || informe.nombre);
+    setPreviewSubtitulo(c?.subtitulo ?? '');
+    setPreviewMostrarFiltros(c?.mostrarFiltros ?? true);
+    setPreviewMostrarOrden(c?.mostrarOrden ?? true);
+    setPreviewMostrarAgrupacion(c?.mostrarAgrupacion ?? true);
+    setPreviewMostrarFecha(c?.mostrarFecha ?? true);
     setShowPreview(true);
   }
 
+  // Guarda la configuración de cabecera editada (título, subtítulo y qué datos
+  // se muestran) en el informe/preset para recordarla la próxima vez.
+  async function persistirCabeceraPreview() {
+    const actualizado: ConfigInforme = {
+      ...informe,
+      pdfCabecera: {
+        titulo: previewTitulo,
+        subtitulo: previewSubtitulo,
+        mostrarFiltros: previewMostrarFiltros,
+        mostrarOrden: previewMostrarOrden,
+        mostrarAgrupacion: previewMostrarAgrupacion,
+        mostrarFecha: previewMostrarFecha,
+      },
+    };
+    setInforme(actualizado);
+    // Si es un preset guardado del usuario, persiste el cambio en disco.
+    if (presets.some(p => p.id === actualizado.id)) {
+      await window.adminAPI.presets.guardar(deepClone(actualizado));
+      setPresets(await window.adminAPI.presets.listar());
+    }
+  }
+
   async function handlePrintFromPreview() {
+    setShowPdfMenu(false);
     setPrinting(true);
     try {
+      await persistirCabeceraPreview();
       await window.adminAPI.pdf.printHtml(previewHtml);
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  async function handleGuardarPdfFromPreview() {
+    setShowPdfMenu(false);
+    setPrinting(true);
+    try {
+      await persistirCabeceraPreview();
+      const res = await window.adminAPI.pdf.generarBase64(
+        previewHtml,
+        previewOrientacion === 'landscape',
+      );
+      if (res.success && res.base64) {
+        await window.adminAPI.pdf.guardar(res.base64, previewTitulo || informe.nombre);
+      }
     } finally {
       setPrinting(false);
     }
@@ -1938,14 +2293,14 @@ export default function InformesScreen({ config }: Props) {
     INFORMES_PREDEFINIDOS.some(p => p.id === informe.id) && !ocultos.includes(informe.id);
   const currentSelectId = isSavedPreset || isPredefinidoFabrica ? informe.id : 'personalizado';
 
-  // Si este preset guardado está marcado como predeterminado
-  const presetActual = presets.find(p => p.id === informe.id);
-  const esPredeterminadoUsuario = !!presetActual?.predefinido;
-
-  // Grupos del selector
+  // Pool unificado de presets: los de fábrica visibles + los del usuario, todos
+  // por igual. La única distinción es si están marcados como favoritos.
   const predefinidosFabricaVisibles = INFORMES_PREDEFINIDOS.filter(p => !ocultos.includes(p.id));
-  const presetsPredeterminados = presets.filter(p => p.predefinido);
-  const misPresets = presets.filter(p => !p.predefinido);
+  const favoritosSet = new Set(favoritos);
+  const esFavorito = favoritosSet.has(informe.id);
+  const todosPresets = [...predefinidosFabricaVisibles, ...presets];
+  const presetsFavoritos = todosPresets.filter(p => favoritosSet.has(p.id));
+  const presetsOtros = todosPresets.filter(p => !favoritosSet.has(p.id));
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1959,6 +2314,11 @@ export default function InformesScreen({ config }: Props) {
             <FileText className="w-4.5 h-4.5 text-amber-600" />
           </div>
           <h2 className="text-[15px] font-bold text-[#1b1b24] leading-tight">Informes</h2>
+          {modoEdicion && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[11px] font-bold uppercase tracking-wide shadow-sm animate-pulse">
+              Editando
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {!isLoading && camposVisibles.length > 0 && (
@@ -2117,24 +2477,24 @@ export default function InformesScreen({ config }: Props) {
                 <span>{isSavedPreset || isPredefinidoFabrica ? 'Guardar como nuevo...' : 'Guardar preset...'}</span>
               </button>
 
-              {isSavedPreset && (
+              {(isSavedPreset || isPredefinidoFabrica) && (
                 <>
                   <div className="h-px bg-slate-100 mx-3" />
-                  {esPredeterminadoUsuario ? (
+                  {esFavorito ? (
                     <button
-                      onClick={() => handleTogglePredeterminado(false)}
+                      onClick={() => handleToggleFavorito(false)}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
                     >
                       <Star className="w-4 h-4 shrink-0 text-amber-500 fill-amber-400" />
-                      <span>Quitar de predeterminados</span>
+                      <span>Quitar de favoritos</span>
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleTogglePredeterminado(true)}
+                      onClick={() => handleToggleFavorito(true)}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
                     >
                       <Star className="w-4 h-4 shrink-0 text-slate-400" />
-                      <span>Guardar como predeterminado</span>
+                      <span>Añadir a favoritos</span>
                     </button>
                   )}
                 </>
@@ -2180,19 +2540,16 @@ export default function InformesScreen({ config }: Props) {
           className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
         >
           <option value="personalizado">— Personalizado —</option>
-          {(predefinidosFabricaVisibles.length > 0 || presetsPredeterminados.length > 0) && (
-            <optgroup label="Predefinidos">
-              {predefinidosFabricaVisibles.map(p => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
-              ))}
-              {presetsPredeterminados.map(p => (
+          {presetsFavoritos.length > 0 && (
+            <optgroup label="★ Favoritos">
+              {presetsFavoritos.map(p => (
                 <option key={p.id} value={p.id}>{p.nombre}</option>
               ))}
             </optgroup>
           )}
-          {misPresets.length > 0 && (
-            <optgroup label="Mis presets">
-              {misPresets.map(p => (
+          {presetsOtros.length > 0 && (
+            <optgroup label={presetsFavoritos.length > 0 ? 'Otros' : 'Informes'}>
+              {presetsOtros.map(p => (
                 <option key={p.id} value={p.id}>{p.nombre}</option>
               ))}
             </optgroup>
@@ -2224,6 +2581,27 @@ export default function InformesScreen({ config }: Props) {
             Por asignatura
           </button>
         </div>
+
+        {/* Botón global: activa/desactiva la edición en línea del informe */}
+        {!isSoloLectura && (
+          <button
+            onClick={() => setModoEdicion(v => !v)}
+            title={
+              modoEdicion
+                ? 'Salir del modo edición'
+                : 'Editar registros directamente en la tabla (se guardan en Local, pendientes de subir)'
+            }
+            className={
+              'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors ' +
+              (modoEdicion
+                ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-800')
+            }
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            {modoEdicion ? 'Editando' : 'Editar'}
+          </button>
+        )}
 
         <div className="flex-1 min-w-2" />
 
@@ -2462,60 +2840,13 @@ export default function InformesScreen({ config }: Props) {
                       ref={addFieldDropRef}
                       className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 py-1 min-w-44 max-h-64 overflow-y-auto"
                     >
-                      {camposDispMatricula.length > 0 && (
-                        <>
-                          <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
-                            Matrícula
-                          </div>
-                          {camposDispMatricula.map(c => (
-                            <button
-                              key={c.key}
-                              onClick={() => addCampoInline(c.key)}
-                              className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                            >
-                              {c.label}
-                            </button>
-                          ))}
-                        </>
-                      )}
-                      {camposDispAsignatura.length > 0 && (
-                        <>
-                          {camposDispMatricula.length > 0 && (
-                            <div className="h-px bg-slate-100 my-1" />
-                          )}
-                          <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
-                            Asignaturas matriculadas
-                          </div>
-                          {camposDispAsignatura.map(c => (
-                            <button
-                              key={c.key}
-                              onClick={() => addCampoInline(c.key)}
-                              className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                            >
-                              {c.label}
-                            </button>
-                          ))}
-                        </>
-                      )}
-                      {camposDispHorario.length > 0 && (
-                        <>
-                          {(camposDispMatricula.length > 0 || camposDispAsignatura.length > 0) && (
-                            <div className="h-px bg-slate-100 my-1" />
-                          )}
-                          <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
-                            Horario
-                          </div>
-                          {camposDispHorario.map(c => (
-                            <button
-                              key={c.key}
-                              onClick={() => addCampoInline(c.key)}
-                              className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                            >
-                              {c.label}
-                            </button>
-                          ))}
-                        </>
-                      )}
+                      <MenuAnadirCampo
+                        matricula={camposDispMatricula}
+                        asignatura={camposDispAsignatura}
+                        horario={camposDispHorario}
+                        onAddCampo={addCampoInline}
+                        onAddGrupo={addCamposInline}
+                      />
                     </div>
                   )}
                 </div>
@@ -2850,60 +3181,13 @@ export default function InformesScreen({ config }: Props) {
                             ref={addFieldDropRef}
                             className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-30 py-1 min-w-44 max-h-64 overflow-y-auto"
                           >
-                            {camposDispMatricula.length > 0 && (
-                              <>
-                                <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
-                                  Matrícula
-                                </div>
-                                {camposDispMatricula.map(c => (
-                                  <button
-                                    key={c.key}
-                                    onClick={() => addCampoInline(c.key)}
-                                    className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                                  >
-                                    {c.label}
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                            {camposDispAsignatura.length > 0 && (
-                              <>
-                                {camposDispMatricula.length > 0 && (
-                                  <div className="h-px bg-slate-100 my-1" />
-                                )}
-                                <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
-                                  Asignaturas matriculadas
-                                </div>
-                                {camposDispAsignatura.map(c => (
-                                  <button
-                                    key={c.key}
-                                    onClick={() => addCampoInline(c.key)}
-                                    className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                                  >
-                                    {c.label}
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                            {camposDispHorario.length > 0 && (
-                              <>
-                                {(camposDispMatricula.length > 0 || camposDispAsignatura.length > 0) && (
-                                  <div className="h-px bg-slate-100 my-1" />
-                                )}
-                                <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600/70">
-                                  Horario
-                                </div>
-                                {camposDispHorario.map(c => (
-                                  <button
-                                    key={c.key}
-                                    onClick={() => addCampoInline(c.key)}
-                                    className="w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                                  >
-                                    {c.label}
-                                  </button>
-                                ))}
-                              </>
-                            )}
+                            <MenuAnadirCampo
+                              matricula={camposDispMatricula}
+                              asignatura={camposDispAsignatura}
+                              horario={camposDispHorario}
+                              onAddCampo={addCampoInline}
+                              onAddGrupo={addCamposInline}
+                            />
                           </div>
                         )}
                       </div>
@@ -2972,6 +3256,14 @@ export default function InformesScreen({ config }: Props) {
                       }
                     }
                     const parity = niveles.length > 0 ? groupRowIdx++ : i;
+                    // Matrícula local de la fila (si la hay): fuente para editar en
+                    // línea y para el botón del lápiz.
+                    const filaMatricula =
+                      s._localId && !s.esTemporal
+                        ? matriculas.find(mm => mm.localId === s._localId)
+                        : undefined;
+                    // ¿Se puede editar esta fila en línea ahora mismo?
+                    const filaEditable = modoEdicion && !isSoloLectura && !!filaMatricula;
                     rows.push(
                       <tr
                         key={s.rowId}
@@ -2984,38 +3276,46 @@ export default function InformesScreen({ config }: Props) {
                           const val     = formatCelda(s, c);
                           const isTrue  = c.tipo === 'booleano' && val === 'Sí';
                           const isFalse = c.tipo === 'booleano' && val === 'No';
+                          const cfgEdicion = CAMPOS_EDITABLES[c.key];
+                          const editable = filaEditable && !!cfgEdicion && filaMatricula;
                           return (
                             <td
                               key={c.key}
                               style={estiloSeparadorCuerpo(c.key, ci === 0)}
                               className={
                                 'px-3 py-2 text-sm ' +
-                                (isTrue  ? 'text-emerald-700 font-medium' :
+                                (editable ? 'text-slate-700' :
+                                 isTrue  ? 'text-emerald-700 font-medium' :
                                  isFalse ? 'text-rose-600'                 :
                                            'text-slate-700')
                               }
                             >
-                              {val}
+                              {editable ? (
+                                <CeldaEditableInforme
+                                  campoKey={c.key}
+                                  cfg={cfgEdicion!}
+                                  matricula={filaMatricula!}
+                                  onGuardar={handleGuardarCampoInline}
+                                />
+                              ) : (
+                                val
+                              )}
                             </td>
                           );
                         })}
                         <td className="px-1.5 text-center">
-                          {s._localId && !s.esTemporal && (() => {
-                            const m = matriculas.find(mm => mm.localId === s._localId);
-                            if (!m) return null;
-                            return (
-                              <button
-                                onClick={() => !isSoloLectura && setEditando(m)}
-                                disabled={isSoloLectura}
-                                title={isSoloLectura
-                                  ? 'No disponible en modo Solo Lectura'
-                                  : 'Editar en Local (quedará pendiente de subir)'}
-                                className="p-1 rounded text-slate-400 hover:text-amber-700 hover:bg-amber-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            );
-                          })()}
+                          {filaMatricula && (
+                            <button
+                              onClick={() => !isSoloLectura && setEditando(filaMatricula)}
+                              disabled={isSoloLectura}
+                              title={isSoloLectura
+                                ? 'No disponible en modo Solo Lectura'
+                                : 'Editar en Local (quedará pendiente de subir)'}
+                              className="p-1 rounded text-slate-400 hover:text-amber-700 hover:bg-amber-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -3436,11 +3736,27 @@ export default function InformesScreen({ config }: Props) {
             >
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0 gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-bold text-[#1b1b24] truncate">{informe.nombre}</h3>
-                  <p className="text-[11px] text-slate-400 truncate">
-                    {describeFiltros(filtrosActivos) || 'Sin filtros'}
-                  </p>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-slate-500 w-16 shrink-0">Título:</span>
+                    <input
+                      type="text"
+                      value={previewTitulo}
+                      onChange={e => setPreviewTitulo(e.target.value)}
+                      placeholder="Título del informe"
+                      className="min-w-0 flex-1 text-sm font-bold text-[#1b1b24] bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-400 focus:bg-white rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-slate-500 w-16 shrink-0">Subtítulo:</span>
+                    <input
+                      type="text"
+                      value={previewSubtitulo}
+                      onChange={e => setPreviewSubtitulo(e.target.value)}
+                      placeholder="Subtítulo (opcional)"
+                      className="min-w-0 flex-1 text-[12px] text-slate-500 bg-transparent border border-transparent hover:border-slate-200 focus:border-amber-400 focus:bg-white rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -3491,14 +3807,35 @@ export default function InformesScreen({ config }: Props) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={handlePrintFromPreview}
-                    disabled={printing}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-40 transition-colors shadow-sm"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    {printing ? 'Generando…' : 'Imprimir'}
-                  </button>
+                  <div className="relative" ref={pdfMenuRef}>
+                    <button
+                      onClick={() => setShowPdfMenu(v => !v)}
+                      disabled={printing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-40 transition-colors shadow-sm"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      {printing ? 'Generando…' : 'PDF'}
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                    {showPdfMenu && !printing && (
+                      <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[160px] py-1">
+                        <button
+                          onClick={handleGuardarPdfFromPreview}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                        >
+                          <Save className="w-4 h-4 shrink-0 text-slate-400" />
+                          <span>Guardar</span>
+                        </button>
+                        <button
+                          onClick={handlePrintFromPreview}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                        >
+                          <Printer className="w-4 h-4 shrink-0 text-slate-400" />
+                          <span>Imprimir</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => setShowPreview(false)}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
@@ -3506,6 +3843,35 @@ export default function InformesScreen({ config }: Props) {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+
+              {/* Barra de datos de selección a mostrar en la cabecera del PDF */}
+              <div className="flex items-center gap-x-4 gap-y-1.5 px-5 py-2 border-b border-slate-100 shrink-0 flex-wrap bg-slate-50/70">
+                <span className="text-[11px] font-semibold text-slate-500">Mostrar en la cabecera:</span>
+                {[
+                  { label: 'Filtros', checked: previewMostrarFiltros, set: setPreviewMostrarFiltros, disabled: filtrosActivos.length === 0 },
+                  { label: 'Orden', checked: previewMostrarOrden, set: setPreviewMostrarOrden, disabled: informe.orden.length === 0 },
+                  { label: 'Agrupación', checked: previewMostrarAgrupacion, set: setPreviewMostrarAgrupacion, disabled: nivelesAgrup.length === 0 },
+                  { label: 'Fecha de creación', checked: previewMostrarFecha, set: setPreviewMostrarFecha, disabled: false },
+                ].map(t => (
+                  <label
+                    key={t.label}
+                    className={
+                      'flex items-center gap-1.5 text-[11px] font-medium select-none ' +
+                      (t.disabled ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 cursor-pointer')
+                    }
+                    title={t.disabled ? 'No hay datos para esta sección' : undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={t.checked && !t.disabled}
+                      disabled={t.disabled}
+                      onChange={e => t.set(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:opacity-50"
+                    />
+                    {t.label}
+                  </label>
+                ))}
               </div>
 
               {/* Body */}

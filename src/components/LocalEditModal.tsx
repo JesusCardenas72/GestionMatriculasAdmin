@@ -1,34 +1,11 @@
 import { useState, useMemo } from "react";
-
-const HORAS_SALIDA = ["Antes de las 17 h", "17 h", "18 h"];
-const FORMAS_PAGO = ["Pago Único", "Pago Fraccionado", "Solicita Beca", "Becado"];
-const REDUCCIONES_TASAS = [
-  "Ninguna",
-  "Familia Numerosa General",
-  "Familia Numerosa Especial",
-  "Discapacidad",
-  "Víctima de Terrorismo",
-  "Violencia de Género",
-  "Ingreso Mínimo de Solidaridad",
-];
-const REDUCCIONES_TASAS_MAP: Record<string, string> = {
-  "ninguna": "Ninguna",
-  "fam_num_general": "Familia Numerosa General",
-  "fam_num_especial": "Familia Numerosa Especial",
-  "discapacidad": "Discapacidad",
-  "terrorismo": "Víctima de Terrorismo",
-  "violencia_genero": "Violencia de Género",
-  "ingreso_minimo": "Ingreso Mínimo de Solidaridad",
-};
-const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
-  "Ninguna": "ninguna",
-  "Familia Numerosa General": "fam_num_general",
-  "Familia Numerosa Especial": "fam_num_especial",
-  "Discapacidad": "discapacidad",
-  "Víctima de Terrorismo": "terrorismo",
-  "Violencia de Género": "violencia_genero",
-  "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
-};
+import {
+  HORAS_SALIDA,
+  FORMAS_PAGO,
+  REDUCCIONES_TASAS,
+  REDUCCIONES_TASAS_MAP,
+  REDUCCIONES_TASAS_REVERSE,
+} from "../data/matriculaOpciones";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import type { AsignaturaLocal, MatriculaLocal, EstadoAsignatura } from "../api/types";
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";

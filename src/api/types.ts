@@ -291,6 +291,16 @@ export interface ConfigInforme {
   /** Mostrar líneas verticales de separación también en el cuerpo de datos
    *  (en la cabecera se muestran siempre). */
   separadoresCuerpo?: boolean;
+  /** Configuración de la cabecera del PDF al imprimir (título, subtítulo y qué
+   *  datos de selección se muestran). Se recuerda con el preset. */
+  pdfCabecera?: {
+    titulo?: string;
+    subtitulo?: string;
+    mostrarFiltros?: boolean;
+    mostrarOrden?: boolean;
+    mostrarAgrupacion?: boolean;
+    mostrarFecha?: boolean;
+  };
 }
 
 // ── Matrículas locales (store JSON) ──────────────────────────────────────────

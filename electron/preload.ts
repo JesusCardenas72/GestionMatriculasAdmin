@@ -174,6 +174,12 @@ const adminAPI = {
       ipcRenderer.invoke("presets:ocultarPredefinido", id),
     mostrarPredefinido: (id: string): Promise<void> =>
       ipcRenderer.invoke("presets:mostrarPredefinido", id),
+    favoritosListar: (): Promise<string[]> =>
+      ipcRenderer.invoke("presets:favoritosListar"),
+    favoritoMarcar: (id: string): Promise<void> =>
+      ipcRenderer.invoke("presets:favoritoMarcar", id),
+    favoritoDesmarcar: (id: string): Promise<void> =>
+      ipcRenderer.invoke("presets:favoritoDesmarcar", id),
   },
   informe: {
     exportar: async (payload: {

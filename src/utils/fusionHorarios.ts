@@ -191,11 +191,27 @@ export function fusionarHorarios(
   const porId = new Map<string, FilaCrudaHorario>();
   // Índice de respaldo por clave de texto (retrocompatibilidad con Excel sin ID).
   const porClave = new Map<string, FilaCrudaHorario>();
+  // Índice tolerante por "nOrden + asignatura normalizada": rescata coincidencias
+  // cuando el ID exacto no casa porque el nombre de la asignatura difiere solo en
+  // acentos, mayúsculas o espacios (el ID se calcula con la suma de caracteres,
+  // que sí distingue esas diferencias). La clave usa el nOrden del propio ID.
+  const porIdNorm = new Map<string, FilaCrudaHorario>();
   for (const c of conHorario) {
     if (c.idAlumnoAsignatura && !porId.has(c.idAlumnoAsignatura)) porId.set(c.idAlumnoAsignatura, c);
     const k = claveDe(c);
     if (!porClave.has(k)) porClave.set(k, c);
+    if (c.idAlumnoAsignatura) {
+      const nOrdenParte = c.idAlumnoAsignatura.split("_")[0];
+      const asigNorm = norm(c.asignatura ?? "");
+      if (nOrdenParte && asigNorm) {
+        const kn = nOrdenParte + "|||" + asigNorm;
+        if (!porIdNorm.has(kn)) porIdNorm.set(kn, c);
+      }
+    }
   }
+
+  /** Clave del índice tolerante: nOrden + nombre de asignatura normalizado. */
+  const claveIdNorm = (nOrden: number, asig: string): string => `${nOrden}|||${norm(asig)}`;
 
   const usaId = porId.size > 0;
 
@@ -231,8 +247,11 @@ export function fusionarHorarios(
 
   const valoresHorario = filasNuevas.map((f) => {
     const nombre = f.nombreCompleto ?? nombreCompletoDe(f.apellidos, f.nombre);
+    // ¿Esta fila es un alumno real que sustituyó a un temporal? Si al final no
+    // encuentra horario por ninguna vía, se avisa en `sinHorario`.
+    let esHerencia = false;
 
-    // ── Búsqueda por ID (cuando el Excel tiene columna ID) ────────────────
+    // ── 1) Búsqueda por ID (cuando el Excel tiene columna ID) ─────────────
     if (usaId) {
       const idDirecto = f.idAlumnoAsignatura ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? "");
       const directaId = porId.get(idDirecto);
@@ -241,9 +260,20 @@ export function fusionarHorarios(
         conservadas++;
         return directaId.h;
       }
+      // Respaldo tolerante: mismo nOrden y asignatura equivalente (ignorando
+      // acentos, mayúsculas y espacios) aunque el ID exacto no coincida.
+      if (f.nOrden !== null) {
+        const directaNorm = porIdNorm.get(claveIdNorm(f.nOrden, f.asigNombre ?? ""));
+        if (directaNorm) {
+          usadas.add(directaNorm.idAlumnoAsignatura!);
+          conservadas++;
+          return directaNorm.h;
+        }
+      }
       // Alias: buscar con el nOrden del temporal sustituido
       const nOrdenTemp = f.nOrden !== null ? aliasNOrden.get(f.nOrden) : undefined;
       if (nOrdenTemp !== undefined) {
+        esHerencia = true;
         const idAlias = calcIdCompuesto(nOrdenTemp, f.asigNombre ?? "");
         const heredadaId = porId.get(idAlias);
         if (heredadaId) {
@@ -251,12 +281,19 @@ export function fusionarHorarios(
           heredadas++;
           return heredadaId.h;
         }
-        sinHorario.push(`${nombre} — ${f.asigNombre ?? "(sin asignatura)"}`);
+        // Mismo respaldo tolerante para la herencia temporal → alumno real.
+        const heredadaNorm = porIdNorm.get(claveIdNorm(nOrdenTemp, f.asigNombre ?? ""));
+        if (heredadaNorm) {
+          usadas.add(heredadaNorm.idAlumnoAsignatura!);
+          heredadas++;
+          return heredadaNorm.h;
+        }
       }
-      return null;
+      // No cortamos aquí: seguimos por texto, porque la fila del temporal puede
+      // no tener ID guardado (columna ID vacía) y solo casar por nombre.
     }
 
-    // ── Búsqueda por texto (retrocompatibilidad con Excel sin columna ID) ─
+    // ── 2) Búsqueda por texto (Excel sin ID o filas de temporal sin ID) ──
     const pref = prefijo(nombre, f.ensenanzaCurso ?? "", f.especialidad ?? "");
     const asig = norm(f.asigNombre ?? "");
     const claveDirecta = pref + "|||" + asig;
@@ -270,6 +307,7 @@ export function fusionarHorarios(
 
     const prefTemp = aliasRealATemporal.get(pref);
     if (prefTemp) {
+      esHerencia = true;
       const claveTemp = prefTemp + "|||" + asig;
       const heredada = porClave.get(claveTemp);
       if (heredada) {
@@ -277,6 +315,9 @@ export function fusionarHorarios(
         heredadas++;
         return heredada.h;
       }
+    }
+
+    if (esHerencia) {
       sinHorario.push(`${nombre} — ${f.asigNombre ?? "(sin asignatura)"}`);
     }
     return null;

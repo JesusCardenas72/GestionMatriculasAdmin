@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.5.4] - 2026-07-03
+
+### Corregido
+
+- **Alumnos nuevos que no heredaban el horario de su temporal en el Excel fusionado**: cuando un alumno real sustituía a un temporal (por ejemplo un «PDTE. N»), la fusión emparejaba el horario por un identificador (nº de orden + asignatura). Si en el Excel la fila del temporal se había guardado **sin ese identificador** (columna ID vacía) mientras los alumnos reales sí lo tenían, la fusión se quedaba en «modo identificador» y se rendía sin probar el emparejamiento por nombre, dejando al alumno real sin horario y sin avisar. Ahora, cuando el identificador no encuentra pareja, la fusión **continúa con el emparejamiento por nombre** (alumno + curso + especialidad + asignatura), igual que ya hacía la pestaña de Horarios Individuales, de modo que el alumno hereda el horario de su temporal aunque esa fila no tuviera ID. Además, ese emparejamiento por nombre ignora acentos, mayúsculas y espacios, por si el nombre de la asignatura llega de la nube con un formato distinto al del catálogo.
+
+---
+
 ## [1.5.3] - 2026-07-02
 
 ### Corregido

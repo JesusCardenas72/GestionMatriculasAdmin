@@ -72,3 +72,36 @@ export function predefinidoOcultar(id: string): void {
 export function predefinidoMostrar(id: string): void {
   writeHidden(readHidden().filter((x) => x !== id));
 }
+
+// ── Favoritos (presets destacados: de fábrica o de usuario, por igual) ──────
+function favPath(): string {
+  return path.join(app.getPath("userData"), "informes-favoritos.json");
+}
+
+function readFav(): string[] {
+  const file = favPath();
+  if (!fs.existsSync(file)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf-8")) as string[];
+  } catch {
+    return [];
+  }
+}
+
+function writeFav(ids: string[]): void {
+  fs.writeFileSync(favPath(), JSON.stringify(ids, null, 2), "utf-8");
+}
+
+export function favoritosListar(): string[] {
+  return readFav();
+}
+
+export function favoritoMarcar(id: string): void {
+  const set = new Set(readFav());
+  set.add(id);
+  writeFav([...set]);
+}
+
+export function favoritoDesmarcar(id: string): void {
+  writeFav(readFav().filter((x) => x !== id));
+}

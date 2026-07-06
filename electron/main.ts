@@ -23,6 +23,9 @@ import {
   predefinidosOcultosListar,
   predefinidoOcultar,
   predefinidoMostrar,
+  favoritosListar,
+  favoritoMarcar,
+  favoritoDesmarcar,
 } from "./presets-store";
 import {
   profesoresGuardados,
@@ -443,6 +446,9 @@ function registerIpcHandlers() {
   ipcMain.handle("presets:ocultosListar", () => predefinidosOcultosListar());
   ipcMain.handle("presets:ocultarPredefinido", (_e, id: string) => predefinidoOcultar(id));
   ipcMain.handle("presets:mostrarPredefinido", (_e, id: string) => predefinidoMostrar(id));
+  ipcMain.handle("presets:favoritosListar", () => favoritosListar());
+  ipcMain.handle("presets:favoritoMarcar", (_e, id: string) => favoritoMarcar(id));
+  ipcMain.handle("presets:favoritoDesmarcar", (_e, id: string) => favoritoDesmarcar(id));
 
   // ── Horarios: lista de profesores desde CSV ──────────────────────────────
   ipcMain.handle("horarios:profesoresGuardados", () => profesoresGuardados());

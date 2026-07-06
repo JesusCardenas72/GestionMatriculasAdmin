@@ -34,7 +34,16 @@ function formatValor(s: FilaInforme, campo: CampoMeta): string {
 
 export interface InformeParams {
   nombre: string;
-  filtrosDesc: string;
+  /** Subtítulo opcional que se muestra bajo el título. */
+  subtitulo?: string;
+  /** Descripción de los filtros aplicados (vacío = no mostrar). */
+  filtrosDesc?: string;
+  /** Descripción del orden aplicado (vacío = no mostrar). */
+  ordenDesc?: string;
+  /** Descripción de la agrupación aplicada (vacío = no mostrar). */
+  agrupacionDesc?: string;
+  /** Si se muestra la fecha de creación del informe en la línea de meta. */
+  mostrarFecha?: boolean;
   campos: CampoMeta[];
   rows: FilaInforme[];
   orientacion?: 'portrait' | 'landscape';
@@ -43,7 +52,19 @@ export interface InformeParams {
   agruparPorMetas?: CampoMeta[];
 }
 
-export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacion = 'landscape', zoom = 1, agruparPorMetas = [] }: InformeParams): string {
+export function buildHtmlInforme({
+  nombre,
+  subtitulo = '',
+  filtrosDesc = '',
+  ordenDesc = '',
+  agrupacionDesc = '',
+  mostrarFecha = true,
+  campos,
+  rows,
+  orientacion = 'landscape',
+  zoom = 1,
+  agruparPorMetas = [],
+}: InformeParams): string {
   const hoy = new Date().toLocaleDateString('es-ES', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -97,9 +118,11 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacio
   }
 
   const metaParts = [
-    filtrosDesc ? esc(filtrosDesc) : '',
+    filtrosDesc ? `Filtros: ${esc(filtrosDesc)}` : '',
+    ordenDesc ? `Orden: ${esc(ordenDesc)}` : '',
+    agrupacionDesc ? `Agrupado por: ${esc(agrupacionDesc)}` : '',
     `${rows.length} registro${rows.length !== 1 ? 's' : ''}`,
-    hoy,
+    mostrarFecha ? hoy : '',
   ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
   return `<!DOCTYPE html>
@@ -117,6 +140,7 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacio
     body { padding: 1.5cm; }
   }
   h1 { font-size: 13pt; font-weight: bold; margin: 0 0 3px; color: #1a1560; }
+  .subtitulo { font-size: 9.5pt; color: #475569; margin: 0 0 4px; }
   .meta { font-size: 7.5pt; color: #64748b; margin-bottom: 10px; }
   table { width: 100%; border-collapse: collapse; }
   th {
@@ -168,6 +192,7 @@ export function buildHtmlInforme({ nombre, filtrosDesc, campos, rows, orientacio
   <img src="${LOGO_JCCM_B64}" alt="Junta de Castilla-La Mancha">
   <div class="header-center">
     <h1>${esc(nombre)}</h1>
+    ${subtitulo ? `<div class="subtitulo">${esc(subtitulo)}</div>` : ''}
     <div class="meta">${metaParts}</div>
   </div>
   <img src="${LOGO_CPM_B64}" alt="Conservatorio Profesional de Música Marcos Redondo">
