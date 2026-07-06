@@ -51,6 +51,7 @@ import type { CampanyaEnvio } from "../../horarios/types";
 import { HistorialHorariosContenido } from "./HistorialHorariosContenido";
 import type { AppConfig } from "../../../electron/config-store";
 import { useAppMode } from "../../contexts/AppModeProvider";
+import { useEscenarioHorario } from "../../contexts/EscenarioHorarioContext";
 import {
   ASISTENTE_ESTADO_INICIAL,
   useAsistenteTemporales,
@@ -910,6 +911,7 @@ function ModalGenerarHorariosAsistente({
   onClose: () => void;
   onGenerado: (fechaIso: string, nFilas: number, nSustituidos: number) => void;
 }) {
+  const { escenarioActivo } = useEscenarioHorario();
   const [presets, setPresets] = useState<ConfigInforme[]>([]);
   const [cargando, setCargando] = useState(true);
   const [presetId, setPresetId] = useState("");
@@ -1056,11 +1058,13 @@ function ModalGenerarHorariosAsistente({
       // del fantasma tiene horario metido por los profesores y no está entre las
       // matriculadas del real, se conserva como fila fantasma para decidirla.
       const storeData: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-      const conExcel = storeData.entries.length > 0;
+      // Si hay un escenario activo, usamos sus entries; si no, las del almacén.
+      const entriesFuente = escenarioActivo ? escenarioActivo.entries : storeData.entries;
+      const conExcel = entriesFuente.length > 0;
 
       const filas = filasAsignaturaLocales(
         matriculasGen,
-        conExcel ? fantasmaTieneHorario(storeData.entries) : undefined,
+        conExcel ? fantasmaTieneHorario(entriesFuente) : undefined,
       );
       if (filas.length === 0) {
         setError("No hay ningún alumno fantasma con asignaturas en este curso: no hay nada que poner en el Excel.");
@@ -1076,7 +1080,7 @@ function ModalGenerarHorariosAsistente({
       if (conExcel) {
         const { valoresHorario: vh, conservadas, heredadas } = obtenerValoresHorario(
           filas,
-          storeData.entries,
+          entriesFuente,
           matriculasGen,
         );
         if (conservadas + heredadas > 0) {
@@ -1321,6 +1325,7 @@ function Paso3ProfesoresRellenan({
   disabled: boolean;
   onAbrirHorario?: (snapshotId: string) => void;
 }) {
+  const { escenarioActivo, volverAlActual: volverAlActualCtx } = useEscenarioHorario();
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1354,8 +1359,10 @@ function Paso3ProfesoresRellenan({
         ? ` Se creó el preset «${formatoDetectado.presetNombre}» en Informes.`
         : "";
       if (resultado.snapshot) {
+        const partes = [`+${resultado.anadidas} añadidas`, `~${resultado.actualizadas} actualizadas`];
+        if (resultado.eliminadas > 0) partes.push(`-${resultado.eliminadas} eliminadas (no estaban en el Excel)`);
         setMensaje(
-          `Cargado «${carga.fileName}»: +${resultado.anadidas} añadidas, ~${resultado.actualizadas} actualizadas.${avisoFormato}`,
+          `Cargado «${carga.fileName}»: ${partes.join(", ")}.${avisoFormato}`,
         );
       } else {
         setMensaje(
@@ -1384,6 +1391,9 @@ function Paso3ProfesoresRellenan({
       storeData.entries = [];
       storeData.lastUpdated = new Date().toISOString();
       await window.adminAPI.horarios.data.guardar(curso, storeData);
+      // Si hay un escenario activo, ya no tiene sentido (el snapshot existía
+      // por los datos que acabamos de borrar): salimos del modo histórico.
+      volverAlActualCtx();
       setReloadToken((t) => t + 1);
       setMensaje("Horarios cargados borrados. El historial se conserva.");
     } catch (e) {
@@ -1399,7 +1409,10 @@ function Paso3ProfesoresRellenan({
     setComprobando(true);
     try {
       const store: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-      setComprobacion(comprobarCoherenciaLocalHorario(matriculas, store.entries));
+      // Si hay un escenario activo, comparamos Local contra sus entries; si no,
+      // contra las del almacén actual.
+      const entriesFuente = escenarioActivo ? escenarioActivo.entries : store.entries;
+      setComprobacion(comprobarCoherenciaLocalHorario(matriculas, entriesFuente));
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo comprobar la coherencia.");
     } finally {

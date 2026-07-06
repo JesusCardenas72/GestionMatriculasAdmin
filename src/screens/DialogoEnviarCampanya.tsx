@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock, FileUp, Loader2, Send, X, CheckCircle2, XCircle,
-  FileText, FileCode2,
+  FileText, FileCode2, Users,
 } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import type { HorarioAlumno, CampanyaEnvio, ResultadoEnvio, FormatoHorario } from "../horarios/types";
@@ -11,6 +11,12 @@ import {
   enviarHorarioAlumno,
 } from "../utils/horarioEnvio";
 import type { OpcionesEnvioHorario } from "../utils/horarioEnvio";
+import { buildHorarioGrupalHtml, listarAsignaturasEntries } from "../utils/horarioGrupalTemplate";
+import { buildListadoHtml } from "../utils/horarioListadoTemplate";
+import {
+  DOC_GRUPAL_DEFAULTS, fechaHoyEs, resolverAsignaturasGrupal,
+  baseAsignaturaDoc, construirEntriesDesdeAlumnos, type DocGrupalCfg,
+} from "../utils/horarioGrupalDoc";
 import { leerArchivoBase64 } from "../utils/fileUtils";
 
 /** Datos que el proceso principal entrega a la ventana nativa de campaña. */
@@ -18,6 +24,14 @@ interface PayloadEnviarCampanya {
   destinatarios: HorarioAlumno[];
   config: AppConfig;
   anio: string;
+  /** Curso académico activo (p. ej. "25/26"), para los documentos comunes. */
+  curso: string;
+  /**
+   * Toda la carga visible del almacén. Es la fuente de los documentos comunes a
+   * todos los destinatarios: el Listado de grupos (PDF) y el Listado de alumnado
+   * (HTML), ambos listados generales del centro.
+   */
+  cargaAlumnos: HorarioAlumno[];
   /** Formato del horario elegido en la pantalla; sirve de valor inicial. */
   formato?: FormatoHorario;
 }
@@ -41,9 +55,14 @@ export function DialogoEnviarCampanya() {
   const [adjuntoPdf, setAdjuntoPdf] = useState(true);
   const [adjuntoHtml, setAdjuntoHtml] = useState(true);
   const [adjuntoFormulario, setAdjuntoFormulario] = useState(true);
+  // Documentos comunes a todos, desmarcados por defecto (adjuntos grandes y opcionales).
+  const [adjuntoGrupal, setAdjuntoGrupal] = useState(false);
+  const [adjuntoListado, setAdjuntoListado] = useState(false);
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
   const [formato, setFormato] = useState<FormatoHorario>(FORMATO_HORARIO_DEFAULT);
   const [enviando, setEnviando] = useState(false);
+  /** Error al preparar el envío (p. ej. no se pudo generar el PDF grupal). */
+  const [prepError, setPrepError] = useState<string | null>(null);
   const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
   const [resultado, setResultado] = useState<ResultadoEnvio[] | null>(null);
 
@@ -156,10 +175,59 @@ export function DialogoEnviarCampanya() {
 
   async function handleConfirmar() {
     if (!payload || !nombreCampanya.trim()) return;
-    const { destinatarios, config, anio } = payload;
+    const { destinatarios, config, anio, curso, cargaAlumnos } = payload;
     if (destinatarios.length === 0) return;
 
     setEnviando(true);
+    setPrepError(null);
+
+    // ── Documentos comunes a TODOS los destinatarios: se generan UNA sola vez y
+    //    son idénticos para toda la remesa (listados generales del centro).
+    let adjuntoGrupalPdf: { nombre: string; base64: string } | undefined;
+    let adjuntoListadoHtml: { nombre: string; base64: string } | undefined;
+    try {
+      // Listado de grupos (PDF): toma TODA su configuración guardada del documento
+      // grupal (portada, estado, fecha y asignaturas incluidas), sin diferenciar
+      // por lo que reciba cada alumno.
+      if (adjuntoGrupal && cargaAlumnos.length > 0) {
+        const grupalEntries = construirEntriesDesdeAlumnos(cargaAlumnos);
+        const raw = (await window.adminAPI.horarios.docConfig.obtener(curso)) as Partial<DocGrupalCfg> | null;
+        const cfg: DocGrupalCfg = { ...DOC_GRUPAL_DEFAULTS, ...(raw ?? {}), actualizadoA: fechaHoyEs() };
+        const incluidas = resolverAsignaturasGrupal(cfg.asignaturas, listarAsignaturasEntries(grupalEntries));
+        const grupalHtml = buildHorarioGrupalHtml(grupalEntries, {
+          curso,
+          estado: cfg.estado,
+          actualizadoA: cfg.actualizadoA,
+          textoPlazo: cfg.textoPlazo,
+          textoAviso: cfg.textoAviso,
+          lineasExtra: cfg.lineasExtra.split("\n").map(s => s.trim()).filter(Boolean),
+          asignaturasIncluidas: incluidas,
+          integrarPendientes: cfg.integrarPendientes,
+        });
+        const pdfRes = await window.adminAPI.pdf.generarBase64(grupalHtml, true);
+        if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "No se pudo generar el PDF grupal.");
+        const nombreArchivo = `Horarios grupales ${cfg.estado} Curso ${curso}`.replace(/[\\/:*?"<>|]/g, "_");
+        adjuntoGrupalPdf = { nombre: `${nombreArchivo}.pdf`, base64: pdfRes.base64 };
+      }
+
+      // Listado de alumnado (HTML interactivo): igual para todos, filtrado por las
+      // asignaturas elegidas arriba en "Asignaturas a informar".
+      if (adjuntoListado && cargaAlumnos.length > 0) {
+        const incluidas = new Set([...asignaturasSeleccionadas].map(baseAsignaturaDoc));
+        const listadoHtml = buildListadoHtml(cargaAlumnos, anio, "alumnos", { asignaturasIncluidas: incluidas });
+        const nombreArchivo = `Listado alumnado ${anio}`.replace(/[\\/:*?"<>|]/g, "_");
+        adjuntoListadoHtml = { nombre: `${nombreArchivo}.html`, base64: btoa(unescape(encodeURIComponent(listadoHtml))) };
+      }
+    } catch (err) {
+      setPrepError(
+        "No se pudo preparar un documento común: " +
+        (err instanceof Error ? err.message : String(err)) +
+        ". No se ha enviado nada; desmarca ese adjunto o inténtalo de nuevo.",
+      );
+      setEnviando(false);
+      return;
+    }
+
     setProgreso({ actual: 0, total: destinatarios.length });
     const resultados: ResultadoEnvio[] = [];
 
@@ -173,6 +241,8 @@ export function DialogoEnviarCampanya() {
           adjuntoFormulario,
           formato,
           adjuntoPersonalizado: adjuntoPersonalizado ?? undefined,
+          adjuntoGrupalPdf,
+          adjuntoListadoHtml,
           asignaturas: asignaturasSeleccionadas.size < asignaturasDisponibles.length
             ? [...asignaturasSeleccionadas]
             : undefined,
@@ -358,6 +428,30 @@ export function DialogoEnviarCampanya() {
                   <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--tc-info-ink, #1d4ed8)" }} />
                   <span style={{ color: "var(--tc-ink)" }}>Solicitud de cambio de grupo</span>
                 </label>
+                {payload && payload.cargaAlumnos.length > 0 && (
+                  <label className={`flex items-start gap-2.5 px-3 py-2 cursor-pointer text-sm select-none ${enviando ? "opacity-50 cursor-default" : "hover:bg-[var(--tc-bg)]"}`}>
+                    <input type="checkbox" checked={adjuntoGrupal} disabled={enviando} onChange={(e) => setAdjuntoGrupal(e.target.checked)} className="accent-[var(--tc-primary)] w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <Users className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--tc-violet-ink, #6d28d9)" }} />
+                    <span className="min-w-0">
+                      <span style={{ color: "var(--tc-ink)" }}>Listado de grupos (PDF)</span>
+                      <span className="block text-[11px] leading-snug" style={{ color: "var(--tc-ink-mute)" }}>
+                        Documento general de horarios grupales, el mismo para todos, con la configuración guardada en Listado Grupos.
+                      </span>
+                    </span>
+                  </label>
+                )}
+                {payload && payload.cargaAlumnos.length > 0 && (
+                  <label className={`flex items-start gap-2.5 px-3 py-2 cursor-pointer text-sm select-none ${enviando ? "opacity-50 cursor-default" : "hover:bg-[var(--tc-bg)]"}`}>
+                    <input type="checkbox" checked={adjuntoListado} disabled={enviando} onChange={(e) => setAdjuntoListado(e.target.checked)} className="accent-[var(--tc-primary)] w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <FileCode2 className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--tc-teal-ink, #148180)" }} />
+                    <span className="min-w-0">
+                      <span style={{ color: "var(--tc-ink)" }}>Listado de alumnado (HTML)</span>
+                      <span className="block text-[11px] leading-snug" style={{ color: "var(--tc-ink-mute)" }}>
+                        Listado interactivo por asignaturas, el mismo para todos, con las asignaturas elegidas arriba.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <div className={`flex items-center gap-2.5 px-3 py-2 text-sm ${enviando ? "opacity-50" : ""}`}>
                   <input ref={fileInputRef} type="file" className="hidden" disabled={enviando} onChange={handleSeleccionarArchivo} />
                   <button
@@ -482,6 +576,13 @@ export function DialogoEnviarCampanya() {
                 </div>
               )}
             </div>
+
+            {prepError && (
+              <div className="flex items-start gap-2 p-2.5 rounded-lg text-xs" style={{ background: "var(--tc-danger-bg, #fef2f2)", color: "var(--tc-danger-ink, #b91c1c)" }}>
+                <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{prepError}</span>
+              </div>
+            )}
 
             {enviando && progreso && (
               <div className="space-y-2">

@@ -9,11 +9,33 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
-## [1.5.4] - 2026-07-03
+## [1.6.1] - 2026-07-05
+
+### Añadido
+
+- **Alumnado con asignatura pendiente en el «Listado Grupos» (renombrado a «Grupos»)**: la pestaña *Listados por asignatura → Grupos* incorpora una opción en su ventana de configuración para tratar a los alumnos que arrastran una asignatura de un curso inferior (aquellos cuyo nombre de asignatura acaba en «(5º)», «(4º)»…):
+  - **Separar** (por defecto): quedan en su propio curso, agrupados por Asignatura-Curso, como hasta ahora.
+  - **Integrar**: se colocan en el grupo del curso de la asignatura (donde realmente asisten a clase), en orden alfabético y con «(Pte.)» tras el nombre.
+  - La opción se guarda y se aplica igual en la vista previa, en el PDF que se imprime/guarda y en el PDF adjunto de los correos (envío individual y campañas), de modo que todos coinciden por construcción.
 
 ### Corregido
 
-- **Alumnos nuevos que no heredaban el horario de su temporal en el Excel fusionado**: cuando un alumno real sustituía a un temporal (por ejemplo un «PDTE. N»), la fusión emparejaba el horario por un identificador (nº de orden + asignatura). Si en el Excel la fila del temporal se había guardado **sin ese identificador** (columna ID vacía) mientras los alumnos reales sí lo tenían, la fusión se quedaba en «modo identificador» y se rendía sin probar el emparejamiento por nombre, dejando al alumno real sin horario y sin avisar. Ahora, cuando el identificador no encuentra pareja, la fusión **continúa con el emparejamiento por nombre** (alumno + curso + especialidad + asignatura), igual que ya hacía la pestaña de Horarios Individuales, de modo que el alumno hereda el horario de su temporal aunque esa fila no tuviera ID. Además, ese emparejamiento por nombre ignora acentos, mayúsculas y espacios, por si el nombre de la asignatura llega de la nube con un formato distinto al del catálogo.
+- **Curso duplicado en la etiqueta lateral del «Listado Grupos»**: la caja girada de cada grupo mostraba el curso repetido (p. ej. «EE4, Gr: EE4EE4B, Aula: A13») cuando el código de grupo ya incluía el curso. Ahora se muestra correctamente «EE4, Gr: EE4B, Aula: A13».
+
+---
+
+## [1.6.0] - 2026-07-05
+
+### Añadido
+
+- **Documentos comunes en el correo de horarios**: en las ventanas de envío de horarios (envío masivo desde **Horarios** y envío individual desde **Local**) se pueden adjuntar dos listados generales del centro, iguales para todos los destinatarios de la remesa:
+  - **Listado de grupos (PDF)**: el documento de "Horarios grupales" con toda su configuración guardada en *Listado por asignaturas → Listado Grupos* (portada, estado, fecha y asignaturas incluidas). Es idéntico para todos, sin diferenciar por lo que reciba cada alumno.
+  - **Listado de alumnado (HTML interactivo)**: el listado por asignaturas versión alumnado, el mismo para todos, filtrado por las **asignaturas elegidas en la propia ventana de envío**.
+  - Ambos vienen desmarcados por defecto y se generan una sola vez por remesa. La vista previa de *Listado Grupos* y el PDF adjunto usan exactamente el mismo criterio de asignaturas, de modo que coinciden por construcción.
+
+### Cambiado
+
+- **Adjuntos del correo de horarios como lista dinámica**: el envío manda ahora un único array `adjuntos` con SOLO los documentos activados (PDF del horario, HTML interactivo, solicitud de cambio de grupo, listados comunes y documento personalizado), en lugar de huecos fijos. Evita los "adjuntos fantasma" vacíos y permite añadir nuevos documentos sin tocar el Flow de Power Automate.
 
 ---
 

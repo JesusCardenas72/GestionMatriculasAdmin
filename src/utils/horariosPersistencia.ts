@@ -65,12 +65,19 @@ export interface ResultadoActualizacion {
 }
 
 /**
- * Fusiona las filas crudas de un Excel en el almacén (upsert).
+ * Fusiona las filas crudas de un Excel en el almacén.
  *
- * Importante: cargar un Excel NUNCA elimina alumnos del almacén. Los Excel que
- * carga la app suelen contener solo un subconjunto de alumnos (por enseñanza,
- * por temporales, por fusión…), así que borrar lo que "no aparece" destruiría
- * datos de otras cargas. El borrado solo se hace a mano desde el historial.
+ * Modos:
+ *  - `upsert` (por defecto): añade entradas nuevas y actualiza las existentes
+ *    por idAlumnoAsignatura (o por clave de texto normalizada). Las entradas
+ *    previas que NO aparecen en el Excel se conservan.
+ *  - `reemplazar`: vacía el almacén y deja SOLO las filas del Excel. Se usa
+ *    cuando el Excel es la fuente de verdad (p. ej. "Fase 3" de un curso
+ *    nuevo) y no quieres que se arrastren alumnos de cargas anteriores al
+ *    PDF de horarios grupales.
+ *
+ * El snapshot siempre guarda la lista resultante completa: si necesitas
+ * recuperar lo anterior, usa el historial.
  */
 export function actualizarHorariosStore(
   data: HorariosCursoData,
@@ -78,8 +85,10 @@ export function actualizarHorariosStore(
   accion: HorariosSnapshot["accion"],
   fileName?: string,
   nombre?: string,
+  opciones: { reemplazar?: boolean } = {},
 ): ResultadoActualizacion {
   const ahora = new Date().toISOString();
+  const reemplazar = opciones.reemplazar === true;
 
   // Mapa maestro: la clave de búsqueda es el idAlumnoAsignatura de la fila cuando existe
   // (garantiza que dos entradas con el mismo texto pero distinto ID no se pisen entre sí),
@@ -88,7 +97,16 @@ export function actualizarHorariosStore(
   const filaClave = (f: FilaCrudaHorario) =>
     f.idAlumnoAsignatura ?? generarClave(f.nombreCompleto, f.ensenanzaCurso, f.especialidad, f.asignatura);
 
-  const mapa = new Map<string, HorariosEntry>(data.entries.map((e) => [mapaKey(e), e]));
+  // Modo reemplazar: partimos de un mapa vacío. Las entradas previas al Excel
+  // se contabilizan como "eliminadas" en el resumen del snapshot para que el
+  // historial refleje la operación destructiva.
+  let mapa = new Map<string, HorariosEntry>();
+  let eliminadas = 0;
+  if (reemplazar) {
+    eliminadas = data.entries.length;
+  } else {
+    mapa = new Map(data.entries.map((e) => [mapaKey(e), e]));
+  }
 
   let anadidas = 0;
   let actualizadas = 0;
@@ -142,11 +160,8 @@ export function actualizarHorariosStore(
 
   data.entries = [...mapa.values()];
 
-  // Cargar nunca borra (upsert); el borrado es manual desde el historial.
-  const eliminadas = 0;
-
   // Sin cambios reales → no ensuciamos el historial con un snapshot vacío.
-  if (anadidas === 0 && actualizadas === 0) {
+  if (anadidas === 0 && actualizadas === 0 && eliminadas === 0) {
     return { anadidas, actualizadas, eliminadas, sinCambio, snapshot: null };
   }
 

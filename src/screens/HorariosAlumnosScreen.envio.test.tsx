@@ -45,6 +45,7 @@ vi.mock("../components/modals/HistorialHorariosModal", () => ({ HistorialHorario
 vi.mock("../components/ResizableColumns", () => ({ default: ({ left, right }: { left: React.ReactNode; right: React.ReactNode }) => <div>{left}{right}</div> }));
 
 import HorariosAlumnosScreen from "./HorariosAlumnosScreen";
+import { EscenarioHorarioProvider } from "../contexts/EscenarioHorarioContext";
 
 beforeEach(() => {
   (window as unknown as { adminAPI: unknown }).adminAPI = {
@@ -61,13 +62,33 @@ beforeEach(() => {
     pdf: { generarBase64: vi.fn(), guardar: vi.fn(), openForPrint: vi.fn(), printHtml: vi.fn() },
     informe: { exportar: vi.fn(), seleccionarArchivo: vi.fn() },
     dialogoCorreccion: { abrir: vi.fn().mockResolvedValue(null) },
+    // La pantalla se suscribe a "campaña guardada"; onGuardada devuelve la
+    // función de baja que el efecto usa como limpieza.
+    dialogoEnviarCampanya: { abrir: vi.fn(), onGuardada: vi.fn(() => () => {}) },
   };
 });
 
 async function cargar() {
-  render(<HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />);
+  render(
+    <EscenarioHorarioProvider>
+      <HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />
+    </EscenarioHorarioProvider>,
+  );
   const btn = await screen.findByText(/Cargar Excel de horarios/i);
   await userEvent.click(btn);
+}
+
+/**
+ * El envío ya no muestra un modal in-app: abre la ventana nativa
+ * `dialogoEnviarCampanya.abrir(payloadJSON)`. Devuelve el payload del último
+ * envío disparado para comprobar los destinatarios reales ya filtrados.
+ */
+function ultimoEnvio(): { destinatarios: unknown[] } {
+  const abrir = (window as unknown as {
+    adminAPI: { dialogoEnviarCampanya: { abrir: { mock: { calls: string[][] } } } };
+  }).adminAPI.dialogoEnviarCampanya.abrir;
+  expect(abrir.mock.calls.length).toBeGreaterThan(0);
+  return JSON.parse(abrir.mock.calls[abrir.mock.calls.length - 1][0]);
 }
 
 describe("Horarios Individuales — envío y filtros", () => {
@@ -85,9 +106,9 @@ describe("Horarios Individuales — envío y filtros", () => {
     // alumnosConEmail = Ana + Beto + Diana = 3 (Carlos sin email, PDTE fantasma pendiente)
     const enviarTodos = await screen.findByText(/Enviar a todos \(3 con email\)/i);
     await userEvent.click(enviarTodos);
-    // El modal de envío confirma el conteo real ya filtrado (sin fantasma ni sin-email)
-    const dialogo = await screen.findByText(/Se enviarán los horarios a/i);
-    expect(dialogo).toHaveTextContent(/3 alumno/);
+    // El envío abre la ventana nativa con los 3 destinatarios ya filtrados
+    // (sin fantasma ni sin-email).
+    expect(ultimoEnvio().destinatarios).toHaveLength(3);
   });
 
   it("la tarjeta de un fantasma _Temp ya sustituido recoge el email del alumno real", async () => {
@@ -105,10 +126,9 @@ describe("Horarios Individuales — envío y filtros", () => {
     // enviado, no Carlos sin email, no PDTE fantasma pendiente)
     const sel = await screen.findByTitle(/aún no han recibido el horario y ya tienen email/i);
     await userEvent.click(sel);
-    // Lanzamos el envío de la selección y comprobamos en el modal que son 2 alumnos
+    // Lanzamos el envío de la selección: la ventana nativa recibe 2 destinatarios.
     await userEvent.click(await screen.findByText(/^Enviar \(/));
-    const dialogo = await screen.findByText(/Se enviarán los horarios a/i);
-    expect(dialogo).toHaveTextContent(/2 alumno/);
+    expect(ultimoEnvio().destinatarios).toHaveLength(2);
   });
 
   it("Horarios Individuales solo lista alumnado real (sin plazas fantasma)", async () => {

@@ -451,7 +451,7 @@ var NIVELES_DISP = [{id:'asignatura',label:'Asignatura'},{id:'curso',label:'Curs
    CONSTANTES
    ═══════════════════════════════════════════════════════════════════════════ */
 var ORDEN_DIA = {lunes:1,martes:2,'miércoles':3,miercoles:3,jueves:4,viernes:5,'sábado':6,sabado:6,domingo:7};
-var ABREV_DIA  = {lunes:'Lun',martes:'Mar','miércoles':'Mié',miercoles:'Mié',jueves:'Jue',viernes:'Vie','sábado':'Sáb',sabado:'Sáb',domingo:'Dom'};
+var ABREV_DIA  = {lunes:'Lunes',martes:'Martes','miércoles':'Miércoles',miercoles:'Miércoles',jueves:'Jueves',viernes:'Viernes','sábado':'Sábado',sabado:'Sábado',domingo:'Domingo'};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS

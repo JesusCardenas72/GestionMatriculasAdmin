@@ -2,15 +2,13 @@
 
 ## Índice
 
-1. [Descripción general](#1-descripción-general)
-2. [Estructura de archivos](#2-estructura-de-archivos)
-3. [Mapa de campos](#3-mapa-de-campos)
-4. [Diseño y maquetación](#4-diseño-y-maquetación)
-5. [Cómo rellenar los datos](#5-cómo-rellenar-los-datos)
-6. [Exportación a PDF](#6-exportación-a-pdf)
-7. [Integración en otra aplicación](#7-integración-en-otra-aplicación)
-8. [Referencia visual de cada sección](#8-referencia-visual-de-cada-sección)
-9. [Preguntas frecuentes](#9-preguntas-frecuentes)
+| | |
+|---|---|
+| 1. [Descripción general](#1-descripción-general) | 6. [Exportación a PDF](#6-exportación-a-pdf) |
+| 2. [Estructura de archivos](#2-estructura-de-archivos) | 7. [Integración en otra aplicación](#7-integración-en-otra-aplicación) |
+| 3. [Mapa de campos](#3-mapa-de-campos) | 8. [Referencia visual de cada sección](#8-referencia-visual-de-cada-sección) |
+| 4. [Diseño y maquetación](#4-diseño-y-maquetación) | 9. [Preguntas frecuentes](#9-preguntas-frecuentes) |
+| 5. [Cómo rellenar los datos](#5-cómo-rellenar-los-datos) | |
 
 ---
 
@@ -305,8 +303,8 @@ Debajo, el nombre completo del alumno/a.
 #### `tipoEnsenanza`
 | Valor | Texto a mostrar |
 |-------|----------------|
-| `elemental` | "Enseñanza Elemental" |
-| `profesional` | "Enseñanza Profesional" |
+| `elemental` | "E. Elemental" |
+| `profesional` | "E. Profesional" |
 
 #### `formaPago`
 | Valor | Texto a mostrar |

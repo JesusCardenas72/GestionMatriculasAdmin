@@ -13,6 +13,38 @@ export function ensenanzaDesdeCode(ensenanzaCurso: string): string {
   return m ? (ENSENANZA_MAP[m[1]] ?? "") : "";
 }
 
+function normDescripcion(s: string): string {
+  return (s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+let abrevMap: Map<string, string> | null = null;
+
+/**
+ * Abreviatura oficial de una asignatura por su descripción (p. ej. "Coro" → "CO",
+ * "Lenguaje Musical" → "LM"). Si la asignatura no está en el catálogo, se genera
+ * una abreviatura con las primeras letras de sus palabras.
+ */
+export function abreviaturaAsignatura(nombre: string): string {
+  if (!abrevMap) {
+    abrevMap = new Map();
+    for (const a of rawAsignaturas as RawAsignatura[]) {
+      const desc = normDescripcion(a.DESCRIPCION);
+      const abrev = (a.ABREVIATURA ?? "").trim();
+      if (desc && abrev && !abrevMap.has(desc)) abrevMap.set(desc, abrev);
+    }
+  }
+  const encontrada = abrevMap.get(normDescripcion(nombre));
+  if (encontrada) return encontrada;
+  const palabras = (nombre ?? "").trim().split(/\s+/).filter(p => p.length > 2);
+  if (palabras.length >= 2) return (palabras[0].slice(0, 2) + palabras[1].slice(0, 2)).toUpperCase();
+  return (nombre ?? "").trim().slice(0, 3).toUpperCase();
+}
+
 /** Especialidades únicas del catálogo, ordenadas alfabéticamente. */
 export function getEspecialidades(): string[] {
   const set = new Set<string>();

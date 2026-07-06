@@ -249,6 +249,12 @@ const adminAPI = {
       eliminarAlumno: (campanyaId: string, clave: string): Promise<void> =>
         ipcRenderer.invoke("horarios:campanyas:eliminarAlumno", campanyaId, clave),
     },
+    docConfig: {
+      obtener: (curso: string): Promise<Record<string, unknown> | null> =>
+        ipcRenderer.invoke("horarios:docConfig:obtener", curso),
+      guardar: (curso: string, config: Record<string, unknown> | null): Promise<void> =>
+        ipcRenderer.invoke("horarios:docConfig:guardar", curso, config),
+    },
   },
   temporales: {
     getConfig: (curso: string): Promise<TemporalesCursoConfig> =>
