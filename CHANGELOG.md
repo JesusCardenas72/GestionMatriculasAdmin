@@ -9,6 +9,23 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.7.0] - 2026-07-06
+
+### Añadido
+
+- **Comprobar cobertura de envíos (Horarios individuales)**: nuevo botón que abre un informe que cruza **todas las matrículas reales** con el registro de envíos, para saber a quién le falta su horario. Clasifica a cada alumno en:
+  - **Recibido** (ya se le envió, con la fecha), **Pendiente** (tiene horario y email, sin enviar), **Sin email** (no se le puede enviar), **No en carga** (matriculado en asignaturas de esta remesa pero no aparece en los horarios: errata de nombre o matrícula posterior) y **Fuera de remesa** (solo cursa asignaturas que no se envían en esta remesa; es normal que no tenga horario y no cuenta como pendiente).
+  - Incluye recuento por categorías (que además filtran la lista), explicación aclaratoria al situar el cursor sobre cada tarjeta y botón para **copiar el informe**.
+- **Filtro «2Espec» (Local y Horarios individuales)**: muestra solo los alumnos con el mismo nombre matriculados en **dos instrumentos** (dos especialidades).
+- **Constancia de la configuración de cada remesa en el historial**: al guardar una campaña de envío se registra también **con qué se lanzó** (mensaje, formato, asignaturas informadas y adjuntos marcados), para dejar constancia exacta de qué se envió, además de a quién.
+
+### Corregido
+
+- **Curso y especialidad cruzados en alumnos con dos especialidades (Horarios individuales)**: un alumno con dos instrumentos tiene dos matrículas y, por tanto, dos horarios. Al completar los datos con los de las Matrículas Locales, ambos horarios recibían por error el curso y la especialidad de una sola de las matrículas (la última leída). Ahora cada horario toma el curso y la especialidad de **su** matrícula correspondiente, de modo que cada uno muestra los datos correctos.
+- **«Instrumento Complementario» definía por error el Tutor/a**: al determinar el Tutor/a que aparece en el correo de horarios, se tomaba cualquier asignatura que contuviera la palabra «instrumento», incluido «Instrumento Complementario». Ahora solo la asignatura de **Instrumento** propiamente dicha define al Tutor/a.
+
+---
+
 ## [1.6.1] - 2026-07-05
 
 ### Añadido

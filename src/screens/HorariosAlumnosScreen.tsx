@@ -19,7 +19,7 @@ import {
   type DocGrupalCfg,
 } from "../utils/horarioGrupalDoc";
 import { normNombre } from "../utils/horarioEnvio";
-import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, FormatoHorario } from "../horarios/types";
+import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ConfigEnvioCampanya, FormatoHorario } from "../horarios/types";
 import { buildCursoLabel, FORMATO_HORARIO_DEFAULT } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
 import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
@@ -36,6 +36,35 @@ interface Props {
 type PanelDerecho = "preview" | "historial" | "listados";
 type VistaPrincipal = "individuales" | "listados";
 
+/**
+ * Estado de cobertura de una matrícula real frente al registro de envíos.
+ * - fueraRemesa: sus asignaturas matriculadas no están entre las que se envían en
+ *   esta carga de horarios, así que es normal que no tenga horario (no es un fallo).
+ */
+type EstadoCobertura = "recibido" | "pendiente" | "sinEmail" | "noEnCarga" | "fueraRemesa";
+
+/** Una línea del informe de cobertura: una matrícula/instrumento y su estado. */
+interface LineaCobertura {
+  localId: string;
+  nombre: string;
+  ensenanzaCurso: string;
+  especialidad: string;
+  email: string;
+  estado: EstadoCobertura;
+  /** Fecha ISO del último envío ok (solo si estado === "recibido"). */
+  fecha?: string;
+}
+
+interface ReporteCobertura {
+  total: number;
+  recibidos: number;
+  pendientes: number;
+  sinEmail: number;
+  noEnCarga: number;
+  fueraRemesa: number;
+  lineas: LineaCobertura[];
+}
+
 /** Convierte "H:MM" a minutos totales; devuelve null si el formato no es válido. */
 function aMin(h: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec((h ?? '').trim());
@@ -50,6 +79,22 @@ function fmtMin(min: number): string {
   if (h > 0 && m > 0) return `${h}h ${m}min`;
   if (h > 0) return `${h}h`;
   return `${m}min`;
+}
+
+/**
+ * Extrae el nº de orden (nOrden) de un horario a partir del ID de sus clases,
+ * con formato "{nOrden}_{asciiSum}". Sirve para cruzar con las matrículas locales
+ * por ID (inmune a erratas en el nombre). Devuelve null si ninguna clase tiene ID
+ * (entradas antiguas anteriores al idCompuesto).
+ */
+function nOrdenDeHorario(a: HorarioAlumno): number | null {
+  for (const c of a.clases) {
+    const id = c.idAlumnoAsignatura;
+    if (!id) continue;
+    const n = Number(id.split("_")[0]);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
 }
 
 /** Devuelve el total de minutos por asignatura, ordenado por más horas primero. */
@@ -102,9 +147,13 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [filtroEnvio, setFiltroEnvio] = useState<"todos" | "enviados" | "pendientes">("todos");
   const [filtroEmail, setFiltroEmail] = useState<"todos" | "conEmail" | "sinEmail">("todos");
+  // 2Espec: solo alumnos con el mismo nombre y dos instrumentos (dos especialidades)
+  const [filtro2Espec, setFiltro2Espec] = useState(false);
 
   // Modal de historial de horarios
   const [showHistorialHorariosModal, setShowHistorialHorariosModal] = useState(false);
+  // Modal "Comprobar cobertura": informe de qué matriculados han recibido su horario
+  const [showCoberturaModal, setShowCoberturaModal] = useState(false);
 
   /**
    * Escenario de horarios activo (compartido con Informes y Asistente de
@@ -209,8 +258,12 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       nombre: string;
       email: string;
       telefono: string;
-      ensenanzaCurso: string;
-      especialidad: string;
+      /**
+       * Todas las (enseñanza/curso, especialidad) de las matrículas reales de
+       * este alumno. Un alumno con dos instrumentos tiene dos matrículas, y cada
+       * horario debe tomar el curso/especialidad de la SUYA, no de la última leída.
+       */
+      matriculas: Array<{ ensenanzaCurso: string; especialidad: string }>;
     }
     const mapa = new Map<string, DatosLocal>();
     const nombreDisplay = (apellidos?: string, nombre?: string): string => {
@@ -232,13 +285,23 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       if (m.esTemporal) continue;
       const clave = claveNombre(m.apellidos, m.nombre);
       if (clave) {
-        mapa.set(clave, {
-          nombre: nombreDisplay(m.apellidos, m.nombre),
-          email: (m.email ?? '').toLowerCase().trim(),
-          telefono: (m.telefono ?? '').trim(),
+        const matricula = {
           ensenanzaCurso: (m.ensenanzaCurso ?? '').trim(),
           especialidad: (m.especialidad ?? '').trim(),
-        });
+        };
+        const previo = mapa.get(clave);
+        if (previo) {
+          // Mismo alumno, otra matrícula (p. ej. un segundo instrumento): se
+          // acumula su curso/especialidad sin pisar los de la primera.
+          previo.matriculas.push(matricula);
+        } else {
+          mapa.set(clave, {
+            nombre: nombreDisplay(m.apellidos, m.nombre),
+            email: (m.email ?? '').toLowerCase().trim(),
+            telefono: (m.telefono ?? '').trim(),
+            matriculas: [matricula],
+          });
+        }
       }
     }
 
@@ -256,10 +319,40 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
           nombre: '',
           email: (m.email ?? '').toLowerCase().trim(),
           telefono: (m.telefono ?? '').trim(),
-          ensenanzaCurso: '',
-          especialidad: '',
+          matriculas: [],
         });
       }
+    }
+    return mapa;
+  }, [localMatriculas]);
+
+  /**
+   * Índice de contacto por nº de orden (nOrden) de las matrículas REALES. Permite
+   * cruzar el horario con Local por ID en vez de por el nombre, de modo que una
+   * errata en el apellido (p. ej. "Rodrigues" vs "Rodriguez") no deje al alumno
+   * sin email. Solo matrículas reales (los fantasmas nunca aportan contacto).
+   */
+  const contactoLocalPorNOrden = useMemo(() => {
+    interface DatosLocalId {
+      nombre: string;
+      email: string;
+      telefono: string;
+      ensenanzaCurso: string;
+      especialidad: string;
+    }
+    const mapa = new Map<number, DatosLocalId>();
+    for (const m of localMatriculas) {
+      if (m.esTemporal || m.nOrden === null) continue;
+      const a = (m.apellidos ?? '').trim();
+      const n = (m.nombre ?? '').trim();
+      const nombre = a && n ? `${a}, ${n}` : a || n;
+      mapa.set(m.nOrden, {
+        nombre,
+        email: (m.email ?? '').toLowerCase().trim(),
+        telefono: (m.telefono ?? '').trim(),
+        ensenanzaCurso: (m.ensenanzaCurso ?? '').trim(),
+        especialidad: (m.especialidad ?? '').trim(),
+      });
     }
     return mapa;
   }, [localMatriculas]);
@@ -335,18 +428,44 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
    */
   const enriquecerEmails = useCallback((alumnos: HorarioAlumno[]): HorarioAlumno[] => {
     return alumnos.map(a => {
+      // 1) Cruce por nº de orden (ID): inmune a erratas en el nombre. Si el
+      //    horario tiene ID de clase y hay una matrícula real con ese nOrden,
+      //    se toman de ella los datos del alumno (Local es la fuente de verdad).
+      const nOrden = nOrdenDeHorario(a);
+      const porId = nOrden !== null ? contactoLocalPorNOrden.get(nOrden) : undefined;
+      if (porId) {
+        return {
+          ...a,
+          nombre: porId.nombre || a.nombre,
+          email: porId.email || a.email,
+          telefono: porId.telefono || a.telefono,
+          ensenanzaCurso: porId.ensenanzaCurso || a.ensenanzaCurso,
+          especialidad: porId.especialidad || a.especialidad,
+        };
+      }
+      // 2) Respaldo por nombre (entradas antiguas sin ID y sustituciones _Temp).
       const local = contactoLocalPorNombre.get(normNombre(a.nombre));
       if (!local) return a;
+      // Curso/especialidad: cada horario conserva el suyo. Se toma el de Local
+      // (fuente de verdad del formato) SOLO de la matrícula cuya enseñanza/curso y
+      // especialidad coinciden con las de este horario; si el alumno tiene una
+      // única matrícula, se usa esa. Así un alumno con dos instrumentos no ve
+      // mezclados el curso y la especialidad de sus dos horarios.
+      const comboHorario = normNombre(a.ensenanzaCurso) + '|||' + normNombre(a.especialidad);
+      const match =
+        local.matriculas.find(
+          mm => normNombre(mm.ensenanzaCurso) + '|||' + normNombre(mm.especialidad) === comboHorario,
+        ) ?? (local.matriculas.length === 1 ? local.matriculas[0] : undefined);
       return {
         ...a,
         nombre: local.nombre || a.nombre,
         email: local.email || a.email,
         telefono: local.telefono || a.telefono,
-        ensenanzaCurso: local.ensenanzaCurso || a.ensenanzaCurso,
-        especialidad: local.especialidad || a.especialidad,
+        ensenanzaCurso: match?.ensenanzaCurso || a.ensenanzaCurso,
+        especialidad: match?.especialidad || a.especialidad,
       };
     });
-  }, [contactoLocalPorNombre]);
+  }, [contactoLocalPorNombre, contactoLocalPorNOrden]);
 
   /**
    * Versión más reciente de `enriquecerEmails` accesible desde callbacks asíncronos
@@ -488,6 +607,22 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
     else if (filtroEnvio === "pendientes") base = base.filter(a => !enviosPorClave.has(a.clave));
     if (filtroEmail === "conEmail") base = base.filter(a => a.email);
     else if (filtroEmail === "sinEmail") base = base.filter(a => !a.email);
+    if (filtro2Espec) {
+      // Nombres que aparecen con exactamente dos instrumentos (especialidades)
+      // distintos entre el alumnado real de la carga.
+      const especPorNombre = new Map<string, Set<string>>();
+      for (const a of carga.alumnos) {
+        if (esFantasma(a)) continue;
+        const k = normNombre(a.nombre);
+        const esp = (a.especialidad ?? "").trim();
+        if (!esp) continue;
+        (especPorNombre.get(k) ?? especPorNombre.set(k, new Set()).get(k)!).add(esp);
+      }
+      const nombresDobles = new Set(
+        [...especPorNombre].filter(([, esps]) => esps.size === 2).map(([k]) => k),
+      );
+      base = base.filter(a => nombresDobles.has(normNombre(a.nombre)));
+    }
     if (soloNuevos) base = base.filter(esNuevo);
     const q = busqueda.trim().toLowerCase();
     if (q) base = base.filter(a =>
@@ -496,7 +631,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       a.ensenanzaCurso.toLowerCase().includes(q),
     );
     return base;
-  }, [carga, filtroEnvio, filtroEmail, soloNuevos, esFantasma, enviosPorClave, esNuevo, busqueda]);
+  }, [carga, filtroEnvio, filtroEmail, filtro2Espec, soloNuevos, esFantasma, enviosPorClave, esNuevo, busqueda]);
 
   /** Nuevos (por sustitución) presentes en la carga actual que aún no han recibido email. */
   const nuevosSinEnviar = useMemo(
@@ -679,6 +814,114 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
     [carga, esFantasma, enviosPorClave],
   );
 
+  // ── Informe de cobertura de envíos ──────────────────────────────────────────
+  // Cruza TODAS las matrículas reales (no anuladas, no temporales) contra el
+  // registro de envíos, para detectar quién no ha recibido su horario, incluidos
+  // los matriculados que ni siquiera aparecen en la carga de horarios. El estado
+  // de envío se consulta con la clave del PROPIO horario (nombre|||curso|||esp),
+  // así que las diferencias de formato de "curso" entre Local y Horarios no rompen
+  // el cruce: solo hace falta emparejar por nombre (y especialidad como refuerzo).
+  const reporteCobertura = useMemo((): ReporteCobertura => {
+    const vacio: ReporteCobertura = { total: 0, recibidos: 0, pendientes: 0, sinEmail: 0, noEnCarga: 0, fueraRemesa: 0, lineas: [] };
+    if (!carga) return vacio;
+
+    // Normaliza un nombre de asignatura para comparar Local ↔ Horarios: quita el
+    // sufijo de curso ("Armonía (3º)" → "Armonía") y cualquier número final
+    // ("Lenguaje Musical 2" → "Lenguaje Musical"), y funde acentos/mayúsculas.
+    const normAsig = (s: string): string => {
+      let t = normNombre(s);
+      t = t.replace(/\s*\([^)]*\)\s*$/, "");
+      t = t.replace(/\s+\d+\S*$/, "");
+      return t.trim();
+    };
+
+    // Índice de horarios reales por nombre(+especialidad) para emparejar con Local.
+    // A la vez, recopila las asignaturas que REALMENTE se envían en esta remesa
+    // (las que tienen clase con horario en la carga), para detectar matrículas
+    // cuyas asignaturas no forman parte de este envío.
+    const porNombreEsp = new Map<string, HorarioAlumno>();
+    const porNombre = new Map<string, HorarioAlumno[]>();
+    const asignaturasRemesa = new Set<string>();
+    for (const a of carga.alumnos) {
+      if (esFantasma(a)) continue;
+      const kNombre = normNombre(a.nombre);
+      const kEsp = kNombre + "|||" + normNombre(a.especialidad ?? "");
+      if (!porNombreEsp.has(kEsp)) porNombreEsp.set(kEsp, a);
+      const lista = porNombre.get(kNombre);
+      if (lista) lista.push(a); else porNombre.set(kNombre, [a]);
+      for (const c of a.clases) {
+        const na = normAsig(c.asignatura ?? "");
+        if (na) asignaturasRemesa.add(na);
+      }
+    }
+
+    const lineas: LineaCobertura[] = [];
+    for (const m of localMatriculas) {
+      if (m.esTemporal || m.anulacion) continue;
+      const apellidos = (m.apellidos ?? "").trim();
+      const nombre = (m.nombre ?? "").trim();
+      const display = apellidos && nombre ? `${apellidos}, ${nombre}` : apellidos || nombre;
+      const kNombre = normNombre(display);
+      const especialidad = (m.especialidad ?? "").trim();
+      const kEsp = kNombre + "|||" + normNombre(especialidad);
+
+      // Empareja: primero por nombre+especialidad; si no, por nombre (si es único).
+      let horario = porNombreEsp.get(kEsp);
+      if (!horario) {
+        const candidatos = porNombre.get(kNombre);
+        if (candidatos && candidatos.length === 1) horario = candidatos[0];
+      }
+
+      let estado: EstadoCobertura;
+      let fecha: string | undefined;
+      if (!horario) {
+        // No aparece en la carga. Puede ser un fallo real (errata de nombre, o
+        // matrícula posterior al Excel) O que ninguna de sus asignaturas esté en
+        // esta remesa (entonces es normal que no tenga horario). Distinguimos:
+        const suyas = (m.asignaturas ?? [])
+          .map(a => normAsig(a.nombre ?? ""))
+          .filter(Boolean);
+        const algunaEnRemesa = suyas.some(a => asignaturasRemesa.has(a));
+        // Solo "fuera de remesa" si conocemos sus asignaturas y ninguna se envía
+        // aquí. Sin asignaturas cargadas → "no en carga" (más visible, no se oculta).
+        estado = suyas.length > 0 && !algunaEnRemesa ? "fueraRemesa" : "noEnCarga";
+      } else if (clavesEnviadas.has(horario.clave)) {
+        estado = "recibido";
+        fecha = enviosPorClave.get(horario.clave);
+      } else if ((m.email ?? "").trim() || (horario.email ?? "").trim()) {
+        estado = "pendiente";
+      } else {
+        estado = "sinEmail";
+      }
+
+      lineas.push({
+        localId: m.localId,
+        nombre: display || "—",
+        ensenanzaCurso: (m.ensenanzaCurso ?? "").trim(),
+        especialidad,
+        email: (m.email ?? "").trim(),
+        estado,
+        fecha,
+      });
+    }
+
+    // Orden: primero lo que "falta" (no en carga › pendiente › sin email), luego
+    // los recibidos y, al final, los que quedan fuera de esta remesa (esperado);
+    // dentro de cada grupo, por nombre.
+    const rank: Record<EstadoCobertura, number> = { noEnCarga: 0, pendiente: 1, sinEmail: 2, recibido: 3, fueraRemesa: 4 };
+    lineas.sort((a, b) => (rank[a.estado] - rank[b.estado]) || a.nombre.localeCompare(b.nombre));
+
+    return {
+      total: lineas.length,
+      recibidos: lineas.filter(l => l.estado === "recibido").length,
+      pendientes: lineas.filter(l => l.estado === "pendiente").length,
+      sinEmail: lineas.filter(l => l.estado === "sinEmail").length,
+      noEnCarga: lineas.filter(l => l.estado === "noEnCarga").length,
+      fueraRemesa: lineas.filter(l => l.estado === "fueraRemesa").length,
+      lineas,
+    };
+  }, [carga, localMatriculas, esFantasma, clavesEnviadas, enviosPorClave]);
+
   const campanytaActiva = campanyas.find(c => c.id === campanytaSeleccionada) ?? campanyas[0] ?? null;
 
   // ── Sin datos ──────────────────────────────────────────────────────────────
@@ -846,6 +1089,14 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
               <Filter className="w-3 h-3" />
               Filtros
             </button>
+            <button
+              onClick={() => setShowCoberturaModal(true)}
+              title="Comprobar qué alumnos matriculados han recibido su horario por email"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border transition bg-[var(--tc-bg)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]"
+            >
+              <ClipboardList className="w-3 h-3" />
+              Comprobar cobertura
+            </button>
             {pendientesConEmail.length > 0 && (
               <button
                 onClick={() => setSeleccionados(new Set(pendientesConEmail.map(a => a.clave)))}
@@ -881,6 +1132,19 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
                 }
               >
                 {filtroEmail === "todos" ? "Email: todos" : filtroEmail === "conEmail" ? "Con email" : "Sin email"}
+              </button>
+              <button
+                onClick={() => setFiltro2Espec(v => !v)}
+                title="Solo alumnos con el mismo nombre y dos instrumentos (dos especialidades)"
+                className={
+                  "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border transition " +
+                  (filtro2Espec
+                    ? "bg-violet-100 text-violet-700 border-violet-200"
+                    : "bg-[var(--tc-card)] text-[var(--tc-ink-soft)] border-[var(--tc-border)] hover:text-[var(--tc-ink)]")
+                }
+              >
+                <ListChecks className="w-3 h-3" />
+                {filtro2Espec ? "2Espec: activo" : "2Espec"}
               </button>
             </div>
           )}
@@ -1188,6 +1452,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
               onSelect={setCampanyaSeleccionada}
               onEliminarCampanya={handleEliminarCampanya}
               onEliminarAlumno={handleEliminarAlumnoCampanya}
+              onReenviar={abrirModalEnvio}
             />
           )
         ) : (
@@ -1325,6 +1590,14 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Modal de cobertura de envíos de horarios ──────────────────────── */}
+      {showCoberturaModal && (
+        <ModalCoberturaEnvios
+          reporte={reporteCobertura}
+          onCerrar={() => setShowCoberturaModal(false)}
+        />
       )}
     </div>
   );
@@ -2164,6 +2437,236 @@ function ListadosPanel({
   );
 }
 
+/** Metadatos visuales (etiqueta y colores) de cada estado de cobertura. */
+const ESTADO_COBERTURA_META: Record<EstadoCobertura, { label: string; color: string; bg: string; border: string; desc: string }> = {
+  recibido: {
+    label: "Recibido", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0",
+    desc: "Ya se le ha enviado su horario por correo y el envío fue correcto. Se muestra la fecha del último envío.",
+  },
+  pendiente: {
+    label: "Pendiente", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa",
+    desc: "Tiene horario en esta remesa y email registrado, pero todavía NO se le ha enviado. Está listo para enviárselo.",
+  },
+  sinEmail: {
+    label: "Sin email", color: "#d97706", bg: "#fffbeb", border: "#fde68a",
+    desc: "Tiene horario en esta remesa, pero no tiene email registrado, así que no se le puede enviar. Añade su correo en el módulo Local y vuelve a comprobar.",
+  },
+  noEnCarga: {
+    label: "No en carga", color: "#dc2626", bg: "#fef2f2", border: "#fecaca",
+    desc: "Está matriculado en alguna asignatura de esta remesa, pero NO aparece en los horarios cargados. Suele ser una errata en el nombre (no coincide con el del horario) o una matrícula posterior al Excel. Revisa el nombre o vuelve a cargar los horarios.",
+  },
+  fueraRemesa: {
+    label: "Fuera de remesa", color: "#64748b", bg: "#f8fafc", border: "#e2e8f0",
+    desc: "Solo está matriculado en asignaturas que NO forman parte de esta remesa de horarios, así que es normal que no tenga horario que enviar. No cuenta como pendiente ni como fallo.",
+  },
+};
+
+/**
+ * Modal "Comprobar cobertura": informe que cruza las matrículas reales contra el
+ * registro de envíos y muestra quién ha recibido su horario, quién está pendiente,
+ * quién no tiene email y quién ni siquiera está en la carga de horarios.
+ */
+function ModalCoberturaEnvios({ reporte, onCerrar }: { reporte: ReporteCobertura; onCerrar: () => void }) {
+  const [filtro, setFiltro] = useState<EstadoCobertura | "todos">("todos");
+  const [copiado, setCopiado] = useState(false);
+  // Categoría sobre la que está el cursor: muestra su explicación bajo las tarjetas.
+  const [hoverEstado, setHoverEstado] = useState<EstadoCobertura | null>(null);
+
+  const faltan = reporte.pendientes + reporte.sinEmail + reporte.noEnCarga;
+  // Alumnos que SÍ deberían recibir horario en esta remesa (excluye los que no
+  // cursan ninguna asignatura de este envío).
+  const esperados = reporte.total - reporte.fueraRemesa;
+  const lineas = filtro === "todos" ? reporte.lineas : reporte.lineas.filter(l => l.estado === filtro);
+
+  const fmtFecha = (iso?: string) =>
+    iso ? new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" }) : "";
+
+  function copiarInforme() {
+    const l: string[] = [];
+    l.push("INFORME DE COBERTURA DE HORARIOS");
+    l.push(`Matriculados: ${reporte.total} · Recibidos: ${reporte.recibidos} · Pendientes: ${reporte.pendientes} · Sin email: ${reporte.sinEmail} · No en carga: ${reporte.noEnCarga} · Fuera de remesa: ${reporte.fueraRemesa}`);
+    const secc = (est: EstadoCobertura, titulo: string) => {
+      const items = reporte.lineas.filter(x => x.estado === est);
+      if (!items.length) return;
+      l.push("", `${titulo} (${items.length}):`);
+      items.forEach(x => l.push(`  - ${x.nombre} · ${buildCursoLabel(x.ensenanzaCurso, x.especialidad)}${x.fecha ? " · enviado " + fmtFecha(x.fecha) : ""}`));
+    };
+    secc("noEnCarga", "NO ESTÁN EN LA CARGA DE HORARIOS");
+    secc("pendiente", "PENDIENTES DE ENVIAR");
+    secc("sinEmail", "SIN EMAIL (imposible enviar)");
+    secc("recibido", "RECIBIDOS");
+    secc("fueraRemesa", "FUERA DE ESTA REMESA (sus asignaturas no se envían aquí)");
+    navigator.clipboard.writeText(l.join("\n")).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    }).catch(() => {});
+  }
+
+  const stats: { estado: EstadoCobertura; n: number }[] = [
+    { estado: "recibido", n: reporte.recibidos },
+    { estado: "pendiente", n: reporte.pendientes },
+    { estado: "sinEmail", n: reporte.sinEmail },
+    { estado: "noEnCarga", n: reporte.noEnCarga },
+    { estado: "fueraRemesa", n: reporte.fueraRemesa },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+      style={{ background: "rgba(45,36,29,.5)", backdropFilter: "blur(3px)" }}
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col"
+        style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", boxShadow: "0 16px 48px -12px rgba(45,36,29,.35)", maxHeight: "88vh" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Cabecera */}
+        <div className="px-6 py-5 flex items-center gap-4" style={{ borderBottom: "1px solid var(--tc-border-soft)" }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style={{ background: faltan === 0 ? "#05966915" : "#dc262615", color: faltan === 0 ? "#059669" : "#dc2626" }}>
+            <ClipboardList className="w-7 h-7" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold" style={{ color: faltan === 0 ? "#059669" : "var(--tc-ink)" }}>{reporte.recibidos}</span>
+              <span className="text-sm" style={{ color: "var(--tc-ink-soft)" }}>de {esperados} con horario en esta remesa han recibido su correo</span>
+            </div>
+            <p className="text-[12px] mt-0.5" style={{ color: "var(--tc-ink-mute)" }}>
+              {reporte.total} matrículas reales (no anuladas){reporte.fueraRemesa > 0 && `, de las que ${reporte.fueraRemesa} no cursan asignaturas de esta remesa`}. Los alumnos con dos instrumentos aparecen una vez por instrumento.
+            </p>
+          </div>
+          <button onClick={onCerrar} className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] shrink-0" title="Cerrar">
+            <X className="w-4 h-4" style={{ color: "var(--tc-ink-mute)" }} />
+          </button>
+        </div>
+
+        {/* Banda de estado */}
+        <div className="px-6 py-2.5 text-[12px] font-semibold" style={{ background: faltan === 0 ? "#05966912" : "#dc262612", color: faltan === 0 ? "#059669" : "#dc2626" }}>
+          {faltan === 0
+            ? "✓ Todos los alumnos con horario en esta remesa han recibido su correo."
+            : `⚠ Faltan ${faltan} por recibir su horario: revisa Pendientes, Sin email y No en carga.`}
+        </div>
+
+        {/* Recuento por categorías (también filtran la lista) */}
+        <div className="px-6 py-3 grid grid-cols-5 gap-2" style={{ borderBottom: "1px solid var(--tc-border-soft)" }}>
+          {stats.map(({ estado, n }) => {
+            const meta = ESTADO_COBERTURA_META[estado];
+            const activo = filtro === estado;
+            return (
+              <button
+                key={estado}
+                onClick={() => setFiltro(activo ? "todos" : estado)}
+                onMouseEnter={() => setHoverEstado(estado)}
+                onMouseLeave={() => setHoverEstado(h => (h === estado ? null : h))}
+                title={meta.desc}
+                className="rounded-xl px-3 py-2 text-center transition"
+                style={{
+                  background: activo ? meta.bg : "var(--tc-bg-panel)",
+                  border: "1px solid " + (activo ? meta.border : "var(--tc-border)"),
+                }}
+              >
+                <div className="text-xl font-bold" style={{ color: n === 0 && estado !== "recibido" ? "#059669" : meta.color }}>{n}</div>
+                <div className="text-[10.5px] font-medium uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{meta.label}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Barra explicativa: se actualiza al pasar el cursor por una tarjeta */}
+        {(() => {
+          const est = hoverEstado ?? (filtro !== "todos" ? filtro : null);
+          const meta = est ? ESTADO_COBERTURA_META[est] : null;
+          return (
+            <div
+              className="px-6 py-2.5 flex items-start gap-2 text-[12px] leading-snug"
+              style={{ background: meta ? meta.bg : "var(--tc-bg-panel)", borderBottom: "1px solid var(--tc-border-soft)", minHeight: 44 }}
+            >
+              {meta ? (
+                <>
+                  <span className="mt-0.5 shrink-0 w-2 h-2 rounded-full" style={{ background: meta.color }} />
+                  <span style={{ color: "var(--tc-ink-soft)" }}>
+                    <b style={{ color: meta.color }}>{meta.label}:</b> {meta.desc}
+                  </span>
+                </>
+              ) : (
+                <span style={{ color: "var(--tc-ink-mute)" }}>
+                  Pasa el cursor por una categoría para ver qué significa cada situación.
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Listado */}
+        <div className="px-6 py-3 overflow-y-auto flex-1">
+          {filtro !== "todos" && (
+            <button onClick={() => setFiltro("todos")} className="mb-2 text-[11px] font-medium text-[var(--tc-primary)] hover:underline">
+              ← Ver todos ({reporte.total})
+            </button>
+          )}
+          {lineas.length === 0 ? (
+            <p className="text-sm text-center py-6" style={{ color: "var(--tc-ink-mute)" }}>Sin alumnos en esta categoría.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {lineas.map((l) => {
+                const meta = ESTADO_COBERTURA_META[l.estado];
+                return (
+                  <div
+                    key={l.localId + "|" + l.especialidad}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                    style={{ background: "var(--tc-bg-panel)", border: "1px solid var(--tc-border)" }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-medium truncate" style={{ color: "var(--tc-ink)" }}>{l.nombre}</div>
+                      <div className="text-[10.5px] truncate" style={{ color: "var(--tc-ink-mute)" }}>
+                        {buildCursoLabel(l.ensenanzaCurso, l.especialidad) || "—"}
+                        {l.estado === "recibido" && l.fecha && ` · ${fmtFecha(l.fecha)}`}
+                      </div>
+                    </div>
+                    <span
+                      className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                      style={{ background: meta.bg, color: meta.color, borderColor: meta.border }}
+                    >
+                      {meta.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {filtro === "fueraRemesa" && reporte.fueraRemesa > 0 && (
+            <p className="text-[11px] leading-snug mt-2" style={{ color: "var(--tc-ink-mute)" }}>
+              Estos alumnos están matriculados solo en asignaturas que <b>no forman parte de esta remesa</b> de
+              horarios, así que es normal que no tengan horario que enviar. No se cuentan como pendientes.
+            </p>
+          )}
+        </div>
+
+        {/* Pie */}
+        <div className="px-6 py-3 flex items-center justify-between gap-2" style={{ borderTop: "1px solid var(--tc-border-soft)" }}>
+          <button
+            type="button"
+            onClick={copiarInforme}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border text-sm font-medium"
+            style={{ borderColor: "var(--tc-border)", color: "var(--tc-ink-soft)" }}
+          >
+            <Copy className="w-3.5 h-3.5" />
+            {copiado ? "Copiado" : "Copiar informe"}
+          </button>
+          <button
+            type="button"
+            onClick={onCerrar}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+            style={{ background: "var(--tc-primary)" }}
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Resumen de una fila de datos para los listados del chequeo. */
 function filaChequeoResumen(f: FilaChequeo): string {
   const horario = [f.dia1, [f.ent1, f.sal1].filter(Boolean).join("–")].filter(Boolean).join(" ");
@@ -2617,14 +3120,24 @@ function ModalConfigDocGrupal({
 }
 
 function HistorialPanel({
-  campanyas, activa, onSelect, onEliminarCampanya, onEliminarAlumno,
+  campanyas, activa, onSelect, onEliminarCampanya, onEliminarAlumno, onReenviar,
 }: {
   campanyas: CampanyaEnvio[];
   activa: CampanyaEnvio | null;
   onSelect: (id: string) => void;
   onEliminarCampanya: (id: string) => void;
   onEliminarAlumno: (campanyaId: string, clave: string) => void;
+  /**
+   * Reenvía el correo a los alumnos indicados (por clave). Solo disponible cuando
+   * hay un Excel cargado, ya que el reenvío necesita reconstruir cada horario.
+   */
+  onReenviar?: (claves: string[]) => void;
 }) {
+  // Filtro del detalle: todos / solo enviados (ok) / solo fallidos (error).
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'ok' | 'error'>('todos');
+  // Al cambiar de campaña, se vuelve a mostrar el listado completo.
+  useEffect(() => { setFiltroEstado('todos'); }, [activa?.id]);
+
   if (campanyas.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center flex-col gap-3 text-[var(--tc-ink-mute)]">
@@ -2636,6 +3149,11 @@ function HistorialPanel({
 
   const ok = activa?.alumnos.filter(r => r.estado === 'ok').length ?? 0;
   const fail = activa?.alumnos.filter(r => r.estado === 'error').length ?? 0;
+  const clavesFallidos = activa?.alumnos.filter(r => r.estado === 'error').map(r => r.clave) ?? [];
+  // Listado ya filtrado según el chip activo (enviados / fallidos / todos).
+  const alumnosFiltrados = activa
+    ? (filtroEstado === 'todos' ? activa.alumnos : activa.alumnos.filter(r => r.estado === filtroEstado))
+    : [];
 
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -2700,22 +3218,67 @@ function HistorialPanel({
             {activa.descripcion && (
               <p className="text-sm text-[var(--tc-ink-soft)] mb-3">{activa.descripcion}</p>
             )}
-            <div className="flex items-center gap-4 mb-5 text-sm">
-              <span className="text-[var(--tc-ink-mute)] flex items-center gap-1.5">
+            <div className="flex items-center flex-wrap gap-2 mb-5 text-sm">
+              <span className="text-[var(--tc-ink-mute)] flex items-center gap-1.5 mr-2">
                 <Clock className="w-4 h-4" />
                 {new Date(activa.fecha).toLocaleString("es-ES")}
               </span>
-              <span className="text-emerald-600 font-medium flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setFiltroEstado(f => f === 'ok' ? 'todos' : 'ok')}
+                title={filtroEstado === 'ok' ? "Quitar filtro" : "Ver solo los enviados correctamente"}
+                className={
+                  "font-medium flex items-center gap-1 px-2 py-1 rounded-lg border transition " +
+                  (filtroEstado === 'ok'
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : "border-transparent text-emerald-600 hover:bg-emerald-50")
+                }
+              >
                 <CheckCircle2 className="w-4 h-4" /> {ok} enviados
-              </span>
+              </button>
               {fail > 0 && (
-                <span className="text-red-500 font-medium flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setFiltroEstado(f => f === 'error' ? 'todos' : 'error')}
+                  title={filtroEstado === 'error' ? "Quitar filtro" : "Ver solo los fallidos"}
+                  className={
+                    "font-medium flex items-center gap-1 px-2 py-1 rounded-lg border transition " +
+                    (filtroEstado === 'error'
+                      ? "border-red-300 bg-red-50 text-red-600"
+                      : "border-transparent text-red-500 hover:bg-red-50")
+                  }
+                >
                   <XCircle className="w-4 h-4" /> {fail} fallidos
-                </span>
+                </button>
+              )}
+              {fail > 0 && onReenviar && (
+                <button
+                  type="button"
+                  onClick={() => onReenviar(clavesFallidos)}
+                  title="Volver a enviar el correo a todos los alumnos fallidos"
+                  className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--tc-primary)] text-[var(--tc-primary)] text-xs font-medium hover:bg-[var(--tc-primary-tint)] transition"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reenviar {fail} fallido{fail !== 1 ? "s" : ""}
+                </button>
               )}
             </div>
+            {activa.config && <ConfigRemesaCard config={activa.config} />}
+            {filtroEstado !== 'todos' && (
+              <div className="mb-2 flex items-center gap-2 text-xs text-[var(--tc-ink-mute)]">
+                <Filter className="w-3.5 h-3.5" />
+                Mostrando solo {filtroEstado === 'ok' ? 'enviados' : 'fallidos'} ({alumnosFiltrados.length})
+                <button
+                  type="button"
+                  onClick={() => setFiltroEstado('todos')}
+                  className="underline hover:text-[var(--tc-ink)] transition"
+                >
+                  Ver todos
+                </button>
+              </div>
+            )}
             <div className="space-y-1.5">
-              {activa.alumnos.map(r => (
+              {alumnosFiltrados.map(r => (
                 <div
                   key={r.clave}
                   className={
@@ -2733,6 +3296,16 @@ function HistorialPanel({
                     <div className="text-xs text-[var(--tc-ink-mute)]">{r.email}</div>
                     {r.error && <div className="text-xs text-red-500 mt-0.5">{r.error}</div>}
                   </div>
+                  {r.estado === 'error' && onReenviar && (
+                    <button
+                      onClick={() => onReenviar([r.clave])}
+                      title="Volver a enviar el correo a este alumno"
+                      className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reenviar
+                    </button>
+                  )}
                   <button
                     onClick={() => onEliminarAlumno(activa.id, r.clave)}
                     title="Eliminar este envío del historial"
@@ -2750,6 +3323,94 @@ function HistorialPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Tarjeta plegable que muestra la configuración con la que se lanzó la remesa
+ * (mensaje, formato, asignaturas informadas y adjuntos), guardada en el historial.
+ */
+function ConfigRemesaCard({ config }: { config: ConfigEnvioCampanya }) {
+  const [abierto, setAbierto] = useState(false);
+
+  const adjuntos: string[] = [];
+  if (config.adjuntoPdf) adjuntos.push("PDF del horario");
+  if (config.adjuntoHtml) adjuntos.push("HTML interactivo");
+  if (config.adjuntoFormulario) adjuntos.push("Solicitud de cambio de grupo");
+  if (config.adjuntoGrupal) adjuntos.push("Listado de grupos (PDF)");
+  if (config.adjuntoListado) adjuntos.push("Listado de alumnado (HTML)");
+  if (config.adjuntoPersonalizado) adjuntos.push(config.adjuntoPersonalizado);
+
+  const formatoLabel = config.formato === "clasico" ? "Clásico" : "Notas adhesivas";
+  const mensajeVacio = !config.mensaje || config.mensaje.replace(/<[^>]*>/g, "").trim() === "";
+
+  return (
+    <div className="mb-4 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg-panel)] overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setAbierto(v => !v)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-[var(--tc-bg)] transition"
+      >
+        <Settings2 className="w-4 h-4 text-[var(--tc-ink-mute)] shrink-0" />
+        <span className="text-sm font-medium text-[var(--tc-ink)]">Configuración de la remesa</span>
+        <span className="text-xs text-[var(--tc-ink-mute)] ml-1">
+          {formatoLabel} · {adjuntos.length} adjunto{adjuntos.length !== 1 ? "s" : ""}
+        </span>
+        <span className="ml-auto text-[var(--tc-ink-mute)] text-xs">{abierto ? "Ocultar" : "Ver"}</span>
+      </button>
+      {abierto && (
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-[var(--tc-border)]">
+          <div>
+            <p className="text-[11px] font-semibold text-[var(--tc-ink-soft)] uppercase tracking-wide mb-1">Formato del horario</p>
+            <p className="text-sm text-[var(--tc-ink)]">{formatoLabel}</p>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold text-[var(--tc-ink-soft)] uppercase tracking-wide mb-1">Asignaturas informadas</p>
+            {config.todasAsignaturas ? (
+              <p className="text-sm text-[var(--tc-ink)]">Todas las asignaturas</p>
+            ) : config.asignaturas.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {config.asignaturas.map(a => (
+                  <span key={a} className="text-xs px-2 py-0.5 rounded-md bg-[var(--tc-bg)] border border-[var(--tc-border)] text-[var(--tc-ink-soft)]">{a}</span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--tc-ink-mute)]">—</p>
+            )}
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold text-[var(--tc-ink-soft)] uppercase tracking-wide mb-1">Documentos adjuntos</p>
+            {adjuntos.length > 0 ? (
+              <ul className="space-y-1">
+                {adjuntos.map(a => (
+                  <li key={a} className="flex items-center gap-1.5 text-sm text-[var(--tc-ink)]">
+                    <FileText className="w-3.5 h-3.5 text-[var(--tc-ink-mute)] shrink-0" />
+                    {a}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-[var(--tc-ink-mute)]">Sin adjuntos (solo el cuerpo del correo)</p>
+            )}
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold text-[var(--tc-ink-soft)] uppercase tracking-wide mb-1">Mensaje del correo</p>
+            {mensajeVacio ? (
+              <p className="text-sm text-[var(--tc-ink-mute)] italic">Sin mensaje personalizado</p>
+            ) : (
+              <div
+                className="text-sm text-[var(--tc-ink)] rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-2 leading-relaxed"
+                style={{ wordBreak: "break-word" }}
+                dangerouslySetInnerHTML={{ __html: config.mensaje }}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

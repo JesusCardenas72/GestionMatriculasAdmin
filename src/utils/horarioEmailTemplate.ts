@@ -1,5 +1,6 @@
 import type { HorarioAlumno } from '../horarios/types';
 import { buildCursoLabel } from '../horarios/types';
+import { esAsignaturaTutoraInstrumento } from './horarioExcel';
 
 function esc(s: string): string {
   return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -22,7 +23,7 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
   });
 
   const claseInstrumento = alumno.clases.find(c =>
-    c.asignatura.toLowerCase().includes('instrumento')
+    esAsignaturaTutoraInstrumento(c.asignatura),
   );
   const tutor = alumno.profesorInstrumento?.trim() || claseInstrumento?.profesor?.trim() ||
     'No disponible. Será asignado por la Delegación de Educación';

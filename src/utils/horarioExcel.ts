@@ -12,6 +12,16 @@ export function norm(s: string): string {
     .replace(/\s+/g, ' ');
 }
 
+/**
+ * Indica si una asignatura es la de «Instrumento» que determina el Tutor/a.
+ * «Instrumento Complementario» NUNCA define el tutor, aunque contenga la palabra
+ * «instrumento», por lo que se excluye explícitamente.
+ */
+export function esAsignaturaTutoraInstrumento(asignatura: string): boolean {
+  const asig = (asignatura ?? '').toLowerCase();
+  return asig.includes('instrumento') && !asig.includes('complementari');
+}
+
 /** Texto plano de una celda de ExcelJS (soporta string, número, fórmula, fecha, richText). */
 export function cellText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return '';
@@ -198,7 +208,7 @@ export async function parseHorariosExcel(
 
     // El profesor de Instrumento se guarda aparte aunque esta fila todavía no
     // tenga día/hora (así el email puede mostrar el Tutor/a igualmente).
-    if (asignatura.toLowerCase().includes('instrumento') && !alumno.profesorInstrumento) {
+    if (esAsignaturaTutoraInstrumento(asignatura) && !alumno.profesorInstrumento) {
       alumno.profesorInstrumento = profesor;
     }
 

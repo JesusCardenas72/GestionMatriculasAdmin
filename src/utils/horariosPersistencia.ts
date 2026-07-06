@@ -1,6 +1,6 @@
 import type { FilaInforme } from "../api/types";
 import type { MatriculaLocal } from "../api/types";
-import { norm } from "./horarioExcel";
+import { norm, esAsignaturaTutoraInstrumento } from "./horarioExcel";
 import { idCompuesto as calcIdCompuesto } from "./asigId";
 import type { CargaHorarios, ClaseHorario, HorarioAlumno } from "../horarios/types";
 import {
@@ -252,7 +252,7 @@ export function buscarProfesorInstrumento(
       norm(e.nombreCompleto) === nNombre &&
       norm(e.ensenanzaCurso) === nCurso &&
       norm(e.especialidad) === nEsp &&
-      e.asignatura.toLowerCase().includes("instrumento") &&
+      esAsignaturaTutoraInstrumento(e.asignatura) &&
       (e.h.h_prof ?? "").trim() !== "",
   );
   return entry ? entry.h.h_prof!.trim() : null;
@@ -296,7 +296,7 @@ export function construirCargaDesdeStore(data: HorariosCursoData): CargaHorarios
 
     // El profesor de Instrumento se guarda aparte aunque esta entrada todavía
     // no tenga día/hora (así el email puede mostrar el Tutor/a igualmente).
-    if (asignatura.toLowerCase().includes("instrumento") && !alumno.profesorInstrumento) {
+    if (esAsignaturaTutoraInstrumento(asignatura) && !alumno.profesorInstrumento) {
       alumno.profesorInstrumento = profesor;
     }
 

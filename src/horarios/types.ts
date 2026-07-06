@@ -81,6 +81,33 @@ export interface ResultadoEnvio {
   error?: string;
 }
 
+/**
+ * Configuración con la que se lanzó una remesa de envío: se guarda en el
+ * historial para dejar constancia exacta de QUÉ se envió (mensaje, formato,
+ * asignaturas informadas y adjuntos), además de a quién.
+ *
+ * No se guardan los binarios de los adjuntos (solo su nombre / si se marcaron),
+ * para no inflar el almacén del historial.
+ */
+export interface ConfigEnvioCampanya {
+  /** Mensaje enriquecido (HTML) que se incluyó en el cuerpo del correo. */
+  mensaje: string;
+  /** Formato del horario elegido ('notas' | 'clasico'). */
+  formato: FormatoHorario;
+  /** Asignaturas informadas. Vacío = se informaron todas las disponibles. */
+  asignaturas: string[];
+  /** true si se informaron TODAS las asignaturas disponibles. */
+  todasAsignaturas: boolean;
+  /** Adjuntos marcados en la ventana de envío. */
+  adjuntoPdf: boolean;
+  adjuntoHtml: boolean;
+  adjuntoFormulario: boolean;
+  adjuntoGrupal: boolean;
+  adjuntoListado: boolean;
+  /** Nombre del documento personalizado adjuntado (si lo hubo). */
+  adjuntoPersonalizado?: string;
+}
+
 /** Campaña de envío de horarios: un lote enviado con nombre y descripción. */
 export interface CampanyaEnvio {
   id: string;
@@ -88,4 +115,9 @@ export interface CampanyaEnvio {
   descripcion: string;
   fecha: string; // ISO
   alumnos: ResultadoEnvio[];
+  /**
+   * Configuración con la que se lanzó la remesa. Opcional: las campañas
+   * guardadas antes de esta versión no la tienen.
+   */
+  config?: ConfigEnvioCampanya;
 }

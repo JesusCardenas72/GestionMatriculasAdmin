@@ -396,6 +396,8 @@ export default function LocalList({
   const [filterRepetidor, setFilterRepetidor] = useState<RepetidorFilter>("all");
   const [filterFantasma, setFilterFantasma] = useState<FantasmaFilter>("no");
   const [filterSustitucion, setFilterSustitucion] = useState<SustitucionFilter>("all");
+  // 2Espec: solo alumnos con el mismo nombre y dos instrumentos (dos especialidades).
+  const [filter2Espec, setFilter2Espec] = useState(false);
   const [sort, setSort] = useState<{ field: SortField | null; dir: SortDir }>({
     field: null,
     dir: "desc",
@@ -494,6 +496,24 @@ export default function LocalList({
     return set;
   }, [data]);
 
+  // Nombres (apellidos + nombre) que aparecen con exactamente dos instrumentos
+  // (especialidades) distintos entre el alumnado real (no temporal).
+  const nombresDosEspec = useMemo(() => {
+    const especPorNombre = new Map<string, Set<string>>();
+    for (const m of data) {
+      if (m.esTemporal) continue;
+      const esp = (m.especialidad ?? "").trim();
+      if (!esp) continue;
+      const k = `${m.apellidos ?? ""} ${m.nombre ?? ""}`.trim().toLowerCase();
+      let set = especPorNombre.get(k);
+      if (!set) { set = new Set(); especPorNombre.set(k, set); }
+      set.add(esp);
+    }
+    return new Set(
+      [...especPorNombre].filter(([, esps]) => esps.size === 2).map(([k]) => k),
+    );
+  }, [data]);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const result = data.filter((m) => {
@@ -509,6 +529,8 @@ export default function LocalList({
         const est = nuevoEstadoPorId.get(m.localId) ?? null;
         if (est !== filterSustitucion) return false;
       }
+      if (filter2Espec && !nombresDosEspec.has(`${m.apellidos ?? ""} ${m.nombre ?? ""}`.trim().toLowerCase()))
+        return false;
       if (needle && !`${m.nombre} ${m.apellidos} ${m.dni}`.toLowerCase().includes(needle))
         return false;
       return true;
@@ -532,7 +554,7 @@ export default function LocalList({
           return sign * ((a.nOrden ?? Infinity) - (b.nOrden ?? Infinity));
       }
     });
-  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, filterSustitucion, nuevoEstadoPorId, discrepanciaPorId, sort]);
+  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, filterSustitucion, filter2Espec, nombresDosEspec, nuevoEstadoPorId, discrepanciaPorId, sort]);
 
   const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
@@ -797,6 +819,18 @@ export default function LocalList({
             {filterSustitucion === "sustituido" && "Sustituidos"}
             {filterSustitucion === "sinEstado" && "Sin Estado"}
             {filterSustitucion === "discrepancia" && "Discrepancia"}
+          </button>
+          <button
+            onClick={() => setFilter2Espec((v) => !v)}
+            title="Solo alumnos con el mismo nombre y dos instrumentos (dos especialidades)"
+            className={
+              "flex items-center gap-0.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
+              (filter2Espec
+                ? "bg-[var(--tc-card)] shadow-sm text-[var(--tc-primary)]"
+                : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            2Espec
           </button>
         </div>
 

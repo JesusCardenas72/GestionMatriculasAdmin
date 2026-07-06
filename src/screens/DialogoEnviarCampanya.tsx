@@ -260,12 +260,25 @@ export function DialogoEnviarCampanya() {
       }
     }
 
+    const todasAsignaturas = asignaturasSeleccionadas.size >= asignaturasDisponibles.length;
     const campanya: CampanyaEnvio = {
       id: crypto.randomUUID(),
       nombre: nombreCampanya.trim(),
       descripcion: descripcionCampanya.trim(),
       fecha: new Date().toISOString(),
       alumnos: resultados,
+      config: {
+        mensaje: mensajeCampanya,
+        formato,
+        asignaturas: [...asignaturasSeleccionadas].sort(),
+        todasAsignaturas,
+        adjuntoPdf,
+        adjuntoHtml,
+        adjuntoFormulario,
+        adjuntoGrupal,
+        adjuntoListado,
+        adjuntoPersonalizado: adjuntoPersonalizado?.nombre,
+      },
     };
     await window.adminAPI.horarios.campanyas.guardar(campanya);
     await window.adminAPI.dialogoEnviarCampanya.notificarGuardada();
