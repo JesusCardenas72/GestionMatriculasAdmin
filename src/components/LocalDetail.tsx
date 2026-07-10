@@ -411,7 +411,17 @@ export default function LocalDetail({
     const asignaturas: AsignaturaLocal[] = newItems
       .filter((i) => !i._deleted)
       .map(({ _deleted: _d, ...rest }) => rest);
-    onSave({ asignaturas, _pendienteSubida: true, _modificadoEn: now });
+    // Acumular los rowId de asignaturas que ya existían en Dataverse y se han
+    // eliminado, para borrarlas también en la nube al subir. Las nuevas locales
+    // (rowId null) desaparecen sin más. Se acumula sobre lo ya registrado para no
+    // perder eliminaciones previas al reabrir la ficha.
+    const eliminadasRowIds = newItems
+      .filter((i) => i._deleted && i.rowId)
+      .map((i) => i.rowId as string);
+    const _asignaturasEliminadas = [
+      ...new Set([...(m._asignaturasEliminadas ?? []), ...eliminadasRowIds]),
+    ];
+    onSave({ asignaturas, _asignaturasEliminadas, _pendienteSubida: true, _modificadoEn: now });
   }
 
   function cambiarEstadoAsig(localId: string, nuevoEstado: EstadoAsignatura) {

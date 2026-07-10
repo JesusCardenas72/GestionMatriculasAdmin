@@ -164,6 +164,8 @@ export interface SubirMatriculaInput {
   repetidor: boolean;
   asignaturasActualizadas: { rowId: string; estado: EstadoAsignatura; observaciones: string }[];
   asignaturasNuevas: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
+  /** rowId (cr955_matriculaasignaturaid) de las asignaturas eliminadas localmente que hay que borrar en Dataverse. */
+  asignaturasEliminadas: string[];
 }
 
 export interface CrearAmpliacionInput {
@@ -347,6 +349,12 @@ export interface MatriculaLocal {
   repetidor: boolean;
 
   asignaturas: AsignaturaLocal[];
+  /**
+   * rowId (cr955_matriculaasignaturaid) de las asignaturas que existían en Dataverse
+   * y se han eliminado en local aún sin subir. Al subir a la nube se envían para
+   * borrarlas también allí; se limpia tras una subida exitosa.
+   */
+  _asignaturasEliminadas?: string[];
 
   anulacion: boolean;
   ampliacion: boolean;

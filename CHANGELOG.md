@@ -9,6 +9,19 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.8.1] - 2026-07-10
+
+### Añadido
+
+- **Eliminación de asignaturas mal matriculadas (Local)**: cuando se borra una asignatura en la ficha de una matrícula local, el `rowId` se registra en `_asignaturasEliminadas` para ser propagado a Dataverse al *Subir a la nube*. El Flow **AdminSubirMatriculaEditada** ahora recibe la lista y ejecuta un bucle de eliminación en `cr955_matriculaasignaturas`, garantizando que las asignaturas borradas localmente también desaparecen de la nube.
+
+### Cambiado
+
+- **Tipo `SubirMatriculaInput`**: ampliado con nuevo campo `asignaturasEliminadas: string[]` para transmitir los `rowId` de asignaturas que ya no deben estar en Dataverse.
+- **Tipo `MatriculaLocal`**: nueva propiedad interna `_asignaturasEliminadas?: string[]` que persiste entre sesiones el registro de eliminaciones pendientes de subida.
+
+---
+
 ## [1.7.0] - 2026-07-06
 
 ### Añadido

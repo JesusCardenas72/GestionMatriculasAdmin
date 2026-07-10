@@ -706,8 +706,10 @@ export default function LocalScreen({ config }: Props) {
             asignaturasNuevas: selected.asignaturas
               .filter((a) => a.rowId === null)
               .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
+            asignaturasEliminadas: selected._asignaturasEliminadas ?? [],
           });
           await marcarSubida(selected.localId);
+          await actualizar(selected.localId, { _asignaturasEliminadas: [] });
         }
       } catch (e) {
         setSubirError(e instanceof Error ? e.message : "Error al subir los datos");
@@ -828,8 +830,9 @@ export default function LocalScreen({ config }: Props) {
           asignaturasNuevas: m.asignaturas
             .filter((a) => a.rowId === null)
             .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
+          asignaturasEliminadas: m._asignaturasEliminadas ?? [],
         });
-        await actualizar(m.localId, { _pendienteSubida: false, _fueEditado: true });
+        await actualizar(m.localId, { _pendienteSubida: false, _fueEditado: true, _asignaturasEliminadas: [] });
       } else {
         const result = await crearAmpliacion(config, {
           nombre: m.nombre,
