@@ -183,7 +183,21 @@ export async function generarExcelHorarios(
 
   // Columna ID: primera columna, bloqueada, oculta. Identificador único fila/asignatura.
   const colId: ColDef = { header: 'ID', key: 'id_compuesto', width: 12, editable: false };
-  const COLS: ColDef[] = [colId, ...colsIzq, ...colsMid, ...colsDer];
+
+  // Columnas auxiliares OCULTAS para la alarma de «choque de horario por alumno».
+  //   k_alu → clave del alumno (compartida por todas sus filas/asignaturas).
+  //   k_e1/k_s1/k_e2/k_s2 → horas de entrada/salida de cada tramo convertidas a
+  //   número (fracción de día) por fórmula, para poder detectar solapes.
+  // Van al final del todo; el usuario nunca las ve (se ocultan más abajo).
+  const AUX_KEYS = ['k_alu', 'k_e1', 'k_s1', 'k_e2', 'k_s2'] as const;
+  const colsAux: ColDef[] = AUX_KEYS.map(key => ({
+    header: key,
+    key,
+    width: 10,
+    editable: false,
+  }));
+
+  const COLS: ColDef[] = [colId, ...colsIzq, ...colsMid, ...colsDer, ...colsAux];
 
   // ── Hoja principal "Horarios" ───────────────────────────────────────────
   // Congelar la cabecera (ySplit: 1) y, si se ha pedido, las columnas fijas de
@@ -220,7 +234,10 @@ export async function generarExcelHorarios(
       'En cuanto pongas tu nombre, son OBLIGATORIAS: Aula, Día 1, Entrada 1 y Salida 1.',
     h_grupo: 'Opcional.',
     h_aula: 'OBLIGATORIA cuando hay Profesor en la fila.',
-    h_dia1: 'OBLIGATORIA cuando hay Profesor en la fila.',
+    h_dia1:
+      'OBLIGATORIA cuando hay Profesor en la fila.\n' +
+      'AVISO: si una celda se pone en AMARILLO con texto ROJO, este alumno tiene ' +
+      'otra clase que se solapa con esta en el mismo día y hora.',
     h_ent1: 'OBLIGATORIA cuando hay Profesor en la fila. Debe ser anterior a la Salida 1.',
     h_sal1: 'OBLIGATORIA cuando hay Profesor en la fila. Debe ser posterior a la Entrada 1.',
     h_dia2: 'Opcional: solo si la clase tiene un segundo día.',
@@ -242,12 +259,25 @@ export async function generarExcelHorarios(
 
   // Columna ID oculta (primera columna): la columna se oculta a nivel de hoja.
   ws.getColumn('id_compuesto').hidden = true;
+  // Columnas auxiliares (clave de alumno y horas numéricas): también ocultas.
+  AUX_KEYS.forEach(k => { ws.getColumn(k).hidden = true; });
+
+  // Clave que identifica al ALUMNO (compartida por todas sus filas/asignaturas).
+  // Se usa nOrden como principal; el resto son respaldos por si faltara.
+  const claveAlumnoDe = (f: FilaInforme): string =>
+    String(f.nOrden ?? '').trim() ||
+    (f.nombreCompleto ?? '').trim() ||
+    (f.dni ?? '').trim() ||
+    f.idAlumnoAsignatura ||
+    calcIdCompuesto(f.nOrden, f.asigNombre ?? '');
 
   // Filas de datos (con los valores de horario heredados, si los hay)
   filas.forEach((f, idx) => {
     const row: Record<string, string> = {};
     // ID compuesto: identifica de forma única la fila matrícula × asignatura.
     row['id_compuesto'] = f.idAlumnoAsignatura ?? calcIdCompuesto(f.nOrden, f.asigNombre ?? '');
+    // Clave de alumno (para la alarma de choque de horario).
+    row['k_alu'] = claveAlumnoDe(f);
     colsDatos.forEach((c) => {
       if (c.campo) row[c.key] = formatValor(f, c.campo);
     });
@@ -282,6 +312,22 @@ export async function generarExcelHorarios(
         };
         salCell.numFmt = '@';
       }
+    }
+  }
+
+  // ── Horas de cada tramo en NÚMERO (columnas auxiliares ocultas) ──────────
+  // Convierten el texto "H:MM" de las celdas de horario a fracción de día para
+  // poder comparar solapes en el formato condicional (0 si la celda está vacía).
+  // Se recalculan solas cuando el profesor cambia una hora.
+  const numDe = (textoKey: string, r: number) =>
+    `IF(${L(textoKey)}${r}<>"",TIMEVALUE(${L(textoKey)}${r}),0)`;
+  const auxNum: [string, string][] = [
+    ['k_e1', 'h_ent1'], ['k_s1', 'h_sal1'],
+    ['k_e2', 'h_ent2'], ['k_s2', 'h_sal2'],
+  ];
+  for (let r = 2; r <= lastRow; r++) {
+    for (const [auxKey, textoKey] of auxNum) {
+      ws.getCell(r, colIdx[auxKey]).value = { formula: numDe(textoKey, r) };
     }
   }
 
@@ -379,6 +425,59 @@ export async function generarExcelHorarios(
     }],
   });
 
+  // 4) CHOQUE DE HORARIO DEL MISMO ALUMNO → alarma (amarillo flúor + texto rojo
+  //    en negrita). Salta cuando a un alumno se le solapan dos clases en el
+  //    mismo día (aunque el solape sea parcial). Usa las columnas auxiliares
+  //    ocultas (k_alu identifica al alumno; k_e1..k_s2 son las horas en número).
+  //    Dos intervalos [a1,b1] y [a2,b2] se solapan si a1<b2 y a2<b1. SUMPRODUCT
+  //    funciona en Excel clásico (no requiere M365).
+  const alarmaChoque = {
+    fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFFF00' } },
+    font: { bold: true, color: { argb: 'FFFF0000' } },
+  } as const;
+  const rngAbs = (k: string) => `$${L(k)}$2:$${L(k)}$${lastRow}`;
+  const curAbs = (k: string) => `$${L(k)}2`;
+  // diaCur/eCur/sCur = tramo actual; *Same = el MISMO tramo de las demás filas
+  // (excluye la propia fila); *Cross = el OTRO tramo de cualquier fila (no la
+  // excluye, para detectar también el solape entre el tramo 1 y el 2 de la misma fila).
+  const formulaChoque = (
+    diaCur: string, eCur: string, sCur: string,
+    diaSame: string, eSame: string, sSame: string,
+    diaCross: string, eCross: string, sCross: string,
+  ) =>
+    `AND(${curAbs(diaCur)}<>"",${curAbs(eCur)}>0,${curAbs(sCur)}>0,` +
+    `SUMPRODUCT((${rngAbs('k_alu')}=${curAbs('k_alu')})*(` +
+    `(${rngAbs(diaSame)}=${curAbs(diaCur)})*(${rngAbs(eSame)}<${curAbs(sCur)})*(${curAbs(eCur)}<${rngAbs(sSame)})*(ROW(${rngAbs('k_alu')})<>ROW())` +
+    `+(${rngAbs(diaCross)}=${curAbs(diaCur)})*(${rngAbs(eCross)}<${curAbs(sCur)})*(${curAbs(eCur)}<${rngAbs(sCross)})` +
+    `))>0)`;
+
+  // Tramo 1 → resalta Día 1, Entrada 1 y Salida 1 (columnas contiguas)
+  ws.addConditionalFormatting({
+    ref: `${L('h_dia1')}2:${L('h_sal1')}${lastRow}`,
+    rules: [{
+      type: 'expression', priority: 3,
+      formulae: [formulaChoque(
+        'h_dia1', 'k_e1', 'k_s1',
+        'h_dia1', 'k_e1', 'k_s1',
+        'h_dia2', 'k_e2', 'k_s2',
+      )],
+      style: alarmaChoque,
+    }],
+  });
+  // Tramo 2 → resalta Día 2, Entrada 2 y Salida 2 (columnas contiguas)
+  ws.addConditionalFormatting({
+    ref: `${L('h_dia2')}2:${L('h_sal2')}${lastRow}`,
+    rules: [{
+      type: 'expression', priority: 4,
+      formulae: [formulaChoque(
+        'h_dia2', 'k_e2', 'k_s2',
+        'h_dia2', 'k_e2', 'k_s2',
+        'h_dia1', 'k_e1', 'k_s1',
+      )],
+      style: alarmaChoque,
+    }],
+  });
+
   // Proteger la hoja: solo editables las columnas de horario
   await ws.protect('', {
     selectLockedCells: true,
@@ -391,193 +490,6 @@ export async function generarExcelHorarios(
     autoFilter: true,
   });
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLS.length } };
-
-  // ── Hoja auxiliar oculta "Calc" ─────────────────────────────────────────
-  // Una fila por cada fila de datos de "Horarios". Calcula la DURACIÓN (en horas)
-  // de cada tramo a partir de las horas de texto, resolviendo aquí el problema de
-  // las celdas vacías. Las hojas de resumen suman desde aquí con SUMIFS/COUNTIFS.
-  const calc = wb.addWorksheet('Calc');
-  calc.state = 'veryHidden';
-  // A Profesor · B Día1 · C Horas1 · D Día2 · E Horas2 · F Aula
-  // G Entrada1 (nº) · H Salida1 (nº) · I Entrada2 (nº) · J Salida2 (nº)
-  ['Profesor', 'Dia1', 'Horas1', 'Dia2', 'Horas2', 'Aula',
-    'Ent1n', 'Sal1n', 'Ent2n', 'Sal2n'].forEach((h, i) => {
-    calc.getCell(1, i + 1).value = h;
-  });
-  const H = (key: string, r: number) => `Horarios!$${L(key)}${r}`;
-  const durFormula = (entKey: string, salKey: string, r: number) =>
-    `IF(AND(${H(entKey, r)}<>"",${H(salKey, r)}<>""),` +
-    `(TIMEVALUE(${H(salKey, r)})-TIMEVALUE(${H(entKey, r)}))*24,0)`;
-  // Hora a número (fracción de día); "" si la celda está vacía.
-  const numFormula = (key: string, r: number) =>
-    `IF(${H(key, r)}<>"",TIMEVALUE(${H(key, r)}),"")`;
-  for (let r = 2; r <= lastRow; r++) {
-    calc.getCell(`A${r}`).value = { formula: `IF(${H('h_prof', r)}="","",${H('h_prof', r)})` };
-    calc.getCell(`B${r}`).value = { formula: H('h_dia1', r) };
-    calc.getCell(`C${r}`).value = { formula: durFormula('h_ent1', 'h_sal1', r) };
-    calc.getCell(`D${r}`).value = { formula: H('h_dia2', r) };
-    calc.getCell(`E${r}`).value = { formula: durFormula('h_ent2', 'h_sal2', r) };
-    calc.getCell(`F${r}`).value = { formula: H('h_aula', r) };
-    calc.getCell(`G${r}`).value = { formula: numFormula('h_ent1', r) };
-    calc.getCell(`H${r}`).value = { formula: numFormula('h_sal1', r) };
-    calc.getCell(`I${r}`).value = { formula: numFormula('h_ent2', r) };
-    calc.getCell(`J${r}`).value = { formula: numFormula('h_sal2', r) };
-  }
-  // Rangos del Calc por columna (A..F)
-  const cR = (col: string) => `Calc!$${col}$2:$${col}$${lastRow}`;
-
-  // Estilo de cabecera de tabla reutilizable
-  const cabeceraTabla = (cell: ExcelJS.Cell) => {
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF455A64' } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-  };
-  const fmtHoras = '0.##'; // p. ej. 1,5  ·  3
-
-  // ── Hoja "Horas profesor" ───────────────────────────────────────────────
-  // Horas LECTIVAS por profesor y día + total semanal.
-  const hp = wb.addWorksheet('Horas profesor');
-  hp.getColumn(1).width = 30;
-  for (let c = 2; c <= 7; c++) hp.getColumn(c).width = 12;
-  hp.mergeCells('A1:G1');
-  hp.getCell('A1').value = 'Horas lectivas por profesor y día (total semanal)';
-  hp.getCell('A1').font = { bold: true, size: 13, color: { argb: 'FF1B1B24' } };
-  hp.mergeCells('A2:G2');
-  hp.getCell('A2').value =
-    'Solo horas de clase. Las horas no lectivas (preparación, reuniones, jefatura, tutorías…) se añadirán más adelante.';
-  hp.getCell('A2').font = { italic: true, size: 9, color: { argb: 'FF8A8A99' } };
-  const hpHead = 4;
-  ['Profesor', ...DIAS, 'Total semana'].forEach((t, i) => {
-    const cell = hp.getCell(hpHead, i + 1);
-    cell.value = t;
-    cabeceraTabla(cell);
-  });
-  profesores.forEach((nombre, i) => {
-    const r = hpHead + 1 + i;
-    hp.getCell(`A${r}`).value = nombre;
-    DIAS.forEach((dia, d) => {
-      const cell = hp.getCell(r, 2 + d);
-      cell.value = {
-        formula:
-          `SUMIFS(${cR('C')},${cR('A')},$A${r},${cR('B')},"${dia}")+` +
-          `SUMIFS(${cR('E')},${cR('A')},$A${r},${cR('D')},"${dia}")`,
-      };
-      cell.numFmt = fmtHoras;
-      cell.alignment = { horizontal: 'center' };
-    });
-    const tot = hp.getCell(r, 7);
-    tot.value = { formula: `SUM(B${r}:F${r})` };
-    tot.numFmt = fmtHoras;
-    tot.font = { bold: true };
-    tot.alignment = { horizontal: 'center' };
-  });
-
-  // ── Hoja "Horas aulas" ──────────────────────────────────────────────────
-  // Por aula y día: nº de clases y horas; total de horas por semana.
-  const ha = wb.addWorksheet('Horas aulas');
-  ha.getColumn(1).width = 10;
-  for (let c = 2; c <= 12; c++) ha.getColumn(c).width = 9;
-  ha.mergeCells('A1:L1');
-  ha.getCell('A1').value = 'Ocupación de aulas por día: nº de clases y horas (total semanal)';
-  ha.getCell('A1').font = { bold: true, size: 13, color: { argb: 'FF1B1B24' } };
-  const haHead = 3;
-  ha.getCell(haHead, 1).value = 'Aula';
-  cabeceraTabla(ha.getCell(haHead, 1));
-  DIAS.forEach((dia, d) => {
-    const cClases = ha.getCell(haHead, 2 + d * 2);
-    const cHoras = ha.getCell(haHead, 3 + d * 2);
-    cClases.value = `${dia}\nclases`;
-    cHoras.value = `${dia}\nhoras`;
-    cabeceraTabla(cClases);
-    cabeceraTabla(cHoras);
-  });
-  ha.getCell(haHead, 12).value = 'Total horas semana';
-  cabeceraTabla(ha.getCell(haHead, 12));
-  AULAS.forEach((aula, i) => {
-    const r = haHead + 1 + i;
-    ha.getCell(`A${r}`).value = aula;
-    DIAS.forEach((dia, d) => {
-      const cClases = ha.getCell(r, 2 + d * 2);
-      // Clases únicas: deduplicar por (aula, día, profesor, entrada, salida)
-      // SUMPRODUCT(condición / COUNTIFS(mismos campos)) → 1 por clase, no 1 por alumno
-      cClases.value = {
-        formula:
-          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('B')}="${dia}")*(${cR('A')}<>"")/` +
-          `COUNTIFS(${cR('F')},${cR('F')},${cR('B')},${cR('B')},${cR('A')},${cR('A')},${cR('G')},${cR('G')},${cR('H')},${cR('H')}))+` +
-          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('D')}="${dia}")*(${cR('A')}<>"")/` +
-          `COUNTIFS(${cR('F')},${cR('F')},${cR('D')},${cR('D')},${cR('A')},${cR('A')},${cR('I')},${cR('I')},${cR('J')},${cR('J')}))`,
-      };
-      cClases.alignment = { horizontal: 'center' };
-      const cHoras = ha.getCell(r, 3 + d * 2);
-      // Horas únicas: misma deduplicación aplicada a la duración
-      cHoras.value = {
-        formula:
-          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('B')}="${dia}")*(${cR('A')}<>"")*${cR('C')}/` +
-          `COUNTIFS(${cR('F')},${cR('F')},${cR('B')},${cR('B')},${cR('A')},${cR('A')},${cR('G')},${cR('G')},${cR('H')},${cR('H')}))+` +
-          `SUMPRODUCT((${cR('F')}=$A${r})*(${cR('D')}="${dia}")*(${cR('A')}<>"")*${cR('E')}/` +
-          `COUNTIFS(${cR('F')},${cR('F')},${cR('D')},${cR('D')},${cR('A')},${cR('A')},${cR('I')},${cR('I')},${cR('J')},${cR('J')}))`,
-      };
-      cHoras.numFmt = fmtHoras;
-      cHoras.alignment = { horizontal: 'center' };
-    });
-    const tot = ha.getCell(r, 12);
-    tot.value = { formula: `C${r}+E${r}+G${r}+I${r}+K${r}` };
-    tot.numFmt = fmtHoras;
-    tot.font = { bold: true };
-    tot.alignment = { horizontal: 'center' };
-  });
-
-  // ── Hojas de ocupación: una por día (Lunes…Viernes) ─────────────────────
-  // Rejilla franja horaria (filas) × aula (columnas). Cada celda muestra el
-  // profesor que ocupa esa aula en esa franja ese día. La franja [f, f+30min)
-  // está ocupada si Entrada<=f y Salida>f (tramo 1 o tramo 2).
-  // Requiere Excel moderno (M365) para la evaluación matricial de SUMPRODUCT/MAX.
-  DIAS.forEach(dia => {
-    const sh = wb.addWorksheet(dia);
-    const headRow = 3;
-    sh.getColumn(1).width = 8;
-    AULAS.forEach((_, i) => { sh.getColumn(2 + i).width = 16; });
-
-    // Título
-    sh.mergeCells(1, 1, 1, AULAS.length + 1);
-    sh.getCell(1, 1).value = `Ocupación de aulas — ${dia}`;
-    sh.getCell(1, 1).font = { bold: true, size: 13, color: { argb: 'FF1B1B24' } };
-
-    // Cabecera: Hora + aulas
-    const hCell = sh.getCell(headRow, 1);
-    hCell.value = 'Hora';
-    cabeceraTabla(hCell);
-    AULAS.forEach((aula, i) => {
-      const cell = sh.getCell(headRow, 2 + i);
-      cell.value = aula;
-      cabeceraTabla(cell);
-    });
-
-    // Filas de franjas horarias
-    HORAS_ENTRADA.forEach((franja, fi) => {
-      const r = headRow + 1 + fi;
-      sh.getCell(r, 1).value = franja;
-      sh.getCell(r, 1).font = { bold: true };
-      sh.getCell(r, 1).alignment = { horizontal: 'center' };
-      AULAS.forEach((_, ai) => {
-        const letra = colLetter(2 + ai);
-        const aulaRef = `${letra}$${headRow}`;
-        const f = `TIMEVALUE($A${r})`;
-        const rowExpr =
-          `SUMPRODUCT(MAX((${cR('F')}=${aulaRef})*(` +
-          `(${cR('B')}="${dia}")*(${cR('G')}<=${f})*(${cR('H')}>${f})+` +
-          `(${cR('D')}="${dia}")*(${cR('I')}<=${f})*(${cR('J')}>${f})` +
-          `)*ROW(${cR('A')})))`;
-        const cell = sh.getCell(r, 2 + ai);
-        cell.value = { formula: `IF(${rowExpr}=0,"",INDEX(Calc!$A:$A,${rowExpr}))` };
-        cell.alignment = { horizontal: 'center', wrapText: true };
-        cell.font = { size: 9 };
-      });
-    });
-
-    // Congelar la columna de horas y la cabecera
-    sh.views = [{ state: 'frozen', xSplit: 1, ySplit: headRow }];
-  });
 
   // ── base64 ──────────────────────────────────────────────────────────────
   const buffer = await wb.xlsx.writeBuffer();
