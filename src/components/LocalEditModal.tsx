@@ -131,15 +131,6 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
       .filter((i) => !i._deleted)
       .map(({ _deleted: _d, ...rest }) => rest);
 
-    // rowId de asignaturas de Dataverse eliminadas: se acumulan para borrarlas
-    // también en la nube al subir. Las nuevas locales (rowId null) se descartan.
-    const eliminadasRowIds = items
-      .filter((i) => i._deleted && i.rowId)
-      .map((i) => i.rowId as string);
-    const _asignaturasEliminadas = [
-      ...new Set([...(matricula._asignaturasEliminadas ?? []), ...eliminadasRowIds]),
-    ];
-
     const tc = (v: string) => toTitleCase(v.trim()) ?? v.trim();
     const tcn = (v: string) => toTitleCase(v.trim()) || null;
 
@@ -161,7 +152,6 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
       horaSalida: n(form.horaSalida),
       docFaltante: n(form.docFaltante),
       asignaturas,
-      _asignaturasEliminadas,
       _pendienteSubida: true,
       _modificadoEn: now,
     });

@@ -33,6 +33,8 @@ export interface Solicitud {
   horaSalida: string | null;
   estado: EstadoTramite;
   docFaltante: string | null;
+  anulacion?: boolean;
+  ampliacion?: boolean;
   ampliada?: boolean;
   repetidor: boolean;
   tieneConvalidacion?: boolean;
@@ -141,6 +143,12 @@ export interface GuardarAsignaturasInput {
   nuevos: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
 }
 
+/**
+ * Subida en modo espejo: lo que se manda es el estado completo de la matrícula
+ * en Local, y Dataverse queda exactamente así. El Flow reconcilia contra las
+ * filas que existen realmente en la nube: borra las que no vienen en
+ * `asignaturas`, actualiza las que traen `rowId` y crea las que no lo traen.
+ */
 export interface SubirMatriculaInput {
   rowId: string;
   nOrden: string | null;
@@ -162,10 +170,18 @@ export interface SubirMatriculaInput {
   disponibilidadManana: boolean;
   horaSalida: string | null;
   repetidor: boolean;
-  asignaturasActualizadas: { rowId: string; estado: EstadoAsignatura; observaciones: string }[];
-  asignaturasNuevas: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
-  /** rowId (cr955_matriculaasignaturaid) de las asignaturas eliminadas localmente que hay que borrar en Dataverse. */
-  asignaturasEliminadas: string[];
+  docFaltante: string | null;
+  anulacion: boolean;
+  ampliacion: boolean;
+  ampliada: boolean;
+  /** Lista completa de asignaturas tal como están en Local. `rowId` null = aún no existe en la nube. */
+  asignaturas: {
+    rowId: string | null;
+    codigo: number;
+    nombre: string;
+    estado: EstadoAsignatura;
+    observaciones: string | null;
+  }[];
 }
 
 export interface CrearAmpliacionInput {
@@ -349,12 +365,6 @@ export interface MatriculaLocal {
   repetidor: boolean;
 
   asignaturas: AsignaturaLocal[];
-  /**
-   * rowId (cr955_matriculaasignaturaid) de las asignaturas que existían en Dataverse
-   * y se han eliminado en local aún sin subir. Al subir a la nube se envían para
-   * borrarlas también allí; se limpia tras una subida exitosa.
-   */
-  _asignaturasEliminadas?: string[];
 
   anulacion: boolean;
   ampliacion: boolean;

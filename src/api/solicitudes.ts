@@ -47,6 +47,9 @@ interface DataverseSolicitud {
   cr955_docfaltante?: string | null;
   cr955_cursoescolar?: string | null;
   cr955_repetidor?: boolean | null;
+  cr955_anulacion?: boolean | null;
+  cr955_ampliacion?: boolean | null;
+  cr955_ampliada?: boolean | null;
 }
 
 function mapSolicitud(r: DataverseSolicitud): Solicitud {
@@ -77,6 +80,9 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
     horaSalida: r.cpmmr_horasalida,
     estado: r.cpmmr_estado,
     docFaltante: r.cr955_docfaltante ?? null,
+    anulacion: !!r.cr955_anulacion,
+    ampliacion: !!r.cr955_ampliacion,
+    ampliada: !!r.cr955_ampliada,
     repetidor: !!r.cr955_repetidor,
   };
 }

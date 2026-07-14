@@ -434,6 +434,9 @@ export default function LocalScreen({ config }: Props) {
                 horaSalida: solicitud.horaSalida,
                 docFaltante: solicitud.docFaltante,
                 repetidor: solicitud.repetidor,
+                anulacion: solicitud.anulacion ?? false,
+                ampliacion: solicitud.ampliacion ?? false,
+                ampliada: solicitud.ampliada ?? false,
                 asignaturas: asignaturasActualizadas,
                 _nubeModificadoEn: solicitud.modifiedon,
                 _modificadoEn: now,
@@ -679,37 +682,13 @@ export default function LocalScreen({ config }: Props) {
       setSubirError(null);
       try {
         if (selected.rowId) {
-          await subirMatriculaEditada(config, {
-            rowId: selected.rowId,
-            nOrden: selected.nOrden != null ? String(selected.nOrden) : null,
-            nombre: selected.nombre,
-            apellidos: selected.apellidos,
-            dni: selected.dni,
-            email: selected.email,
-            telefono: selected.telefono,
-            fechaNacimiento: toIsoDate(selected.fechaNacimiento),
-            domicilio: selected.domicilio,
-            localidad: selected.localidad,
-            provincia: selected.provincia,
-            cp: selected.cp,
-            ensenanzaCurso: selected.ensenanzaCurso,
-            especialidad: selected.especialidad,
-            formaPago: selected.formaPago,
-            reduccionTasas: selected.reduccionTasas,
-            autorizacionImagen: selected.autorizacionImagen,
-            disponibilidadManana: selected.disponibilidadManana,
-            horaSalida: selected.horaSalida,
-            repetidor: selected.repetidor,
-            asignaturasActualizadas: selected.asignaturas
-              .filter((a) => a.rowId !== null)
-              .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
-            asignaturasNuevas: selected.asignaturas
-              .filter((a) => a.rowId === null)
-              .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
-            asignaturasEliminadas: selected._asignaturasEliminadas ?? [],
-          });
+          const res = await subirEspejo(selected);
+          if (!res) {
+            setIsSaving(false);
+            return; // cancelado por el usuario: no se abre el modal de email
+          }
+          if (res.asignaturas) await actualizar(selected.localId, { asignaturas: res.asignaturas });
           await marcarSubida(selected.localId);
-          await actualizar(selected.localId, { _asignaturasEliminadas: [] });
         }
       } catch (e) {
         setSubirError(e instanceof Error ? e.message : "Error al subir los datos");
@@ -801,38 +780,102 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
+  /**
+   * Sube la matrícula a Dataverse en modo espejo (la nube queda como Local).
+   *
+   * Devuelve null si el usuario cancela; si no, las asignaturas releídas de la
+   * nube ya con su rowId real (o null dentro del objeto si la relectura falló).
+   *
+   * Releer no es opcional: una asignatura creada en la subida sigue teniendo
+   * rowId null en Local, y sin su identificador la siguiente subida volvería a
+   * mandarla como nueva y Dataverse crearía otra fila.
+   */
+  async function subirEspejo(
+    m: MatriculaLocal,
+  ): Promise<{ asignaturas: AsignaturaLocal[] | null } | null> {
+    // Una matrícula sin asignaturas en Local vaciaría las de la nube. Es lo
+    // correcto si el usuario las ha borrado, pero también ocurre cuando la
+    // descarga inicial de asignaturas falló y el registro quedó vacío sin avisar.
+    if (m.asignaturas.length === 0) {
+      const seguir = window.confirm(
+        "Esta matrícula no tiene ninguna asignatura en Local.\n\n" +
+          "Al subir, se borrarán también todas las que tenga en la nube.\n\n¿Continuar?",
+      );
+      if (!seguir) return null;
+    }
+
+    await subirMatriculaEditada(config, {
+      rowId: m.rowId!,
+      nOrden: m.nOrden != null ? String(m.nOrden) : null,
+      nombre: m.nombre,
+      apellidos: m.apellidos,
+      dni: m.dni,
+      email: m.email,
+      telefono: m.telefono,
+      fechaNacimiento: toIsoDate(m.fechaNacimiento),
+      domicilio: m.domicilio,
+      localidad: m.localidad,
+      provincia: m.provincia,
+      cp: m.cp,
+      ensenanzaCurso: m.ensenanzaCurso,
+      especialidad: m.especialidad,
+      formaPago: m.formaPago,
+      reduccionTasas: m.reduccionTasas,
+      autorizacionImagen: m.autorizacionImagen,
+      disponibilidadManana: m.disponibilidadManana,
+      horaSalida: m.horaSalida,
+      repetidor: m.repetidor,
+      docFaltante: m.docFaltante,
+      anulacion: m.anulacion,
+      ampliacion: m.ampliacion,
+      ampliada: m.ampliada,
+      asignaturas: m.asignaturas.map((a) => ({
+        rowId: a.rowId,
+        codigo: a.codigo,
+        nombre: a.nombre,
+        estado: a.estado,
+        observaciones: a.observaciones,
+      })),
+    });
+
+    try {
+      const enNube = await listarAsignaturasSolicitud(config, { matriculaId: m.rowId! });
+      const porRowId = new Map(m.asignaturas.filter((a) => a.rowId).map((a) => [a.rowId!, a]));
+      const porNombre = new Map(
+        m.asignaturas.filter((a) => !a.rowId).map((a) => [a.nombre.trim().toLowerCase(), a]),
+      );
+      const asignaturas = enNube.map((a): AsignaturaLocal => {
+        // Las recién creadas no tienen rowId que casar: se reconocen por nombre,
+        // que es único dentro de una matrícula. Así conservan su horario y código.
+        const previa = porRowId.get(a.rowId) ?? porNombre.get(a.nombre.trim().toLowerCase());
+        return {
+          localId: previa?.localId ?? crypto.randomUUID(),
+          rowId: a.rowId,
+          asignaturaId: a.asignaturaId,
+          codigo: previa?.codigo ?? 0,
+          nombre: a.nombre,
+          estado: a.estado,
+          observaciones: a.observaciones,
+          horario: previa?.horario ?? null,
+        };
+      });
+      return { asignaturas };
+    } catch {
+      // La subida sí ha ido bien. Si falla la relectura, la sincronización
+      // automática traerá los rowId en la siguiente vuelta.
+      return { asignaturas: null };
+    }
+  }
+
   async function doSubirNube(m: MatriculaLocal) {
     if (m.rowId) {
-        await subirMatriculaEditada(config, {
-          rowId: m.rowId,
-          nOrden: m.nOrden != null ? String(m.nOrden) : null,
-          nombre: m.nombre,
-          apellidos: m.apellidos,
-          dni: m.dni,
-          email: m.email,
-          telefono: m.telefono,
-          fechaNacimiento: toIsoDate(m.fechaNacimiento),
-          domicilio: m.domicilio,
-          localidad: m.localidad,
-          provincia: m.provincia,
-          cp: m.cp,
-          ensenanzaCurso: m.ensenanzaCurso,
-          especialidad: m.especialidad,
-          formaPago: m.formaPago,
-          reduccionTasas: m.reduccionTasas,
-          autorizacionImagen: m.autorizacionImagen,
-          disponibilidadManana: m.disponibilidadManana,
-          horaSalida: m.horaSalida,
-          repetidor: m.repetidor,
-          asignaturasActualizadas: m.asignaturas
-            .filter((a) => a.rowId !== null)
-            .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
-          asignaturasNuevas: m.asignaturas
-            .filter((a) => a.rowId === null)
-            .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
-          asignaturasEliminadas: m._asignaturasEliminadas ?? [],
+        const res = await subirEspejo(m);
+        if (!res) return; // cancelado por el usuario
+        await actualizar(m.localId, {
+          ...(res.asignaturas ? { asignaturas: res.asignaturas } : {}),
+          _pendienteSubida: false,
+          _fueEditado: true,
         });
-        await actualizar(m.localId, { _pendienteSubida: false, _fueEditado: true, _asignaturasEliminadas: [] });
       } else {
         const result = await crearAmpliacion(config, {
           nombre: m.nombre,

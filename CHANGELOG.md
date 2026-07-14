@@ -9,6 +9,24 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.9.0] - 2026-07-14
+
+### Añadido
+
+- **Subida en modo espejo (Local → Dataverse)**: al pulsar *Subir a la nube*, Local pasa a ser la única fuente de verdad. La app envía la **lista completa** de asignaturas tal como están en la ficha y el Flow **AdminSubirMatriculaEditada** reconcilia contra lo que hay realmente en Dataverse: borra las filas que no vienen en la lista, actualiza las que traen `rowId` y crea las que no lo traen. La subida es idempotente: repetirla no cambia el resultado.
+- **Campos que antes no viajaban a la nube**: `docFaltante`, `anulacion`, `ampliacion` y `ampliada` se envían al subir y se leen al descargar. Requiere tres columnas nuevas en Dataverse: `cr955_anulacion`, `cr955_ampliacion` y `cr955_ampliada` (Sí/No).
+- **Aviso de matrícula sin asignaturas**: si la ficha local no tiene ninguna asignatura, se pide confirmación antes de subir, porque el espejo vaciaría también las de la nube.
+
+### Corregido
+
+- **Asignaturas duplicadas en Dataverse**: una asignatura añadida en Local conservaba `rowId: null` incluso después de subirse, así que cada nueva subida de esa matrícula la volvía a enviar como nueva y el Flow creaba otra fila (se llegaron a ver 5 copias de la misma asignatura). Ahora, tras subir con éxito, la app **relee las asignaturas de Dataverse y guarda su `rowId` real**; las recién creadas se reconocen por nombre para conservar su horario y su código.
+
+### Eliminado
+
+- **Rastreo `_asignaturasEliminadas`** (introducido en 1.8.1): el espejo lo hace innecesario. Lo que no está en Local se borra de la nube porque no viene en la lista, no porque se lleve la cuenta de los borrados.
+
+---
+
 ## [1.8.1] - 2026-07-10
 
 ### Añadido
