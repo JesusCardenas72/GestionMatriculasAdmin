@@ -9,6 +9,17 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.10.0] - 2026-07-14
+
+### Añadido
+
+- **«Probar conexión» comprueba todos los Flows**: antes solo llamaba a `AdminListarSolicitudes`, así que un "Conexión OK" no decía nada del resto. Ahora lanza los Flows en paralelo y devuelve una lista con el estado de cada uno: *Clave correcta*, *Clave rechazada (401)*, *Sin URL*, *No se pudo comprobar* o *No se sondea*.
+  - **Cómo se comprueban los de escritura sin tocar datos**: el control de acceso de un Flow es su primera acción (Condition sobre `x-api-key`), y responde 401 cuando no cuadra. Por tanto, **cualquier respuesta que no sea 401 demuestra que la clave pasó**. A esos Flows se les manda un identificador que no existe (todo ceros): entran, intentan trabajar sobre nada y fallan con 502. Ese fallo es el resultado esperado y no modifica ningún dato.
+  - **Cuatro Flows quedan fuera a propósito** (`AdminCrearAmpliacion`, `AdminBorrarCurso`, `AdminEnviarEmailAmpliacion`, `AdminEnviarEmailHorario`): su acción destructiva es la primera que ejecutan en cuanto la clave pasa, así que sondearlos crearía filas o enviaría correos de verdad. Aparecen en la lista marcados como *No se sondea*, con el motivo.
+  - Nuevo módulo [`src/api/diagnostico.ts`](src/api/diagnostico.ts) y test de regresión de la pantalla de resultados.
+
+---
+
 ## [1.9.1] - 2026-07-14
 
 ### Corregido

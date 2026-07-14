@@ -14,11 +14,12 @@ import {
   X,
   Copy,
   Check,
+  MinusCircle,
+  HelpCircle,
+  ShieldAlert,
 } from "lucide-react";
 import type { AppConfig } from "../../../electron/config-store";
-import { listarSolicitudes } from "../../api/solicitudes";
-import { ESTADO } from "../../api/types";
-import { FlowError } from "../../api/client";
+import { probarTodosLosFlows, type EstadoPrueba, type ResultadoFlow } from "../../api/diagnostico";
 import { DEFAULT_ADMIN_PASSWORD } from "../../config/appMode";
 
 const urlHttps = z
@@ -49,7 +50,7 @@ type FormValues = z.infer<typeof schema>;
 type TestState =
   | { status: "idle" }
   | { status: "testing" }
-  | { status: "ok"; total: number }
+  | { status: "hecho"; resultados: ResultadoFlow[] }
   | { status: "error"; message: string };
 
 interface Props {
@@ -106,12 +107,10 @@ export default function ConexionModal({ initial, onSave, onClose }: Props) {
     }
     setTest({ status: "testing" });
     try {
-      const res = await listarSolicitudes(parsed.data, ESTADO.PENDIENTE_TRAMITACION);
-      const total = res?.total ?? res?.solicitudes?.length ?? 0;
-      setTest({ status: "ok", total });
+      const resultados = await probarTodosLosFlows(parsed.data);
+      setTest({ status: "hecho", resultados });
     } catch (e) {
-      const msg = e instanceof FlowError ? `${e.message}${e.body ? ` - ${e.body.slice(0, 200)}` : ""}` : (e as Error).message;
-      setTest({ status: "error", message: msg });
+      setTest({ status: "error", message: (e as Error).message });
     }
   }
 
@@ -155,14 +154,10 @@ export default function ConexionModal({ initial, onSave, onClose }: Props) {
             <div className="p-3 rounded-lg text-sm" style={{ border: "1px solid var(--tc-border)", background: "var(--tc-bg)" }}>
               {test.status === "testing" && (
                 <div className="flex items-center gap-2" style={{ color: "var(--tc-ink-soft)" }}>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Probando conexión...
+                  <Loader2 className="w-4 h-4 animate-spin" /> Probando los Flows...
                 </div>
               )}
-              {test.status === "ok" && (
-                <div className="flex items-center gap-2" style={{ color: "var(--tc-success-ink)" }}>
-                  <CheckCircle2 className="w-4 h-4" /> Conexión OK — {test.total} solicitudes pendientes.
-                </div>
-              )}
+              {test.status === "hecho" && <ResultadosPrueba resultados={test.resultados} />}
               {test.status === "error" && (
                 <div className="flex items-start gap-2" style={{ color: "var(--tc-danger-ink)" }}>
                   <AlertCircle className="w-4 h-4 mt-0.5" />
@@ -199,6 +194,64 @@ function Field({ label, error, ...rest }: { label: string; error?: string } & Re
       <input {...rest} className="mt-1 w-full px-3 py-2 rounded-md text-sm font-mono focus:outline-none focus:ring-2" style={{ border: `1px solid ${error ? "var(--tc-danger-border)" : "var(--tc-border)"}`, background: "var(--tc-bg-panel)", color: "var(--tc-ink)", outline: "none" }} />
       {error && <span className="mt-1 block text-xs" style={{ color: "var(--tc-danger-ink)" }}>{error}</span>}
     </label>
+  );
+}
+
+const PRESENTACION: Record<
+  EstadoPrueba,
+  { icono: typeof CheckCircle2; color: string; etiqueta: string }
+> = {
+  ok: { icono: CheckCircle2, color: "var(--tc-success-ink)", etiqueta: "Clave correcta" },
+  "clave-rechazada": { icono: AlertCircle, color: "var(--tc-danger-ink)", etiqueta: "Clave rechazada (401)" },
+  "sin-url": { icono: MinusCircle, color: "var(--tc-ink-mute)", etiqueta: "Sin URL" },
+  "no-concluyente": { icono: HelpCircle, color: "var(--tc-warn-ink)", etiqueta: "No se pudo comprobar" },
+  "no-comprobable": { icono: ShieldAlert, color: "var(--tc-ink-mute)", etiqueta: "No se sondea" },
+};
+
+function ResultadosPrueba({ resultados }: { resultados: ResultadoFlow[] }) {
+  const rechazados = resultados.filter((r) => r.estado === "clave-rechazada").length;
+  const correctos = resultados.filter((r) => r.estado === "ok").length;
+  const sondeados = resultados.filter((r) => r.estado !== "no-comprobable").length;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div
+        className="text-sm font-semibold"
+        style={{ color: rechazados > 0 ? "var(--tc-danger-ink)" : "var(--tc-success-ink)" }}
+      >
+        {rechazados > 0
+          ? `${rechazados} Flow(s) rechazan la clave de la app.`
+          : `Clave correcta en los ${correctos} de ${sondeados} Flows comprobados.`}
+      </div>
+
+      <ul className="flex flex-col gap-1">
+        {resultados.map((r) => {
+          const p = PRESENTACION[r.estado];
+          const Icono = p.icono;
+          return (
+            <li key={r.flow} className="flex items-start gap-2 text-xs">
+              <Icono className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: p.color }} />
+              <span className="flex-1 min-w-0">
+                <span className="font-medium" style={{ color: "var(--tc-ink)" }}>
+                  {r.flow}
+                </span>
+                <span style={{ color: "var(--tc-ink-mute)" }}> — {r.descripcion}</span>
+                <br />
+                <span style={{ color: p.color }}>{p.etiqueta}</span>
+                {r.detalle && <span style={{ color: "var(--tc-ink-mute)" }}> · {r.detalle}</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="text-xs pt-1" style={{ color: "var(--tc-ink-mute)" }}>
+        La prueba solo comprueba que cada Flow <strong>acepta la API key</strong>. Los de escritura se
+        sondean con un identificador que no existe: entran, fallan y no tocan ningún dato. Los cuatro
+        marcados como «No se sondea» crearían filas o enviarían correos de verdad, así que hay que
+        probarlos usándolos.
+      </p>
+    </div>
   );
 }
 
