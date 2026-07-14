@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.9.1] - 2026-07-14
+
+### Corregido
+
+- **Pantalla en blanco al reiniciar tras restaurar una copia de seguridad**: en los builds **portable**, el `.exe` es un envoltorio que descomprime la app en una carpeta temporal y **la borra al salir**. `app.relaunch()` relanzaba `process.execPath`, es decir el ejecutable de esa carpeta condenada: la nueva ventana abría cuando los recursos ya habían sido borrados. Ahora, si existe `PORTABLE_EXECUTABLE_FILE` (que electron-builder rellena con la ruta del `.exe` original), se relanza **ese** con unos segundos de margen para que el envoltorio anterior termine de limpiar antes de volver a descomprimir sobre la misma carpeta. Fuera del portable se mantiene el `app.relaunch()` de siempre.
+
+---
+
 ## [1.9.0] - 2026-07-14
 
 ### Añadido
