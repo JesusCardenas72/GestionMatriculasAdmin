@@ -9,6 +9,33 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.9.0] - 2026-09-01
+
+### Añadido
+
+- **Sustituir profesorado (Alumnado Fantasma → Profesorado)**: nueva opción para el relevo de profesores de principio de curso. Se indica **quién sale y quién entra** (varias sustituciones a la vez) y la app cambia el nombre en **las dos partes que hasta ahora había que tocar por separado**:
+  - las **clases ya guardadas** del curso activo, de modo que el siguiente Excel de horarios se genera ya con el profesor nuevo en las clases del antiguo;
+  - la **lista del desplegable** «Profesor», donde el que sale desaparece y el que entra se añade.
+  - Antes de aplicar muestra **a cuántas clases afecta** cada profesor, avisa si quien entra ya tenía clases propias (posibles solapes) y rechaza los casos ambiguos (sustituciones encadenadas o repetidas). La operación queda registrada en el **historial de horarios**, así que se puede deshacer restaurándola.
+- **Documentación**: la guía **«¿Cómo funciona?»** de Alumnado Fantasma incorpora una sección propia («Cambios de profesorado: sustituir unos por otros») con los pasos, los avisos y el porqué; `docs/alumnos-temporales.md` añade el apartado técnico completo de gestión del profesorado (dónde se guarda cada cosa, invariantes y archivos implicados).
+
+### Corregido
+
+- **Mensajes que remitían a una opción inexistente**: varios avisos de «No se ha cargado la lista de profesores» mandaban a «Cargar profesores (CSV)… del menú de acciones» de Informes, opción que ya no existe. Ahora indican la ruta real: **Alumnado Fantasma → Profesorado → «Cargar profesorado»**.
+
+---
+
+## [1.8.0] - 2026-07-10
+
+### Añadido
+
+- **Alarma visual de choque de horario por alumno (Excel de horarios)**: cuando dos clases del **mismo alumno** se solapan en día y hora, sus celdas se resaltan en **amarillo flúor con texto rojo y negrita**. La detección ocurre **mientras el profesorado rellena el Excel**, sin macros ni pasos adicionales: son reglas de formato condicional del propio archivo.
+  - Se apoya en columnas auxiliares ocultas (clave de alumno y horas convertidas a número) que el usuario no ve.
+  - La cabecera de «Día 1» lleva una nota explicando qué significa el color.
+  - El Excel generado contiene solo la hoja «Horarios» (más la hoja oculta con las listas de los desplegables).
+
+---
+
 ## [1.7.0] - 2026-07-06
 
 ### Añadido

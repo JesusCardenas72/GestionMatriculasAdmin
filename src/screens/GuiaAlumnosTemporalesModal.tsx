@@ -1,4 +1,4 @@
-import { ChevronDown, AlertCircle, CheckCircle, Clock, BookOpen, Lightbulb, Zap, X } from "lucide-react";
+import { ChevronDown, AlertCircle, CheckCircle, Clock, BookOpen, Lightbulb, UserCog, Zap, X } from "lucide-react";
 import { useState } from "react";
 
 export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar: () => void; onSaberMas?: () => void }) {
@@ -214,6 +214,60 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
             </div>
           </Seccion>
 
+          {/* Sección 7: Sustituir profesorado */}
+          <Seccion
+            n={7}
+            titulo="Cambios de profesorado: sustituir unos por otros"
+            abierta={seccionAbierta === 7}
+            onClick={() => toggleSeccion(7)}
+          >
+            <p className="text-[13px] text-[var(--tc-ink-soft)] mb-3">
+              Cada septiembre hay profesores que dejan el centro y otros que ocupan su plaza. Para que el Excel de horarios salga <strong>ya con el profesor nuevo</strong> en las clases que llevaba el antiguo, usa <strong>Profesorado → «Sustituir profesorado»</strong>. No basta con borrar el nombre de la lista: mira más abajo por qué.
+            </p>
+
+            <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">Cómo se hace</h4>
+            <ol className="list-decimal list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-1 mb-3">
+              <li>Arriba a la derecha, pulsa <strong>«Profesorado»</strong> y elige <strong>«Sustituir profesorado»</strong></li>
+              <li>En <strong>«Sale»</strong>, elige al profesor que se va. Al lado de cada nombre verás <strong>cuántas clases tiene</strong> en este curso</li>
+              <li>En <strong>«Entra»</strong>, escribe el nombre del nuevo (formato <strong>«Apellidos, Nombre»</strong>) o elígelo de la lista si ya estaba</li>
+              <li>Pulsa <strong>«Añadir otra sustitución»</strong> tantas veces como relevos tengas: se aplican todos de una vez</li>
+              <li>Comprueba el resumen («se cambiarán N clases») y pulsa <strong>«Aplicar sustituciones»</strong></li>
+            </ol>
+
+            <div className="rounded bg-blue-50 border border-blue-200 p-3 mb-3">
+              <h4 className="text-sm font-semibold text-blue-900 mb-1 flex items-center gap-1.5">
+                <UserCog className="w-4 h-4" />
+                Qué cambia exactamente
+              </h4>
+              <p className="text-[12px] text-blue-800">
+                El nombre del profesor está en <strong>dos sitios a la vez</strong> y la sustitución toca los dos: (1) <strong>las clases ya guardadas</strong> de este curso, que es lo que se vuelca al Excel cuando lo generas; y (2) <strong>la lista del desplegable «Profesor»</strong>, de donde sale quien se va y entra quien llega.
+              </p>
+            </div>
+
+            <div className="rounded bg-amber-50 border border-amber-200 p-3 mb-3">
+              <h4 className="text-sm font-semibold text-amber-900 mb-1 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" />
+                Por qué no vale con borrarlo de la lista
+              </h4>
+              <p className="text-[12px] text-amber-800">
+                Si solo lo borras en <strong>«Ver profesorado»</strong>, las clases guardadas <strong>siguen con el nombre antiguo</strong>. En el Excel esas celdas salen con un profesor que ya no está en el desplegable (Excel las da por no válidas) y, al cargar el Excel de vuelta, te pedirá corregir <strong>uno por uno</strong> todos esos nombres.
+              </p>
+            </div>
+
+            <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-2">Conviene saber</h4>
+            <ul className="list-disc list-inside text-[13px] text-[var(--tc-ink-soft)] space-y-1 mb-3">
+              <li><strong>Solo afecta al curso activo.</strong> Los cursos anteriores conservan quién dio realmente cada clase.</li>
+              <li><strong>Queda en el historial</strong> como «Sustitución de profesorado»: si te equivocas, restaura esa entrada y vuelven los nombres antiguos.</li>
+              <li><strong>Si quien entra ya daba clases</strong>, la app te avisa: sumará las del que sale a las suyas, así que revisa los solapes de horario en el Excel.</li>
+              <li><strong>No admite cadenas</strong> del tipo «A pasa a B» y «B pasa a C» en la misma tanda: hazlo en dos pasos para que el resultado sea inequívoco.</li>
+              <li><strong>Un profesor nuevo del todo</strong> se puede escribir directamente aquí; no hace falta volver a cargar el archivo de profesorado.</li>
+            </ul>
+
+            <div className="rounded bg-green-50 border border-green-200 p-2 text-[12px] text-green-900">
+              Después de sustituir, <strong>genera otra vez el Excel del paso 2</strong>: verás las clases del profesor antiguo ya a nombre del nuevo, sin celdas marcadas como erróneas.
+            </div>
+          </Seccion>
+
           {/* Chuleta */}
           <div className="rounded-lg bg-gradient-to-br from-[var(--tc-primary-tint)] to-[var(--tc-bg-panel)] border border-[var(--tc-primary)] p-4">
             <h3 className="text-sm font-bold text-[var(--tc-primary)] mb-3 flex items-center gap-2">
@@ -225,6 +279,7 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
               <div><strong>Paso 2.</strong> Generar el Excel de horarios (→ profesores). Cada vez sustituye los fantasma ya vinculados por su matrícula real, heredando su horario</div>
               <div><strong>Paso 3.</strong> Cargar el Excel que devuelven los profesores. Cada carga queda en el historial con su nombre</div>
               <div className="text-[var(--tc-ink-soft)]">Entre medias (en Local): vincula cada matrícula real con su alumno fantasma</div>
+              <div className="text-[var(--tc-ink-soft)]">Al empezar el curso, si hay relevos: Profesorado → «Sustituir profesorado» antes de generar el Excel</div>
             </div>
             <div className="mt-3 text-[12px] font-medium text-[var(--tc-ink-soft)] border-t border-[var(--tc-primary)] pt-2">
               El ciclo es continuo: según llegan matrículas, vuelves a vincular y a generar el Excel del paso 2; cada Excel relleno que cargues añade una entrada al historial del paso 3.
@@ -233,10 +288,10 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
 
           {/* Problemas frecuentes */}
           <Seccion
-            n={7}
+            n={8}
             titulo="Problemas frecuentes"
-            abierta={seccionAbierta === 7}
-            onClick={() => toggleSeccion(7)}
+            abierta={seccionAbierta === 8}
+            onClick={() => toggleSeccion(8)}
           >
             <div className="space-y-2">
               <Problema
@@ -260,9 +315,14 @@ export function GuiaAlumnosTemporalesModal({ onCerrar, onSaberMas }: { onCerrar:
                 solución="Vincula en Local («Sustituye al alumno fantasma») y vuelve a generar el Excel del paso 2"
               />
               <Problema
+                síntoma="El Excel sale con profesores que ya no están en el centro"
+                causa="Se borró el nombre de la lista pero las clases guardadas siguen con el profesor antiguo"
+                solución="Usa Profesorado → «Sustituir profesorado» indicando quién sale y quién entra"
+              />
+              <Problema
                 síntoma="«No se ha cargado la lista de profesores»"
                 causa="Falta el CSV de profesores"
-                solución="Cárgalo desde el propio paso 2 o en Informes → «Cargar profesores (CSV)…»"
+                solución="Cárgalo desde el propio paso 2 o con Profesorado → «Cargar profesorado»"
               />
             </div>
           </Seccion>

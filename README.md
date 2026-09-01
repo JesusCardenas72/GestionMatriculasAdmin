@@ -6,7 +6,7 @@ Ver `g:/Dev/PLAN-GestionMatriculasAdmin.md` para el plan completo.
 
 ## Documentación de procesos
 
-- [Alumnos temporales: guía completa del proceso](docs/alumnos-temporales.md) — creación (manual e importación Excel/CSV), Excel de horarios, vinculación, sustitución, Excel fusionado y limpieza. Incluye chuleta del orden correcto, problemas frecuentes y apéndice técnico.
+- [Alumnos temporales: guía completa del proceso](docs/alumnos-temporales.md) — creación (manual e importación Excel/CSV), Excel de horarios, vinculación, sustitución, Excel fusionado y limpieza. Incluye chuleta del orden correcto, problemas frecuentes, apéndice técnico y la **gestión del profesorado** (cargar, editar y sustituir profesores al cambiar de curso).
 
 ## Desarrollo
 

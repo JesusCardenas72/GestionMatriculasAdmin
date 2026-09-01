@@ -66,5 +66,6 @@ export const AULAS = [
 /**
  * Profesorado — ⚠️ NO se define aquí: cambia cada curso.
  * La lista se carga desde un CSV que elige el usuario (columna "APELLIDOS Y NOMBRE").
- * Ver `electron/horarios-store.ts` y la opción "Cargar profesores (CSV)" en Informes.
+ * Ver `electron/horarios-store.ts` y la opción "Cargar profesorado" del menú Profesorado
+ * de Alumnado Fantasma.
  */

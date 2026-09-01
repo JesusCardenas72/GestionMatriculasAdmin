@@ -1026,7 +1026,7 @@ function ModalGenerarHorariosAsistente({
     try {
       const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
       if (profesores.length === 0) {
-        setError("No se ha cargado la lista de profesores. Cierra esta ventana y usa «Cargar profesores (CSV)…».");
+        setError("No se ha cargado la lista de profesores. Cárgala con el botón «Subir profesorado» de este mismo paso o desde el menú Profesorado.");
         return;
       }
 

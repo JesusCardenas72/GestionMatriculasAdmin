@@ -34,7 +34,12 @@ export interface HorariosEntry {
 export interface HorariosSnapshot {
   id: string;
   timestamp: string;
-  accion: "carga_excel" | "generacion_excel" | "restauracion" | "importacion";
+  accion:
+    | "carga_excel"
+    | "generacion_excel"
+    | "restauracion"
+    | "importacion"
+    | "sustitucion_profesorado";
   resumen: { anadidas: number; actualizadas: number; eliminadas: number; sinCambio: number };
   fileName?: string;
   /** Nombre dado a la carga (p. ej. «1ª ronda Piano»), editable en el historial. */

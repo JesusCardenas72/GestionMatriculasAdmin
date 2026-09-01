@@ -67,7 +67,7 @@ Por cada fila se crea un temporal con el sufijo **`_Temp`** añadido al nombre y
 ## 3. Generar el Excel de horarios
 
 1. Ve a **Informes** y pon el informe en modo **«Por asignaturas»**.
-2. Si aún no lo has hecho este curso, carga la lista de profesores: menú de acciones → **«Cargar profesores (CSV)…»**.
+2. Si aún no lo has hecho este curso, carga la lista de profesores: **Alumnado Fantasma → Profesorado → «Cargar profesorado»** (ver [sección 12](#12-gestión-del-profesorado-lista-y-sustituciones)).
 3. Usa **«Generar Excel Horarios»** y elige dónde insertar las columnas de horario y hasta qué columna congelar.
 
 En el Excel resultante:
@@ -198,7 +198,8 @@ Las **columnas se mantienen en el mismo orden** que el Excel original y las fila
 | El desplegable «Sustituye al alumno temporal» no aparece en Local | No hay temporales pendientes del mismo curso + especialidad | Comprueba que coinciden exactamente; crea el temporal si falta |
 | «Ejecutar sustituciones» está desactivado | Ningún temporal vinculado | Vincula primero desde la ficha Local |
 | «Generar Excel fusionado» está desactivado | Ningún temporal sustituido aún | Ejecuta antes las sustituciones |
-| «No se ha cargado la lista de profesores» | Falta el CSV de profesores | Informes → menú de acciones → «Cargar profesores (CSV)…» |
+| «No se ha cargado la lista de profesores» | Falta el listado de profesorado | Alumnado Fantasma → Profesorado → «Cargar profesorado» |
+| El Excel sale con profesores que ya no están en el centro | Se borró el nombre de la lista, pero las clases guardadas conservan el antiguo | Profesorado → «Sustituir profesorado» (ver [sección 12](#12-gestión-del-profesorado-lista-y-sustituciones)) |
 | «El Excel cargado no contiene ningún horario que coincida» | Se cargó un archivo equivocado, o los temporales sustituidos ya se borraron | Carga el Excel relleno correcto; si borraste los sustituidos antes de fusionar, los horarios de esos temporales ya no se pueden heredar automáticamente |
 | Un alumno real aparece sin horario en el fusionado | Su asignatura no coincidía por nombre con la del temporal | Ponle el horario a mano (el resumen lo avisó en «sin horario») |
 
@@ -316,3 +317,81 @@ Detalles de comportamiento que conviene conocer:
 - **Franja de aviso**: al entrar en la pestaña Temporales con un proceso a medias, una franja azul indica el paso y la ronda con un botón «Retomar asistente».
 - **Solo Lectura**: el asistente se abre en consulta; la navegación no se persiste y todas las acciones quedan desactivadas.
 - El asistente no cambia el comportamiento de ninguna pantalla existente: todo lo que hace ya se podía hacer fuera de él, y lo que se haga fuera se detecta igualmente.
+
+---
+
+## 12. Gestión del profesorado (lista y sustituciones)
+
+Todo lo relativo al profesorado está en la pestaña **Alumnado Fantasma**, botón **«Profesorado»** (arriba a la derecha), con tres opciones: **Cargar profesorado**, **Ver profesorado** y **Sustituir profesorado**.
+
+### Dónde vive el nombre de un profesor
+
+El profesor es **texto**, no una ficha con identificador, y ese texto está en **dos almacenes distintos**:
+
+| Dónde | Archivo | Para qué sirve |
+|---|---|---|
+| Lista del desplegable | `%APPDATA%\<userData>\horarios-config.json` → `profesores: string[]` | Alimenta el desplegable «Profesor» del Excel de horarios (validación estricta: lo que no está en la lista no se puede elegir) |
+| Clases guardadas | `%APPDATA%\<userData>\horarios-data\horarios-<curso>.json` → `entries[].h.h_prof` | Es lo que se **vuelca al Excel** al generarlo (auto-relleno) y lo que leen el PDF de horarios y los correos |
+
+**Entender esto es la clave del apartado**: los dos almacenes son independientes. Cambiar solo uno deja el otro desincronizado.
+
+### Cargar profesorado
+
+Admite **CSV o Excel** (`.csv`, `.xlsx`). Detecta la columna de nombres buscando en la cabecera `APELLIDOS`, `NOMBRE`, `PROFESOR`, `DOCENTE`, `TEACHER`, `NAME` o `NOMBRE COMPLETO`; si no encuentra ninguna, usa la primera columna. Muestra una previsualización (columna detectada, total, nuevos, duplicados) antes de confirmar.
+
+Es un **merge aditivo**: añade los que faltan y omite los duplicados (comparando sin distinguir mayúsculas ni espacios de más), pero **nunca elimina** a los que ya no aparecen en el archivo. Por eso, para el relevo de curso no basta con volver a cargar el archivo del año nuevo.
+
+Formato de nombre de facto en producción: **«Apellidos, Nombre»**.
+
+### Ver profesorado
+
+Lista editable: se puede corregir el texto de cada nombre, eliminar filas sueltas o vaciar la lista entera. Los cambios se aplican al pulsar **«Guardar cambios»** (se limpian vacíos y duplicados).
+
+> **Aviso**: editar aquí el nombre **solo toca la lista**. Las clases ya guardadas conservan el nombre antiguo. Para renombrar en los dos sitios, usa «Sustituir profesorado».
+
+### Sustituir profesorado
+
+Pensada para el relevo de principio de curso: **sale X, entra Y**.
+
+1. Se abre una tabla de pares. En **«Sale»** se elige de la lista actual (cada nombre indica **cuántas clases** tiene en el curso activo); en **«Entra»** se escribe un nombre nuevo o se elige uno existente.
+2. Se pueden encadenar varias sustituciones y aplicarlas de una vez.
+3. Al aplicar, la app hace **las dos cosas a la vez**:
+   - reescribe `h_prof` en todas las clases guardadas del **curso activo** que tenían al profesor que sale;
+   - actualiza la lista: quita a quien sale y añade a quien entra (sin duplicar), ordenada alfabéticamente.
+4. Queda una entrada **«Sustitución de profesorado»** en el historial de horarios, así que se puede deshacer restaurándola.
+
+Comportamiento a tener en cuenta:
+
+- **Solo afecta al curso activo.** Los cursos anteriores conservan quién impartió realmente cada clase.
+- **Si quien entra ya tenía clases propias**, se avisa: las clases se acumulan bajo el mismo nombre y pueden aparecer solapes (que el propio Excel resalta con la alarma de choque de horario).
+- **Se rechazan los casos ambiguos**: sustituir dos veces al mismo profesor, poner el mismo nombre a los dos lados, o cadenas del tipo A→B y B→C en la misma tanda (hay que hacerlas en dos pasos).
+- Las clases **sin profesor** asignado no se tocan.
+- El orden de guardado es deliberado: **primero el almacén de horarios, después la lista**. Si fallara el primero, la lista queda intacta y no se produce un estado a medias.
+
+### Qué pasa si un profesor no está en la lista
+
+1. Al **generar** el Excel no aparece en el desplegable, y Excel impide escribirlo a mano (`errorStyle: 'stop'`).
+2. Si aun así llega un valor fuera de lista (auto-relleno de una clase guardada con un profesor ya retirado, texto pegado…), al **cargar** el Excel de vuelta se abre el diálogo nativo de corrección: elegir un valor válido, aceptar la sugerencia automática o borrarlo. Cancelar aborta la importación entera.
+3. Si `h_prof` queda **vacío**, la clase no se descarta: en el PDF grupal figura como **«Sin Asignar»**.
+
+### Archivos implicados
+
+| Archivo | Responsabilidad |
+|---|---|
+| `electron/horarios-store.ts` | Almacén de la lista: lectura/escritura de `horarios-config.json`, parseo de CSV/Excel, previsualización y merge aditivo |
+| `electron/main.ts` (IPC `horarios:profesores*`) | Diálogo de selección de archivo y handlers `profesoresGuardados`, `profesoresPrevisualizarCsv`, `profesoresConfirmarCsv`, `profesoresGuardar` |
+| `src/utils/sustitucionProfesores.ts` | Lógica pura de la sustitución: `contarClasesPorProfesor`, `aplicarSustitucionesEntries`, `aplicarSustitucionesLista`, `validarSustituciones` |
+| `src/screens/TemporalesScreen.tsx` | Menú «Profesorado» y sus tres modales (`ProfesoresListaModal`, `SustituirProfesoradoModal`, previsualización de carga) |
+| `src/utils/excelHorarios.ts` | Hoja oculta `Listas` con los profesores y validación del desplegable `h_prof` |
+| `src/utils/validarHorariosCargados.ts` | Detección y corrección de nombres fuera de lista al reimportar el Excel |
+| `src/utils/horariosPersistencia.ts` | `obtenerValoresHorario` (auto-relleno del Excel desde las clases guardadas) y `buscarProfesorInstrumento` (Tutor/a) |
+
+### Invariantes
+
+1. La comparación de nombres de profesor se hace siempre con `norm` (`src/utils/horarioExcel.ts`): sin acentos, sin mayúsculas y con los espacios colapsados. Si se cambia esa función, hay que revisar la sustitución y la validación del Excel.
+2. Toda operación que cambie el profesor de las clases guardadas debe dejar **snapshot en el historial**: es el único mecanismo de deshacer.
+3. La lista del desplegable y los `h_prof` guardados deben cambiarse **juntos**; si no, el Excel generará valores fuera de lista.
+
+### Tests
+
+`src/utils/__tests__/sustitucionProfesores.test.ts` — recuento por profesor, sustitución simple, entradas intactas, nombres con acentos/mayúsculas distintas, acumulación de clases, no duplicar en la lista y rechazo de pares ambiguos o encadenados.

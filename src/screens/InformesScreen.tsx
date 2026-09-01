@@ -1965,7 +1965,7 @@ export default function InformesScreen({ config }: Props) {
     if (profesores.length === 0) {
       window.alert(
         'No se ha cargado la lista de profesores.\n' +
-          'Usa la opción "Cargar profesores (CSV)…" del menú de acciones antes de generar el Excel de horarios.',
+          'Usa Alumnado Fantasma → Profesorado → «Cargar profesorado» antes de generar el Excel de horarios.',
       );
       return;
     }
@@ -2104,7 +2104,7 @@ export default function InformesScreen({ config }: Props) {
         if (profesores.length === 0) {
           window.alert(
             'No se ha cargado la lista de profesores.\n' +
-              'Usa la opción "Cargar profesores (CSV)…" del menú de acciones antes de generar el Excel de horarios.',
+              'Usa Alumnado Fantasma → Profesorado → «Cargar profesorado» antes de generar el Excel de horarios.',
           );
           return;
         }
