@@ -10,7 +10,7 @@
  *
  * Estructura: cabecera en todas las páginas (título + "Actualizado a" + logo),
  * portada con avisos e índice de 3 niveles, y contenido agrupado en
- * Enseñanza (H1) → Asignatura (H2) → Curso (H3) → una tabla por Grupo.
+ * Enseñanza (H1) → Asignatura (H2) → una tabla por Grupo.
  */
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import type { HorariosEntry } from '../../electron/horarios-data-store';
@@ -233,7 +233,7 @@ function filasEsperadas(entries: HorariosEntry[], incluidas?: Set<string>, integ
     const fila = filaDeEntry(e, integrarPendientes);
     const ens = ensenanzaDe(fila.curso);
     const asig = baseAsignatura(e.asignatura);
-    const k: ClaveGrupo = `${ens}|${asig}|${fila.curso}|${fila.grupo}`;
+    const k: ClaveGrupo = `${ens}|${asig}|${fila.grupo}`;
     let arr = porGrupo.get(k);
     if (!arr) { arr = []; porGrupo.set(k, arr); }
     arr.push(fila);
@@ -269,12 +269,12 @@ function textoGrupoCorto(curso: string, grupo: string, aula: string): string {
   return partes.join(', ');
 }
 
-/* ── Agrupación: Enseñanza → Asignatura → Curso → Grupo ───────────────────── */
+/* ── Agrupación: Enseñanza → Asignatura → Grupo ───────────────────────────── */
 function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>, integrarPendientes = false): { bloques: Bloque[]; tocNiveles: (1 | 2 | 3 | 0)[]; duplicadosPorAlumnoAsignatura: DuplicadoAlumnoAsignatura[] } {
   const filtradas = entries.filter(e => entryIncluida(e, incluidas));
 
-  // ensenanza → asignatura → curso → grupo → filas
-  const arbol = new Map<string, Map<string, Map<string, Map<string, FilaDoc[]>>>>();
+  // ensenanza → asignatura → grupo → filas
+  const arbol = new Map<string, Map<string, Map<string, FilaDoc[]>>>();
   for (const e of filtradas) {
     const fila = filaDeEntry(e, integrarPendientes);
     const cursoNivel = fila.curso;
@@ -284,10 +284,8 @@ function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>, int
 
     let porAsig = arbol.get(pref);
     if (!porAsig) { porAsig = new Map(); arbol.set(pref, porAsig); }
-    let porCurso = porAsig.get(asig);
-    if (!porCurso) { porCurso = new Map(); porAsig.set(asig, porCurso); }
-    let porGrupo = porCurso.get(cursoNivel);
-    if (!porGrupo) { porGrupo = new Map(); porCurso.set(cursoNivel, porGrupo); }
+    let porGrupo = porAsig.get(asig);
+    if (!porGrupo) { porGrupo = new Map(); porAsig.set(asig, porGrupo); }
     let filas = porGrupo.get(grupo);
     if (!filas) { filas = []; porGrupo.set(grupo, filas); }
 
@@ -313,55 +311,51 @@ function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>, int
     for (const asig of asigs) {
       bloques.push({ tipo: 'h2', texto: asig.toUpperCase() });
       tocNiveles.push(2);
-      const porCurso = porAsig.get(asig)!;
-      const cursos = [...porCurso.keys()].sort((a, b) => ordenCurso(a) - ordenCurso(b) || cmpEs(a, b));
-      for (const cursoNivel of cursos) {
-        bloques.push({ tipo: 'h3', texto: `${asig.toUpperCase()} ${cursoNivel}` });
-        tocNiveles.push(3);
-        const porGrupo = porCurso.get(cursoNivel)!;
-        const grupos = [...porGrupo.keys()].sort((a, b) => {
-          if (!a && b) return 1;
-          if (a && !b) return -1;
-          return cmpEs(a, b);
-        });
-        for (const g of grupos) {
-          const ordenadas = porGrupo.get(g)!.sort((x, y) => cmpEs(x.nombre, y.nombre));
-          // Cabecera H4 del grupo (necesita una fila de referencia; si después
-          // de dedup no queda ninguna, no se muestra la cabecera ni la tabla).
-          const dedup = deduplicarFilasConsecutivas(ordenadas);
-          if (dedup.length === 0) continue;
-          const ref = dedup[0];
-          // Contar las filas quitadas para el informe
-          if (ordenadas.length !== dedup.length) {
-            const vistos = new Set<string>();
-            for (const f of ordenadas) {
-              const k = claveAlumnoAsignatura(f);
-              if (vistos.has(k)) {
-                const entry = dupCount.get(k);
-                if (entry) entry.veces++;
-                else dupCount.set(k, { nombre: f.nombre, asignatura: baseAsignatura(f.abrev), veces: 2 });
-              } else {
-                vistos.add(k);
-              }
+      const porGrupo = porAsig.get(asig)!;
+      // Los códigos de grupo suelen llevar el curso delante ("EE4B"), así que
+      // se ordenan primero por ese nivel y luego alfabéticamente.
+      const grupos = [...porGrupo.keys()].sort((a, b) => {
+        if (!a && b) return 1;
+        if (a && !b) return -1;
+        return ordenCurso(a) - ordenCurso(b) || cmpEs(a, b);
+      });
+      for (const g of grupos) {
+        const ordenadas = porGrupo.get(g)!.sort((x, y) => cmpEs(x.nombre, y.nombre));
+        // Cabecera H4 del grupo (necesita una fila de referencia; si después
+        // de dedup no queda ninguna, no se muestra la cabecera ni la tabla).
+        const dedup = deduplicarFilasConsecutivas(ordenadas);
+        if (dedup.length === 0) continue;
+        const ref = dedup[0];
+        // Contar las filas quitadas para el informe
+        if (ordenadas.length !== dedup.length) {
+          const vistos = new Set<string>();
+          for (const f of ordenadas) {
+            const k = claveAlumnoAsignatura(f);
+            if (vistos.has(k)) {
+              const entry = dupCount.get(k);
+              if (entry) entry.veces++;
+              else dupCount.set(k, { nombre: f.nombre, asignatura: baseAsignatura(f.abrev), veces: 2 });
+            } else {
+              vistos.add(k);
             }
           }
-          // Encabezado H4 horizontal: se muestra solo en la primera página de la
-          // sección (la paginación lo gestiona como un bloque huérfano).
-          bloques.push({
-            tipo: 'h4',
-            texto: textoGrupo(g || 'Sin grupo', ref.prof, ref.aula),
-          });
-          tocNiveles.push(0);
-          // Bloque "grupo": caja vertical + tabla, repetido en cada página que
-          // tenga parte de la tabla. La etiqueta girada muestra solo Grupo y
-          // Aula; el Profesor se queda en el H4 horizontal.
-          bloques.push({
-            tipo: 'grupo',
-            texto: textoGrupoCorto(ref.curso, g || '', ref.aula),
-            filas: dedup,
-          });
-          tocNiveles.push(0);
         }
+        // Encabezado H4 horizontal: se muestra solo en la primera página de la
+        // sección (la paginación lo gestiona como un bloque huérfano).
+        bloques.push({
+          tipo: 'h4',
+          texto: textoGrupo(g || 'Sin grupo', ref.prof, ref.aula),
+        });
+        tocNiveles.push(0);
+        // Bloque "grupo": caja vertical + tabla, repetido en cada página que
+        // tenga parte de la tabla. La etiqueta girada muestra solo Grupo y
+        // Aula; el Profesor se queda en el H4 horizontal.
+        bloques.push({
+          tipo: 'grupo',
+          texto: textoGrupoCorto(ref.curso, g || '', ref.aula),
+          filas: dedup,
+        });
+        tocNiveles.push(0);
       }
     }
   }

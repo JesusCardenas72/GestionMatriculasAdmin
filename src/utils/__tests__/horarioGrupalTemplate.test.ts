@@ -409,7 +409,7 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
   });
 
   describe("navegación: TOC enlazando a secciones y botón volver al índice", () => {
-    it("cada h1/h2/h3 tiene un id único y aparece como destino de un <a> en el índice", () => {
+    it("cada h1/h2 tiene un id único y aparece como destino de un <a> en el índice", () => {
       const html = buildHorarioGrupalHtml(
         [
           entry("García, Ana", "Lenguaje Musical", { h: { h_grupo: "A" } }),
@@ -422,10 +422,10 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
       // correspondiente es un enlace <a href="#sec-N">.
       expect(html).toMatch(/<h1 id="sec-0">/);
       expect(html).toMatch(/class="h2-sidebar">/);
-      expect(html).toMatch(/<h3 id="sec-2">/);
       expect(html).toMatch(/<a href="#sec-0" class="toc-fila/);
       expect(html).toMatch(/<a href="#sec-1" class="toc-fila/);
-      expect(html).toMatch(/<a href="#sec-2" class="toc-fila/);
+      // Ya no hay nivel de curso: el árbol es Enseñanza → Asignatura → Grupo.
+      expect(html).not.toMatch(/<h3 id="sec-\d+">/);
     });
 
     it("cada bloque .grupo lleva un botón ↑ Subir que enlaza a #indice", () => {
@@ -441,7 +441,7 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
       expect(matches.length).toBe(2);
     });
 
-    it("cada h1/h2/h3 lleva un anchor <a name=\"...\"> además del id, para que los enlaces del índice funcionen en el PDF", () => {
+    it("cada h1/h2 lleva un anchor <a name=\"...\"> además del id, para que los enlaces del índice funcionen en el PDF", () => {
       const html = buildHorarioGrupalHtml(
         [
           entry("García, Ana", "Lenguaje Musical", { h: { h_grupo: "A" } }),
@@ -453,11 +453,9 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
       // funciona como ancla en cualquier visor de PDF.
       expect(html).toMatch(/<a name="sec-0"><\/a><h1 id="sec-0">/);
       expect(html).toMatch(/<a name="sec-1"><\/a>/);
-      expect(html).toMatch(/<a name="sec-2"><\/a><h3 id="sec-2">/);
       // Y los enlaces del índice deben apuntar a esos anchors.
       expect(html).toMatch(/href="#sec-0"/);
       expect(html).toMatch(/href="#sec-1"/);
-      expect(html).toMatch(/href="#sec-2"/);
     });
   });
 
@@ -473,10 +471,10 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
       h: { h_grupo: "A", h_prof: "Prof. Y", h_aula: "3", h_dia1: "martes", h_ent1: "16:00", h_sal1: "17:00" },
     });
 
-    it("por defecto (separar) deja al pendiente en su propio curso, sin «(Pte.)»", () => {
+    it("por defecto (separar) no marca al pendiente con «(Pte.)» y conserva su curso", () => {
       const html = buildHorarioGrupalHtml([nativoEP5, pendienteEP6], OPCIONES);
-      // El pendiente queda bajo su curso EP6, no en la tabla de EP5.
-      expect(html).toMatch(/<h3 id="sec-\d+">LENGUAJE MUSICAL EP6<\/h3>/);
+      // Sin nivel de curso, ambos comparten la tabla del grupo A; el pendiente
+      // no se marca y su fila mantiene el curso real.
       expect(html).not.toContain("(Pte.)");
       // La fila del pendiente conserva su curso real EP6.
       expect(html).toMatch(/Bravo Gil, Beto[\s\S]*?data-curso="EP6"/);
