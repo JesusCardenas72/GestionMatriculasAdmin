@@ -574,3 +574,136 @@ describe("Coro de Perfil (5.º y 6.º de E. Profesional)", () => {
     expect(r.sobrantes).toEqual([]);
   });
 });
+
+describe("Práctica Grupal de E. Elemental — bloques de curso y especialidad", () => {
+  it("parte en dos tablas un mismo grupo con dos especialidades", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Práctica Grupal", {
+        ensenanzaCurso: "EE3", especialidad: "Violín",
+        h: { h_grupo: "A", h_prof: "Morales Contreras, Ignacio", h_aula: "AUDI", h_dia1: "lunes", h_ent1: "16:00", h_sal1: "17:00" },
+      }),
+      entry("Castro, Diana", "Práctica Grupal", {
+        ensenanzaCurso: "EE3", especialidad: "Oboe",
+        h: { h_grupo: "A", h_prof: "García Pozuelo, José Manuel", h_aula: "AUDI", h_dia1: "martes", h_ent1: "16:00", h_sal1: "17:00" },
+      }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    const cabeceras = [...html.matchAll(/<div class="h4">([\s\S]*?)<\/div>/g)].map(m => m[1]);
+    expect(cabeceras.length).toBe(2);
+    expect(cabeceras.some(c => c.includes("Grupo A") && c.includes("Especialidad: Oboe"))).toBe(true);
+    expect(cabeceras.some(c => c.includes("Grupo A") && c.includes("Especialidad: Violín"))).toBe(true);
+    // Cada tabla se queda con su alumna.
+    const tbodies = html.match(/<tbody>[\s\S]*?<\/tbody>/g) ?? [];
+    expect(tbodies.length).toBe(2);
+    expect(tbodies.every(t => (t.match(/<tr /g) ?? []).length === 1)).toBe(true);
+  });
+
+  it("mantiene una sola tabla cuando el grupo tiene una única especialidad", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Práctica Grupal", { ensenanzaCurso: "EE2", especialidad: "Piano", h: { h_grupo: "D" } }),
+      entry("Castro, Diana", "Práctica Grupal", { ensenanzaCurso: "EE2", especialidad: "Piano", h: { h_grupo: "D" } }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    const cabeceras = [...html.matchAll(/<div class="h4">([\s\S]*?)<\/div>/g)].map(m => m[1]);
+    expect(cabeceras.length).toBe(1);
+    expect(cabeceras[0]).toContain("Especialidad: Piano");
+  });
+
+  it("no separa por especialidad el resto de asignaturas ni la Práctica Grupal de E. Profesional", () => {
+    const otras = buildHorarioGrupalHtml(
+      [
+        entry("Alonso, Beatriz", "Lenguaje Musical", { ensenanzaCurso: "EE3", especialidad: "Violín", h: { h_grupo: "A" } }),
+        entry("Castro, Diana", "Lenguaje Musical", { ensenanzaCurso: "EE3", especialidad: "Oboe", h: { h_grupo: "A" } }),
+      ],
+      OPCIONES,
+    );
+    const cabecerasOtras = [...otras.matchAll(/<div class="h4">([\s\S]*?)<\/div>/g)].map(m => m[1]);
+    expect(cabecerasOtras.length).toBe(1);
+    expect(cabecerasOtras[0]).not.toContain("Especialidad:");
+
+    const profesional = buildHorarioGrupalHtml(
+      [
+        entry("Alonso, Beatriz", "Práctica Grupal", { ensenanzaCurso: "EP1", especialidad: "Violín", h: { h_grupo: "A" } }),
+        entry("Castro, Diana", "Práctica Grupal", { ensenanzaCurso: "EP1", especialidad: "Oboe", h: { h_grupo: "A" } }),
+      ],
+      OPCIONES,
+    );
+    expect([...profesional.matchAll(/<div class="h4">([\s\S]*?)<\/div>/g)].length).toBe(1);
+  });
+
+  it("la etiqueta vertical del grupo también lleva la especialidad", () => {
+    const html = buildHorarioGrupalHtml(
+      [entry("Alonso, Beatriz", "Práctica Grupal", { ensenanzaCurso: "EE4", especialidad: "Guitarra", h: { h_grupo: "EE4A" } })],
+      OPCIONES,
+    );
+    expect(html).toContain("EE4, Gr: EE4A, Esp: Guitarra");
+  });
+
+  it("el chequeo de integridad sigue cuadrando con los grupos separados", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Práctica Grupal", { ensenanzaCurso: "EE3", especialidad: "Violín", h: { h_grupo: "A" } }),
+      entry("Castro, Diana", "Práctica Grupal", { ensenanzaCurso: "EE3", especialidad: "Oboe", h: { h_grupo: "A" } }),
+      entry("Egea, Fernando", "Práctica Grupal", { ensenanzaCurso: "EE3", especialidad: "Oboe", h: { h_grupo: "A" } }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    const r = chequearDocumentoGrupal(entries, html);
+    expect(r.incluidas).toBe(3);
+    expect(r.faltantes).toEqual([]);
+    expect(r.sobrantes).toEqual([]);
+  });
+
+  it("parte la asignatura en dos bloques de curso: 1.º y 2.º por un lado, 3.º y 4.º por otro", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Práctica Grupal", { ensenanzaCurso: "EE1", especialidad: "Violín", h: { h_grupo: "K" } }),
+      entry("Castro, Diana", "Práctica Grupal", { ensenanzaCurso: "EE2", especialidad: "Piano", h: { h_grupo: "D" } }),
+      entry("Egea, Fernando", "Práctica Grupal", { ensenanzaCurso: "EE3", especialidad: "Oboe", h: { h_grupo: "A" } }),
+      entry("Gil, Hugo", "Práctica Grupal", { ensenanzaCurso: "EE4", especialidad: "Piano", h: { h_grupo: "EE4A" } }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    const h3 = [...html.matchAll(/<h3 id="[^"]*">([\s\S]*?)<\/h3>/g)].map(m => m[1]);
+    expect(h3).toEqual(["PRÁCTICA GRUPAL — 1.º y 2.º", "PRÁCTICA GRUPAL — 3.º y 4.º"]);
+    // Y el índice los recoge como nivel 3, bajo la asignatura.
+    expect(html).toContain('class="toc-fila n3"');
+  });
+
+  it("dentro de cada bloque los grupos salen ordenados alfabéticamente", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Práctica Grupal", { ensenanzaCurso: "EE3", especialidad: "Piano", h: { h_grupo: "EE3B" } }),
+      entry("Castro, Diana", "Práctica Grupal", { ensenanzaCurso: "EE4", especialidad: "Oboe", h: { h_grupo: "A" } }),
+      entry("Egea, Fernando", "Práctica Grupal", { ensenanzaCurso: "EE3", especialidad: "Guitarra", h: { h_grupo: "EE3A" } }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    const grupos = [...html.matchAll(/<div class="h4">Grupo ([^,<]+)/g)].map(m => m[1]);
+    expect(grupos).toEqual(["A", "EE3A", "EE3B"]);
+  });
+
+  it("no mezcla el mismo grupo y especialidad cuando cae en bloques de curso distintos", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Práctica Grupal", {
+        ensenanzaCurso: "EE1", especialidad: "Saxofón",
+        h: { h_grupo: "A", h_prof: "Campos Caballero, José Ramón", h_aula: "A28", h_dia1: "lunes", h_ent1: "16:00", h_sal1: "17:00" },
+      }),
+      entry("Castro, Diana", "Práctica Grupal", {
+        ensenanzaCurso: "EE4", especialidad: "Saxofón",
+        h: { h_grupo: "A", h_prof: "García Pozuelo, José Manuel", h_aula: "AUDI", h_dia1: "martes", h_ent1: "16:00", h_sal1: "17:00" },
+      }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    const cabeceras = [...html.matchAll(/<div class="h4">([\s\S]*?)<\/div>/g)].map(m => m[1]);
+    expect(cabeceras.length).toBe(2);
+    expect(cabeceras.some(c => c.includes("Campos Caballero, José Ramón"))).toBe(true);
+    expect(cabeceras.some(c => c.includes("García Pozuelo, José Manuel"))).toBe(true);
+  });
+
+  it("el resto de asignaturas no lleva encabezado de bloque de curso", () => {
+    const html = buildHorarioGrupalHtml(
+      [
+        entry("Alonso, Beatriz", "Lenguaje Musical", { ensenanzaCurso: "EE1", h: { h_grupo: "A" } }),
+        entry("Castro, Diana", "Lenguaje Musical", { ensenanzaCurso: "EE4", h: { h_grupo: "B" } }),
+      ],
+      OPCIONES,
+    );
+    expect(html).not.toContain("<h3 ");
+    expect(html).not.toContain('class="toc-fila n3"');
+  });
+});

@@ -9,13 +9,15 @@
  * al construir el HTML y el índice sale exacto en una sola pasada.
  *
  * Estructura: cabecera en todas las páginas (título + "Actualizado a" + logo),
- * portada con avisos e índice de 3 niveles, y contenido agrupado en
- * Enseñanza (H1) → Asignatura (H2) → una tabla por Grupo.
+ * portada con avisos e índice, y contenido agrupado en Enseñanza (H1) →
+ * Asignatura (H2) → una tabla por Grupo. La Práctica Grupal de E. Elemental
+ * intercala además un bloque de curso (H3): 1.º y 2.º por un lado, 3.º y 4.º
+ * por otro.
  */
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import type { HorariosEntry } from '../../electron/horarios-data-store';
 import { abreviaturaAsignatura } from '../data/catalogoLocal';
-import { asignaturaDocDe } from './horarioGrupalDoc';
+import { asignaturaDocDe, normAsigDoc } from './horarioGrupalDoc';
 import type { EstadoDocGrupal } from './horarioGrupalDoc';
 
 export interface OpcionesDocGrupal {
@@ -233,6 +235,53 @@ function ensenanzaDe(curso: string): 'EE' | 'EP' | 'OTRAS' {
 }
 
 /**
+ * Práctica Grupal de Enseñanza Elemental: la única asignatura con agrupación
+ * propia en el documento. Reutiliza las mismas denominaciones de grupo
+ * ("A", "B", "EE3A"…) en especialidades y cursos distintos —son clases
+ * distintas, con su propio profesorado y su propio horario—, así que la
+ * denominación por sí sola no identifica al grupo. Se parte en dos bloques de
+ * curso (1.º y 2.º / 3.º y 4.º) y, dentro de cada uno, por especialidad.
+ */
+function esPracticaGrupalElemental(curso: string, asig: string): boolean {
+  return ensenanzaDe(curso) === 'EE' && normAsigDoc(baseAsignatura(asig)) === 'practica grupal';
+}
+
+/**
+ * Bloque de curso (H3) al que pertenece una fila: "1.º y 2.º" o "3.º y 4.º" en
+ * la Práctica Grupal de E. Elemental, y '' en el resto de asignaturas, que no
+ * se parten y por tanto no llevan encabezado de bloque. Un curso inesperado
+ * (EE5 en adelante) se queda en un bloque propio en lugar de mezclarse.
+ */
+function bloqueCurso(curso: string, asig: string): string {
+  if (!esPracticaGrupalElemental(curso, asig)) return '';
+  const n = nivelCurso(curso);
+  if (n === 1 || n === 2) return '1.º y 2.º';
+  if (n === 3 || n === 4) return '3.º y 4.º';
+  return curso || 'Otros cursos';
+}
+
+/** Separador interno de la clave de grupo; nunca aparece en ningún texto. */
+const SEP_ESP = '\u0000';
+
+/**
+ * Clave con la que una fila cae en un grupo dentro de su asignatura: la
+ * denominación del grupo y, en las asignaturas que lo requieren, la
+ * especialidad. ÚNICA fuente de verdad: la usan el árbol de bloques y
+ * `filasEsperadas`, de modo que ambos parten las tablas igual.
+ */
+function claveGrupo(fila: FilaDoc, asig: string): string {
+  return esPracticaGrupalElemental(fila.curso, asig)
+    ? `${fila.grupo}${SEP_ESP}${fila.esp}`
+    : fila.grupo;
+}
+
+/** Descompone la clave anterior en [denominación, especialidad] ('' si no lleva). */
+function partesClaveGrupo(clave: string): [string, string] {
+  const i = clave.indexOf(SEP_ESP);
+  return i < 0 ? [clave, ''] : [clave.slice(0, i), clave.slice(i + 1)];
+}
+
+/**
  * Reproduce la agrupación y dedup de `construirBloques` pero devolviendo
  * únicamente la lista plana de filas que el PDF termina escribiendo. Es la
  * forma que tiene el chequear de saber cuántas filas DEBERÍA tener el
@@ -246,7 +295,7 @@ function filasEsperadas(entries: HorariosEntry[], incluidas?: Set<string>, integ
     const fila = filaDeEntry(e, integrarPendientes);
     const ens = ensenanzaDe(fila.curso);
     const asig = asignaturaDoc(e);
-    const k: ClaveGrupo = `${ens}|${asig}|${fila.grupo}`;
+    const k: ClaveGrupo = `${ens}|${asig}|${bloqueCurso(fila.curso, asig)}|${claveGrupo(fila, asig)}`;
     let arr = porGrupo.get(k);
     if (!arr) { arr = []; porGrupo.set(k, arr); }
     arr.push(fila);
@@ -259,16 +308,22 @@ function filasEsperadas(entries: HorariosEntry[], incluidas?: Set<string>, integ
   return out;
 }
 
-/** Texto del encabezado H4 horizontal: "Grupo EP3A, Aula: ..., Profesor: ...", omitiendo los vacíos. */
-function textoGrupo(grupo: string, prof: string, aula: string): string {
+/**
+ * Texto del encabezado H4 horizontal: "Grupo EP3A, Aula: ..., Profesor: ...",
+ * omitiendo los vacíos. `esp` solo llega en las asignaturas cuyos grupos se
+ * separan por especialidad (ver `separaPorEspecialidad`), donde hace falta para
+ * distinguir dos tablas que comparten denominación de grupo.
+ */
+function textoGrupo(grupo: string, prof: string, aula: string, esp = ''): string {
   const partes: string[] = [grupo ? `Grupo ${grupo}` : 'Sin grupo'];
+  if (esp) partes.push(`Especialidad: ${esp}`);
   if (aula) partes.push(`Aula: ${aula}`);
   if (prof) partes.push(`Profesor: ${prof}`);
   return partes.join(', ');
 }
 
-/** Texto corto de la etiqueta vertical girada: "EE3, Gr: EE3A, Aula: ..." */
-function textoGrupoCorto(curso: string, grupo: string, aula: string): string {
+/** Texto corto de la etiqueta vertical girada: "EE3, Gr: EE3A, Esp: Violín, Aula: ..." */
+function textoGrupoCorto(curso: string, grupo: string, aula: string, esp = ''): string {
   const partes: string[] = [];
   if (curso) partes.push(curso);
   // `grupo` puede venir como código completo ("EE4B") o solo la letra ("B").
@@ -278,6 +333,7 @@ function textoGrupoCorto(curso: string, grupo: string, aula: string): string {
     ? (grupo.toUpperCase().startsWith(curso.toUpperCase()) ? grupo : `${curso}${grupo}`)
     : '';
   partes.push(grupo ? `Gr: ${grupoCompleto}` : 'Gr: —');
+  if (esp) partes.push(`Esp: ${esp}`);
   if (aula) partes.push(`Aula: ${aula}`);
   return partes.join(', ');
 }
@@ -286,19 +342,25 @@ function textoGrupoCorto(curso: string, grupo: string, aula: string): string {
 function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>, integrarPendientes = false): { bloques: Bloque[]; tocNiveles: (1 | 2 | 3 | 0)[]; duplicadosPorAlumnoAsignatura: DuplicadoAlumnoAsignatura[] } {
   const filtradas = entries.filter(e => entryIncluida(e, incluidas));
 
-  // ensenanza → asignatura → grupo → filas
-  const arbol = new Map<string, Map<string, Map<string, FilaDoc[]>>>();
+  // ensenanza → asignatura → bloque de curso → grupo → filas
+  // El bloque de curso es '' salvo en la Práctica Grupal de E. Elemental.
+  const arbol = new Map<string, Map<string, Map<string, Map<string, FilaDoc[]>>>>();
   for (const e of filtradas) {
     const fila = filaDeEntry(e, integrarPendientes);
     const cursoNivel = fila.curso;
     const pref = /^EE/.test(cursoNivel) ? 'ENSEÑANZA ELEMENTAL' : /^EP/.test(cursoNivel) ? 'ENSEÑANZA PROFESIONAL' : 'OTRAS ENSEÑANZAS';
     const asig = asignaturaDoc(e);
-    const grupo = fila.grupo;
+    const bloque = bloqueCurso(cursoNivel, asig);
+    // La clave del grupo lleva la especialidad en las asignaturas que la
+    // necesitan (Práctica Grupal de E. Elemental).
+    const grupo = claveGrupo(fila, asig);
 
     let porAsig = arbol.get(pref);
     if (!porAsig) { porAsig = new Map(); arbol.set(pref, porAsig); }
-    let porGrupo = porAsig.get(asig);
-    if (!porGrupo) { porGrupo = new Map(); porAsig.set(asig, porGrupo); }
+    let porBloque = porAsig.get(asig);
+    if (!porBloque) { porBloque = new Map(); porAsig.set(asig, porBloque); }
+    let porGrupo = porBloque.get(bloque);
+    if (!porGrupo) { porGrupo = new Map(); porBloque.set(bloque, porGrupo); }
     let filas = porGrupo.get(grupo);
     if (!filas) { filas = []; porGrupo.set(grupo, filas); }
 
@@ -324,51 +386,68 @@ function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>, int
     for (const asig of asigs) {
       bloques.push({ tipo: 'h2', texto: asig.toUpperCase() });
       tocNiveles.push(2);
-      const porGrupo = porAsig.get(asig)!;
-      // Los códigos de grupo suelen llevar el curso delante ("EE4B"), así que
-      // se ordenan primero por ese nivel y luego alfabéticamente.
-      const grupos = [...porGrupo.keys()].sort((a, b) => {
-        if (!a && b) return 1;
-        if (a && !b) return -1;
-        return ordenCurso(a) - ordenCurso(b) || cmpEs(a, b);
-      });
-      for (const g of grupos) {
-        const ordenadas = porGrupo.get(g)!.sort((x, y) => cmpEs(x.nombre, y.nombre));
-        // Cabecera H4 del grupo (necesita una fila de referencia; si después
-        // de dedup no queda ninguna, no se muestra la cabecera ni la tabla).
-        const dedup = deduplicarFilasConsecutivas(ordenadas);
-        if (dedup.length === 0) continue;
-        const ref = dedup[0];
-        // Contar las filas quitadas para el informe
-        if (ordenadas.length !== dedup.length) {
-          const vistos = new Set<string>();
-          for (const f of ordenadas) {
-            const k = claveAlumnoAsignatura(f);
-            if (vistos.has(k)) {
-              const entry = dupCount.get(k);
-              if (entry) entry.veces++;
-              else dupCount.set(k, { nombre: f.nombre, asignatura: baseAsignatura(f.abrev), veces: 2 });
-            } else {
-              vistos.add(k);
+      const porBloque = porAsig.get(asig)!;
+      // Bloques de curso: '' (la mayoría de asignaturas, sin encabezado) o
+      // "1.º y 2.º" / "3.º y 4.º" de la Práctica Grupal, en ese orden.
+      const bloquesCurso = [...porBloque.keys()].sort(cmpEs);
+      for (const bloqueCursoActual of bloquesCurso) {
+        if (bloqueCursoActual) {
+          bloques.push({ tipo: 'h3', texto: `${asig.toUpperCase()} — ${bloqueCursoActual}` });
+          tocNiveles.push(3);
+        }
+        const porGrupo = porBloque.get(bloqueCursoActual)!;
+        // Dentro de un bloque de curso el orden es alfabético por grupo. En el
+        // resto de asignaturas se antepone el nivel que llevan los códigos de
+        // grupo ("EE4B"), que es lo único que los ordena por curso.
+        const grupos = [...porGrupo.keys()].sort((a, b) => {
+          const [ga, ea] = partesClaveGrupo(a);
+          const [gb, eb] = partesClaveGrupo(b);
+          if (!ga && gb) return 1;
+          if (ga && !gb) return -1;
+          const porNivel = bloqueCursoActual ? 0 : ordenCurso(ga) - ordenCurso(gb);
+          return porNivel || cmpEs(ga, gb) || cmpEs(ea, eb);
+        });
+        for (const clave of grupos) {
+          // `g` es la denominación del grupo; `espGrupo` solo viene relleno en las
+          // asignaturas separadas por especialidad.
+          const [g, espGrupo] = partesClaveGrupo(clave);
+          const ordenadas = porGrupo.get(clave)!.sort((x, y) => cmpEs(x.nombre, y.nombre));
+          // Cabecera H4 del grupo (necesita una fila de referencia; si después
+          // de dedup no queda ninguna, no se muestra la cabecera ni la tabla).
+          const dedup = deduplicarFilasConsecutivas(ordenadas);
+          if (dedup.length === 0) continue;
+          const ref = dedup[0];
+          // Contar las filas quitadas para el informe
+          if (ordenadas.length !== dedup.length) {
+            const vistos = new Set<string>();
+            for (const f of ordenadas) {
+              const k = claveAlumnoAsignatura(f);
+              if (vistos.has(k)) {
+                const entry = dupCount.get(k);
+                if (entry) entry.veces++;
+                else dupCount.set(k, { nombre: f.nombre, asignatura: baseAsignatura(f.abrev), veces: 2 });
+              } else {
+                vistos.add(k);
+              }
             }
           }
+          // Encabezado H4 horizontal: se muestra solo en la primera página de la
+          // sección (la paginación lo gestiona como un bloque huérfano).
+          bloques.push({
+            tipo: 'h4',
+            texto: textoGrupo(g || 'Sin grupo', ref.prof, ref.aula, espGrupo),
+          });
+          tocNiveles.push(0);
+          // Bloque "grupo": caja vertical + tabla, repetido en cada página que
+          // tenga parte de la tabla. La etiqueta girada muestra solo Grupo y
+          // Aula; el Profesor se queda en el H4 horizontal.
+          bloques.push({
+            tipo: 'grupo',
+            texto: textoGrupoCorto(ref.curso, g || '', ref.aula, espGrupo),
+            filas: dedup,
+          });
+          tocNiveles.push(0);
         }
-        // Encabezado H4 horizontal: se muestra solo en la primera página de la
-        // sección (la paginación lo gestiona como un bloque huérfano).
-        bloques.push({
-          tipo: 'h4',
-          texto: textoGrupo(g || 'Sin grupo', ref.prof, ref.aula),
-        });
-        tocNiveles.push(0);
-        // Bloque "grupo": caja vertical + tabla, repetido en cada página que
-        // tenga parte de la tabla. La etiqueta girada muestra solo Grupo y
-        // Aula; el Profesor se queda en el H4 horizontal.
-        bloques.push({
-          tipo: 'grupo',
-          texto: textoGrupoCorto(ref.curso, g || '', ref.aula),
-          filas: dedup,
-        });
-        tocNiveles.push(0);
       }
     }
   }

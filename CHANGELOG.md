@@ -9,6 +9,20 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.11.0] - 2026-09-04
+
+### Cambiado
+
+- **La Práctica Grupal de Enseñanza Elemental se agrupa por bloques de curso y por especialidad** (pestaña *Horarios → Listados por asignatura → Grupos*). Esta asignatura reutiliza las mismas denominaciones de grupo («A», «B», «EE3A»…) en cursos y especialidades distintos, y todas esas clases —con su propio profesorado, aula y horario— acababan mezcladas en una sola tabla. Ahora:
+  - Se parte en dos secciones con encabezado propio, **«PRÁCTICA GRUPAL — 1.º y 2.º»** y **«PRÁCTICA GRUPAL — 3.º y 4.º»**, que aparecen también en el índice del documento. Cada alumno cae en la de su curso.
+  - Dentro de cada sección, **dos especialidades con la misma denominación de grupo van en tablas separadas**.
+  - Las tablas de cada sección salen **ordenadas alfabéticamente por grupo**.
+  - La especialidad se muestra en la cabecera de la tabla («Grupo A, Especialidad: Violín, Aula: …, Profesor: …») y en la etiqueta vertical («EE3, Gr: EE3A, Esp: Guitarra, Aula: …»), para distinguir de un vistazo dos tablas que comparten grupo.
+
+  El resto de asignaturas mantiene la agrupación de siempre. Con los datos del curso 26/27, la Práctica Grupal pasa de 23 a 42 tablas sin ganar ni perder ni una fila, y el chequeo de integridad del documento sigue al 100 %.
+
+---
+
 ## [1.10.0] - 2026-09-04
 
 ### Añadido
