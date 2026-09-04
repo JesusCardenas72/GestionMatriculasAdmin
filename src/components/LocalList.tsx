@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertTriangle,
+  Ban,
   ChevronDown,
   ChevronUp,
   Ghost,
@@ -21,6 +22,7 @@ type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
 type RepetidorFilter = "all" | "repetidor" | "noRepetidor";
 type FantasmaFilter = "no" | "si" | "todo";
+type AnulacionFilter = "all" | "anuladas" | "noAnuladas";
 type SustitucionFilter = "all" | "pendiente" | "vinculado" | "sustituido" | "sinEstado" | "discrepancia";
 
 type SustitucionEstado = "pendiente" | "vinculado" | "sustituido" | "sinEstado";
@@ -398,6 +400,8 @@ export default function LocalList({
   const [filterSustitucion, setFilterSustitucion] = useState<SustitucionFilter>("all");
   // 2Espec: solo alumnos con el mismo nombre y dos instrumentos (dos especialidades).
   const [filter2Espec, setFilter2Espec] = useState(false);
+  // Anulación: «all» (desactivado) › solo anuladas › solo no anuladas.
+  const [filterAnulacion, setFilterAnulacion] = useState<AnulacionFilter>("all");
   const [sort, setSort] = useState<{ field: SortField | null; dir: SortDir }>({
     field: null,
     dir: "desc",
@@ -523,6 +527,8 @@ export default function LocalList({
       if (filterRepetidor === "noRepetidor" && m.repetidor) return false;
       if (filterFantasma === "no" && m.esTemporal) return false;
       if (filterFantasma === "si" && !m.esTemporal) return false;
+      if (filterAnulacion === "anuladas" && !m.anulacion) return false;
+      if (filterAnulacion === "noAnuladas" && m.anulacion) return false;
       if (filterSustitucion === "discrepancia") {
         if (!discrepanciaPorId.has(m.localId)) return false;
       } else if (filterSustitucion !== "all") {
@@ -554,7 +560,7 @@ export default function LocalList({
           return sign * ((a.nOrden ?? Infinity) - (b.nOrden ?? Infinity));
       }
     });
-  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, filterSustitucion, filter2Espec, nombresDosEspec, nuevoEstadoPorId, discrepanciaPorId, sort]);
+  }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, filterFantasma, filterSustitucion, filter2Espec, filterAnulacion, nombresDosEspec, nuevoEstadoPorId, discrepanciaPorId, sort]);
 
   const grouped = useMemo(() => groupPairs(filtered), [filtered]);
 
@@ -644,6 +650,14 @@ export default function LocalList({
       if (prev === "no") return "si";
       if (prev === "si") return "todo";
       return "no";
+    });
+  }
+
+  function handleAnulacionClick() {
+    setFilterAnulacion((prev) => {
+      if (prev === "all") return "anuladas";
+      if (prev === "anuladas") return "noAnuladas";
+      return "all";
     });
   }
 
@@ -832,6 +846,23 @@ export default function LocalList({
           >
             2Espec
           </button>
+          <button
+            onClick={handleAnulacionClick}
+            title="Filtrar anulación: Desactivado › Solo anuladas › Solo no anuladas"
+            className={
+              "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all " +
+              (filterAnulacion === "anuladas"
+                ? "bg-[var(--tc-card)] shadow-sm text-red-600"
+                : filterAnulacion === "noAnuladas"
+                  ? "bg-[var(--tc-card)] shadow-sm text-emerald-600"
+                  : "text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            <Ban className="w-3.5 h-3.5 shrink-0" />
+            {filterAnulacion === "all" && "Anul."}
+            {filterAnulacion === "anuladas" && "Anuladas"}
+            {filterAnulacion === "noAnuladas" && "No anul."}
+          </button>
         </div>
 
         {isSyncing && (
@@ -844,7 +875,7 @@ export default function LocalList({
       {/* ── Lista virtualizada ──────────────────────────────────────────── */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 min-h-0 overflow-y-auto"
         style={{ overflowX: "clip", overflowClipMargin: 20 }}
       >
         {isLoading && (

@@ -28,7 +28,13 @@ import {
 } from "../hooks/useSolicitudes";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import type { AsignaturaLocal as AsignaturaLocalStore } from "../api/types";
-import { getCatalogoLocal, getCatalogoParaCurso, ensenanzaDesdeCode } from "../data/catalogoLocal";
+import {
+  getCatalogoLocal,
+  ensenanzaDesdeCode,
+  nombreAsignaturaConCurso,
+  agruparCatalogoPorCurso,
+} from "../data/catalogoLocal";
+import { tieneSufijoCurso } from "../utils/repetidorSuelta";
 import { actualizarSolicitud } from "../api/solicitudes";
 import { FlowError } from "../api/client";
 import { cursosStore } from "../api/cursosStore";
@@ -300,7 +306,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
 
   const gruposAsig = useMemo(() => {
     const visibles = (asigItems ?? []).filter(
-      (i) => !i.deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+      (i) => !i.deleted && (!esRepetidorSuelta || tieneSufijoCurso(i.nombre)),
     );
     return ORDEN_ESTADOS
       .map((estado) => ({ estado, items: visibles.filter((i) => i.estado === estado) }))
@@ -309,19 +315,26 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
 
   const listaAsigVisible = useMemo(
     () => (asigItems ?? []).filter(
-      (i) => !i.deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+      (i) => !i.deleted && (!esRepetidorSuelta || tieneSufijoCurso(i.nombre)),
     ),
     [asigItems, esRepetidorSuelta, cursoActual],
   );
 
+  // El catálogo llega hasta el curso del alumno e incluye los anteriores: sus
+  // asignaturas pendientes se añaden con el sufijo "(Nº)" del curso al que
+  // pertenecen. También para un repetidor suelta, que puede arrastrar
+  // pendientes de cursos inferiores además de las que repite.
   const catalogoFiltradoAsig = useMemo(() => {
     if (!especialidad) return [];
     const yaAgregados = new Set(listaAsigVisible.map((i) => i.asignaturaId));
-    const catalogo = esRepetidorSuelta
-      ? getCatalogoParaCurso(especialidad, cursoActual, ensenanza)
-      : getCatalogoLocal(especialidad, cursoActual, ensenanza);
-    return catalogo.filter((a) => !yaAgregados.has(a.rowId));
-  }, [especialidad, ensenanza, cursoActual, listaAsigVisible, esRepetidorSuelta]);
+    return getCatalogoLocal(especialidad, cursoActual, ensenanza)
+      .filter((a) => !yaAgregados.has(a.rowId));
+  }, [especialidad, ensenanza, cursoActual, listaAsigVisible]);
+
+  const gruposCatalogoAsig = useMemo(
+    () => agruparCatalogoPorCurso(catalogoFiltradoAsig, cursoActual),
+    [catalogoFiltradoAsig, cursoActual],
+  );
 
   const hayChangiosAsig = useMemo(() => {
     if (!asigItems || !asignaturasQuery.data) return false;
@@ -357,7 +370,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     if (!asignatura) return;
     const nueva: AsignaturaLocal = {
       rowId: `new-${Date.now()}`,
-      nombre: asignatura.descripcion || asignatura.abreviatura,
+      nombre: nombreAsignaturaConCurso(asignatura, cursoActual, esRepetidorSuelta),
       estado: addEstado,
       asignaturaId: asignatura.rowId,
       observaciones: null,
@@ -993,10 +1006,14 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
                 style={{ borderColor: "var(--tc-border)", background: "var(--tc-card)", color: "var(--tc-ink)" }}
               >
                 <option value="">— Selecciona una asignatura —</option>
-                {catalogoFiltradoAsig.map((a) => (
-                  <option key={a.rowId} value={a.rowId}>
-                    {a.descripcion || a.abreviatura}{a.cursoDesc ? ` (${a.cursoDesc})` : ""}
-                  </option>
+                {gruposCatalogoAsig.map((g) => (
+                  <optgroup key={g.nivel} label={g.etiqueta}>
+                    {g.items.map((a) => (
+                      <option key={a.rowId} value={a.rowId}>
+                        {nombreAsignaturaConCurso(a, cursoActual, esRepetidorSuelta)}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               {catalogoFiltradoAsig.length === 0 && (

@@ -10,6 +10,7 @@ import {
   type Solicitud,
 } from "../api/types";
 import { cursosStore } from "../api/cursosStore";
+import { describirFlowError } from "../api/client";
 import { actualizarSolicitud, crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
@@ -700,12 +701,17 @@ export default function LocalScreen({ config }: Props) {
             disponibilidadManana: selected.disponibilidadManana,
             horaSalida: selected.horaSalida,
             repetidor: selected.repetidor,
-            asignaturasActualizadas: selected.asignaturas
-              .filter((a) => a.rowId !== null)
-              .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
-            asignaturasNuevas: selected.asignaturas
-              .filter((a) => a.rowId === null)
-              .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
+            docFaltante: selected.docFaltante,
+            anulacion: selected.anulacion,
+            ampliacion: selected.ampliacion,
+            ampliada: selected.ampliada,
+            asignaturas: selected.asignaturas.map((a) => ({
+              rowId: a.rowId,
+              codigo: a.codigo,
+              nombre: a.nombre,
+              estado: a.estado,
+              observaciones: a.observaciones ?? "",
+            })),
           });
           await marcarSubida(selected.localId);
         }
@@ -799,6 +805,16 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
+  // Resume los fallos de una subida masiva. Incluye el motivo real del primer
+  // error (antes se descartaba con un `catch {}` y solo se veía el recuento),
+  // que casi siempre es el mismo para todos: URL del flow mal configurada,
+  // API key rechazada (401) o timeout.
+  function resumenFallosSubida(fallos: string[], singular: string, plural: string): string {
+    const n = fallos.length;
+    const cabecera = `${n} ${n > 1 ? plural : singular} no se ${n > 1 ? "pudieron" : "pudo"} subir`;
+    return `${cabecera}. Motivo: ${fallos[0]}${n > 1 ? ` (y ${n - 1} más; detalle completo en la consola)` : ""}`;
+  }
+
   async function doSubirNube(m: MatriculaLocal) {
     if (m.rowId) {
         await subirMatriculaEditada(config, {
@@ -822,12 +838,17 @@ export default function LocalScreen({ config }: Props) {
           disponibilidadManana: m.disponibilidadManana,
           horaSalida: m.horaSalida,
           repetidor: m.repetidor,
-          asignaturasActualizadas: m.asignaturas
-            .filter((a) => a.rowId !== null)
-            .map((a) => ({ rowId: a.rowId!, estado: a.estado, observaciones: a.observaciones ?? "" })),
-          asignaturasNuevas: m.asignaturas
-            .filter((a) => a.rowId === null)
-            .map((a) => ({ codigo: a.codigo, nombre: a.nombre, estado: a.estado })),
+          docFaltante: m.docFaltante,
+          anulacion: m.anulacion,
+          ampliacion: m.ampliacion,
+          ampliada: m.ampliada,
+          asignaturas: m.asignaturas.map((a) => ({
+            rowId: a.rowId,
+            codigo: a.codigo,
+            nombre: a.nombre,
+            estado: a.estado,
+            observaciones: a.observaciones ?? "",
+          })),
         });
         await actualizar(m.localId, { _pendienteSubida: false, _fueEditado: true });
       } else {
@@ -913,19 +934,22 @@ export default function LocalScreen({ config }: Props) {
     setIsSubiendoTodo(true);
     setSubirTodoError(null);
     setProgressDialog({ title: "Subiendo a la nube…", current: 0, total: pendientes.length });
-    let errores = 0;
+    const fallos: string[] = [];
     for (let i = 0; i < pendientes.length; i++) {
+      const m = pendientes[i];
       try {
-        await doSubirNube(pendientes[i]);
-      } catch {
-        errores++;
+        await doSubirNube(m);
+      } catch (e) {
+        const motivo = describirFlowError(e);
+        console.error(`[SubirTodo] ${m.apellidos}, ${m.nombre} (${m.localId})`, e);
+        fallos.push(`${m.apellidos}, ${m.nombre}: ${motivo}`);
       }
       setProgressDialog({ title: "Subiendo a la nube…", current: i + 1, total: pendientes.length });
     }
     setProgressDialog(null);
     setIsSubiendoTodo(false);
-    if (errores > 0) {
-      setSubirTodoError(`${errores} matrícula${errores > 1 ? "s" : ""} no se pudo${errores > 1 ? "ieron" : ""} subir`);
+    if (fallos.length > 0) {
+      setSubirTodoError(resumenFallosSubida(fallos, "matrícula", "matrículas"));
     }
   }
 
@@ -945,19 +969,22 @@ export default function LocalScreen({ config }: Props) {
     setIsSubiendoTodo(true);
     setSubirTodoError(null);
     setProgressDialog({ title: "Forzando subida completa…", current: 0, total: todos.length });
-    let errores = 0;
+    const fallos: string[] = [];
     for (let i = 0; i < todos.length; i++) {
+      const m = todos[i];
       try {
-        await doSubirNube(todos[i]);
-      } catch {
-        errores++;
+        await doSubirNube(m);
+      } catch (e) {
+        const motivo = describirFlowError(e);
+        console.error(`[ForzarSubida] ${m.apellidos}, ${m.nombre} (${m.localId})`, e);
+        fallos.push(`${m.apellidos}, ${m.nombre}: ${motivo}`);
       }
       setProgressDialog({ title: "Forzando subida completa…", current: i + 1, total: todos.length });
     }
     setProgressDialog(null);
     setIsSubiendoTodo(false);
-    if (errores > 0) {
-      setSubirTodoError(`${errores} registro${errores > 1 ? "s" : ""} no se pudo${errores > 1 ? "ieron" : ""} subir`);
+    if (fallos.length > 0) {
+      setSubirTodoError(resumenFallosSubida(fallos, "registro", "registros"));
     }
   }
 
@@ -1137,22 +1164,24 @@ export default function LocalScreen({ config }: Props) {
         left={
           <div className="h-full pl-6 pr-3 py-5">
             <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
-            <LocalList
-              data={matriculas}
-              curso={curso}
-              isLoading={isLoading || isFetching}
-              isSyncing={isSyncing}
-              selectedId={selected?.localId ?? null}
-              onSelect={setSelected}
-              onRefresh={() => {
-                void refetch();
-                void pendienteTramitacionQuery.refetch();
-                void pendienteValidacionQuery.refetch();
-                void tramitadasQuery.refetch();
-              }}
-            />
+            <div className="flex-1 min-h-0 flex flex-col">
+              <LocalList
+                data={matriculas}
+                curso={curso}
+                isLoading={isLoading || isFetching}
+                isSyncing={isSyncing}
+                selectedId={selected?.localId ?? null}
+                onSelect={setSelected}
+                onRefresh={() => {
+                  void refetch();
+                  void pendienteTramitacionQuery.refetch();
+                  void pendienteValidacionQuery.refetch();
+                  void tramitadasQuery.refetch();
+                }}
+              />
+            </div>
             {(pendingUploads > 0 || !isSoloLectura || matriculas.some((m) => !m.esTemporal && m.rowId)) && (
-              <div className="p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
+              <div className="shrink-0 p-3 border-t border-[var(--tc-border)] flex flex-col gap-1.5">
                 {pendingUploads > 0 && (
                   <button
                     onClick={() => !isSoloLectura && void handleSubirNubeTodo()}

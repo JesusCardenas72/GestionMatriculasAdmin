@@ -249,4 +249,50 @@ describe("SolicitudEditModal", () => {
     );
   });
 
+  it("ofrece asignaturas de cursos anteriores agrupadas por curso", async () => {
+    const { container } = render(
+      <SolicitudEditModal
+        config={mockConfig}
+        solicitud={mockSolicitud}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Añadir asignatura/ }));
+
+    const etiquetas = [...container.querySelectorAll("optgroup")].map((g) => g.label);
+    expect(etiquetas).toContain("Curso actual (3º)");
+    expect(etiquetas).toContain("Curso 2º — pendientes");
+    expect(etiquetas).toContain("Curso 1º — pendientes");
+    expect(screen.getByRole("option", { name: "Lenguaje Musical (1º)" })).toBeInTheDocument();
+  });
+
+  it("guarda una asignatura de un curso anterior con el sufijo del curso", async () => {
+    render(
+      <SolicitudEditModal
+        config={mockConfig}
+        solicitud={mockSolicitud}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Añadir asignatura/ }));
+
+    const selects = screen.getAllByRole("combobox");
+    const selectAsignatura = selects[selects.length - 1];
+    await userEvent.selectOptions(
+      selectAsignatura,
+      screen.getByRole("option", { name: "Lenguaje Musical (1º)" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Añadir" }));
+    await userEvent.click(screen.getByRole("button", { name: /Guardar cambios/ }));
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nuevos: [expect.objectContaining({ nombre: "Lenguaje Musical (1º)" })],
+      }),
+      expect.any(Object),
+    );
+  });
+
 });

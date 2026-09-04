@@ -1,6 +1,5 @@
 import type { HorarioAlumno } from '../horarios/types';
 import { buildCursoLabel } from '../horarios/types';
-import { esAsignaturaTutoraInstrumento } from './horarioExcel';
 
 function esc(s: string): string {
   return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -21,12 +20,6 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
   const hoy = new Date().toLocaleDateString('es-ES', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
-
-  const claseInstrumento = alumno.clases.find(c =>
-    esAsignaturaTutoraInstrumento(c.asignatura),
-  );
-  const tutor = alumno.profesorInstrumento?.trim() || claseInstrumento?.profesor?.trim() ||
-    'No disponible. Será asignado por la Delegación de Educación';
 
   const nClases = alumno.clases.length;
   const diasSet = new Set(alumno.clases.map(c => c.dia));
@@ -116,15 +109,9 @@ export function buildHorarioEmailHtml(alumno: HorarioAlumno, anio: string, mensa
                   <td style="padding:12px 0 0;">
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td style="padding-bottom:12px;border-bottom:1px solid #ddd6fe;">
+                        <td>
                           <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Curso</span><br>
                           <span style="font-size:14px;color:#4c1d95;font-weight:700;margin-top:3px;display:block;">${esc(buildCursoLabel(alumno.ensenanzaCurso, alumno.especialidad)) || '—'}</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding-top:12px;">
-                          <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Tutor/a:</span><br>
-                          <span style="font-size:14px;color:#4c1d95;font-weight:700;margin-top:3px;display:block;">${esc(tutor)}</span>
                         </td>
                       </tr>
                     </table>

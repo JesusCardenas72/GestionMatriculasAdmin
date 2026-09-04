@@ -112,3 +112,61 @@ export function getCatalogoLocal(
       return a.descripcion.localeCompare(b.descripcion, "es");
     });
 }
+
+/**
+ * Nombre con el que se guarda una asignatura del catálogo. Las asignaturas que
+ * el alumno arrastra de un curso inferior llevan el sufijo "(Nº)" —p. ej.
+ * "Lenguaje Musical (1º)"— para distinguirlas de las de su curso. Los
+ * repetidores de asignaturas sueltas (EP6/EE4) marcan también las de su propio
+ * curso, así que en ese caso se pasa `marcarSiempre`.
+ */
+export function nombreAsignaturaConCurso(
+  a: AsignaturaCatalogo,
+  cursoActual: number,
+  marcarSiempre = false,
+): string {
+  const base = a.descripcion || a.abreviatura;
+  const nivel = parseInt(a.cursoNivel, 10);
+  const marcar = marcarSiempre || (!isNaN(nivel) && nivel < cursoActual);
+  return marcar && a.cursoDesc ? `${base} (${a.cursoDesc})` : base;
+}
+
+export interface GrupoCatalogoCurso {
+  nivel: number;
+  cursoDesc: string;
+  /** Etiqueta del grupo en el desplegable ("Curso actual (5º)", "Curso 4º"…). */
+  etiqueta: string;
+  items: AsignaturaCatalogo[];
+}
+
+/**
+ * Agrupa el catálogo por curso para pintarlo con `<optgroup>`, de forma que se
+ * vea de un vistazo que además del curso actual se pueden añadir asignaturas de
+ * cursos anteriores (las que el alumno lleva pendientes).
+ */
+export function agruparCatalogoPorCurso(
+  catalogo: AsignaturaCatalogo[],
+  cursoActual: number,
+): GrupoCatalogoCurso[] {
+  const grupos = new Map<number, GrupoCatalogoCurso>();
+  for (const a of catalogo) {
+    const nivel = parseInt(a.cursoNivel, 10);
+    const clave = isNaN(nivel) ? 0 : nivel;
+    let grupo = grupos.get(clave);
+    if (!grupo) {
+      const cursoDesc = a.cursoDesc || (clave ? `${clave}º` : "");
+      grupo = {
+        nivel: clave,
+        cursoDesc,
+        etiqueta:
+          clave === cursoActual
+            ? `Curso actual (${cursoDesc})`
+            : `Curso ${cursoDesc} — pendientes`,
+        items: [],
+      };
+      grupos.set(clave, grupo);
+    }
+    grupo.items.push(a);
+  }
+  return [...grupos.values()].sort((a, b) => b.nivel - a.nivel);
+}

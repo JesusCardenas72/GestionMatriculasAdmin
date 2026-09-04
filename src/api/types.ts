@@ -162,8 +162,23 @@ export interface SubirMatriculaInput {
   disponibilidadManana: boolean;
   horaSalida: string | null;
   repetidor: boolean;
-  asignaturasActualizadas: { rowId: string; estado: EstadoAsignatura; observaciones: string }[];
-  asignaturasNuevas: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
+  docFaltante: string | null;
+  anulacion: boolean;
+  ampliacion: boolean;
+  ampliada: boolean;
+  /**
+   * Lista COMPLETA de asignaturas de la matricula, en una sola coleccion.
+   * El flow AdminSubirMatriculaEditada la reparte el mismo: las que llevan
+   * `rowId` las actualiza, las que lo llevan a null las crea, y BORRA de
+   * Dataverse las que no aparezcan aqui. Es decir, local manda.
+   */
+  asignaturas: {
+    rowId: string | null;
+    codigo: number;
+    nombre: string;
+    estado: EstadoAsignatura;
+    observaciones: string;
+  }[];
 }
 
 export interface CrearAmpliacionInput {
@@ -303,6 +318,8 @@ export interface ConfigInforme {
   };
 }
 
+export type EstadoCampoEditado = "pendiente" | "subido";
+
 // ── Matrículas locales (store JSON) ──────────────────────────────────────────
 
 export interface AsignaturaLocal {
@@ -372,6 +389,15 @@ export interface MatriculaLocal {
   discrepanciaRevisada?: boolean;
 
   _pendienteSubida: boolean;
+  /**
+   * Estado de cada campo que el usuario ha modificado en local:
+   *  - "pendiente": editado aqui y aun no subido a Dataverse.
+   *  - "subido": editado aqui y ya confirmado en Dataverse.
+   * Solo contiene los campos realmente tocados (se compara valor a valor, no
+   * basta con que el formulario los reenvie). Se vacia al traer datos de la
+   * nube, porque entonces local deja de tener nada propio que reflejar.
+   */
+  _camposEditados?: Record<string, EstadoCampoEditado>;
   /** true tras una subida exitosa a Dataverse de un registro editado localmente. */
   _fueEditado?: boolean;
   _guardadoEn: string;

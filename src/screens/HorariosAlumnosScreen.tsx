@@ -17,6 +17,7 @@ import { buildHorarioGrupalHtml, listarAsignaturasEntries, chequearDocumentoGrup
 import {
   DOC_GRUPAL_DEFAULTS, fechaHoyEs, resolverAsignaturasGrupal, construirEntriesDesdeAlumnos,
   type DocGrupalCfg,
+  nombreArchivoDocGrupal,
 } from "../utils/horarioGrupalDoc";
 import { normNombre } from "../utils/horarioEnvio";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ConfigEnvioCampanya, FormatoHorario } from "../horarios/types";
@@ -2053,7 +2054,7 @@ function ListadosPanel({
     });
   }, [version, docEntries, docCfg, curso, docSeleccion]);
 
-  const docNombreArchivo = `Horarios grupales ${docCfg.estado} Curso ${curso}`.replace(/[\\/:*?"<>|]/g, "_");
+  const docNombreArchivo = nombreArchivoDocGrupal(docCfg.estado, curso);
 
   async function docGenerarBase64(): Promise<string | null> {
     const res = await window.adminAPI.pdf.generarBase64(docHtml, true);
@@ -2142,8 +2143,8 @@ function ListadosPanel({
       : html;
     const base64 = btoa(unescape(encodeURIComponent(htmlExport)));
     const nombre = version === "profesores"
-      ? `Listados por asignatura (profesorado) ${anio}`
-      : `Listados por asignatura ${anio}`;
+      ? `HORARIOS DEL ALUMNADO (profesorado) ${anio}`
+      : `HORARIOS DEL ALUMNADO ${anio}`;
     await window.adminAPI.informe.exportar({ contenidoBase64: base64, nombreArchivo: nombre, extension: "html" });
     setModalAccion(null);
   }
@@ -2944,7 +2945,7 @@ function ModalConfigDocGrupal({
           {/* Columna izquierda: textos */}
           <div className="flex-1 min-w-0 space-y-3">
             <div className="flex gap-3">
-              <div className="w-40 shrink-0">
+              <div className="flex-1 min-w-0">
                 <label className={labelCls} style={labelStyle}>Estado</label>
                 <select
                   value={estado}
@@ -2952,11 +2953,12 @@ function ModalConfigDocGrupal({
                   className={inputCls + " mt-1"}
                   style={inputStyle}
                 >
-                  <option value="PROVISIONALES">PROVISIONALES</option>
-                  <option value="DEFINITIVOS">DEFINITIVOS</option>
+                  <option value="PROVISIONALES">Provisionales</option>
+                  <option value="DEFINITIVOS">Definitivos</option>
+                  <option value="FINALES">Finales</option>
                 </select>
               </div>
-              <div className="flex-1">
+              <div className="w-36 shrink-0">
                 <label className={labelCls} style={labelStyle}>Actualizado a</label>
                 <input
                   type="text"

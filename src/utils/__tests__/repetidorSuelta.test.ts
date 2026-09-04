@@ -1,4 +1,4 @@
-import { esRepetidorSuelta, asignaturasCursadas } from "../repetidorSuelta";
+import { esRepetidorSuelta, asignaturasCursadas, tieneSufijoCurso } from "../repetidorSuelta";
 
 const asig = (nombre: string) => ({ nombre });
 
@@ -57,5 +57,29 @@ describe("asignaturasCursadas", () => {
     const m = { repetidor: true, ensenanzaCurso: "EP6" };
     const lista = [asig("Instrumento"), asig("Coro")];
     expect(asignaturasCursadas(m, lista)).toEqual(lista);
+  });
+});
+
+describe("tieneSufijoCurso", () => {
+  it("reconoce el sufijo de curso", () => {
+    expect(tieneSufijoCurso("Lenguaje Musical (1º)")).toBe(true);
+    expect(tieneSufijoCurso("Análisis (6º)")).toBe(true);
+  });
+
+  it("no marca las asignaturas del curso ordinario", () => {
+    expect(tieneSufijoCurso("Análisis")).toBe(false);
+    expect(tieneSufijoCurso("Música de Cámara")).toBe(false);
+  });
+});
+
+describe("asignaturasCursadas con pendientes de cursos anteriores", () => {
+  it("un repetidor suelta de EP6 conserva también las que arrastra de 5º", () => {
+    const m = { repetidor: true, ensenanzaCurso: "EP6" };
+    const lista = [
+      asig("Análisis (6º)"),
+      asig("Armonía (5º)"),
+      asig("Instrumento"),
+    ];
+    expect(asignaturasCursadas(m, lista)).toEqual([asig("Análisis (6º)"), asig("Armonía (5º)")]);
   });
 });

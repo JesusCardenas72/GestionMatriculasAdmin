@@ -10,6 +10,7 @@
  */
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import type { HorarioAlumno } from '../horarios/types';
+import { asignaturaDocDe } from './horarioGrupalDoc';
 
 export type VersionListado = 'alumnos' | 'profesores';
 export type NivelAgrupacion = 'asignatura' | 'curso';
@@ -25,16 +26,17 @@ function esc(s: string): string {
   return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function baseAsignatura(nombre: string): string {
-  return (nombre ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim();
-}
-
-/** Devuelve la lista de asignaturas base únicas presentes en el conjunto de alumnos. */
+/**
+ * Devuelve la lista de asignaturas únicas presentes en el conjunto de alumnos,
+ * con el nombre que usan los listados: el nombre base, salvo el Coro de 5.º y
+ * 6.º de E. Profesional, que es una asignatura de Perfil y aparece aparte como
+ * "Coro (Perfil)".
+ */
 export function listarAsignaturasUnicas(alumnos: HorarioAlumno[]): string[] {
   const set = new Set<string>();
   for (const a of alumnos) {
     for (const c of a.clases) {
-      const asig = baseAsignatura(c.asignatura);
+      const asig = asignaturaDocDe(c.asignatura, a.ensenanzaCurso ?? '');
       if (asig) set.add(asig);
     }
   }
@@ -64,7 +66,7 @@ export function buildListadoHtml(
       telefono: a.telefono ?? '',
       ensenanzaCurso: a.ensenanzaCurso ?? '',
       clases: a.clases
-        .filter(c => !asignaturasIncluidas || asignaturasIncluidas.size === 0 || asignaturasIncluidas.has(baseAsignatura(c.asignatura)))
+        .filter(c => !asignaturasIncluidas || asignaturasIncluidas.size === 0 || asignaturasIncluidas.has(asignaturaDocDe(c.asignatura, a.ensenanzaCurso ?? '')))
         .map(c => ({ asignatura: c.asignatura, grupo: c.grupo, aula: c.aula, profesor: c.profesor, dia: c.dia, entrada: c.entrada, salida: c.salida })),
     }))
     .filter(a => a.clases.length > 0);
@@ -72,7 +74,7 @@ export function buildListadoHtml(
   const dataJson = JSON.stringify(dataArray).replace(/<\/script>/gi, '<\\/script>');
   const nivelesJson = JSON.stringify(nivelesInicial);
   const totalAlumnos = new Set(alumnos.map(a => a.clave)).size;
-  const titulo = esProfes ? 'Listados por asignatura — Profesorado' : 'Listados por asignatura';
+  const titulo = esProfes ? 'HORARIOS DEL ALUMNADO — Profesorado' : 'HORARIOS DEL ALUMNADO';
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -100,7 +102,10 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .header-logos img{display:block;height:56px;width:auto;max-width:38%;object-fit:contain;flex-shrink:0;}
 .doc-title{flex:1 1 auto;min-width:0;font-family:var(--display);font-size:30px;line-height:1.1;margin:0;text-align:center;color:var(--azul);}
 .doc-year{text-align:center;font-family:var(--display);font-size:22px;font-weight:500;color:var(--teal);letter-spacing:1.2px;margin:6px 0 4px;line-height:1;}
-.doc-version{text-align:center;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${esProfes ? 'var(--primary-dark)' : 'var(--ink-mute)'};margin-bottom:12px;}
+.doc-version{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 12px;min-height:38px;margin-bottom:12px;}
+.doc-version-txt{flex:1 1 auto;text-align:center;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${esProfes ? 'var(--primary-dark)' : 'var(--ink-mute)'};}
+/* «Agrupar» y el contador de registros, alineados a la derecha de esa misma línea. */
+.doc-version-tools{margin-left:auto;display:flex;align-items:center;gap:10px;}
 
 /* ── Botón Agrupar + dropdown ─────────────────────────────────────────────── */
 #agrup-wrap{position:relative;flex-shrink:0;}
@@ -114,7 +119,7 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 #btn-agrup .agrup-chevron{transition:transform .15s;}
 #btn-agrup.open .agrup-chevron{transform:rotate(180deg);}
 
-#agrup-dropdown{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:300;
+#agrup-dropdown{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:300;
   background:var(--card);border:1px solid var(--border);border-radius:12px;
   box-shadow:0 4px 24px rgba(45,36,29,.18);width:220px;overflow:hidden;}
 #agrup-dropdown.open{display:block;}
@@ -149,7 +154,7 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .buscador input{flex:1;min-width:160px;font-family:var(--font);font-size:15px;padding:0 14px;height:38px;
   border:1.5px solid var(--border);border-radius:10px;background:var(--card);color:var(--ink);outline:none;}
 .buscador input:focus{border-color:var(--primary);}
-.buscador .contador{font-size:13px;color:var(--ink-soft);white-space:nowrap;}
+.contador{font-size:13px;color:var(--ink-soft);white-space:nowrap;}
 .buscador .limpiar{font-family:var(--font);font-size:13px;padding:0 14px;height:38px;border:1.5px solid var(--border);
   border-radius:10px;background:var(--card);color:var(--ink-soft);cursor:pointer;display:none;}
 .buscador .limpiar:hover{border-color:var(--primary);color:var(--primary);}
@@ -262,7 +267,9 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
   transform:rotate(45deg);transition:transform .15s;flex-shrink:0;position:relative;top:-1px;}
 .is-collapsed > [data-toggle] .chevron{transform:rotate(-45deg);}
 
-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-top:none;overflow:hidden;margin-bottom:0;}
+/* table-layout:fixed + anchos por columna: así todas las tablas del documento
+   alinean sus columnas entre sí, sin depender del contenido de cada grupo. */
+table{width:100%;table-layout:fixed;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-top:none;overflow:hidden;margin-bottom:0;}
 th{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-mute);text-align:left;padding:6px 12px;background:var(--border-soft);border-bottom:1px solid var(--border);}
 td{font-size:13.5px;padding:5px 12px;border-bottom:1px solid var(--border-soft);}
 tbody tr:last-child td{border-bottom:none;}
@@ -271,6 +278,9 @@ td.nombre{font-weight:600;}
 .pendiente-tag{display:inline-block;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
   color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:middle;white-space:nowrap;}
 td.email{color:var(--azul);}td.tel{white-space:nowrap;}
+td,th{overflow-wrap:break-word;}
+td.esp,th.esp{width:${esProfes ? '150px' : '180px'};}
+${esProfes ? 'td.email,th.email{width:250px;}td.tel,th.tel{width:110px;}' : ''}
 tbody.sin-result{display:none;}
 tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;text-align:center;padding:10px;}
 .global-vacio{display:none;text-align:center;color:var(--ink-soft);font-size:15px;padding:40px 0;}
@@ -285,7 +295,8 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
 @media print{
   body{background:#fff;padding:0;display:block;}
   .page{width:auto;box-shadow:none;padding:18px 8px;}
-  .buscador,.toc-wrap{display:none !important;}
+  .buscador,.toc-wrap,.doc-version-tools{display:none !important;}
+  .doc-version{display:block;text-align:center;min-height:0;}
   .pdf-resumen{display:block;margin-bottom:18px;padding:10px 14px;border:1px solid #d4c8b4;border-radius:8px;
     background:#f9f4eb;font-size:11.5px;color:#5e4f43;page-break-inside:avoid;}
   .pdf-res-titulo{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.7px;
@@ -311,18 +322,9 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
     <img src="${LOGO_JCCM_B64}" alt="JCCM">
   </div>
   <div class="doc-year">${esc(anio)}</div>
-  <div class="doc-version">${esProfes ? 'Versión profesorado · contiene datos de contacto' : 'Versión alumnado'} · ${totalAlumnos} alumnos</div>
-
-  <div class="buscador">
-    <div class="buscador-inner">
-      <input id="busqueda" type="search" placeholder="Buscar alumno por nombre…" autocomplete="off">
-      <button id="limpiar" class="limpiar" type="button">Limpiar</button>
-      ${esProfes ? '<select id="filtro-profesor" class="select-prof"><option value="-1">Todos los profesores</option></select>' : ''}
-      ${esProfes ? '<select id="filtro-especialidad" class="select-prof"><option value="">Todas las especialidades</option></select>' : ''}
-      ${esProfes ? '<select id="filtro-curso" class="select-prof"><option value="">Todos los cursos</option></select>' : ''}
-      ${esProfes ? '<button id="btn-pendientes" class="btn-pend" type="button">Solo pendientes</button>' : ''}
-      ${esProfes ? '<button id="btn-copiar-email" class="btn-copiar" type="button" disabled>Copiar email</button>' : ''}
-
+  <div class="doc-version">
+    <span class="doc-version-txt">${esProfes ? 'Versión profesorado · contiene datos de contacto' : 'Versión alumnado'} · ${totalAlumnos} alumnos</span>
+    <div class="doc-version-tools">
       <!-- Botón Agrupar con dropdown -->
       <div id="agrup-wrap">
         <button id="btn-agrup" type="button">
@@ -344,6 +346,19 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
           </div>
         </div>
       </div>
+      <span id="contador" class="contador"></span>
+    </div>
+  </div>
+
+  <div class="buscador">
+    <div class="buscador-inner">
+      <input id="busqueda" type="search" placeholder="Buscar alumno por nombre…" autocomplete="off">
+      <button id="limpiar" class="limpiar" type="button">Limpiar</button>
+      ${esProfes ? '<select id="filtro-profesor" class="select-prof"><option value="-1">Todos los profesores</option></select>' : ''}
+      <select id="filtro-curso" class="select-prof"><option value="">Todos los cursos</option></select>
+      <select id="filtro-especialidad" class="select-prof"><option value="">Todas las especialidades</option></select>
+      ${esProfes ? '<button id="btn-pendientes" class="btn-pend" type="button">Solo pendientes</button>' : ''}
+      ${esProfes ? '<button id="btn-copiar-email" class="btn-copiar" type="button" disabled>Copiar email</button>' : ''}
 
       <button id="btn-pdf" class="btn-pdf" type="button">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
@@ -351,7 +366,6 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
       </button>
       <button id="btn-toggle-todo" type="button" aria-label="Expandir / Contraer todo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 8 12 3 17 8"/><polyline points="7 16 12 21 17 16"/></svg></button>
       <button id="btn-ayuda" class="btn-ayuda" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>Ayuda</button>
-      <span id="contador" class="contador"></span>
     </div>
   </div>
 
@@ -395,6 +409,7 @@ ${esProfes ? `
         <h4>Buscar y navegar</h4>
         <ul class="ayuda-list">
           <li><b>Buscador</b>: filtra por nombre de alumno en tiempo real, en todas las asignaturas a la vez.</li>
+          <li><b>Filtro por curso</b> y <b>Filtro por especialidad</b>: acotan el listado a un curso (EE1&hellip;EP6) o a una especialidad; se combinan entre s&iacute; y con la b&uacute;squeda.</li>
           <li><b>&Iacute;ndice de asignaturas</b>: pulsa una o varias para mostrar solo esas asignaturas; vuelve a pulsarlas para quitarlas del filtro.</li>
           <li><b>Expandir / Contraer todo</b>: cada clic abre o cierra una capa del &aacute;rbol (asignatura &rarr; curso &rarr; grupo).</li>
         </ul>
@@ -412,7 +427,6 @@ ${esProfes ? `
         <h4>Filtros de profesorado</h4>
         <ul class="ayuda-list">
           <li><b>Filtro por profesor</b>: muestra solo los grupos que imparte el profesor seleccionado.</li>
-          <li><b>Filtro por especialidad</b> y <b>Filtro por curso</b>: acotan el listado; se combinan entre s&iacute; y con la b&uacute;squeda.</li>
           <li><b>Solo pendientes</b>: muestra &uacute;nicamente alumnos con la asignatura pendiente de otro curso (etiqueta <b>Pendiente</b>).</li>
           <li><b>Copiar email</b>: marca alumnos con las casillas (o la casilla de grupo para marcar todos) y copia sus correos separados por punto y coma, listos para pegar con <kbd>Ctrl+V</kbd> en el campo CCO de Outlook.</li>
         </ul>
@@ -461,6 +475,20 @@ function normStr(s){ return (s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/
 function cmpEs(a,b){ return a.localeCompare(b,'es',{sensitivity:'base'}); }
 function baseAsig(s){ return (s||'').replace(/\\s*\\([^)]*\\)\\s*$/,'').trim(); }
 function sufijoCurso(s){ var m=/\\(([^)]*)\\)\\s*$/.exec((s||'').trim()); return m?m[1].trim():''; }
+/* El Coro de 5.º y 6.º de E. Profesional es una asignatura de PERFIL, distinta
+   del Coro de 1.º y 2.º (otro profesorado, otro grupo y otro horario): se agrupa
+   aparte como "Coro (Perfil)". Manda el curso de la ASIGNATURA, es decir el del
+   sufijo "(Nº)" cuando el alumno la arrastra pendiente. */
+function asigDoc(nombre,curso){
+  var base=baseAsig(nombre);
+  if(!base||normStr(base)!=='coro') return base;
+  var c=(curso||'').trim().toUpperCase();
+  if(c.indexOf('EP')!==0) return base;
+  var mp=/^\\s*(\\d+)\\s*º?\\s*$/.exec(sufijoCurso(nombre));
+  var mc=/^EP\\s*(\\d+)/.exec(c);
+  var nivel=mp?Number(mp[1]):(mc?Number(mc[1]):0);
+  return (nivel===5||nivel===6)?base+' (Perfil)':base;
+}
 function labelCurso(c){ var m=/^(EE|EP)(\\d+)/.exec((c||'').trim().toUpperCase()); return m?(m[2]+'º '+(m[1]==='EE'?'Elemental':'Profesional')):c||'Sin curso'; }
 function ordenCurso(c){ var m=/^(EE|EP)(\\d+)/.exec((c||'').trim().toUpperCase()); return m?((m[1]==='EE'?0:100)+Number(m[2])):9999; }
 function abrevDia(d){ return ABREV_DIA[(d||'').trim().toLowerCase()]||(d||'').trim(); }
@@ -480,7 +508,7 @@ function agrupar(data, niveles){
 
   data.forEach(function(a){
     (a.clases||[]).forEach(function(c){
-      var asigBase = baseAsig(c.asignatura)||'Sin asignatura';
+      var asigBase = asigDoc(c.asignatura, a.ensenanzaCurso)||'Sin asignatura';
       var cursoPend = sufijoCurso(c.asignatura);
       var pendiente = cursoPend !== '';
       var subKey = (c.grupo||'').trim()+'|'+(c.aula||'').trim()+'|'+(c.profesor||'').trim();
@@ -571,7 +599,7 @@ function renderSubgrupo(sg,cursoData){
       +(ES_PROFES?'<td class="chk-cell"><input type="checkbox" class="chk-alumno" data-sg="'+sgId+'"'+(al.email?' data-email="'+escH(al.email)+'"':'')+' onclick="event.stopPropagation()"></td>':'')
       +'<td class="num">'+(n+1)+'</td>'
       +'<td class="nombre">'+escH(al.nombre)+(al.pendiente?'<span class="pendiente-tag">Pendiente'+(al.cursoPendiente?' de '+escH(al.cursoPendiente):'')+'</span>':'')+'</td>'
-      +'<td>'+(escH(al.especialidad)||'&mdash;')+'</td>'
+      +'<td class="esp">'+(escH(al.especialidad)||'&mdash;')+'</td>'
       +(ES_PROFES?'<td class="email">'+(escH(al.email)||'&mdash;')+'</td><td class="tel">'+(escH(al.telefono)||'&mdash;')+'</td>':'')
       +'</tr>';
   }).join('');
@@ -579,7 +607,7 @@ function renderSubgrupo(sg,cursoData){
   return '<div class="subgrupo nivel-grupo is-collapsed" id="'+sgId+'" data-nivel="hoja" data-prof-idx="'+piIdx+'">'
     +'<div class="sub-titulo" data-toggle="sub">'+chkGrupo+'<span class="chevron"></span><span class="sub-text">'+titulo+horsHtml+resto+' <span class="sub-count">('+sg.alumnos.length+')</span></span></div>'
     +'<div class="tabla-wrap"><table>'
-    +'<thead><tr>'+(ES_PROFES?'<th class="chk-cell"></th>':'')+'<th class="num">#</th><th>Nombre completo</th><th>Especialidad</th>'+(ES_PROFES?'<th>Email</th><th>Tel&eacute;fono</th>':'')+'</tr></thead>'
+    +'<thead><tr>'+(ES_PROFES?'<th class="chk-cell"></th>':'')+'<th class="num">#</th><th>Nombre completo</th><th class="esp">Especialidad</th>'+(ES_PROFES?'<th class="email">Email</th><th class="tel">Tel&eacute;fono</th>':'')+'</tr></thead>'
     +'<tbody>'+filas+'</tbody>'
     +'<tbody class="sin-result"><tr><td colspan="'+NCOLS+'">Sin coincidencias en este grupo</td></tr></tbody>'
     +'</table></div></div>';
@@ -680,7 +708,9 @@ var pendienteSolo=false;
 var profFiltrado=-1;
 var espFiltrada='';
 var cursoFiltrado='';
-var capa=2; var dirCapa=1;
+/* El listado arranca completamente desplegado (capa al máximo: asignatura →
+   curso → grupo con sus tablas), así que el botón de capas empieza contrayendo. */
+var capa=3; var dirCapa=-1; var maxPrevio=3;
 
 var ICON_EXP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 8 12 3 17 8"/><polyline points="7 16 12 21 17 16"/></svg>';
 var ICON_CON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 4 12 9 17 4"/><polyline points="7 20 12 15 17 20"/></svg>';
@@ -717,8 +747,8 @@ function actualizarListados(){
     }
   }
 
-  // Actualizar select especialidad
-  if(ES_PROFES){
+  // Actualizar selects de curso y especialidad (en las dos versiones)
+  {
     var se=document.getElementById('filtro-especialidad');
     if(se){
       var espSet={};
@@ -746,11 +776,14 @@ function actualizarListados(){
   // Restablecer asigSet y capa
   asigSet={};
   var MAX=getMaxCapa();
-  capa=Math.min(capa,MAX); dirCapa=1;
+  // Si estaba todo desplegado, sigue estándolo aunque cambien los niveles.
+  capa=capa>=maxPrevio?MAX:Math.min(capa,MAX);
+  maxPrevio=MAX; dirCapa=capa>=MAX?-1:1;
 
   // Actualizar botón y dropdown
   renderAgrupDropdown();
 
+  aplicarCapa();
   aplicar();
 }
 
@@ -804,6 +837,25 @@ function aplicarCapa(){
   renderPlegado();
 }
 
+function actualizarTOC(){
+  var chips=document.querySelectorAll('.toc-item');
+  if(chips.length===0) return;
+  var tops=document.querySelectorAll('[data-nivel="top"]');
+  chips.forEach(function(chip,idx){
+    var sec=tops[idx];
+    if(!sec) return;
+    var nombres={};
+    Array.prototype.forEach.call(sec.querySelectorAll('tr[data-nombre]'),function(tr){
+      if(tr.style.display!=='none') nombres[tr.getAttribute('data-nombre')]=1;
+    });
+    var n=Object.keys(nombres).length;
+    chip.style.display=n>0?'':'none';
+    if(n===0&&asigSet[idx]){ asigSet[idx]=false; chip.classList.remove('activo'); }
+    var badge=chip.querySelector('.toc-count');
+    if(badge) badge.textContent=n;
+  });
+}
+
 function aplicar(){
   var q=normStr(input.value);
   var vis=0;
@@ -816,6 +868,13 @@ function aplicar(){
     if(ok) vis++;
   });
   var total=document.querySelectorAll('tr[data-nombre]').length;
+
+  /* Índice de asignaturas: las que se quedan sin nadie con los filtros activos
+     desaparecen del índice, y el resto muestra cuántos alumnos pasan el filtro.
+     Si una que estaba seleccionada desaparece, se deselecciona sola para no
+     dejar el listado vacío. */
+  actualizarTOC();
+
   document.querySelectorAll('[data-nivel="top"]').forEach(function(sec,idx){
     if(!asigVacio()&&!asigSet[idx]) sec.style.display='none';
   });

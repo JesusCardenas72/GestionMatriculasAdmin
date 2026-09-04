@@ -1,7 +1,7 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { MatriculaLocal } from "../src/api/types";
+import type { EstadoCampoEditado, MatriculaLocal } from "../src/api/types";
 import { calcularCursoEscolar } from "../src/utils/cursoEscolar";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -143,6 +143,48 @@ export function cursosGuardar(curso: string, record: MatriculaLocal): void {
   writeCurso(curso, all);
 }
 
+/**
+ * Campos que el usuario edita en la ficha y cuyos cambios se resaltan hasta
+ * verse reflejados en Dataverse. Los internos (`_*`) quedan fuera a proposito.
+ */
+const CAMPOS_RASTREADOS: (keyof MatriculaLocal)[] = [
+  "nOrden", "nombre", "apellidos", "dni", "email", "telefono", "fechaNacimiento",
+  "domicilio", "localidad", "provincia", "cp", "ensenanzaCurso", "especialidad",
+  "formaPago", "reduccionTasas", "autorizacionImagen", "disponibilidadManana",
+  "horaSalida", "repetidor", "docFaltante", "anulacion", "ampliacion", "ampliada",
+];
+
+/**
+ * Recalcula `_camposEditados` a partir de un cambio. Tres situaciones:
+ *
+ *  1. El cambio trae `_nubeModificadoEn`: los datos vienen de Dataverse, asi que
+ *     local ya no tiene nada propio pendiente de reflejar y se vacia el mapa.
+ *  2. El cambio marca `_pendienteSubida: false`: la subida ha ido bien, luego lo
+ *     que estaba "pendiente" pasa a "subido".
+ *  3. Edicion normal: se marcan "pendiente" los campos cuyo valor cambia de
+ *     verdad. Se compara valor a valor porque el formulario reenvia la ficha
+ *     entera en cada guardado, no solo lo tocado.
+ */
+function calcularCamposEditados(
+  previo: MatriculaLocal,
+  changes: Partial<MatriculaLocal>,
+): Record<string, EstadoCampoEditado> {
+  if (changes._nubeModificadoEn !== undefined) return {};
+
+  const actual = { ...(previo._camposEditados ?? {}) };
+
+  if (changes._pendienteSubida === false) {
+    for (const campo of Object.keys(actual)) actual[campo] = "subido";
+    return actual;
+  }
+
+  for (const campo of CAMPOS_RASTREADOS) {
+    if (!(campo in changes)) continue;
+    if (!Object.is(changes[campo], previo[campo])) actual[campo] = "pendiente";
+  }
+  return actual;
+}
+
 export function cursosActualizar(
   curso: string,
   localId: string,
@@ -151,7 +193,17 @@ export function cursosActualizar(
   const all = readCurso(curso);
   const idx = all.findIndex((r) => r.localId === localId);
   if (idx < 0) return null;
-  all[idx] = { ...all[idx], ...changes, _modificadoEn: new Date().toISOString() };
+  // Un `_camposEditados` explicito en el cambio manda sobre el calculo automatico.
+  const camposEditados =
+    changes._camposEditados !== undefined
+      ? changes._camposEditados
+      : calcularCamposEditados(all[idx], changes);
+  all[idx] = {
+    ...all[idx],
+    ...changes,
+    _camposEditados: camposEditados,
+    _modificadoEn: new Date().toISOString(),
+  };
   writeCurso(curso, all);
   return all[idx];
 }

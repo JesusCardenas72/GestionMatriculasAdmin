@@ -15,7 +15,8 @@ import { buildHorarioGrupalHtml, listarAsignaturasEntries } from "../utils/horar
 import { buildListadoHtml } from "../utils/horarioListadoTemplate";
 import {
   DOC_GRUPAL_DEFAULTS, fechaHoyEs, resolverAsignaturasGrupal,
-  baseAsignaturaDoc, construirEntriesDesdeAlumnos, type DocGrupalCfg,
+  seleccionListadoDesdeClases, construirEntriesDesdeAlumnos, type DocGrupalCfg,
+  nombreArchivoDocGrupal,
 } from "../utils/horarioGrupalDoc";
 import { leerArchivoBase64 } from "../utils/fileUtils";
 
@@ -206,14 +207,14 @@ export function DialogoEnviarCampanya() {
         });
         const pdfRes = await window.adminAPI.pdf.generarBase64(grupalHtml, true);
         if (!pdfRes.success || !pdfRes.base64) throw new Error(pdfRes.error ?? "No se pudo generar el PDF grupal.");
-        const nombreArchivo = `Horarios grupales ${cfg.estado} Curso ${curso}`.replace(/[\\/:*?"<>|]/g, "_");
+        const nombreArchivo = nombreArchivoDocGrupal(cfg.estado, curso);
         adjuntoGrupalPdf = { nombre: `${nombreArchivo}.pdf`, base64: pdfRes.base64 };
       }
 
       // Listado de alumnado (HTML interactivo): igual para todos, filtrado por las
       // asignaturas elegidas arriba en "Asignaturas a informar".
       if (adjuntoListado && cargaAlumnos.length > 0) {
-        const incluidas = new Set([...asignaturasSeleccionadas].map(baseAsignaturaDoc));
+        const incluidas = seleccionListadoDesdeClases(cargaAlumnos, asignaturasSeleccionadas);
         const listadoHtml = buildListadoHtml(cargaAlumnos, anio, "alumnos", { asignaturasIncluidas: incluidas });
         const nombreArchivo = `Listado alumnado ${anio}`.replace(/[\\/:*?"<>|]/g, "_");
         adjuntoListadoHtml = { nombre: `${nombreArchivo}.html`, base64: btoa(unescape(encodeURIComponent(listadoHtml))) };

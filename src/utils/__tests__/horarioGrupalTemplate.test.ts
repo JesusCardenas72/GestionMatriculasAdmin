@@ -3,7 +3,9 @@ import type { HorariosEntry } from "../../../electron/horarios-data-store";
 import {
   buildHorarioGrupalHtml,
   chequearDocumentoGrupal,
+  listarAsignaturasEntries,
 } from "../horarioGrupalTemplate";
+import { asignaturaDocDe, resolverAsignaturasGrupal } from "../horarioGrupalDoc";
 
 function entry(
   nombreCompleto: string,
@@ -503,5 +505,72 @@ describe("horarioGrupalTemplate — bloque grupo con etiqueta rotada", () => {
       expect(reporte.sobrantes).toHaveLength(0);
       expect(reporte.ok).toBe(true);
     });
+  });
+});
+
+describe("Coro de Perfil (5.º y 6.º de E. Profesional)", () => {
+  it("asignaturaDocDe distingue el Coro de Perfil del Coro ordinario", () => {
+    expect(asignaturaDocDe("Coro", "EP5")).toBe("Coro (Perfil)");
+    expect(asignaturaDocDe("Coro", "EP6")).toBe("Coro (Perfil)");
+    expect(asignaturaDocDe("Coro", "EP1")).toBe("Coro");
+    expect(asignaturaDocDe("Coro", "EP2")).toBe("Coro");
+    expect(asignaturaDocDe("Coro", "EE3")).toBe("Coro");
+    expect(asignaturaDocDe("Lenguaje Musical", "EP5")).toBe("Lenguaje Musical");
+  });
+
+  it("manda el curso de la asignatura pendiente, no el del alumno", () => {
+    // Un alumno de 6.º que arrastra el Coro de 2.º NO cursa Coro de Perfil.
+    expect(asignaturaDocDe("Coro (2º)", "EP6")).toBe("Coro");
+    // Un alumno de 6.º con el Coro de 5.º pendiente sí.
+    expect(asignaturaDocDe("Coro (5º)", "EP6")).toBe("Coro (Perfil)");
+  });
+
+  it("saca los grupos de 5.º y 6.º en su propia sección, separados del Coro de 1.º y 2.º", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Coro", { ensenanzaCurso: "EP1" }),
+      entry("Bravo, Carlos", "Coro", { ensenanzaCurso: "EP2" }),
+      entry("Castro, Diana", "Coro", { ensenanzaCurso: "EP5" }),
+      entry("Duarte, Elena", "Coro", { ensenanzaCurso: "EP6" }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    expect(html).toContain("CORO (PERFIL)");
+
+    const tablas = html.match(/<table class="tg">[\s\S]*?<\/table>/g) ?? [];
+    const tablaPerfil = tablas.find(t => t.includes("Castro, Diana"));
+    expect(tablaPerfil).toBeDefined();
+    // Las de 5.º y 6.º van juntas y sin los alumnos de 1.º y 2.º.
+    expect(tablaPerfil).toContain("Duarte, Elena");
+    expect(tablaPerfil).not.toContain("Alonso, Beatriz");
+    expect(tablaPerfil).not.toContain("Bravo, Carlos");
+  });
+
+  it("aparece como asignatura propia en la lista de selección", () => {
+    const asignaturas = listarAsignaturasEntries([
+      entry("Alonso, Beatriz", "Coro", { ensenanzaCurso: "EP1" }),
+      entry("Castro, Diana", "Coro", { ensenanzaCurso: "EP5" }),
+    ]);
+    expect(asignaturas).toEqual(["Coro", "Coro (Perfil)"]);
+  });
+
+  it("una configuración antigua con «Coro» sigue incluyendo el Coro de Perfil", () => {
+    const doc = ["Coro", "Coro (Perfil)", "Lenguaje Musical"];
+    expect([...resolverAsignaturasGrupal(["Coro"], doc)].sort()).toEqual(["Coro", "Coro (Perfil)"]);
+    // Si el usuario ya ha desmarcado el Coro, tampoco entra la variante de Perfil.
+    expect([...resolverAsignaturasGrupal(["Lenguaje Musical"], doc)]).toEqual(["Lenguaje Musical"]);
+    // Y una vez guardada la elección explícita, se respeta.
+    expect([...resolverAsignaturasGrupal(["Coro", "Lenguaje Musical"], doc)].sort())
+      .toEqual(["Coro", "Coro (Perfil)", "Lenguaje Musical"]);
+  });
+
+  it("el chequeo de integridad cuenta las filas del Coro de Perfil", () => {
+    const entries = [
+      entry("Alonso, Beatriz", "Coro", { ensenanzaCurso: "EP1" }),
+      entry("Castro, Diana", "Coro", { ensenanzaCurso: "EP5" }),
+    ];
+    const html = buildHorarioGrupalHtml(entries, OPCIONES);
+    const r = chequearDocumentoGrupal(entries, html);
+    expect(r.incluidas).toBe(2);
+    expect(r.faltantes).toEqual([]);
+    expect(r.sobrantes).toEqual([]);
   });
 });

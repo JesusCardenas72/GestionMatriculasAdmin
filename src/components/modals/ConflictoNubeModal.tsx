@@ -6,15 +6,28 @@ interface Campo {
   label: string;
   local: string | null | undefined;
   nube: string | null | undefined;
+  tipo?: "bool" | "fecha";
 }
 
-function difieren(a: string | null | undefined, b: string | null | undefined): boolean {
-  return (a ?? "") !== (b ?? "");
+/**
+ * Normaliza antes de comparar. Dataverse devuelve las fechas como ISO completo
+ * («2004-08-28T00:00:00Z») mientras que en local se guardan como fecha suelta
+ * («2004-08-28»): sin recortar la parte horaria, la misma fecha se marcaba como
+ * discrepancia y el conflicto parecia real cuando no lo era.
+ */
+function normalizar(v: string | null | undefined, tipo?: Campo["tipo"]): string {
+  const s = (v ?? "").trim();
+  return tipo === "fecha" ? s.split("T")[0] : s;
 }
 
-function fmt(v: string | null | undefined, tipo?: "bool"): string {
+function difieren(a: string | null | undefined, b: string | null | undefined, tipo?: Campo["tipo"]): boolean {
+  return normalizar(a, tipo) !== normalizar(b, tipo);
+}
+
+function fmt(v: string | null | undefined, tipo?: Campo["tipo"]): string {
   if (tipo === "bool") return v === "true" ? "Sí" : v === "false" ? "No" : "—";
-  return v ?? "—";
+  const s = normalizar(v, tipo);
+  return s === "" ? "—" : s;
 }
 
 export function ConflictoNubeModal({
@@ -38,7 +51,7 @@ export function ConflictoNubeModal({
     { label: "DNI", local: local.dni, nube: nube.dni },
     { label: "Email", local: local.email, nube: nube.email },
     { label: "Teléfono", local: local.telefono, nube: nube.telefono },
-    { label: "Fecha nacimiento", local: local.fechaNacimiento, nube: nube.fechaNacimiento },
+    { label: "Fecha nacimiento", local: local.fechaNacimiento, nube: nube.fechaNacimiento, tipo: "fecha" },
     { label: "Domicilio", local: local.domicilio, nube: nube.domicilio },
     { label: "Localidad", local: local.localidad, nube: nube.localidad },
     { label: "Provincia", local: local.provincia, nube: nube.provincia },
@@ -51,7 +64,7 @@ export function ConflictoNubeModal({
     { label: "Repetidor", local: String(local.repetidor), nube: String(nube.repetidor) },
   ];
 
-  const camposDiferentes = campos.filter((c) => difieren(c.local, c.nube));
+  const camposDiferentes = campos.filter((c) => difieren(c.local, c.nube, c.tipo));
   const hayDiferencias = camposDiferentes.length > 0;
 
   const nubeDate = new Date(nube.modifiedon).toLocaleString("es-ES", {
@@ -115,8 +128,8 @@ export function ConflictoNubeModal({
                   {camposDiferentes.map((c) => (
                     <tr key={c.label} className="bg-amber-50/50">
                       <td className="px-3 py-1.5 text-[var(--tc-ink-mute)]">{c.label}</td>
-                      <td className="px-3 py-1.5 text-[var(--tc-ink)] font-medium">{fmt(c.local)}</td>
-                      <td className="px-3 py-1.5 text-amber-700 font-medium">{fmt(c.nube)}</td>
+                      <td className="px-3 py-1.5 text-[var(--tc-ink)] font-medium">{fmt(c.local, c.tipo)}</td>
+                      <td className="px-3 py-1.5 text-amber-700 font-medium">{fmt(c.nube, c.tipo)}</td>
                     </tr>
                   ))}
                 </tbody>

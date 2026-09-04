@@ -15,12 +15,14 @@
 import { LOGO_CPM_B64, LOGO_JCCM_B64 } from '../assets/pdf/logos';
 import type { HorariosEntry } from '../../electron/horarios-data-store';
 import { abreviaturaAsignatura } from '../data/catalogoLocal';
+import { asignaturaDocDe } from './horarioGrupalDoc';
+import type { EstadoDocGrupal } from './horarioGrupalDoc';
 
 export interface OpcionesDocGrupal {
   /** Curso académico en formato "YY/YY+1" (p. ej. "25/26"). */
   curso: string;
-  /** Palabra destacada del título. */
-  estado: 'PROVISIONALES' | 'DEFINITIVOS';
+  /** Estado del documento; determina el título de la cabecera. */
+  estado: EstadoDocGrupal;
   /** Fecha mostrada en "Actualizado a …" (texto libre, normalmente dd/mm/aaaa). */
   actualizadoA: string;
   /** Aviso de portada sobre el plazo de cambios de grupo ('' = no mostrar). */
@@ -70,6 +72,17 @@ function esc(s: string): string {
 
 function baseAsignatura(nombre: string): string {
   return (nombre ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+/**
+ * Nombre de asignatura con el que se agrupa una entrada en el documento. Es el
+ * nombre base salvo el Coro de 5.º y 6.º de E. Profesional, que es una
+ * asignatura de Perfil y sale como "Coro (Perfil)" en su propia sección.
+ * ÚNICA fuente de verdad: la usan el filtro, el árbol de bloques, el listado de
+ * asignaturas seleccionables y el chequeo de integridad.
+ */
+function asignaturaDoc(e: HorariosEntry): string {
+  return asignaturaDocDe(e.asignatura, e.ensenanzaCurso ?? '');
 }
 
 /**
@@ -169,9 +182,9 @@ function filaDeEntry(e: HorariosEntry, integrarPendientes = false): FilaDoc {
 
 /** Devuelve true si la entrada debe aparecer en el documento con la selección dada. */
 function entryIncluida(e: HorariosEntry, incluidas?: Set<string>): boolean {
-  const base = baseAsignatura(e.asignatura);
-  if (!base) return false;
-  return !incluidas || incluidas.size === 0 || incluidas.has(base);
+  const asig = asignaturaDoc(e);
+  if (!asig) return false;
+  return !incluidas || incluidas.size === 0 || incluidas.has(asig);
 }
 
 /** Clave canónica de una fila (identifica un dato para comparar origen ↔ documento). */
@@ -232,7 +245,7 @@ function filasEsperadas(entries: HorariosEntry[], incluidas?: Set<string>, integ
   for (const e of filtradas) {
     const fila = filaDeEntry(e, integrarPendientes);
     const ens = ensenanzaDe(fila.curso);
-    const asig = baseAsignatura(e.asignatura);
+    const asig = asignaturaDoc(e);
     const k: ClaveGrupo = `${ens}|${asig}|${fila.grupo}`;
     let arr = porGrupo.get(k);
     if (!arr) { arr = []; porGrupo.set(k, arr); }
@@ -279,7 +292,7 @@ function construirBloques(entries: HorariosEntry[], incluidas?: Set<string>, int
     const fila = filaDeEntry(e, integrarPendientes);
     const cursoNivel = fila.curso;
     const pref = /^EE/.test(cursoNivel) ? 'ENSEÑANZA ELEMENTAL' : /^EP/.test(cursoNivel) ? 'ENSEÑANZA PROFESIONAL' : 'OTRAS ENSEÑANZAS';
-    const asig = baseAsignatura(e.asignatura);
+    const asig = asignaturaDoc(e);
     const grupo = fila.grupo;
 
     let porAsig = arbol.get(pref);
@@ -598,7 +611,10 @@ export function buildHorarioGrupalHtml(entries: HorariosEntry[], op: OpcionesDoc
     for (const e of chunk) { e.pagina = toc[idx].paginaRel + paginasToc; idx++; }
   }
 
-  const titulo = `HORARIOS <b>${esc(op.estado)}</b> ALUMNADO GRUPOS GRANDES Y COLECTIVAS.<br>Curso ${esc(op.curso)}`;
+  const encabezado = op.estado === 'FINALES'
+    ? 'HORARIOS <b>DEL ALUMNADO</b>'
+    : `HORARIOS <b>${esc(op.estado)}</b> ALUMNADO GRUPOS GRANDES Y COLECTIVAS.`;
+  const titulo = `${encabezado}<br>Curso ${esc(op.curso)}`;
   const subtitulo = `Actualizado a ${esc(op.actualizadoA)}`;
 
   const cabecera =
@@ -771,8 +787,8 @@ document.addEventListener('click',function(e){
 export function listarAsignaturasEntries(entries: HorariosEntry[]): string[] {
   const set = new Set<string>();
   for (const e of entries) {
-    const base = baseAsignatura(e.asignatura);
-    if (base) set.add(base);
+    const asig = asignaturaDoc(e);
+    if (asig) set.add(asig);
   }
   return [...set].sort(cmpEs);
 }
@@ -891,11 +907,11 @@ export function chequearDocumentoGrupal(
   const incoherencias: { motivo: string; detalle: string }[] = [];
 
   for (const e of entries) {
-    const base = baseAsignatura(e.asignatura);
+    const asigDoc = asignaturaDoc(e);
     const fila = filaChequeoDe(filaDeEntry(e, integrarPendientes));
-    const quien = `${fila.nombre || '(sin nombre)'} · ${base || '(sin asignatura)'} ${fila.curso}`.trim();
+    const quien = `${fila.nombre || '(sin nombre)'} · ${asigDoc || '(sin asignatura)'} ${fila.curso}`.trim();
 
-    if (!base) {
+    if (!asigDoc) {
       incoherencias.push({ motivo: 'Sin asignatura', detalle: `${fila.nombre || '(sin nombre)'} ${fila.curso} ${fila.grupo}`.trim() });
       continue; // nunca puede colocarse en el documento
     }

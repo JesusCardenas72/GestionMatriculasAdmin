@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import type { EstadoCampoEditado } from "../api/types";
 import { toTitleCase } from "../utils/formatText";
 import PdfViewer from "./PdfViewer";
 import { cursosStore } from "../api/cursosStore";
@@ -54,7 +55,13 @@ import {
   type EstadoTramite,
   type MatriculaLocal,
 } from "../api/types";
-import { ensenanzaDesdeCode, getCatalogoLocal, getCatalogoParaCurso } from "../data/catalogoLocal";
+import {
+  ensenanzaDesdeCode,
+  getCatalogoLocal,
+  nombreAsignaturaConCurso,
+  agruparCatalogoPorCurso,
+} from "../data/catalogoLocal";
+import { tieneSufijoCurso } from "../utils/repetidorSuelta";
 import { nombreVisibleTemporal, nombresTemporalRealCoinciden } from "../utils/temporales";
 import { EstadoBadge } from "./SolicitudDetail";
 import { nombreCompletoDe } from "../utils/fusionHorarios";
@@ -348,14 +355,26 @@ export default function LocalDetail({
     (m.ensenanzaCurso === "EP6" || m.ensenanzaCurso === "EE4") &&
     items.some((i) => !i._deleted && i.nombre.includes(`(${cursoActual}º)`));
 
+  // El catálogo llega hasta el curso del alumno e incluye los anteriores: sus
+  // asignaturas pendientes se añaden con el sufijo "(Nº)" del curso al que
+  // pertenecen. También para un repetidor suelta, que puede arrastrar
+  // pendientes de cursos inferiores además de las que repite.
   const catalogoFiltrado = useMemo(() => {
     if (!especialidad) return [];
     const yaAgregados = new Set(items.filter((i) => !i._deleted).map((i) => i.codigo));
-    const catalogo = esRepetidorSuelta
-      ? getCatalogoParaCurso(especialidad, cursoActual, ensenanza)
-      : getCatalogoLocal(especialidad, cursoActual, ensenanza);
-    return catalogo.filter((a) => !yaAgregados.has(a.codigo));
-  }, [especialidad, cursoActual, ensenanza, items, esRepetidorSuelta]);
+    return getCatalogoLocal(especialidad, cursoActual, ensenanza)
+      .filter((a) => !yaAgregados.has(a.codigo));
+  }, [especialidad, cursoActual, ensenanza, items]);
+
+  const gruposCatalogo = useMemo(
+    () => agruparCatalogoPorCurso(catalogoFiltrado, cursoActual),
+    [catalogoFiltrado, cursoActual],
+  );
+
+  /** Estado local->nube de un campo, para resaltar su contenido. */
+  function estadoCampo(campo: string): EstadoCampoEditado | undefined {
+    return m._camposEditados?.[campo];
+  }
 
   function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -429,15 +448,12 @@ export default function LocalDetail({
   function agregarAsig() {
     const asignatura = catalogoFiltrado.find((a) => String(a.codigo) === addCodigo);
     if (!asignatura) return;
-    const nivel = parseInt(asignatura.cursoNivel, 10);
-    const esCursoAnterior = !isNaN(nivel) && nivel < cursoActual;
-    const sufijoCurso = esCursoAnterior && asignatura.cursoDesc ? ` (${asignatura.cursoDesc})` : "";
     const nueva: AsignaturaEdit = {
       localId: crypto.randomUUID(),
       rowId: null,
       asignaturaId: null,
       codigo: asignatura.codigo,
-      nombre: `${asignatura.descripcion || asignatura.abreviatura}${sufijoCurso}`,
+      nombre: nombreAsignaturaConCurso(asignatura, cursoActual, esRepetidorSuelta),
       estado: addEstado,
       observaciones: null,
       horario: null,
@@ -450,7 +466,7 @@ export default function LocalDetail({
   }
 
   const listaVisible = items.filter(
-    (i) => !i._deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+    (i) => !i._deleted && (!esRepetidorSuelta || tieneSufijoCurso(i.nombre)),
   );
 
   const nOrdenDigits = form.nOrden ? form.nOrden.length : 0;
@@ -495,6 +511,7 @@ export default function LocalDetail({
                 fontWeight: 400,
                 letterSpacing: -4,
                 color: "var(--tc-primary)",
+                ...estiloCampoEditado(estadoCampo("nOrden")),
               }}
             />
             <div
@@ -629,7 +646,7 @@ export default function LocalDetail({
                 readOnly={readOnly}
                 placeholder="Nombre"
                 className={`font-display min-w-0 bg-transparent border-b border-transparent focus:outline-none leading-tight truncate${!readOnly ? " hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)]" : " cursor-default"}`}
-                style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
+                style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, ...estiloCampoEditado(estadoCampo("nombre")) }}
               />
               <input
                 value={form.apellidos}
@@ -638,7 +655,7 @@ export default function LocalDetail({
                 readOnly={readOnly}
                 placeholder="Apellidos"
                 className={`font-display flex-1 min-w-0 bg-transparent border-b border-transparent focus:outline-none leading-tight truncate${!readOnly ? " hover:border-[var(--tc-border)] focus:border-[var(--tc-primary)]" : " cursor-default"}`}
-                style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, color: "var(--tc-ink)" }}
+                style={{ fontSize: 26, fontWeight: 400, letterSpacing: -0.5, ...estiloCampoEditado(estadoCampo("apellidos")) }}
               />
             </div>
 
@@ -896,6 +913,7 @@ export default function LocalDetail({
               <EditField
                 label="D.N.I. / N.I.E."
                 value={form.dni}
+                estado={estadoCampo("dni")}
                 onChange={(v) => setField("dni", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -904,6 +922,7 @@ export default function LocalDetail({
                 label="Correo electrónico"
                 type="email"
                 value={form.email}
+                estado={estadoCampo("email")}
                 onChange={(v) => setField("email", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -911,6 +930,7 @@ export default function LocalDetail({
               <EditField
                 label="Teléfono"
                 value={form.telefono}
+                estado={estadoCampo("telefono")}
                 onChange={(v) => setField("telefono", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -919,6 +939,7 @@ export default function LocalDetail({
                 label="Fecha de nacimiento"
                 type="date"
                 value={form.fechaNacimiento}
+                estado={estadoCampo("fechaNacimiento")}
                 onChange={(v) => setField("fechaNacimiento", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -926,6 +947,7 @@ export default function LocalDetail({
               <EditField
                 label="Domicilio"
                 value={form.domicilio}
+                estado={estadoCampo("domicilio")}
                 onChange={(v) => setField("domicilio", v)}
                 onBlur={() => saveForm()}
                 className="col-span-2"
@@ -934,6 +956,7 @@ export default function LocalDetail({
               <EditField
                 label="Localidad"
                 value={form.localidad}
+                estado={estadoCampo("localidad")}
                 onChange={(v) => setField("localidad", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -941,6 +964,7 @@ export default function LocalDetail({
               <EditField
                 label="Provincia"
                 value={form.provincia}
+                estado={estadoCampo("provincia")}
                 onChange={(v) => setField("provincia", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -948,6 +972,7 @@ export default function LocalDetail({
               <EditField
                 label="C.P."
                 value={form.cp}
+                estado={estadoCampo("cp")}
                 onChange={(v) => setField("cp", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -1111,6 +1136,7 @@ export default function LocalDetail({
               <EditField
                 label="Enseñanza y Curso"
                 value={form.ensenanzaCurso}
+                estado={estadoCampo("ensenanzaCurso")}
                 onChange={(v) => setField("ensenanzaCurso", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -1118,6 +1144,7 @@ export default function LocalDetail({
               <EditField
                 label="Especialidad"
                 value={form.especialidad}
+                estado={estadoCampo("especialidad")}
                 onChange={(v) => setField("especialidad", v)}
                 onBlur={() => saveForm()}
                 disabled={readOnly}
@@ -1125,6 +1152,7 @@ export default function LocalDetail({
               <SelectField
                 label="Hora de salida"
                 value={form.horaSalida}
+                estado={estadoCampo("horaSalida")}
                 originalValue={originalValues.current.horaSalida}
                 options={HORAS_SALIDA}
                 onChange={(v) => saveField("horaSalida", v)}
@@ -1134,12 +1162,14 @@ export default function LocalDetail({
                 <ToggleField
                   label="Disponibilidad mañana"
                   checked={form.disponibilidadManana}
+                  estado={estadoCampo("disponibilidadManana")}
                   onChange={(v) => saveBool("disponibilidadManana", v)}
                   disabled={readOnly}
                 />
                 <ToggleField
                   label="Autorización imagen"
                   checked={form.autorizacionImagen}
+                  estado={estadoCampo("autorizacionImagen")}
                   onChange={(v) => saveBool("autorizacionImagen", v)}
                   disabled={readOnly}
                 />
@@ -1150,6 +1180,7 @@ export default function LocalDetail({
                 <ToggleField
                   label="Ampliación"
                   checked={m.ampliacion}
+                  estado={estadoCampo("ampliacion")}
                   onChange={(v) => {
                     if (v && !m.ampliacion) {
                       setConfirmAmpliacion(true);
@@ -1186,6 +1217,7 @@ export default function LocalDetail({
               <ToggleField
                 label="Anulación"
                 checked={form.anulacion}
+                estado={estadoCampo("anulacion")}
                 onChange={(v) => saveBool("anulacion", v)}
                 disabled={readOnly}
               />
@@ -1364,16 +1396,15 @@ export default function LocalDetail({
                         style={{ borderColor: "var(--tc-border)", background: "var(--tc-card)", color: "var(--tc-ink)" }}
                       >
                         <option value="">— Selecciona una asignatura —</option>
-                        {catalogoFiltrado.map((a) => {
-                          const nivel = parseInt(a.cursoNivel, 10);
-                          const esCursoAnterior = !isNaN(nivel) && nivel < cursoActual;
-                          return (
-                            <option key={a.codigo} value={String(a.codigo)}>
-                              {a.descripcion || a.abreviatura}
-                              {esCursoAnterior && a.cursoDesc ? ` (${a.cursoDesc})` : ""}
-                            </option>
-                          );
-                        })}
+                        {gruposCatalogo.map((g) => (
+                          <optgroup key={g.nivel} label={g.etiqueta}>
+                            {g.items.map((a) => (
+                              <option key={a.codigo} value={String(a.codigo)}>
+                                {nombreAsignaturaConCurso(a, cursoActual, esRepetidorSuelta)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
                       {catalogoFiltrado.length === 0 && (
                         <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>No hay asignaturas disponibles para añadir.</p>
@@ -1418,6 +1449,7 @@ export default function LocalDetail({
               <SelectField
                 label="Modalidad"
                 value={form.formaPago}
+                estado={estadoCampo("formaPago")}
                 originalValue={originalValues.current.formaPago}
                 options={FORMAS_PAGO}
                 onChange={(v) => saveField("formaPago", v)}
@@ -1426,6 +1458,7 @@ export default function LocalDetail({
               <SelectField
                 label="Reducción de tasas"
                 value={form.reduccionTasas}
+                estado={estadoCampo("reduccionTasas")}
                 originalValue={originalValues.current.reduccionTasas}
                 options={REDUCCIONES_TASAS}
                 onChange={(v) => saveField("reduccionTasas", v)}
@@ -1447,7 +1480,7 @@ export default function LocalDetail({
               style={{
                 borderColor: "var(--tc-border)",
                 background: "var(--tc-bg-panel)",
-                color: "var(--tc-ink)",
+                ...estiloCampoEditado(estadoCampo("docFaltante")),
               }}
             />
           </AccordionBlock>
@@ -1622,6 +1655,21 @@ function AccordionBlock({
   );
 }
 
+/**
+ * Resalta el contenido de un campo segun su recorrido local -> nube:
+ * rojo mientras el cambio esta pendiente de subir, verde una vez confirmado
+ * en Dataverse. En negrita y cursiva en ambos casos.
+ */
+function estiloCampoEditado(estado?: EstadoCampoEditado): React.CSSProperties {
+  if (estado === "pendiente") {
+    return { color: "var(--tc-danger-ink)", fontWeight: 700, fontStyle: "italic" };
+  }
+  if (estado === "subido") {
+    return { color: "var(--tc-success-ink)", fontWeight: 700, fontStyle: "italic" };
+  }
+  return { color: "var(--tc-ink)" };
+}
+
 function EditField({
   label,
   value,
@@ -1630,6 +1678,7 @@ function EditField({
   type = "text",
   className,
   disabled,
+  estado,
 }: {
   label: string;
   value: string;
@@ -1638,6 +1687,7 @@ function EditField({
   type?: string;
   className?: string;
   disabled?: boolean;
+  estado?: EstadoCampoEditado;
 }) {
   return (
     <div className={className}>
@@ -1654,7 +1704,7 @@ function EditField({
         onBlur={disabled ? undefined : onBlur}
         readOnly={disabled}
         className={`w-full text-sm font-medium bg-transparent border-b border-transparent py-0.5 focus:outline-none${disabled ? " cursor-default" : ""}`}
-        style={{ color: "var(--tc-ink)", borderColor: "transparent" }}
+        style={{ ...estiloCampoEditado(estado), borderColor: "transparent" }}
         onFocus={disabled ? undefined : (e) => (e.currentTarget.style.borderColor = "var(--tc-primary)")}
         onBlurCapture={disabled ? undefined : (e) => (e.currentTarget.style.borderColor = "transparent")}
         onMouseEnter={disabled ? undefined : (e) => {
@@ -1678,6 +1728,7 @@ function SelectField({
   onChange,
   className,
   disabled,
+  estado,
 }: {
   label: string;
   value: string;
@@ -1686,6 +1737,7 @@ function SelectField({
   onChange: (v: string) => void;
   className?: string;
   disabled?: boolean;
+  estado?: EstadoCampoEditado;
 }) {
   const editado = !disabled && value !== originalValue;
   return (
@@ -1707,7 +1759,7 @@ function SelectField({
         disabled={disabled}
         className="w-full text-sm font-medium border-b py-0.5 focus:outline-none transition-colors bg-transparent disabled:opacity-60 disabled:cursor-not-allowed"
         style={{
-          color: "var(--tc-ink)",
+          ...estiloCampoEditado(estado),
           borderColor: editado ? "var(--tc-primary)" : "transparent",
           background: editado ? "var(--tc-primary-tint)" : "transparent",
         }}
@@ -1723,20 +1775,37 @@ function SelectField({
   );
 }
 
+/**
+ * Etiqueta del recorrido local -> nube para campos sin texto propio que teñir
+ * (los interruptores). Misma semantica de color que `estiloCampoEditado`.
+ */
+function EtiquetaCampoEditado({ estado }: { estado?: EstadoCampoEditado }) {
+  if (!estado) return null;
+  return (
+    <span className="text-[10px] uppercase tracking-wide shrink-0" style={estiloCampoEditado(estado)}>
+      {estado === "pendiente" ? "Editado" : "Actualizado"}
+    </span>
+  );
+}
+
 function ToggleField({
   label,
   checked,
   onChange,
   disabled,
+  estado,
 }: {
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  estado?: EstadoCampoEditado;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between gap-2">
       <p className="text-xs uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{label}</p>
+      <div className="flex items-center gap-1.5 shrink-0">
+      <EtiquetaCampoEditado estado={estado} />
       <button
         type="button"
         onClick={() => !disabled && onChange(!checked)}
@@ -1753,6 +1822,7 @@ function ToggleField({
           }
         />
       </button>
+      </div>
     </div>
   );
 }

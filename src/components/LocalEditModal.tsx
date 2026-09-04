@@ -9,7 +9,13 @@ import {
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import type { AsignaturaLocal, MatriculaLocal, EstadoAsignatura } from "../api/types";
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
-import { getCatalogoLocal, ensenanzaDesdeCode } from "../data/catalogoLocal";
+import {
+  getCatalogoLocal,
+  ensenanzaDesdeCode,
+  nombreAsignaturaConCurso,
+  agruparCatalogoPorCurso,
+} from "../data/catalogoLocal";
+import { esRepetidorSuelta as detectarRepetidorSuelta } from "../utils/repetidorSuelta";
 import { toTitleCase } from "../utils/formatText";
 
 type Tab = "datos" | "asignaturas";
@@ -81,6 +87,14 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
   const { cursoActual, ensenanza } = parseCurso(matricula.ensenanzaCurso);
   const especialidad = matricula.especialidad ?? "";
 
+  const esRepetidorSuelta = detectarRepetidorSuelta(
+    matricula,
+    items.filter((i) => !i._deleted),
+  );
+
+  // El catálogo llega hasta el curso del alumno e incluye los anteriores: sus
+  // asignaturas pendientes se añaden con el sufijo "(Nº)" del curso al que
+  // pertenecen.
   const catalogoFiltrado = useMemo(() => {
     if (!especialidad) return [];
     const yaAgregados = new Set(items.filter((i) => !i._deleted).map((i) => i.codigo));
@@ -88,6 +102,11 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
       (a) => !yaAgregados.has(a.codigo),
     );
   }, [especialidad, cursoActual, ensenanza, items]);
+
+  const gruposCatalogo = useMemo(
+    () => agruparCatalogoPorCurso(catalogoFiltrado, cursoActual),
+    [catalogoFiltrado, cursoActual],
+  );
 
   function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -113,7 +132,7 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
       rowId: null,
       asignaturaId: null,
       codigo: asignatura.codigo,
-      nombre: asignatura.descripcion || asignatura.abreviatura,
+      nombre: nombreAsignaturaConCurso(asignatura, cursoActual, esRepetidorSuelta),
       estado: addEstado,
       observaciones: null,
       horario: null,
@@ -382,16 +401,15 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
                         className="w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                       >
                         <option value="">— Selecciona una asignatura —</option>
-                        {catalogoFiltrado.map((a) => {
-                          const nivel = parseInt(a.cursoNivel, 10);
-                          const esCursoAnterior = !isNaN(nivel) && nivel < cursoActual;
-                          return (
-                            <option key={a.codigo} value={String(a.codigo)}>
-                              {a.descripcion || a.abreviatura}
-                              {esCursoAnterior && a.cursoDesc ? ` (${a.cursoDesc})` : ""}
-                            </option>
-                          );
-                        })}
+                        {gruposCatalogo.map((g) => (
+                          <optgroup key={g.nivel} label={g.etiqueta}>
+                            {g.items.map((a) => (
+                              <option key={a.codigo} value={String(a.codigo)}>
+                                {nombreAsignaturaConCurso(a, cursoActual, esRepetidorSuelta)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
                       {catalogoFiltrado.length === 0 && (
                         <p className="text-xs text-slate-500">

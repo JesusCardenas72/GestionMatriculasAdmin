@@ -57,7 +57,7 @@ export async function postFlow<TResponse>(
       );
     }
     throw new FlowError(
-      `[${flowLabel}] El flow devolvio ${res.status} ${res.statusText}`,
+      `[${flowLabel}] El flow devolvio ${res.status}${res.statusText ? ` ${res.statusText}` : ""}`,
       res.status,
       text,
     );
@@ -73,4 +73,24 @@ export async function postFlow<TResponse>(
       text,
     );
   }
+}
+
+/**
+ * Texto legible de un error de flow: mensaje + pista de la causa + cuerpo de la
+ * respuesta (que en los 502 de Power Automate trae el «tracking id» con el que
+ * se localiza la ejecucion fallida en el historial del flow).
+ */
+export function describirFlowError(e: unknown): string {
+  if (!(e instanceof FlowError)) return e instanceof Error ? e.message : String(e);
+  const pistas: Record<number, string> = {
+    0: "No hay conexion o la URL del flow es incorrecta.",
+    401: "El flow rechazo la api-key.",
+    404: "La URL del flow no existe o el registro no se encontro.",
+    408: "El flow tardo demasiado en responder.",
+    429: "Power Automate esta limitando las peticiones (throttling).",
+    502: "El flow arranco pero una de sus acciones fallo, por lo que nunca llego al paso Response. Revisa el historial de ejecuciones del flow.",
+  };
+  const pista = pistas[e.status];
+  const cuerpo = e.body?.trim() ? ` Respuesta: ${e.body.trim().slice(0, 300)}` : "";
+  return `${e.message}.${pista ? ` ${pista}` : ""}${cuerpo}`;
 }

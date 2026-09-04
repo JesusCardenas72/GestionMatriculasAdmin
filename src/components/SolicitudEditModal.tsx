@@ -10,7 +10,13 @@ import {
 } from "../hooks/useSolicitudes";
 import { actualizarSolicitud } from "../api/solicitudes";
 import { FlowError } from "../api/client";
-import { getCatalogoLocal, getCatalogoParaCurso, ensenanzaDesdeCode } from "../data/catalogoLocal";
+import {
+  getCatalogoLocal,
+  ensenanzaDesdeCode,
+  nombreAsignaturaConCurso,
+  agruparCatalogoPorCurso,
+} from "../data/catalogoLocal";
+import { tieneSufijoCurso } from "../utils/repetidorSuelta";
 
 interface Props {
   config: AppConfig;
@@ -62,14 +68,21 @@ export default function SolicitudEditModal({ config, solicitud, onClose, onSaved
     (solicitud.ensenanzaCurso === "EP6" || solicitud.ensenanzaCurso === "EE4") &&
     lista.some((i) => !i.deleted && i.nombre.includes(`(${cursoActual}º)`));
 
+  // El catálogo llega hasta el curso del alumno e incluye los anteriores: sus
+  // asignaturas pendientes se añaden con el sufijo "(Nº)" del curso al que
+  // pertenecen. También para un repetidor suelta, que puede arrastrar
+  // pendientes de cursos inferiores además de las que repite.
   const catalogoFiltrado = useMemo(() => {
     if (!especialidad) return [];
     const yaAgregados = new Set(lista.filter((i) => !i.deleted).map((i) => i.asignaturaId));
-    const catalogo = esRepetidorSuelta
-      ? getCatalogoParaCurso(especialidad, cursoActual, ensenanza)
-      : getCatalogoLocal(especialidad, cursoActual, ensenanza);
-    return catalogo.filter((a) => !yaAgregados.has(a.rowId));
-  }, [especialidad, ensenanza, cursoActual, lista, esRepetidorSuelta]);
+    return getCatalogoLocal(especialidad, cursoActual, ensenanza)
+      .filter((a) => !yaAgregados.has(a.rowId));
+  }, [especialidad, ensenanza, cursoActual, lista]);
+
+  const gruposCatalogo = useMemo(
+    () => agruparCatalogoPorCurso(catalogoFiltrado, cursoActual),
+    [catalogoFiltrado, cursoActual],
+  );
 
   function cambiarEstado(rowId: string, nuevoEstado: EstadoAsignatura) {
     setItems((prev) =>
@@ -88,7 +101,7 @@ export default function SolicitudEditModal({ config, solicitud, onClose, onSaved
     if (!asignatura) return;
     const nueva: AsignaturaLocal = {
       rowId: `new-${Date.now()}`,
-      nombre: asignatura.descripcion || asignatura.abreviatura,
+      nombre: nombreAsignaturaConCurso(asignatura, cursoActual, esRepetidorSuelta),
       estado: addEstado,
       asignaturaId: asignatura.rowId,
       codigo: asignatura.codigo,
@@ -177,7 +190,7 @@ export default function SolicitudEditModal({ config, solicitud, onClose, onSaved
   }
 
   const listaVisible = lista.filter(
-    (i) => !i.deleted && (!esRepetidorSuelta || i.nombre.includes(`(${cursoActual}º)`)),
+    (i) => !i.deleted && (!esRepetidorSuelta || tieneSufijoCurso(i.nombre)),
   );
 
   return (
@@ -281,16 +294,15 @@ export default function SolicitudEditModal({ config, solicitud, onClose, onSaved
                     className="w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   >
                     <option value="">— Selecciona una asignatura —</option>
-                    {catalogoFiltrado.map((a) => {
-                      const nivel = parseInt(a.cursoNivel, 10);
-                      const esCursoAnterior = !isNaN(nivel) && nivel < cursoActual;
-                      return (
-                        <option key={a.rowId} value={a.rowId}>
-                          {a.descripcion || a.abreviatura}
-                          {esCursoAnterior && a.cursoDesc ? ` (${a.cursoDesc})` : ""}
-                        </option>
-                      );
-                    })}
+                    {gruposCatalogo.map((g) => (
+                      <optgroup key={g.nivel} label={g.etiqueta}>
+                        {g.items.map((a) => (
+                          <option key={a.rowId} value={a.rowId}>
+                            {nombreAsignaturaConCurso(a, cursoActual, esRepetidorSuelta)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                   {catalogoFiltrado.length === 0 && (
                     <p className="text-xs text-slate-500">

@@ -9,6 +9,50 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.10.0] - 2026-09-04
+
+### Añadido
+
+- **Filtros de curso y especialidad en los listados por asignatura**: el documento generado (*HORARIOS DEL ALUMNADO*, versiones **Alumnado** y **Profesorado**) incorpora dos desplegables junto al buscador, **Todos los cursos** (1.º Elemental a 6.º Profesional) y **Todas las especialidades**. Se combinan entre sí, con el buscador y con el índice de asignaturas, y filtran en vivo sin volver a generar el documento. Hasta ahora solo los tenía la versión de profesorado.
+- **Estado «Finales» del documento de Grupos**: el desplegable *Estado* de «Configurar documento» añade una tercera opción. Cada una pone su propio título en la cabecera: *Provisionales* → «HORARIOS PROVISIONALES ALUMNADO GRUPOS GRANDES Y COLECTIVAS.», *Definitivos* → «HORARIOS DEFINITIVOS ALUMNADO GRUPOS GRANDES Y COLECTIVAS.» y *Finales* → «HORARIOS DEL ALUMNADO». Con «Finales» el PDF se guarda como *Horarios del alumnado Curso XX-XX*.
+
+### Cambiado
+
+- **El índice de asignaturas se ajusta al filtro**: al filtrar por curso o especialidad —o al buscar por nombre— desaparecen del índice las asignaturas que se quedan sin alumnado, y la burbuja de cada una pasa a contar solo los que cumplen el filtro. Si la asignatura que tenías seleccionada se queda vacía, se deselecciona sola para no dejar el listado en blanco.
+- **Los listados abren completamente desplegados**: asignatura → curso → grupo con sus tablas ya visibles, en las dos versiones. El botón de capas arranca contrayendo, y al cambiar los niveles de agrupación el listado sigue desplegado salvo que lo hayas contraído a mano.
+- **«Agrupar» y el contador de registros suben a la línea de la versión** («Versión alumnado · N alumnos»), alineados a la derecha; en ventanas estrechas bajan a la línea siguiente. Al imprimir, esa línea vuelve a ser solo el texto centrado.
+- **Columnas alineadas entre todas las tablas del listado**: los grupos con nombres largos ya no desplazaban su columna de *Especialidad* respecto a los demás. Las columnas pasan a tener ancho fijo —también *Email* y *Teléfono* en la versión de profesorado—, así que la rejilla es la misma en todo el documento.
+
+---
+
+## [1.9.2] - 2026-09-03
+
+### Corregido
+
+- **Los grupos de Coro de 5.º y 6.º no se veían**: en la pestaña *Grupos*, los alumnos de Coro de 5.º y 6.º de Enseñanzas Profesionales existían en los datos pero quedaban camuflados dentro de la tabla del Coro de 1.º y 2.º, porque el documento agrupa por asignatura y grupo y todos compartían el nombre «Coro» y el grupo «A». No tenían ni sección ni cabecera propias, así que parecía que no estuvieran.
+
+### Cambiado
+
+- **El Coro de 5.º y 6.º se identifica como «Coro (Perfil)»**: en Profesional es una asignatura de **Perfil**, distinta del Coro de 1.º y 2.º, y ahora se trata como tal en las tres pestañas —*Alumnado*, *Profesorado* y *Grupos*— y en los documentos que se envían por email:
+  - Tiene su **propia sección**, con sus grupos, su cabecera y su entrada en el índice.
+  - Aparece como **casilla independiente** en el selector de asignaturas (tanto en «Configurar documento» de Grupos como en «Imprimir» / «Generar HTML» de los listados), así que se puede incluir o excluir sin tocar el Coro de 1.º y 2.º.
+  - Manda el curso **de la asignatura**, no el del alumno: quien arrastra pendiente el Coro de 2.º sigue contando como Coro normal, y quien arrastra el de 5.º cuenta como Perfil.
+  - Las configuraciones ya guardadas siguen funcionando: si tenías «Coro» marcado, el Coro de Perfil se incluye igualmente hasta que decidas otra cosa.
+- **Título del documento de listados**: «Listados por asignatura» pasa a ser **«HORARIOS DEL ALUMNADO»** (y «HORARIOS DEL ALUMNADO — Profesorado» en la versión de profesorado). Cambia la cabecera del documento, el título de la pestaña del navegador al abrir el HTML exportado y el nombre del archivo generado.
+
+---
+
+## [1.9.1] - 2026-09-02
+
+### Corregido
+
+- **Añadir asignaturas de cursos anteriores (pendientes)**: al añadir una asignatura a un alumno —tanto en las fichas de nube (*Pnte. Tramitación*, *P. Validación*, *Tramitado*) como en *Local*— fallaban tres cosas que impedían registrar bien las asignaturas que se arrastran de un curso inferior:
+  - **Repetidores de EP6/EE4**: el desplegable se recortaba solo a las asignaturas de su propio curso, así que no se les podía añadir ninguna pendiente de un curso anterior. Ahora se ofrecen todos los cursos hasta el suyo, y las pendientes de cursos inferiores se ven en su ficha junto a las que repiten (antes, aunque se metieran, desaparecían de la lista).
+  - **El «(Nº)» se perdía al guardar**: en la ficha de nube y en la ventana de edición de Local, elegir «Lenguaje Musical (1º)» guardaba **«Lenguaje Musical»**, sin el curso entre paréntesis. La asignatura quedaba registrada como si fuera del curso actual y dejaba de reconocerse como arrastrada en el «Listado Grupos» y en los Excel de horarios. Ahora el sufijo se conserva en los cuatro sitios donde se añaden asignaturas.
+  - **No se veía que hubiera cursos anteriores**: el desplegable ponía primero todas las del curso actual y las de cursos anteriores quedaban debajo sin separación, así que parecía que solo hubiera las del curso en cuestión. Ahora la lista sale **agrupada por curso** con cabeceras visibles: «Curso actual (5º)», «Curso 4º — pendientes», «Curso 3º — pendientes»…
+
+---
+
 ## [1.9.0] - 2026-09-01
 
 ### Añadido
