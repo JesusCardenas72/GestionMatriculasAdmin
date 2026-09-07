@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import type { FilaInforme } from '../api/types';
+import { ESTADO_ASIGNATURA } from '../api/types';
 import {
   ESTADO_ASIGNATURA_LABELS,
   ESTADO_TRAMITE_LABELS,
@@ -29,6 +30,30 @@ export interface OpcionesHorario {
    * horario (Profesor, Aula, Grupo…). `null` = insertarlas al principio.
    */
   insertarTras: string | null;
+  /**
+   * Si se dejan fuera del Excel las asignaturas CONVALIDADAS (campo «Estado
+   * asignatura»). El alumno no las cursa, así que no hay horario que asignar.
+   * Ausente o `false` = se incluyen (comportamiento clásico).
+   */
+  excluirConvalidadas?: boolean;
+}
+
+/**
+ * Quita del listado las filas de matrículas ANULADAS. El Excel de horarios
+ * nunca debe incluirlas: el profesorado no tiene que ver ni asignar horario a
+ * un alumno que ya no cursa.
+ */
+export function sinAnuladas(filas: FilaInforme[]): FilaInforme[] {
+  return filas.filter(f => !f.anulacion);
+}
+
+/**
+ * Quita del listado las filas cuya asignatura está CONVALIDADA. Es opcional
+ * (casilla del modal de generación): una asignatura convalidada no se cursa,
+ * así que normalmente no hace falta que el profesorado le ponga horario.
+ */
+export function sinConvalidadas(filas: FilaInforme[]): FilaInforme[] {
+  return filas.filter(f => f.asigEstado !== ESTADO_ASIGNATURA.CONVALIDADA);
 }
 
 /** Convierte un índice de columna (1 = A, 2 = B, …) a su letra de Excel. */
@@ -82,6 +107,10 @@ function anchoDesplegable(valores: string[]): number {
  *   CENTRO    → 9 columnas de horario con DESPLEGABLES (editables).
  *   DERECHA   → las dos últimas columnas del informe (email y teléfono), bloqueadas.
  *
+ * Las matrículas ANULADAS nunca entran en el Excel: el profesorado no debe ver
+ * ni asignar horario a un alumno que ya no cursa. Las asignaturas CONVALIDADAS solo
+ * quedan fuera si se marca la opción `excluirConvalidadas` en el modal.
+ *
  * @param filas      filas resultantes del informe
  * @param campos     columnas visibles del informe en pantalla (en su orden)
  * @param profesores lista de profesores (desde el CSV que elige el usuario)
@@ -91,12 +120,27 @@ function anchoDesplegable(valores: string[]): number {
  *                       lo que los profesores ya introdujeron
  */
 export async function generarExcelHorarios(
-  filas: FilaInforme[],
+  filasEntrada: FilaInforme[],
   campos: CampoMeta[],
   profesores: string[],
   opciones: OpcionesHorario,
-  valoresHorario?: Array<Partial<Record<string, string>> | null>,
+  valoresHorarioEntrada?: Array<Partial<Record<string, string>> | null>,
 ): Promise<string> {
+  // ── Fuera el alumnado ANULADO (y, si se ha pedido, las CONVALIDADAS) ────
+  // Se descarta aquí (y no en cada pantalla) para que ninguna vía de
+  // generación pueda colar una matrícula anulada en el Excel. `valoresHorario`
+  // va alineado por índice con las filas, así que se recorta a la vez.
+  const fueraDelExcel = (f: FilaInforme) =>
+    !!f.anulacion ||
+    (!!opciones.excluirConvalidadas && f.asigEstado === ESTADO_ASIGNATURA.CONVALIDADA);
+  const indicesUtiles = filasEntrada
+    .map((f, i) => (fueraDelExcel(f) ? -1 : i))
+    .filter(i => i >= 0);
+  const filas = indicesUtiles.map(i => filasEntrada[i]);
+  const valoresHorario = valoresHorarioEntrada
+    ? indicesUtiles.map(i => valoresHorarioEntrada[i])
+    : undefined;
+
   const wb = new ExcelJS.Workbook();
   wb.creator = 'GestiónMatrículas';
   wb.created = new Date();

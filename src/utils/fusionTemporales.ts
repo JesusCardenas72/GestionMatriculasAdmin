@@ -96,6 +96,7 @@ function buildFila(m: MatriculaLocal, estado: EstadoTramite): FilaInforme {
     docFaltante: m.docFaltante,
     ampliada: m.ampliada,
     repetidor: m.repetidor,
+    anulacion: m.anulacion,
     esTemporal: !!m.esTemporal && m.temporalEstado !== "sustituido",
   };
 }

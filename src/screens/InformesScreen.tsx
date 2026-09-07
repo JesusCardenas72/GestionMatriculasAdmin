@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -98,6 +98,31 @@ const SELECT_DATA_CAMPOS = new Set<CampoKey>(
 
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Texto que resume la configuración del PDF (con sus valores por defecto
+ * aplicados) para poder comparar de un vistazo la que hay en pantalla con la
+ * que tiene guardada el preset y saber si queda algo por guardar.
+ */
+function huellaConfigPdf(
+  c: ConfigInforme['pdfCabecera'],
+  nombreDefecto: string,
+): string {
+  const anchos = c?.anchosColumna ?? null;
+  return JSON.stringify({
+    titulo: c?.titulo || nombreDefecto,
+    subtitulo: c?.subtitulo ?? '',
+    mostrarFiltros: c?.mostrarFiltros ?? true,
+    mostrarOrden: c?.mostrarOrden ?? true,
+    mostrarAgrupacion: c?.mostrarAgrupacion ?? true,
+    mostrarFecha: c?.mostrarFecha ?? true,
+    repetirCabeceraTabla: c?.repetirCabeceraTabla ?? true,
+    // Ordenado por clave: el orden de las columnas no debe contar como cambio.
+    anchosColumna: anchos
+      ? Object.keys(anchos).sort().map(k => `${k}:${anchos[k as CampoKey]}`)
+      : null,
+  });
 }
 
 // Ancho (px) por debajo del cual los iconos de acción de la cabecera se
@@ -286,6 +311,7 @@ function localToSolicitud(r: MatriculaLocal, estado: EstadoTramite): FilaInforme
     docFaltante: r.docFaltante,
     ampliada: r.ampliada,
     repetidor: r.repetidor,
+    anulacion: r.anulacion,
     esTemporal: !!r.esTemporal && r.temporalEstado !== "sustituido",
     _localId: r.localId,
   };
@@ -745,6 +771,14 @@ export default function InformesScreen({ config }: Props) {
   const [previewMostrarOrden, setPreviewMostrarOrden] = useState(true);
   const [previewMostrarAgrupacion, setPreviewMostrarAgrupacion] = useState(true);
   const [previewMostrarFecha, setPreviewMostrarFecha] = useState(true);
+  // Si la fila de títulos de columna se repite en cada hoja del PDF.
+  const [previewRepetirCabecera, setPreviewRepetirCabecera] = useState(true);
+  // Ancho (%) de cada columna del PDF ajustado a mano arrastrando en la vista
+  // previa. `null` = anchos automáticos (proporcionales al contenido).
+  const [previewAnchos, setPreviewAnchos] = useState<Partial<Record<CampoKey, number>> | null>(null);
+  // Aviso breve tras pulsar «Guardar configuración» en la vista previa.
+  const [previewGuardado, setPreviewGuardado] =
+    useState<{ texto: string; ok: boolean } | null>(null);
   // Desplegable del botón "PDF" (Guardar / Imprimir) en la vista previa.
   const [showPdfMenu, setShowPdfMenu] = useState(false);
   const pdfMenuRef = useRef<HTMLDivElement>(null);
@@ -1116,8 +1150,10 @@ export default function InformesScreen({ config }: Props) {
     if (id === 'personalizado') {
       setInforme(deepClone(INFORME_VACIO));
     } else {
+      // La versión guardada por el usuario manda sobre la de fábrica: es la que
+      // lleva su configuración del PDF (anchos de columna, cabecera, etc.).
       const preset =
-        INFORMES_PREDEFINIDOS.find(p => p.id === id) ?? presets.find(p => p.id === id);
+        presets.find(p => p.id === id) ?? INFORMES_PREDEFINIDOS.find(p => p.id === id);
       if (preset) setInforme({ modo: 'alumno', ...deepClone(preset) });
     }
   }
@@ -1769,28 +1805,74 @@ export default function InformesScreen({ config }: Props) {
 
   const nivelesAgrup = nivelesAgrupacion(informe.agruparPor);
 
-  const previewHtml = useMemo(() => {
-    if (!showPreview) return '';
-    return buildHtmlInforme({
-      nombre: previewTitulo,
-      subtitulo: previewSubtitulo,
-      filtrosDesc: previewMostrarFiltros ? describeFiltros(filtrosActivos) : '',
-      ordenDesc: previewMostrarOrden ? describeOrden(informe.orden) : '',
-      agrupacionDesc: previewMostrarAgrupacion ? describeAgrupacion(nivelesAgrup) : '',
-      mostrarFecha: previewMostrarFecha,
-      campos: camposEnTabla,
-      rows: resultados,
-      orientacion: previewOrientacion,
-      zoom: previewZoom,
-      agruparPorMetas: nivelesAgrup
-        .map(k => CAMPO_MAP.get(k))
-        .filter(Boolean) as CampoMeta[],
-    });
-  }, [
-    showPreview, previewOrientacion, previewZoom, previewTitulo, previewSubtitulo,
+  // Anchos manuales en el orden de las columnas actuales. Si falta alguno
+  // (porque se ha añadido o quitado una columna), se vuelve al automático.
+  const anchosColumnaPdf = useMemo<number[] | null>(() => {
+    if (!previewAnchos) return null;
+    const arr = camposEnTabla.map(c => previewAnchos[c.key]);
+    return arr.every(a => typeof a === 'number' && a > 0) ? (arr as number[]) : null;
+  }, [previewAnchos, camposEnTabla]);
+
+  /**
+   * HTML del informe para el PDF. `interactivo` añade los tiradores para
+   * ajustar el ancho de columna arrastrando: solo en la vista previa, nunca en
+   * el PDF que se guarda o imprime.
+   */
+  const construirHtmlPdf = useCallback((interactivo: boolean) => buildHtmlInforme({
+    nombre: previewTitulo,
+    subtitulo: previewSubtitulo,
+    filtrosDesc: previewMostrarFiltros ? describeFiltros(filtrosActivos) : '',
+    ordenDesc: previewMostrarOrden ? describeOrden(informe.orden) : '',
+    agrupacionDesc: previewMostrarAgrupacion ? describeAgrupacion(nivelesAgrup) : '',
+    mostrarFecha: previewMostrarFecha,
+    repetirCabecera: previewRepetirCabecera,
+    anchosColumna: anchosColumnaPdf,
+    interactivo,
+    campos: camposEnTabla,
+    rows: resultados,
+    orientacion: previewOrientacion,
+    zoom: previewZoom,
+    agruparPorMetas: nivelesAgrup
+      .map(k => CAMPO_MAP.get(k))
+      .filter(Boolean) as CampoMeta[],
+  }), [
+    previewOrientacion, previewZoom, previewTitulo, previewSubtitulo,
     previewMostrarFiltros, previewMostrarOrden, previewMostrarAgrupacion, previewMostrarFecha,
+    previewRepetirCabecera, anchosColumnaPdf,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     informe.filtros, informe.orden, informe.agruparPor, camposEnTabla, resultados,
   ]);
+
+  const previewHtml = useMemo(
+    () => (showPreview ? construirHtmlPdf(true) : ''),
+    [showPreview, construirHtmlPdf],
+  );
+
+  // El aviso de guardado desaparece solo a los pocos segundos.
+  useEffect(() => {
+    if (!previewGuardado) return;
+    const t = setTimeout(() => setPreviewGuardado(null), previewGuardado.ok ? 4000 : 9000);
+    return () => clearTimeout(t);
+  }, [previewGuardado]);
+
+  // La vista previa avisa (postMessage) del nuevo reparto de anchos cada vez
+  // que se suelta un tirador. Se guarda por clave de columna para que aguante
+  // aunque luego se reordenen las columnas.
+  useEffect(() => {
+    if (!showPreview) return;
+    function alRecibir(e: MessageEvent) {
+      const datos = e.data as { tipo?: string; anchos?: unknown };
+      if (!datos || datos.tipo !== 'anchosColumnaPdf') return;
+      const anchos = datos.anchos;
+      if (!Array.isArray(anchos) || anchos.length !== camposEnTabla.length) return;
+      if (!anchos.every(a => typeof a === 'number' && Number.isFinite(a) && a > 0)) return;
+      const porClave: Partial<Record<CampoKey, number>> = {};
+      camposEnTabla.forEach((c, i) => { porClave[c.key] = anchos[i] as number; });
+      setPreviewAnchos(porClave);
+    }
+    window.addEventListener('message', alRecibir);
+    return () => window.removeEventListener('message', alRecibir);
+  }, [showPreview, camposEnTabla]);
 
   // ── Exportar ──────────────────────────────────────────────────────────────
 
@@ -2237,23 +2319,34 @@ export default function InformesScreen({ config }: Props) {
     setPreviewMostrarOrden(c?.mostrarOrden ?? true);
     setPreviewMostrarAgrupacion(c?.mostrarAgrupacion ?? true);
     setPreviewMostrarFecha(c?.mostrarFecha ?? true);
+    setPreviewRepetirCabecera(c?.repetirCabeceraTabla ?? true);
+    setPreviewAnchos(c?.anchosColumna ?? null);
+    setPreviewGuardado(null);
     setShowPreview(true);
   }
+
+  // Configuración del PDF tal y como está ahora mismo en la vista previa.
+  const configPdfActual: ConfigInforme['pdfCabecera'] = {
+    titulo: previewTitulo,
+    subtitulo: previewSubtitulo,
+    mostrarFiltros: previewMostrarFiltros,
+    mostrarOrden: previewMostrarOrden,
+    mostrarAgrupacion: previewMostrarAgrupacion,
+    mostrarFecha: previewMostrarFecha,
+    repetirCabeceraTabla: previewRepetirCabecera,
+    anchosColumna: previewAnchos ?? undefined,
+  };
+
+  // ¿Hay algo distinto de lo que ya tiene guardado el preset? Sirve para
+  // habilitar el botón «Guardar configuración» solo cuando hace falta.
+  const hayCambiosPdf =
+    huellaConfigPdf(configPdfActual, informe.nombre) !==
+    huellaConfigPdf(informe.pdfCabecera, informe.nombre);
 
   // Guarda la configuración de cabecera editada (título, subtítulo y qué datos
   // se muestran) en el informe/preset para recordarla la próxima vez.
   async function persistirCabeceraPreview() {
-    const actualizado: ConfigInforme = {
-      ...informe,
-      pdfCabecera: {
-        titulo: previewTitulo,
-        subtitulo: previewSubtitulo,
-        mostrarFiltros: previewMostrarFiltros,
-        mostrarOrden: previewMostrarOrden,
-        mostrarAgrupacion: previewMostrarAgrupacion,
-        mostrarFecha: previewMostrarFecha,
-      },
-    };
+    const actualizado: ConfigInforme = { ...informe, pdfCabecera: configPdfActual };
     setInforme(actualizado);
     // Si es un preset guardado del usuario, persiste el cambio en disco.
     if (presets.some(p => p.id === actualizado.id)) {
@@ -2262,12 +2355,46 @@ export default function InformesScreen({ config }: Props) {
     }
   }
 
+  /**
+   * Guarda en disco la configuración del PDF (título, subtítulo, qué datos se
+   * muestran, repetición de los títulos de columna y anchos de columna) dentro
+   * del preset actual, para que la próxima vez que se abra salga igual.
+   *
+   * Con un predefinido de fábrica se guarda una copia propia con su MISMO
+   * identificador: el listado de presets da preferencia a la copia guardada, así
+   * que el informe sigue siendo uno solo (y al eliminarlo vuelve el de fábrica).
+   */
+  async function handleGuardarConfigPdf() {
+    const esGuardable = isSavedPreset || isPredefinidoFabrica;
+    if (!esGuardable) {
+      setPreviewGuardado({
+        ok: false,
+        texto:
+          'Este informe todavía no está guardado como preset, así que la configuración no se puede recordar. ' +
+          'Guárdalo con «Guardar preset…» en la pantalla de Informes y vuelve a intentarlo.',
+      });
+      return;
+    }
+    const actualizado: ConfigInforme = {
+      ...deepClone(informe),
+      predefinido: false,
+      pdfCabecera: configPdfActual,
+    };
+    await window.adminAPI.presets.guardar(actualizado);
+    setPresets(await window.adminAPI.presets.listar());
+    setInforme(actualizado);
+    setPreviewGuardado({
+      ok: true,
+      texto: `Configuración guardada en «${actualizado.nombre}»: la próxima vez que abras este informe saldrá así.`,
+    });
+  }
+
   async function handlePrintFromPreview() {
     setShowPdfMenu(false);
     setPrinting(true);
     try {
       await persistirCabeceraPreview();
-      await window.adminAPI.pdf.printHtml(previewHtml);
+      await window.adminAPI.pdf.printHtml(construirHtmlPdf(false));
     } finally {
       setPrinting(false);
     }
@@ -2279,7 +2406,7 @@ export default function InformesScreen({ config }: Props) {
     try {
       await persistirCabeceraPreview();
       const res = await window.adminAPI.pdf.generarBase64(
-        previewHtml,
+        construirHtmlPdf(false),
         previewOrientacion === 'landscape',
       );
       if (res.success && res.base64) {
@@ -2304,7 +2431,11 @@ export default function InformesScreen({ config }: Props) {
 
   // Pool unificado de presets: los de fábrica visibles + los del usuario, todos
   // por igual. La única distinción es si están marcados como favoritos.
-  const predefinidosFabricaVisibles = INFORMES_PREDEFINIDOS.filter(p => !ocultos.includes(p.id));
+  // Si el usuario ha guardado su propia versión de un predefinido de fábrica
+  // (mismo id), esa es la que se usa: así no aparece el informe por duplicado.
+  const predefinidosFabricaVisibles = INFORMES_PREDEFINIDOS.filter(
+    p => !ocultos.includes(p.id) && !presets.some(g => g.id === p.id),
+  );
   const favoritosSet = new Set(favoritos);
   const esFavorito = favoritosSet.has(informe.id);
   const todosPresets = [...predefinidosFabricaVisibles, ...presets];
@@ -3881,7 +4012,55 @@ export default function InformesScreen({ config }: Props) {
                     {t.label}
                   </label>
                 ))}
+
+                <span className="h-4 w-px bg-slate-300" />
+
+                <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 cursor-pointer select-none"
+                  title="Si se desmarca, los títulos de columna solo salen al principio del documento, no al empezar cada hoja."
+                >
+                  <input
+                    type="checkbox"
+                    checked={previewRepetirCabecera}
+                    onChange={e => setPreviewRepetirCabecera(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  Repetir los títulos de columna en cada hoja
+                </label>
+
+                <span className="ml-auto text-[11px] text-slate-400">
+                  Arrastra la separación entre títulos para ajustar el ancho de las columnas
+                </span>
+                <button
+                  onClick={() => setPreviewAnchos(null)}
+                  disabled={!previewAnchos}
+                  className="px-2 py-1 text-[11px] font-semibold rounded-md border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Vuelve a repartir el ancho automáticamente según el contenido de cada columna"
+                >
+                  Anchos automáticos
+                </button>
+                <button
+                  onClick={handleGuardarConfigPdf}
+                  disabled={!hayCambiosPdf}
+                  className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Guarda en el informe el título, el subtítulo, los datos de la cabecera, la repetición de los títulos de columna y el ancho de cada columna"
+                >
+                  <Save className="w-3 h-3" />
+                  {hayCambiosPdf ? 'Guardar configuración' : 'Configuración guardada'}
+                </button>
               </div>
+
+              {previewGuardado && (
+                <div
+                  className={
+                    'px-5 py-1.5 text-[11px] font-medium border-b shrink-0 ' +
+                    (previewGuardado.ok
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                      : 'text-amber-800 bg-amber-50 border-amber-100')
+                  }
+                >
+                  {previewGuardado.texto}
+                </div>
+              )}
 
               {/* Body */}
               <div className="flex-1 overflow-auto bg-slate-100 p-6 flex justify-center">

@@ -31,7 +31,7 @@ import {
 } from "../../utils/temporales";
 import { parseArchivoTemporales } from "../../utils/importTemporales";
 import { filasAsignaturaLocales } from "../../utils/fusionTemporales";
-import { generarExcelHorarios, type OpcionesHorario } from "../../utils/excelHorarios";
+import { generarExcelHorarios, sinAnuladas, sinConvalidadas, type OpcionesHorario } from "../../utils/excelHorarios";
 import {
   fantasmaTieneHorario,
   obtenerValoresHorario,
@@ -918,6 +918,9 @@ function ModalGenerarHorariosAsistente({
   const [hCongelar, setHCongelar] = useState(true);
   const [hCongelarHasta, setHCongelarHasta] = useState<string | null>(null);
   const [hInsertarTras, setHInsertarTras] = useState<string | null>(null);
+  // Asignaturas convalidadas fuera del Excel. Desactivado por defecto: hasta
+  // ahora siempre entraban, así que el comportamiento no cambia si no se toca.
+  const [hExcluirConvalidadas, setHExcluirConvalidadas] = useState(false);
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nProfesores, setNProfesores] = useState<number | null>(null);
@@ -986,14 +989,23 @@ function ModalGenerarHorariosAsistente({
   };
 
   // Solo informes «Por asignaturas»: el Excel de horarios necesita filas por asignatura.
-  const predefinidos = useMemo(() => INFORMES_PREDEFINIDOS.filter((p) => p.modo === "asignatura"), []);
+  // Si el usuario ha guardado su propia versión de un predefinido (mismo id),
+  // se queda solo con la suya: si no, el informe saldría dos veces en la lista.
+  const predefinidos = useMemo(
+    () =>
+      INFORMES_PREDEFINIDOS.filter(
+        (p) => p.modo === "asignatura" && !presets.some((g) => g.id === p.id),
+      ),
+    [presets],
+  );
   const misPresets = useMemo(() => presets.filter((p) => p.modo === "asignatura"), [presets]);
   const hayInformes = predefinidos.length > 0 || misPresets.length > 0;
 
   const informeSel = useMemo(
     () =>
-      INFORMES_PREDEFINIDOS.find((p) => p.id === presetId) ??
+      // La versión guardada por el usuario manda sobre la de fábrica.
       presets.find((p) => p.id === presetId) ??
+      INFORMES_PREDEFINIDOS.find((p) => p.id === presetId) ??
       null,
     [presetId, presets],
   );
@@ -1062,18 +1074,30 @@ function ModalGenerarHorariosAsistente({
       const entriesFuente = escenarioActivo ? escenarioActivo.entries : storeData.entries;
       const conExcel = entriesFuente.length > 0;
 
-      const filas = filasAsignaturaLocales(
-        matriculasGen,
-        conExcel ? fantasmaTieneHorario(entriesFuente) : undefined,
+      // Las matrículas anuladas se descartan antes de nada: no salen en el
+      // Excel, así que tampoco deben contar para el aviso ni para el recuento.
+      // Si se ha marcado la casilla, las asignaturas convalidadas se quitan
+      // aquí también para que el recuento y el aviso cuadren con el Excel.
+      const filasBase = sinAnuladas(
+        filasAsignaturaLocales(
+          matriculasGen,
+          conExcel ? fantasmaTieneHorario(entriesFuente) : undefined,
+        ),
       );
+      const filas = hExcluirConvalidadas ? sinConvalidadas(filasBase) : filasBase;
       if (filas.length === 0) {
-        setError("No hay ningún alumno fantasma con asignaturas en este curso: no hay nada que poner en el Excel.");
+        setError(
+          hExcluirConvalidadas && filasBase.length > 0
+            ? "Todas las asignaturas de este curso están convalidadas. Desmarca «No incluir las asignaturas convalidadas» para poder generar el Excel."
+            : "No hay ningún alumno fantasma con asignaturas en este curso: no hay nada que poner en el Excel.",
+        );
         return;
       }
       const opciones: OpcionesHorario = {
         congelar: hCongelar,
         congelarHasta: hCongelar ? hCongelarHasta : null,
         insertarTras: hInsertarTras,
+        excluirConvalidadas: hExcluirConvalidadas,
       };
 
       let valoresHorario: Array<Record<string, string> | null> | undefined;
@@ -1277,6 +1301,28 @@ function ModalGenerarHorariosAsistente({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="h-px bg-[var(--tc-border-soft)]" />
+
+              {/* Asignaturas convalidadas: fuera del Excel si se marca */}
+              <div>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={hExcluirConvalidadas}
+                    onChange={(e) => setHExcluirConvalidadas(e.target.checked)}
+                    className="w-4 h-4 accent-[var(--tc-primary)]"
+                  />
+                  <span className="text-sm font-semibold text-[var(--tc-ink)]">
+                    No incluir las asignaturas convalidadas
+                  </span>
+                </label>
+                <p className="text-[11px] text-[var(--tc-ink-mute)] mt-1 ml-6">
+                  Deja fuera del Excel las asignaturas cuyo «Estado asignatura» sea <strong>Convalidada</strong>: el
+                  alumno no las cursa, así que el profesorado no tiene que ponerles horario. Si no la marcas, salen
+                  todas (como hasta ahora).
+                </p>
               </div>
             </>
           )}

@@ -9,6 +9,52 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.12.0] - 2026-09-07
+
+### Añadido
+
+- **Se pueden dejar fuera del Excel de horarios las asignaturas convalidadas** (*Alumnado Fantasma → Paso 2 → Generar Excel de horarios*). Una asignatura *Convalidada* no la cursa el alumno, así que el profesorado no tiene por qué ponerle horario:
+  - Casilla nueva **«No incluir las asignaturas convalidadas»** en la ventana de configuración del Excel. **Viene desmarcada**: si no se toca, el Excel sale exactamente igual que hasta ahora.
+  - Solo afecta al estado *Convalidada*. Las asignaturas *Simultaneada*, *Pendiente* o *Solicitud de Convalidación* siguen apareciendo.
+  - El descarte se hace **en el propio generador del Excel** (igual que el de las matrículas anuladas) y el recuento del aviso del Asistente cuadra con lo que lleva el archivo. Si al marcarla no quedara ninguna asignatura, avisa en vez de generar un Excel vacío.
+
+- **La fila de títulos de columna del PDF de Informes se puede repetir o no en cada hoja**. Casilla **«Repetir los títulos de columna en cada hoja»** en la ventana de configuración del PDF (vista previa). Marcada por defecto —como se comportaba hasta ahora—; al desmarcarla, los títulos salen solo una vez, al principio del documento.
+
+- **El ancho de cada columna del PDF de Informes se ajusta arrastrando en la propia vista previa**. Basta con poner el ratón en la separación entre dos títulos de columna y arrastrar:
+  - El ancho cambia **mientras se arrastra**, sin esperas.
+  - Lo que gana una columna se lo cede la de su derecha, así que el total sigue cuadrando con el ancho de la hoja y nada se sale del papel. Ninguna columna puede bajar del 3 % para que no desaparezca.
+  - Botón **«Anchos automáticos»** para volver al reparto calculado según el contenido.
+  - Los tiradores existen **solo en la vista previa**: el PDF que se guarda o se imprime sale limpio, solo con los anchos elegidos.
+
+- **Botón «Guardar configuración» en la vista previa del PDF**. Guarda en el informe el título, el subtítulo, qué datos salen en la cabecera, si los títulos de columna se repiten en cada hoja y **el ancho de cada columna**, para que la próxima vez que se abra ese informe salga igual:
+  - Se enciende solo cuando hay algo sin guardar; cuando ya está todo guardado, pone «Configuración guardada».
+  - Los anchos se guardan **por columna**, así que aguantan aunque después se reordenen las columnas. Si se añade o se quita una columna, ese reparto ya no cuadra y se vuelve solo al automático.
+  - Funciona también con los informes predefinidos de fábrica (ver más abajo).
+
+### Cambiado
+
+- **Las columnas del PDF de Informes se reparten el ancho según el dato, no según el título.** Antes el ancho lo mandaba el título de la columna (que nunca se partía), y una columna como «Especialidad» con datos cortos («Piano») le robaba sitio a otra como «Email» con direcciones largas. Ahora:
+  - Se mide el contenido de cada columna y se usa el **percentil 90** de las longitudes, para que un dato suelto larguísimo no acapare la hoja.
+  - El título cuenta solo como un **mínimo pequeño** (calculado sobre su palabra más larga, para que no salga partido por la mitad) y, si hace falta, se reparte en dos líneas.
+  - Hay un mínimo y un tope por columna: ninguna queda ilegible ni se come la hoja entera.
+  - Además, una fila de datos ya no se parte entre dos hojas.
+
+- **La versión guardada de un informe predefinido manda sobre la de fábrica.** Los informes predefinidos viven en el código y no se les podía guardar nada. Ahora, al guardar la configuración del PDF de uno de ellos, se guarda una copia propia **con el mismo nombre e identificador**, y la aplicación da preferencia a esa copia: el informe sigue apareciendo **una sola vez** en las listas (también en el Paso 2 del Asistente), y al eliminarlo vuelve el predefinido de fábrica original.
+
+---
+
+## [1.11.1] - 2026-09-07
+
+### Corregido
+
+- **El alumnado anulado ya no sale en el Excel de horarios**: las matrículas marcadas como *Anulada* se colaban en el archivo que se manda al profesorado, que acababa viendo —y pudiendo asignar horario a— alumnos que ya no cursan. Ahora se descartan siempre:
+  - El descarte se hace **en el propio generador del Excel**, así que da igual por dónde se pida el archivo (*Asistente de alumnos fantasma → Paso 2*, *Informes* o la *Fusión Actualización Nuevo Alumnado*): por ninguna de las tres vías puede entrar una matrícula anulada.
+  - Los **horarios ya rellenados por los profesores** que se conservan de un Excel anterior se recortan a la vez que las filas, así que el pre-relleno sigue cuadrando con el alumno que le corresponde.
+  - El aviso del Asistente («Excel de horarios generado con N fila(s)») **cuenta ya sin los anulados**, para que el número que se muestra sea el que hay realmente en el archivo.
+  - Nota: si un alumno anulado tenía clases ya rellenadas por el profesorado, esas clases desaparecen del Excel y **no** se listan en el aviso de «clases guardadas que no han entrado». Es intencionado: para un alumno que ya no cursa no hay nada que corregir.
+
+---
+
 ## [1.11.0] - 2026-09-04
 
 ### Cambiado

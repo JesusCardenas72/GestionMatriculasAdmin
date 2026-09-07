@@ -241,6 +241,12 @@ export interface FilaInforme extends Solicitud {
   nombreCompleto?: string;
   /** true si la fila proviene de un alumno temporal pendiente (placeholder de horarios) */
   esTemporal?: boolean;
+  /**
+   * true si la matrícula de origen está ANULADA. No es una columna del informe:
+   * se arrastra para poder descartar estas filas donde no deben salir (p. ej. el
+   * Excel de horarios, que nunca debe incluir alumnado anulado).
+   */
+  anulacion?: boolean;
   /** ID "{nOrden}_{asciiSum(asigNombre)}" que identifica de forma única la fila alumno × asignatura. */
   idAlumnoAsignatura?: string;
   /** localId de la MatrículaLocal de origen (solo filas con datos locales; permite editarlas). */
@@ -323,6 +329,10 @@ export interface ConfigInforme {
     mostrarOrden?: boolean;
     mostrarAgrupacion?: boolean;
     mostrarFecha?: boolean;
+    /** Repetir la fila de títulos de columna en todas las hojas del PDF. */
+    repetirCabeceraTabla?: boolean;
+    /** Ancho de cada columna del PDF en %, ajustado a mano en la vista previa. */
+    anchosColumna?: Partial<Record<CampoKey, number>>;
   };
 }
 
