@@ -33,6 +33,8 @@ export interface Solicitud {
   horaSalida: string | null;
   estado: EstadoTramite;
   docFaltante: string | null;
+  anulacion?: boolean;
+  ampliacion?: boolean;
   ampliada?: boolean;
   repetidor: boolean;
   tieneConvalidacion?: boolean;
@@ -141,6 +143,12 @@ export interface GuardarAsignaturasInput {
   nuevos: { codigo: number; nombre: string; estado: EstadoAsignatura }[];
 }
 
+/**
+ * Subida en modo espejo: lo que se manda es el estado completo de la matrícula
+ * en Local, y Dataverse queda exactamente así. El Flow reconcilia contra las
+ * filas que existen realmente en la nube: borra las que no vienen en
+ * `asignaturas`, actualiza las que traen `rowId` y crea las que no lo traen.
+ */
 export interface SubirMatriculaInput {
   rowId: string;
   nOrden: string | null;
@@ -177,7 +185,7 @@ export interface SubirMatriculaInput {
     codigo: number;
     nombre: string;
     estado: EstadoAsignatura;
-    observaciones: string;
+    observaciones: string | null;
   }[];
 }
 

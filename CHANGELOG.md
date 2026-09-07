@@ -83,6 +83,64 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+> **Nota sobre los números duplicados.** Hasta el 7 de septiembre de 2026 el proyecto tuvo dos líneas de
+> trabajo en paralelo que no se habían fusionado: una de **horarios** (entradas de septiembre) y otra de
+> **Local ↔ Dataverse** (entradas de julio). Cada una numeró sus versiones por su cuenta, así que **1.9.0,
+> 1.9.1 y 1.10.0 aparecen dos veces** con contenidos distintos. Se conservan tal cual, ordenadas por fecha,
+> porque así se publicaron; la numeración vuelve a ser única a partir de 1.11.0.
+
+---
+
+## [1.10.0] - 2026-07-14
+
+### Añadido
+
+- **«Probar conexión» comprueba todos los Flows**: antes solo llamaba a `AdminListarSolicitudes`, así que un "Conexión OK" no decía nada del resto. Ahora lanza los Flows en paralelo y devuelve una lista con el estado de cada uno: *Clave correcta*, *Clave rechazada (401)*, *Sin URL*, *No se pudo comprobar* o *No se sondea*.
+  - **Cómo se comprueban los de escritura sin tocar datos**: el control de acceso de un Flow es su primera acción (Condition sobre `x-api-key`), y responde 401 cuando no cuadra. Por tanto, **cualquier respuesta que no sea 401 demuestra que la clave pasó**. A esos Flows se les manda un identificador que no existe (todo ceros): entran, intentan trabajar sobre nada y fallan con 502. Ese fallo es el resultado esperado y no modifica ningún dato.
+  - **Cuatro Flows quedan fuera a propósito** (`AdminCrearAmpliacion`, `AdminBorrarCurso`, `AdminEnviarEmailAmpliacion`, `AdminEnviarEmailHorario`): su acción destructiva es la primera que ejecutan en cuanto la clave pasa, así que sondearlos crearía filas o enviaría correos de verdad. Aparecen en la lista marcados como *No se sondea*, con el motivo.
+  - Nuevo módulo [`src/api/diagnostico.ts`](src/api/diagnostico.ts) y test de regresión de la pantalla de resultados.
+
+---
+
+## [1.9.1] - 2026-07-14
+
+### Corregido
+
+- **Pantalla en blanco al reiniciar tras restaurar una copia de seguridad**: en los builds **portable**, el `.exe` es un envoltorio que descomprime la app en una carpeta temporal y **la borra al salir**. `app.relaunch()` relanzaba `process.execPath`, es decir el ejecutable de esa carpeta condenada: la nueva ventana abría cuando los recursos ya habían sido borrados. Ahora, si existe `PORTABLE_EXECUTABLE_FILE` (que electron-builder rellena con la ruta del `.exe` original), se relanza **ese** con unos segundos de margen para que el envoltorio anterior termine de limpiar antes de volver a descomprimir sobre la misma carpeta. Fuera del portable se mantiene el `app.relaunch()` de siempre.
+
+---
+
+## [1.9.0] - 2026-07-14
+
+### Añadido
+
+- **Subida en modo espejo (Local → Dataverse)**: al pulsar *Subir a la nube*, Local pasa a ser la única fuente de verdad. La app envía la **lista completa** de asignaturas tal como están en la ficha y el Flow **AdminSubirMatriculaEditada** reconcilia contra lo que hay realmente en Dataverse: borra las filas que no vienen en la lista, actualiza las que traen `rowId` y crea las que no lo traen. La subida es idempotente: repetirla no cambia el resultado.
+- **Campos que antes no viajaban a la nube**: `docFaltante`, `anulacion`, `ampliacion` y `ampliada` se envían al subir y se leen al descargar. Requiere tres columnas nuevas en Dataverse: `cr955_anulacion`, `cr955_ampliacion` y `cr955_ampliada` (Sí/No).
+- **Aviso de matrícula sin asignaturas**: si la ficha local no tiene ninguna asignatura, se pide confirmación antes de subir, porque el espejo vaciaría también las de la nube.
+
+### Corregido
+
+- **Asignaturas duplicadas en Dataverse**: una asignatura añadida en Local conservaba `rowId: null` incluso después de subirse, así que cada nueva subida de esa matrícula la volvía a enviar como nueva y el Flow creaba otra fila (se llegaron a ver 5 copias de la misma asignatura). Ahora, tras subir con éxito, la app **relee las asignaturas de Dataverse y guarda su `rowId` real**; las recién creadas se reconocen por nombre para conservar su horario y su código.
+
+### Eliminado
+
+- **Rastreo `_asignaturasEliminadas`** (introducido en 1.8.1): el espejo lo hace innecesario. Lo que no está en Local se borra de la nube porque no viene en la lista, no porque se lleve la cuenta de los borrados.
+
+---
+
+## [1.8.1] - 2026-07-10
+
+### Añadido
+
+- **Eliminación de asignaturas mal matriculadas (Local)**: cuando se borra una asignatura en la ficha de una matrícula local, el `rowId` se registra en `_asignaturasEliminadas` para ser propagado a Dataverse al *Subir a la nube*. El Flow **AdminSubirMatriculaEditada** ahora recibe la lista y ejecuta un bucle de eliminación en `cr955_matriculaasignaturas`, garantizando que las asignaturas borradas localmente también desaparecen de la nube.
+
+### Cambiado
+
+- **Tipo `SubirMatriculaInput`**: ampliado con nuevo campo `asignaturasEliminadas: string[]` para transmitir los `rowId` de asignaturas que ya no deben estar en Dataverse.
+- **Tipo `MatriculaLocal`**: nueva propiedad interna `_asignaturasEliminadas?: string[]` que persiste entre sesiones el registro de eliminaciones pendientes de subida.
+
+---
+
 ## [1.8.0] - 2026-07-10
 
 ### Añadido
@@ -91,8 +149,6 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
   - Se apoya en columnas auxiliares ocultas (clave de alumno y horas convertidas a número) que el usuario no ve.
   - La cabecera de «Día 1» lleva una nota explicando qué significa el color.
   - El Excel generado contiene solo la hoja «Horarios» (más la hoja oculta con las listas de los desplegables).
-
----
 
 ## [1.7.0] - 2026-07-06
 

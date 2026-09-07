@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, MenuItem } from "electron";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -364,7 +365,23 @@ function registerIpcHandlers() {
       ),
   );
   ipcMain.handle("app:relaunch", () => {
-    app.relaunch();
+    // En los builds "portable" de electron-builder, el .exe es un envoltorio que
+    // descomprime la app en una carpeta temporal, la lanza desde ahí y borra esa
+    // carpeta al salir. app.relaunch() a secas relanzaría process.execPath, que
+    // apunta a esa carpeta condenada: la nueva ventana abriría sin recursos que
+    // cargar (pantalla en blanco). Hay que relanzar el .exe original, y esperar a
+    // que el envoltorio viejo termine de limpiar antes de volver a descomprimir
+    // sobre la misma carpeta.
+    const portableExe = process.env.PORTABLE_EXECUTABLE_FILE;
+    if (portableExe) {
+      spawn("cmd", ["/c", `ping -n 4 127.0.0.1 > NUL & start "" "${portableExe}"`], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      }).unref();
+    } else {
+      app.relaunch();
+    }
     app.exit(0);
   });
 
