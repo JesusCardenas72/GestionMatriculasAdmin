@@ -24,6 +24,7 @@ import {
 import type { OpcionesEnvioHorario } from "../utils/horarioEnvio";
 import { buildHorarioGrupalHtml, listarAsignaturasEntries } from "../utils/horarioGrupalTemplate";
 import { buildListadoHtml } from "../utils/horarioListadoTemplate";
+import { filtrarAnulados } from "../utils/anuladosHorarios";
 import {
   DOC_GRUPAL_DEFAULTS, fechaHoyEs, resolverAsignaturasGrupal,
   seleccionListadoDesdeClases, construirEntriesDesdeAlumnos, type DocGrupalCfg,
@@ -98,14 +99,18 @@ export function DialogoEnviarHorario() {
       try {
         const store = await window.adminAPI.horarios.data.obtener(curso);
         const carga = construirCargaDesdeStore(store);
+        // El alumnado ANULADO no cuenta como alumnado del centro: fuera del
+        // destinatario y de los documentos comunes (listado y grupal).
+        const matriculas = await window.adminAPI.local.listar();
+        const alumnos = filtrarAnulados(carga.alumnos, matriculas);
         const candidatos = new Set(candidatosNombre);
-        const encontrado = carga.alumnos.find((a) => candidatos.has(normNombre(a.nombre))) ?? null;
+        const encontrado = alumnos.find((a) => candidatos.has(normNombre(a.nombre))) ?? null;
         if (!cancelado) {
           const alumnoFinal = encontrado ? { ...encontrado, email: matricula.email || encontrado.email } : null;
           setAlumno(alumnoFinal);
           // Los documentos comunes (grupos y alumnado) son listados generales: se
           // construyen desde TODA la carga del almacén, no solo del destinatario.
-          setCargaAlumnos(carga.alumnos);
+          setCargaAlumnos(alumnos);
           if (alumnoFinal) {
             setAsignaturasSeleccionadas(new Set(alumnoFinal.clases.map((c) => c.asignatura)));
           }

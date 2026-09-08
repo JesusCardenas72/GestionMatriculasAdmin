@@ -20,6 +20,7 @@ import {
   nombreArchivoDocGrupal,
 } from "../utils/horarioGrupalDoc";
 import { normNombre } from "../utils/horarioEnvio";
+import { nOrdenDeHorario, indiceAnulados, esHorarioAnulado, esEntryAnulado, type IndiceAnulados } from "../utils/anuladosHorarios";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ConfigEnvioCampanya, FormatoHorario } from "../horarios/types";
 import { buildCursoLabel, FORMATO_HORARIO_DEFAULT } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
@@ -80,22 +81,6 @@ function fmtMin(min: number): string {
   if (h > 0 && m > 0) return `${h}h ${m}min`;
   if (h > 0) return `${h}h`;
   return `${m}min`;
-}
-
-/**
- * Extrae el nº de orden (nOrden) de un horario a partir del ID de sus clases,
- * con formato "{nOrden}_{asciiSum}". Sirve para cruzar con las matrículas locales
- * por ID (inmune a erratas en el nombre). Devuelve null si ninguna clase tiene ID
- * (entradas antiguas anteriores al idCompuesto).
- */
-function nOrdenDeHorario(a: HorarioAlumno): number | null {
-  for (const c of a.clases) {
-    const id = c.idAlumnoAsignatura;
-    if (!id) continue;
-    const n = Number(id.split("_")[0]);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
 }
 
 /** Devuelve el total de minutos por asignatura, ordenado por más horas primero. */
@@ -427,6 +412,8 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
    * evita que el formato que escriba cada profesor en el Excel (p. ej. el nombre
    * en minúsculas) difiera de lo que muestra el módulo Local.
    */
+  const idxAnulados = useMemo(() => indiceAnulados(localMatriculas), [localMatriculas]);
+
   const enriquecerEmails = useCallback((alumnos: HorarioAlumno[]): HorarioAlumno[] => {
     return alumnos.map(a => {
       // 1) Cruce por nº de orden (ID): inmune a erratas en el nombre. Si el
@@ -465,8 +452,11 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
         ensenanzaCurso: match?.ensenanzaCurso || a.ensenanzaCurso,
         especialidad: match?.especialidad || a.especialidad,
       };
-    });
-  }, [contactoLocalPorNombre, contactoLocalPorNOrden]);
+    })
+    // El alumnado ANULADO ya no es alumnado del centro: fuera de la carga (y con
+    // ello, de los listados, de los envíos y de todo lo que parte de aquí).
+    .filter(a => !esHorarioAnulado(a, idxAnulados));
+  }, [contactoLocalPorNombre, contactoLocalPorNOrden, idxAnulados]);
 
   /**
    * Versión más reciente de `enriquecerEmails` accesible desde callbacks asíncronos
@@ -1444,6 +1434,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
               curso={curso}
               docEntriesFuente={docEntriesFuente.entries}
               docEntriesFuenteEtiqueta={docEntriesFuente.etiqueta}
+              idxAnulados={idxAnulados}
               onRecargar={volverAlActual}
             />
           ) : (
@@ -1463,6 +1454,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
             curso={curso}
             docEntriesFuente={docEntriesFuente.entries}
             docEntriesFuenteEtiqueta={docEntriesFuente.etiqueta}
+            idxAnulados={idxAnulados}
               onRecargar={volverAlActual}
           />
         )}
@@ -1500,6 +1492,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
           curso={curso}
           docEntriesFuente={docEntriesFuente.entries}
           docEntriesFuenteEtiqueta={docEntriesFuente.etiqueta}
+          idxAnulados={idxAnulados}
           onRecargar={volverAlActual}
         />
       </div>
@@ -1926,6 +1919,7 @@ function ListadosPanel({
   curso,
   docEntriesFuente,
   docEntriesFuenteEtiqueta,
+  idxAnulados,
   onRecargar,
 }: {
   alumnos: HorarioAlumno[];
@@ -1941,6 +1935,8 @@ function ListadosPanel({
   docEntriesFuente?: HorariosEntry[];
   /** Etiqueta legible de la fuente anterior (p. ej. fecha del snapshot) para mostrarla en la cabecera. */
   docEntriesFuenteEtiqueta?: string;
+  /** Índice de anulados para descartar el alumnado anulado también en los snapshots del documento grupal. */
+  idxAnulados: IndiceAnulados;
   /** Re-leer el Excel del curso y regenerar el documento. */
   onRecargar?: () => void | Promise<void>;
 }) {
@@ -2023,11 +2019,16 @@ function ListadosPanel({
    * snapshot directamente, ya que el PDF debe reflejar ese momento concreto.
    */
   const docEntries = useMemo<HorariosEntry[]>(() => {
-    if (docEntriesFuente !== undefined) return docEntriesFuente;
+    // Snapshot histórico: sus entradas no pasan por la carga en pantalla, así que
+    // aquí se descarta el alumnado anulado. En el caso normal, `alumnos` ya viene
+    // filtrado (los anulados se quitaron al construir la carga).
+    if (docEntriesFuente !== undefined) {
+      return docEntriesFuente.filter(e => !esEntryAnulado(e, idxAnulados));
+    }
     return construirEntriesDesdeAlumnos(alumnos);
     // refrescoContador fuerza la regeneración al pulsar "Refrescar".
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alumnos, docEntriesFuente, refrescoContador]);
+  }, [alumnos, docEntriesFuente, idxAnulados, refrescoContador]);
 
   const docAsignaturas = useMemo(() => listarAsignaturasEntries(docEntries), [docEntries]);
 

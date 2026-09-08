@@ -9,6 +9,20 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.13.0] - 2026-09-08
+
+### Añadido
+
+- **El alumnado con «Anulados» = Sí queda fuera de todo el módulo de Horarios.** Un alumno anulado ya no se considera alumnado del centro, así que desaparece de los procesos aunque se anulara *después* de generar o rellenar el Excel:
+  - **Listados por asignaturas** (versiones *Alumnado* y *Profesorado*): no aparece.
+  - **Correos** (campaña masiva y envío individual del horario): ni se le envía a él, ni sale en los documentos comunes adjuntos (listado de alumnado).
+  - **Horarios Individuales**: tampoco figura en la lista.
+  - **Listado de grupos** (documento grupal en pantalla): tampoco aparece, incluso al visualizar un **snapshot del historial** de horarios.
+  - El **Excel de horarios** ya lo descartaba al generarse; ahora el descarte es coherente en toda la carga ya leída.
+  - El cruce usa el **nº de orden** de la matrícula (inmune a erratas de nombre) y, si el horario no lo trae, el nombre. Un alumno con **dos instrumentos** conserva el que sigue activo aunque el otro esté anulado.
+
+---
+
 ## [1.12.0] - 2026-09-07
 
 ### Añadido
