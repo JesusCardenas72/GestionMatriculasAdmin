@@ -63,8 +63,59 @@ export const CAMPOS_HORARIO: CampoMeta[] = [
   { key: 'horario2', label: 'Horario 2',     tipo: 'texto' },
 ];
 
+/**
+ * Tutoría de la matrícula. `tutor` es el profesor que le da Instrumento y
+ * `unidad` la que hereda de su ficha. Al calcularse cruzando horarios y
+ * profesorado (y no venir de Dataverse), se tratan igual que los campos de
+ * horario: se ven y se filtran en el informe, pero no salen al Excel.
+ */
+export const CAMPOS_TUTORIA: CampoMeta[] = [
+  { key: 'tutor',  label: 'Tutor/a', tipo: 'texto', valorType: 'select_data' },
+  { key: 'unidad', label: 'Unidad',  tipo: 'texto', valorType: 'select_data' },
+];
+
+/**
+ * Campos del modo «profesorado»: una fila por profesor/a del centro.
+ *
+ * Los primeros son la ficha tal cual se guarda en el almacén de profesorado.
+ * Los de «carga docente» (clases, alumnos, tutorías, horas, asignaturas, aulas
+ * y días) no están en ninguna ficha: se calculan cruzándola con las clases
+ * guardadas del curso activo, igual que Tutor/a y Unidad en los otros modos.
+ */
+export const CAMPOS_PROFESORADO: CampoMeta[] = [
+  { key: 'prof_nombre',       label: 'Apellidos y nombre', tipo: 'texto'   },
+  { key: 'prof_especialidad', label: 'Especialidad',       tipo: 'texto',  valorType: 'select_data' },
+  { key: 'prof_unidad',       label: 'Unidad',             tipo: 'texto',  valorType: 'select_data' },
+  { key: 'prof_departamento', label: 'Departamento',       tipo: 'texto',  valorType: 'select_data' },
+  { key: 'prof_cargo',        label: 'Cargo',              tipo: 'texto',  valorType: 'select_data' },
+  { key: 'prof_email',        label: 'Correo',             tipo: 'texto'   },
+  { key: 'prof_telefono',     label: 'Teléfono',           tipo: 'texto'   },
+  { key: 'prof_activo',       label: 'En activo',          tipo: 'booleano' },
+  { key: 'prof_sustituto',    label: 'Sustituido/a por',   tipo: 'texto',  valorType: 'select_data' },
+  { key: 'prof_sustDesde',    label: 'Sustitución desde',  tipo: 'fecha'   },
+  { key: 'prof_sustHasta',    label: 'Sustitución hasta',  tipo: 'fecha'   },
+];
+
+/** Carga docente calculada a partir de las clases guardadas del curso. */
+export const CAMPOS_PROFESORADO_CARGA: CampoMeta[] = [
+  { key: 'prof_clases',      label: 'N.º de clases',    tipo: 'numero' },
+  { key: 'prof_alumnos',     label: 'N.º de alumnos',   tipo: 'numero' },
+  { key: 'prof_tutorias',    label: 'N.º de tutorías',  tipo: 'numero' },
+  { key: 'prof_horas',       label: 'Horas semanales',  tipo: 'numero' },
+  { key: 'prof_asignaturas', label: 'Asignaturas',      tipo: 'texto'  },
+  { key: 'prof_aulas',       label: 'Aulas',            tipo: 'texto', valorType: 'select_data' },
+  { key: 'prof_dias',        label: 'Días con clase',   tipo: 'texto'  },
+];
+
+/** Claves del modo profesorado (ficha + carga docente). */
+export const PROFESORADO_KEYS = new Set<CampoKey>(
+  [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA].map(c => c.key),
+);
+
 /** Claves de los campos de horario, para distinguirlos del resto de columnas. */
-export const HORARIO_KEYS = new Set<CampoKey>(CAMPOS_HORARIO.map(c => c.key));
+export const HORARIO_KEYS = new Set<CampoKey>(
+  [...CAMPOS_HORARIO, ...CAMPOS_TUTORIA].map(c => c.key),
+);
 
 /** ¿La columna proviene del almacén de horarios (no debe entrar en el Excel de horarios)? */
 export function esCampoHorario(key: CampoKey): boolean {
@@ -72,15 +123,40 @@ export function esCampoHorario(key: CampoKey): boolean {
 }
 
 export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
-  [...CAMPOS_META, ...CAMPOS_ASIGNATURA, ...CAMPOS_HORARIO].map(c => [c.key, c]),
+  [
+    ...CAMPOS_META,
+    ...CAMPOS_ASIGNATURA,
+    ...CAMPOS_HORARIO,
+    ...CAMPOS_TUTORIA,
+    ...CAMPOS_PROFESORADO,
+    ...CAMPOS_PROFESORADO_CARGA,
+  ].map(c => [c.key, c]),
 );
 
-/** Campos disponibles según el modo del informe. En modo asignatura se ofrecen también los del alumno y los de horario. */
+/**
+ * Campos disponibles según el modo del informe. En modo asignatura se ofrecen
+ * también los del alumno y los de horario. Tutor/a y Unidad salen en los dos
+ * modos de matrícula: son de la matrícula, no de la asignatura. El modo
+ * profesorado es aparte: sus filas son profesores, no alumnos, así que no
+ * comparte ninguna columna con los otros dos.
+ */
 export function camposDeModo(modo: ConfigInforme['modo']): CampoMeta[] {
+  if (modo === 'profesorado') return [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA];
   return modo === 'asignatura'
-    ? [...CAMPOS_ASIGNATURA, ...CAMPOS_HORARIO, ...CAMPOS_META]
-    : CAMPOS_META;
+    ? [...CAMPOS_ASIGNATURA, ...CAMPOS_HORARIO, ...CAMPOS_TUTORIA, ...CAMPOS_META]
+    : [...CAMPOS_TUTORIA, ...CAMPOS_META];
 }
+
+/**
+ * Columnas con las que arranca un informe al cambiar de modo cuando ninguna de
+ * las que había sigue siendo válida (p. ej. al pasar a «Profesorado», donde no
+ * sirve ningún campo de matrícula).
+ */
+export const CAMPOS_DEFECTO_MODO: Record<'alumno' | 'asignatura' | 'profesorado', CampoKey[]> = {
+  alumno: ['apellidos', 'nombre', 'ensenanzaCurso', 'email'],
+  asignatura: ['apellidos', 'nombre', 'asigNombre', 'asigEstado'],
+  profesorado: ['prof_nombre', 'prof_especialidad', 'prof_unidad', 'prof_email', 'prof_telefono'],
+};
 
 // ── Operadores por tipo ────────────────────────────────────────────────────────
 
@@ -227,5 +303,89 @@ export const INFORMES_PREDEFINIDOS: ConfigInforme[] = [
       { id: 'o1', campo: 'nombreCompleto', direccion: 'asc' },
     ],
     agruparPor: 'h_prof',
+  },
+  {
+    id: 'profesorado-directorio',
+    nombre: 'Directorio del profesorado',
+    descripcion: 'Datos de contacto del profesorado en activo, ordenado alfabéticamente',
+    predefinido: true,
+    modo: 'profesorado',
+    camposVisibles: [
+      'prof_nombre',
+      'prof_especialidad',
+      'prof_unidad',
+      'prof_departamento',
+      'prof_email',
+      'prof_telefono',
+    ],
+    filtros: [
+      { id: 'f1', campo: 'prof_activo', operador: 'es_true', valor: '' },
+    ],
+    orden: [
+      { id: 'o1', campo: 'prof_nombre', direccion: 'asc' },
+    ],
+  },
+  {
+    id: 'profesorado-carga-docente',
+    nombre: 'Carga docente del profesorado',
+    descripcion: 'Clases, alumnado, tutorías y horas semanales de cada profesor/a, según los horarios guardados',
+    predefinido: true,
+    modo: 'profesorado',
+    camposVisibles: [
+      'prof_nombre',
+      'prof_especialidad',
+      'prof_clases',
+      'prof_alumnos',
+      'prof_tutorias',
+      'prof_horas',
+      'prof_dias',
+    ],
+    filtros: [
+      { id: 'f1', campo: 'prof_activo', operador: 'es_true', valor: '' },
+    ],
+    orden: [
+      { id: 'o1', campo: 'prof_nombre', direccion: 'asc' },
+    ],
+  },
+  {
+    id: 'profesorado-por-departamento',
+    nombre: 'Profesorado por departamento',
+    descripcion: 'Una sección por departamento con su profesorado y las asignaturas que imparte',
+    predefinido: true,
+    modo: 'profesorado',
+    camposVisibles: [
+      'prof_nombre',
+      'prof_especialidad',
+      'prof_asignaturas',
+      'prof_email',
+    ],
+    filtros: [
+      { id: 'f1', campo: 'prof_activo', operador: 'es_true', valor: '' },
+    ],
+    orden: [
+      { id: 'o1', campo: 'prof_nombre', direccion: 'asc' },
+    ],
+    agruparPor: 'prof_departamento',
+  },
+  {
+    id: 'profesorado-tutorias',
+    nombre: 'Tutorías por unidad',
+    descripcion: 'Profesorado que ejerce tutoría (imparte Instrumento), con su unidad y su número de tutorandos',
+    predefinido: true,
+    modo: 'profesorado',
+    camposVisibles: [
+      'prof_unidad',
+      'prof_nombre',
+      'prof_tutorias',
+      'prof_email',
+      'prof_telefono',
+    ],
+    filtros: [
+      { id: 'f1', campo: 'prof_tutorias', operador: 'mayor_que', valor: '0' },
+    ],
+    orden: [
+      { id: 'o1', campo: 'prof_unidad', direccion: 'asc' },
+      { id: 'o2', campo: 'prof_nombre', direccion: 'asc' },
+    ],
   },
 ];

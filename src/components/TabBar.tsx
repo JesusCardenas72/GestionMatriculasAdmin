@@ -1,11 +1,17 @@
 import { LayoutGroup, motion } from "framer-motion";
 import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
-import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive } from "lucide-react";
+import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive, Users } from "lucide-react";
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
 // "temporales" no aparece en la barra: se accede desde el menú de Configuración.
-export type ActiveTab = EstadoTramite | "local" | "temporales" | "informes" | "horarios";
+export type ActiveTab =
+  | EstadoTramite
+  | "local"
+  | "temporales"
+  | "profesorado"
+  | "informes"
+  | "horarios";
 
 export interface TabDef {
   estado: EstadoTramite;
@@ -26,12 +32,14 @@ interface Props {
   pendingUploads?: number;
   localCount?: number;
   temporalesPendientes?: number;
+  /** Profesores en activo; se muestra como contador en la pestaña Profesorado. */
+  profesoradoCount?: number;
   onChange: (tab: ActiveTab) => void;
 }
 
 const spring = { type: "spring", stiffness: 400, damping: 35 } as const;
 
-export default function TabBar({ active, counts, pendingUploads, localCount, temporalesPendientes, onChange }: Props) {
+export default function TabBar({ active, counts, pendingUploads, localCount, temporalesPendientes, profesoradoCount, onChange }: Props) {
   return (
     <LayoutGroup>
       <div className="flex items-center gap-3">
@@ -201,6 +209,41 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
                   }
                 >
                   {temporalesPendientes}
+                </span>
+              )}
+            </span>
+          </motion.button>
+
+          {/* Profesorado */}
+          <motion.button
+            layout
+            onClick={() => onChange("profesorado")}
+            title="Profesorado"
+            aria-label="Profesorado"
+            className={
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+              (active === "profesorado" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
+            }
+          >
+            {active === "profesorado" && (
+              <motion.span
+                layoutId="tab-pill"
+                className="absolute inset-0 rounded-full bg-[var(--tc-card)] shadow-sm"
+                transition={spring}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              {profesoradoCount !== undefined && profesoradoCount > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
+                  style={
+                    active === "profesorado"
+                      ? { background: "var(--tc-primary)", color: "#fff" }
+                      : { background: "var(--tc-card)", color: "var(--tc-ink-soft)", border: "1px solid var(--tc-border)" }
+                  }
+                >
+                  {profesoradoCount}
                 </span>
               )}
             </span>

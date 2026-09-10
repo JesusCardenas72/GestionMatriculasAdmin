@@ -15,6 +15,7 @@ import {
   Check,
   X,
   UserCog,
+  UserPlus,
 } from "lucide-react";
 import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
 
@@ -24,6 +25,7 @@ const ACCION_LABELS: Record<HorariosSnapshot["accion"], string> = {
   restauracion: "Restauración",
   importacion: "Importación",
   sustitucion_profesorado: "Sustitución de profesorado",
+  asignacion_alumnos: "Asignación de alumnos",
 };
 
 const ACCION_ICONS: Record<HorariosSnapshot["accion"], typeof Clock> = {
@@ -32,6 +34,7 @@ const ACCION_ICONS: Record<HorariosSnapshot["accion"], typeof Clock> = {
   restauracion: RotateCcw,
   importacion: Download,
   sustitucion_profesorado: UserCog,
+  asignacion_alumnos: UserPlus,
 };
 
 const ACCION_COLORS: Record<HorariosSnapshot["accion"], string> = {
@@ -40,6 +43,7 @@ const ACCION_COLORS: Record<HorariosSnapshot["accion"], string> = {
   restauracion: "text-amber-500 bg-amber-50 border-amber-200",
   importacion: "text-purple-500 bg-purple-50 border-purple-200",
   sustitucion_profesorado: "text-indigo-500 bg-indigo-50 border-indigo-200",
+  asignacion_alumnos: "text-teal-500 bg-teal-50 border-teal-200",
 };
 
 interface Props {

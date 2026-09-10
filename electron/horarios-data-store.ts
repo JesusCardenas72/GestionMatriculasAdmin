@@ -39,7 +39,8 @@ export interface HorariosSnapshot {
     | "generacion_excel"
     | "restauracion"
     | "importacion"
-    | "sustitucion_profesorado";
+    | "sustitucion_profesorado"
+    | "asignacion_alumnos";
   resumen: { anadidas: number; actualizadas: number; eliminadas: number; sinCambio: number };
   fileName?: string;
   /** Nombre dado a la carga (p. ej. «1ª ronda Piano»), editable en el historial. */

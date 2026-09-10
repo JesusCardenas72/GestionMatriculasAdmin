@@ -66,6 +66,9 @@ import { nombreVisibleTemporal, nombresTemporalRealCoinciden } from "../utils/te
 import { EstadoBadge } from "./SolicitudDetail";
 import { nombreCompletoDe } from "../utils/fusionHorarios";
 import { buscarProfesorInstrumento } from "../utils/horariosPersistencia";
+import { indicePorNombre } from "../utils/profesorado";
+import { norm } from "../utils/horarioExcel";
+import { useProfesorado } from "../hooks/useProfesorado";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
 
@@ -215,9 +218,17 @@ export default function LocalDetail({
   }, [curso]);
 
   // Tutor/a (profesor de Instrumento) mostrado en el encabezado, junto a Curso
-  // y Especialidad. Se busca en el almacén de horarios del curso; puede no
-  // haber datos si aún no se cargó ningún Excel de horarios.
+  // y Especialidad, con la unidad que esta matrícula hereda de su ficha. Se
+  // busca en el almacén de horarios del curso; puede no haber datos si aún no
+  // se cargó ningún Excel de horarios.
   const [tutor, setTutor] = useState<string | null>(null);
+  const { profesores: profesorado } = useProfesorado();
+  const unidad = useMemo(() => {
+    if (!tutor) return null;
+    const ficha = indicePorNombre(profesorado).get(norm(tutor));
+    const u = (ficha?.unidad ?? "").trim();
+    return u === "" ? null : u;
+  }, [tutor, profesorado]);
   useEffect(() => {
     let cancelado = false;
     (async () => {
@@ -676,6 +687,13 @@ export default function LocalDetail({
                   <span style={{ whiteSpace: "pre" }}>{"\t"}</span>
                   <span className="font-bold uppercase tracking-wide text-[10.5px]">Tutor/a</span>
                   <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{tutor}</span>
+                </>
+              )}
+              {unidad && (
+                <>
+                  <span style={{ color: "var(--tc-border)" }}>|</span>
+                  <span className="font-bold uppercase tracking-wide text-[10.5px]">Unidad</span>
+                  <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{unidad}</span>
                 </>
               )}
             </div>

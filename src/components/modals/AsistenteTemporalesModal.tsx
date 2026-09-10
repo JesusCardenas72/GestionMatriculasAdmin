@@ -104,6 +104,7 @@ export function AsistenteTemporalesModal({
   onToggleCollapse,
   embeddedFill,
   onAbrirHorario,
+  onIrAProfesorado,
 }: {
   curso: string;
   /** @deprecated Ya no se usa (el envío de emails se hace desde Horarios Individuales). */
@@ -118,6 +119,8 @@ export function AsistenteTemporalesModal({
   embeddedFill?: boolean;
   /** Abre un snapshot del historial en la pestaña Horarios Individuales. */
   onAbrirHorario?: (snapshotId: string) => void;
+  /** Lleva a la pestaña Profesorado, donde se carga y edita la lista. */
+  onIrAProfesorado?: () => void;
 }) {
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading: cargandoMatriculas, guardarLote, actualizar } = useLocalMatriculas(curso);
@@ -304,6 +307,7 @@ export function AsistenteTemporalesModal({
                   fechaExcelGenerado={vista.fechaExcelGenerado}
                   disabled={isSoloLectura}
                   onGenerado={(fecha) => void guardar({ fechaExcelGenerado: fecha })}
+                  onIrAProfesorado={onIrAProfesorado}
                 />
               ) : pasoActual === 3 ? (
                 <div className="flex-1 min-h-0 flex flex-col gap-3">
@@ -647,6 +651,7 @@ function Paso2ExcelHorarios({
   fechaExcelGenerado,
   disabled,
   onGenerado,
+  onIrAProfesorado,
 }: {
   curso: string;
   matriculas: MatriculaLocal[];
@@ -654,6 +659,7 @@ function Paso2ExcelHorarios({
   fechaExcelGenerado: string | null;
   disabled: boolean;
   onGenerado: (fechaIso: string) => void;
+  onIrAProfesorado?: () => void;
 }) {
   const [showGenerar, setShowGenerar] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -726,6 +732,7 @@ function Paso2ExcelHorarios({
           matriculas={matriculas}
           actualizar={actualizar}
           onClose={() => setShowGenerar(false)}
+          onIrAProfesorado={onIrAProfesorado}
           onGenerado={(fechaIso, nFilas, nSust) => {
             onGenerado(fechaIso);
             setMensaje(
@@ -904,12 +911,14 @@ function ModalGenerarHorariosAsistente({
   actualizar,
   onClose,
   onGenerado,
+  onIrAProfesorado,
 }: {
   curso: string;
   matriculas: MatriculaLocal[];
   actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
   onClose: () => void;
   onGenerado: (fechaIso: string, nFilas: number, nSustituidos: number) => void;
+  onIrAProfesorado?: () => void;
 }) {
   const { escenarioActivo } = useEscenarioHorario();
   const [presets, setPresets] = useState<ConfigInforme[]>([]);
@@ -969,23 +978,10 @@ function ModalGenerarHorariosAsistente({
       .catch(() => setBaseExcel(null));
   }, [curso]);
 
-  const handleCargarProfesores = async () => {
-    setError(null);
-    try {
-      const preview = await window.adminAPI.horarios.profesoresPrevisualizarCsv();
-      if (!preview) return; // el usuario canceló
-      const muestra = preview.muestraProfesores.slice(0, 8).join(", ");
-      if (
-        !window.confirm(
-          `Se han detectado ${preview.totalProfesores} profesores (columna «${preview.columnaDetectada}»).\n\nEjemplos: ${muestra}…\n\n¿Usar esta lista?`,
-        )
-      )
-        return;
-      const result = await window.adminAPI.horarios.profesoresConfirmarCsv(preview.path);
-      if (result) setNProfesores(result.profesores.length);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar el CSV de profesores.");
-    }
+  // La lista de profesorado ya no se carga aquí: vive en su propia pestaña,
+  // donde además se ve la ficha completa y los avisos antes de reemplazarla.
+  const irAProfesorado = () => {
+    onIrAProfesorado?.();
   };
 
   // Solo informes «Por asignaturas»: el Excel de horarios necesita filas por asignatura.
@@ -1038,7 +1034,7 @@ function ModalGenerarHorariosAsistente({
     try {
       const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
       if (profesores.length === 0) {
-        setError("No se ha cargado la lista de profesores. Cárgala con el botón «Subir profesorado» de este mismo paso o desde el menú Profesorado.");
+        setError("No se ha cargado la lista de profesorado. Cárgala en la pestaña Profesorado antes de generar el Excel de horarios.");
         return;
       }
 
@@ -1185,11 +1181,11 @@ function ModalGenerarHorariosAsistente({
                 <CheckCircle className="w-4 h-4 shrink-0" />
                 <span className="flex-1 min-w-[160px]">Lista de profesorado cargada ({nProfesores}).</span>
                 <button
-                  onClick={handleCargarProfesores}
+                  onClick={irAProfesorado}
                   className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  Cambiar…
+                  Ver profesorado
                 </button>
               </div>
             ) : (
@@ -1199,11 +1195,11 @@ function ModalGenerarHorariosAsistente({
                   Falta la lista de profesorado: el Excel la necesita para los desplegables.
                 </span>
                 <button
-                  onClick={handleCargarProfesores}
+                  onClick={irAProfesorado}
                   className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  Subir profesorado (CSV)…
+                  Ir a Profesorado
                 </button>
               </div>
             )}

@@ -222,6 +222,12 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .btn-copiar:hover:not(:disabled){opacity:.85;}
 .btn-copiar:disabled{opacity:.35;cursor:default;background:var(--card);color:var(--ink-mute);border-color:var(--border);}
 
+.btn-sel{font-family:var(--font);font-size:13px;padding:0 14px;height:38px;border:1.5px solid var(--border);
+  border-radius:10px;background:var(--card);color:var(--ink-soft);cursor:pointer;white-space:nowrap;flex-shrink:0;
+  font-weight:600;transition:background .12s,color .12s,border-color .12s;}
+.btn-sel:hover:not(:disabled){border-color:var(--primary);color:var(--primary);background:var(--primary-tint);}
+.btn-sel:disabled{opacity:.35;cursor:default;}
+
 .modal-overlay{position:fixed;inset:0;background:rgba(45,36,29,.45);z-index:100;
   display:flex;align-items:center;justify-content:center;padding:24px;}
 .modal-box{background:var(--card);border-radius:16px;width:min(520px,100%);
@@ -247,7 +253,7 @@ body{font-family:var(--font);color:var(--ink);min-height:100vh;
 .ayuda-list b{color:var(--ink);}
 .ayuda-list kbd{font-family:monospace;background:var(--border-soft);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11.5px;}
 
-@media print{.modal-overlay,.float-tip{display:none !important;}.chk-cell,.chk-alumno,.chk-grupo,.btn-copiar,#agrup-wrap{display:none !important;}}
+@media print{.modal-overlay,.float-tip{display:none !important;}.chk-cell,.chk-alumno,.chk-grupo,.btn-copiar,.btn-sel,#agrup-wrap{display:none !important;}}
 .tabla-wrap{padding:0 0 0 20px;}
 
 .float-tip{position:fixed;z-index:200;pointer-events:none;background:#2d241d;color:#fff;border-radius:10px;padding:0;max-width:240px;box-shadow:0 4px 20px rgba(45,36,29,.4);opacity:0;transition:opacity .12s;font-family:var(--font);overflow:hidden;}
@@ -358,6 +364,7 @@ tbody.sin-result td{color:var(--ink-mute);font-style:italic;font-size:12.5px;tex
       <select id="filtro-curso" class="select-prof"><option value="">Todos los cursos</option></select>
       <select id="filtro-especialidad" class="select-prof"><option value="">Todas las especialidades</option></select>
       ${esProfes ? '<button id="btn-pendientes" class="btn-pend" type="button">Solo pendientes</button>' : ''}
+      ${esProfes ? '<button id="btn-sel-visibles" class="btn-sel" type="button" disabled>Marcar todos</button>' : ''}
       ${esProfes ? '<button id="btn-copiar-email" class="btn-copiar" type="button" disabled>Copiar email</button>' : ''}
 
       <button id="btn-pdf" class="btn-pdf" type="button">
@@ -428,6 +435,7 @@ ${esProfes ? `
         <ul class="ayuda-list">
           <li><b>Filtro por profesor</b>: muestra solo los grupos que imparte el profesor seleccionado.</li>
           <li><b>Solo pendientes</b>: muestra &uacute;nicamente alumnos con la asignatura pendiente de otro curso (etiqueta <b>Pendiente</b>).</li>
+          <li><b>Marcar / desmarcar todos</b>: marca o desmarca de una vez las casillas de todos los alumnos que pasan los filtros activos (curso, especialidad, profesor, b&uacute;squeda&hellip;). Si no hay filtros, act&uacute;a sobre el listado completo.</li>
           <li><b>Copiar email</b>: marca alumnos con las casillas (o la casilla de grupo para marcar todos) y copia sus correos separados por punto y coma, listos para pegar con <kbd>Ctrl+V</kbd> en el campo CCO de Outlook.</li>
         </ul>
       </div>` : ''}
@@ -523,23 +531,30 @@ function agrupar(data, niveles){
 
       var tramoKey = pathStr+'\\0'+subKey;
       if(!tramosMap[tramoKey]) tramosMap[tramoKey]={};
-      var tId=(c.dia||'').trim()+'|'+(c.entrada||'').trim()+'|'+(c.salida||'').trim();
-      tramosMap[tramoKey][tId]={dia:(c.dia||'').trim(),entrada:(c.entrada||'').trim(),salida:(c.salida||'').trim()};
+      var d=(c.dia||'').trim(),en=(c.entrada||'').trim(),sa=(c.salida||'').trim();
+      var tId=d+'|'+en+'|'+sa;
+      var tramoObj={dia:d,entrada:en,salida:sa};
+      var tieneTramo=!!(d||en||sa);
+      if(tieneTramo) tramosMap[tramoKey][tId]=tramoObj;
 
-      var fila={nombre:a.nombre,especialidad:a.especialidad||'',email:a.email||'',telefono:a.telefono||'',pendiente:pendiente,cursoPendiente:cursoPend};
-
+      // El fila se guarda una sola vez por alumno; sus tramos se ACUMULAN aparte
+      // (en .hors) para poder recalcular el horario de la cabecera según los
+      // alumnos que queden visibles tras filtrar.
+      var store;
       if(niveles.length===0){
         if(!rootSubMap[subKey]) rootSubMap[subKey]={};
-        if(!rootSubMap[subKey][a.clave]) rootSubMap[subKey][a.clave]=fila;
-        return;
+        store=rootSubMap[subKey];
+      } else {
+        var cur=raiz; var last=null;
+        path.forEach(function(p,i){
+          if(!cur[p.clave]) cur[p.clave]={clave:p.clave,label:p.label,labelCorto:p.labelCorto,tipo:p.tipo,sortKey:p.sortKey,children:{},subMap:{}};
+          last=cur[p.clave]; cur=last.children;
+        });
+        if(!last.subMap[subKey]) last.subMap[subKey]={};
+        store=last.subMap[subKey];
       }
-      var cur=raiz; var last=null;
-      path.forEach(function(p,i){
-        if(!cur[p.clave]) cur[p.clave]={clave:p.clave,label:p.label,labelCorto:p.labelCorto,tipo:p.tipo,sortKey:p.sortKey,children:{},subMap:{}};
-        last=cur[p.clave]; cur=last.children;
-      });
-      if(!last.subMap[subKey]) last.subMap[subKey]={};
-      if(!last.subMap[subKey][a.clave]) last.subMap[subKey][a.clave]=fila;
+      if(!store[a.clave]) store[a.clave]={nombre:a.nombre,especialidad:a.especialidad||'',email:a.email||'',telefono:a.telefono||'',pendiente:pendiente,cursoPendiente:cursoPend,hors:{}};
+      if(tieneTramo) store[a.clave].hors[tId]=tramoObj;
     });
   });
 
@@ -595,7 +610,7 @@ function renderSubgrupo(sg,cursoData){
   var chkGrupo=ES_PROFES?'<input type="checkbox" class="chk-grupo" id="chk-'+sgId+'" data-sg="'+sgId+'" onclick="event.stopPropagation()">':'';
 
   var filas=sg.alumnos.map(function(al,n){
-    return '<tr data-nombre="'+escH(normStr(al.nombre))+'" data-curso="'+escH(cursoData)+'" data-especialidad="'+escH(normStr(al.especialidad))+'"'+(al.pendiente?' data-pendiente="1"':'')+((ES_PROFES&&al.email)?' data-email="'+escH(al.email)+'"':'')+'>'
+    return '<tr data-nombre="'+escH(normStr(al.nombre))+'" data-curso="'+escH(cursoData)+'" data-especialidad="'+escH(normStr(al.especialidad))+'"'+(al.pendiente?' data-pendiente="1"':'')+((ES_PROFES&&al.email)?' data-email="'+escH(al.email)+'"':'')+' data-hor="'+escH(Object.keys(al.hors||{}).join(';'))+'">'
       +(ES_PROFES?'<td class="chk-cell"><input type="checkbox" class="chk-alumno" data-sg="'+sgId+'"'+(al.email?' data-email="'+escH(al.email)+'"':'')+' onclick="event.stopPropagation()"></td>':'')
       +'<td class="num">'+(n+1)+'</td>'
       +'<td class="nombre">'+escH(al.nombre)+(al.pendiente?'<span class="pendiente-tag">Pendiente'+(al.cursoPendiente?' de '+escH(al.cursoPendiente):'')+'</span>':'')+'</td>'
@@ -605,7 +620,7 @@ function renderSubgrupo(sg,cursoData){
   }).join('');
 
   return '<div class="subgrupo nivel-grupo is-collapsed" id="'+sgId+'" data-nivel="hoja" data-prof-idx="'+piIdx+'">'
-    +'<div class="sub-titulo" data-toggle="sub">'+chkGrupo+'<span class="chevron"></span><span class="sub-text">'+titulo+horsHtml+resto+' <span class="sub-count">('+sg.alumnos.length+')</span></span></div>'
+    +'<div class="sub-titulo" data-toggle="sub">'+chkGrupo+'<span class="chevron"></span><span class="sub-text">'+titulo+'<span class="sub-hor-wrap">'+horsHtml+'</span>'+resto+' <span class="sub-count">('+sg.alumnos.length+')</span></span></div>'
     +'<div class="tabla-wrap"><table>'
     +'<thead><tr>'+(ES_PROFES?'<th class="chk-cell"></th>':'')+'<th class="num">#</th><th>Nombre completo</th><th class="esp">Especialidad</th>'+(ES_PROFES?'<th class="email">Email</th><th class="tel">Tel&eacute;fono</th>':'')+'</tr></thead>'
     +'<tbody>'+filas+'</tbody>'
@@ -708,6 +723,9 @@ var pendienteSolo=false;
 var profFiltrado=-1;
 var espFiltrada='';
 var cursoFiltrado='';
+/* Se asigna en el bloque de casillas (versión profesorado): permite que
+   aplicar() refresque el botón «Marcar/Desmarcar todos» al cambiar los filtros. */
+var onFiltrarHook=null;
 /* El listado arranca completamente desplegado (capa al máximo: asignatura →
    curso → grupo con sus tablas), así que el botón de capas empieza contrayendo. */
 var capa=3; var dirCapa=-1; var maxPrevio=3;
@@ -800,15 +818,38 @@ function asigVacio(){for(var k in asigSet){if(asigSet[k]) return false;} return 
 
 function setIconBtn(){ btnToggle.innerHTML=dirCapa>0?ICON_EXP:ICON_CON; }
 
+/* Recalcula la línea de horario de la cabecera de un grupo con los días y horas
+   de SOLO los alumnos que quedan visibles tras los filtros. Así, si filtras una
+   asignatura individual hasta un alumno, la cabecera muestra únicamente SU
+   horario, en vez del amasijo de horas de todo el grupo. */
+function actualizarHorarioSg(sg){
+  var wrap=sg.querySelector('.sub-hor-wrap'); if(!wrap) return;
+  var seen={},arr=[];
+  Array.prototype.forEach.call(sg.querySelectorAll('tr[data-nombre]'),function(tr){
+    if(tr.style.display==='none') return;
+    var h=tr.getAttribute('data-hor'); if(!h) return;
+    h.split(';').forEach(function(s){ if(s&&!seen[s]){seen[s]=1;arr.push(s);} });
+  });
+  if(!arr.length){ wrap.innerHTML=''; return; }
+  arr.sort(function(a,b){ var pa=a.split('|'),pb=b.split('|'); return ordenDia(pa[0])-ordenDia(pb[0])||(pa[1]||'').localeCompare(pb[1]||''); });
+  var str=arr.map(function(s){var p=s.split('|');return abrevDia(p[0])+' '+escH(p[1]||'')+'\\u2013'+escH(p[2]||'');}).join(', ');
+  wrap.innerHTML=' &middot; <span class="horario-tramos">'+str+'</span>';
+}
+
 function renderPlegado(){
   var buscando=!!normStr(input.value);
-  var forzar=buscando||profFiltrado>=0||pendienteSolo||!!espFiltrada||!!cursoFiltrado;
+  /* Solo la búsqueda por nombre fuerza el despliegue (para que el resultado sea
+     visible mientras se teclea). Los filtros de curso, especialidad, profesor y
+     «solo pendientes» NO lo fuerzan: así el usuario puede contraer y desplegar a
+     mano aunque tenga un filtro puesto. */
+  var forzar=buscando;
   var MAX=getMaxCapa();
 
   document.querySelectorAll('[data-nivel="hoja"]').forEach(function(sg){
     if(profFiltrado>=0&&parseInt(sg.getAttribute('data-prof-idx')||'-1',10)!==profFiltrado){sg.style.display='none';return;}
     var hay=Array.prototype.some.call(sg.querySelectorAll('tr[data-nombre]'),function(tr){return tr.style.display!=='none';});
     sg.style.display=hay?'':'none';
+    actualizarHorarioSg(sg);
     var tw=sg.querySelector('.tabla-wrap');
     if(tw) tw.style.display=(sg.classList.contains('is-collapsed')&&!forzar)?'none':'';
   });
@@ -883,6 +924,7 @@ function aplicar(){
   globalVacio.style.display=(hayFiltro&&vis===0)?'block':'none';
   limpiar.style.display=q?'inline-block':'none';
   contador.textContent=hayFiltro?(vis+' de '+total+' registros'):(total+' registros');
+  if(onFiltrarHook) onFiltrarHook();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -959,10 +1001,31 @@ btnToggle.addEventListener('click',function(){
 // Checkboxes (email copy — profesores)
 var btnCopiar=document.getElementById('btn-copiar-email');
 if(btnCopiar){
+  var btnSel=document.getElementById('btn-sel-visibles');
   function actualizarBtnCopiar(){
     var sel=Array.prototype.filter.call(document.querySelectorAll('.chk-alumno:checked'),function(c){return c.getAttribute('data-email');});
     btnCopiar.disabled=sel.length===0;
     btnCopiar.textContent=sel.length>0?'Copiar email ('+sel.length+')':'Copiar email';
+  }
+  /* Casillas de alumno que pasan los filtros activos (búsqueda, curso,
+     especialidad, profesor, «solo pendientes» e índice de asignaturas).
+     No depende de que la fila esté plegada: el árbol arranca contraído, así
+     que «visible» significa «coincide con los filtros», no «desplegado». */
+  function chkAlumnosVisibles(){
+    return Array.prototype.filter.call(document.querySelectorAll('.chk-alumno'),function(c){
+      var tr=c.closest('tr'); if(!tr||tr.style.display==='none') return false;
+      var sg=c.closest('[data-nivel="hoja"]'); if(sg&&sg.style.display==='none') return false;
+      var top=c.closest('[data-nivel="top"]'); if(top&&top.style.display==='none') return false;
+      return true;
+    });
+  }
+  function actualizarBtnSel(){
+    if(!btnSel) return;
+    var vis=chkAlumnosVisibles();
+    var marc=vis.filter(function(c){return c.checked;}).length;
+    var todas=vis.length>0&&marc===vis.length;
+    btnSel.disabled=vis.length===0;
+    btnSel.textContent=todas?'Desmarcar todos':'Marcar todos';
   }
   function syncChkGrupo(sgId){
     var gc=document.querySelector('.chk-grupo[data-sg="'+sgId+'"]');if(!gc) return;
@@ -972,11 +1035,11 @@ if(btnCopiar){
   }
   document.addEventListener('change',function(e){
     var t=e.target;if(!t) return;
-    if(t.classList.contains('chk-alumno')){syncChkGrupo(t.getAttribute('data-sg'));actualizarBtnCopiar();}
+    if(t.classList.contains('chk-alumno')){syncChkGrupo(t.getAttribute('data-sg'));actualizarBtnCopiar();actualizarBtnSel();}
     if(t.classList.contains('chk-grupo')){
       var sgId=t.getAttribute('data-sg');
       Array.prototype.forEach.call(document.querySelectorAll('.chk-alumno[data-sg="'+sgId+'"]'),function(c){c.checked=t.checked;});
-      actualizarBtnCopiar();
+      actualizarBtnCopiar();actualizarBtnSel();
     }
   });
   btnCopiar.addEventListener('click',function(){
@@ -992,6 +1055,25 @@ if(btnCopiar){
       if(modal) modal.style.display='flex';
     }).catch(function(){alert('No se pudo acceder al portapapeles.\\nCopia este texto manualmente:\\n\\n'+txt);});
   });
+
+  // Marcar / desmarcar de golpe todas las casillas que pasan los filtros.
+  if(btnSel){
+    btnSel.addEventListener('click',function(){
+      var vis=chkAlumnosVisibles();
+      if(vis.length===0) return;
+      var marcar=vis.some(function(c){return !c.checked;}); // si falta alguna → marcar todas
+      vis.forEach(function(c){c.checked=marcar;});
+      // Reconciliar las casillas de grupo afectadas.
+      var sgs={};
+      vis.forEach(function(c){var s=c.getAttribute('data-sg');if(s) sgs[s]=1;});
+      Object.keys(sgs).forEach(syncChkGrupo);
+      actualizarBtnCopiar();
+      actualizarBtnSel();
+    });
+    // Mantener el botón al día cuando cambian los filtros (aplicar()).
+    onFiltrarHook=actualizarBtnSel;
+    actualizarBtnSel();
+  }
   var btnCM=document.getElementById('modal-cerrar');
   if(btnCM) btnCM.addEventListener('click',function(){var m=document.getElementById('modal-email');if(m) m.style.display='none';});
   document.addEventListener('click',function(e){var m=document.getElementById('modal-email');if(m&&e.target===m) m.style.display='none';});
@@ -1109,6 +1191,7 @@ if(btnCopiar){
     'filtro-especialidad':{t:'Filtrar por especialidad',b:'Acota el listado a una especialidad. Se combina con otros filtros.'},
     'filtro-curso':{t:'Filtrar por curso',b:'Acota el listado a un curso. Se combina con otros filtros.'},
     'btn-pendientes':{t:'Solo pendientes',b:'Muestra únicamente alumnos que tienen la asignatura pendiente de otro curso.'},
+    'btn-sel-visibles':{t:'Marcar / desmarcar todos',b:'Marca (o desmarca) de golpe las casillas de todos los alumnos que pasan los filtros activos. Sin filtros, actúa sobre todo el listado.'},
     'btn-copiar-email':{t:'Copiar emails',b:'Selecciona alumnos con las casillas y copia sus emails separados por punto y coma.'},
     'btn-toggle-todo':{t:'Expandir / Contraer todo',b:'Cada pulsación abre o cierra una capa del árbol.'},
     'btn-pdf':{t:'Generar PDF',b:'Genera un PDF con los filtros, agrupación y asignaturas activas en este momento.'},

@@ -12,15 +12,7 @@ import type {
   RestauracionModo,
   RestauracionResumen,
 } from "./backup-store";
-
-export interface ProfesoresPreview {
-  path: string;
-  columnaDetectada: string;
-  totalProfesores: number;
-  muestraProfesores: string[];
-  nuevos: number;
-  duplicados: number;
-}
+import type { Profesor, ProfesoradoStore } from "./profesorado-store";
 
 const adminAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
@@ -204,17 +196,31 @@ const adminAPI = {
     seleccionarArchivo: (extensiones: string[]): Promise<{ fileName: string; base64: string; path: string } | null> =>
       ipcRenderer.invoke("archivo:seleccionar", extensiones),
   },
+  profesorado: {
+    /** Ficha completa de todo el profesorado + fecha y archivo de la última carga. */
+    obtener: (): Promise<ProfesoradoStore> => ipcRenderer.invoke("profesorado:obtener"),
+    /** Guarda altas, bajas y ediciones a mano hechas desde la pantalla. */
+    guardar: (profesores: Profesor[]): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:guardar", profesores),
+    /** Reemplaza la lista entera (carga de archivo). Guarda copia de la anterior. */
+    reemplazar: (
+      profesores: Profesor[],
+      origenArchivo: string | null,
+    ): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:reemplazar", profesores, origenArchivo),
+    hayCopiaAnterior: (): Promise<boolean> =>
+      ipcRenderer.invoke("profesorado:hayCopiaAnterior"),
+    deshacerUltimaCarga: (): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:deshacerUltimaCarga"),
+    /** Abre el diálogo y devuelve los bytes; el parseo lo hace el renderer. */
+    seleccionarArchivo: (): Promise<{ fileName: string; base64: string; path: string } | null> =>
+      ipcRenderer.invoke("profesorado:seleccionarArchivo"),
+  },
   horarios: {
+    /** Nombres del profesorado en activo, derivados de `profesorado.json`. */
     profesoresGuardados: (): Promise<{ path: string | null; profesores: string[] }> =>
       ipcRenderer.invoke("horarios:profesoresGuardados"),
-    seleccionarProfesoresCsv: (): Promise<{ path: string; profesores: string[] } | null> =>
-      ipcRenderer.invoke("horarios:seleccionarProfesoresCsv"),
-    profesoresPrevisualizarCsv: (): Promise<ProfesoresPreview | null> =>
-      ipcRenderer.invoke("horarios:profesoresPrevisualizarCsv"),
-    profesoresConfirmarCsv: (
-      csvPath: string,
-    ): Promise<{ path: string; profesores: string[]; agregados: number; duplicados: number } | null> =>
-      ipcRenderer.invoke("horarios:profesoresConfirmarCsv", csvPath),
+    /** Aplica una lista de nombres sobre las fichas (las ausentes se archivan). */
     profesoresGuardar: (lista: string[]): Promise<{ profesores: string[] }> =>
       ipcRenderer.invoke("horarios:profesoresGuardar", lista),
     cargarExcelRelleno: (): Promise<{ fileName: string; base64: string; path: string } | null> =>

@@ -51,6 +51,12 @@ export interface InformeParams {
   /** Niveles de agrupamiento anidados, en orden. */
   agruparPorMetas?: CampoMeta[];
   /**
+   * Nivel de agrupamiento (0 = el primero) cuyo cambio empieza en hoja nueva.
+   * `null` = sin saltos: los grupos se encadenan seguidos. El primer grupo del
+   * documento nunca lleva salto, para no dejar una hoja en blanco al principio.
+   */
+  saltoPaginaNivel?: number | null;
+  /**
    * Si la fila de títulos de columna se repite en TODAS las hojas del PDF.
    * `false` = solo aparece una vez, al principio del documento.
    */
@@ -146,6 +152,7 @@ export function buildHtmlInforme({
   orientacion = 'landscape',
   zoom = 1,
   agruparPorMetas = [],
+  saltoPaginaNivel = null,
   repetirCabecera = true,
   anchosColumna = null,
   interactivo = false,
@@ -201,8 +208,20 @@ export function buildHtmlInforme({
             niveles.slice(0, lvl + 1).every(m => formatValor(r, m) === formatValor(s, m)),
           ).length;
           lastVals[lvl] = groupVal;
+          // Hoja nueva al empezar un grupo del nivel elegido. El corte se
+          // marca en la PRIMERA cabecera que cambia, para que los títulos de
+          // los niveles superiores viajen con su grupo a la hoja nueva y no se
+          // queden colgando al final de la anterior. El primer grupo del
+          // documento se salta la marca: si no, el PDF abriría en blanco.
+          const salto =
+            saltoPaginaNivel !== null &&
+            cambioDesde <= saltoPaginaNivel &&
+            lvl === cambioDesde &&
+            groupedSections.length > 0
+              ? ' salto-pagina'
+              : '';
           groupedSections.push(
-            `<tr class="group-header lvl${Math.min(lvl, 2)}"><td colspan="${campos.length}" style="padding-left:${10 + lvl * 18}px">` +
+            `<tr class="group-header lvl${Math.min(lvl, 2)}${salto}"><td colspan="${campos.length}" style="padding-left:${10 + lvl * 18}px">` +
             `<span class="group-label">${esc(groupVal)}</span>` +
             `<span class="group-count">${count} registro${count !== 1 ? 's' : ''}</span>` +
             `</td></tr>`
@@ -293,6 +312,12 @@ ${interactivo ? `
     letter-spacing: 0.4px;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  /* Empieza en hoja nueva. En pantalla no hay hojas, así que la vista previa
+     lo señala con una línea doble para que se vea dónde cortará el PDF. */
+  tr.salto-pagina { page-break-before: always; break-before: page; }
+  @media screen {
+    tr.salto-pagina > td { border-top: 4px double #f59e0b; }
   }
   .group-header.lvl1 td { background: #3525cd; font-size: 8pt; border-top: 2px solid #1a1560; }
   .group-header.lvl2 td { background: #e0e7ff; color: #1a1560; font-size: 8pt; border-top: 1px solid #c7d2fe; }

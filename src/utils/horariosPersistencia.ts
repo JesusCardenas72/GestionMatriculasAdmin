@@ -2,6 +2,8 @@ import type { FilaInforme } from "../api/types";
 import type { MatriculaLocal } from "../api/types";
 import { norm, esAsignaturaTutoraInstrumento } from "./horarioExcel";
 import { idCompuesto as calcIdCompuesto } from "./asigId";
+import { indicePorNombre, mapaTutores, tutorDeMatricula } from "./profesorado";
+import type { Profesor } from "../../electron/profesorado-store";
 import type { CargaHorarios, ClaseHorario, HorarioAlumno } from "../horarios/types";
 import {
   esValorHorarioUtil,
@@ -509,6 +511,40 @@ export function enriquecerFilasConHorario<T extends FilaInforme>(
       horario1: tramoTexto(h.h_dia1, h.h_ent1, h.h_sal1) || null,
       horario2: tramoTexto(h.h_dia2, h.h_ent2, h.h_sal2) || null,
     };
+  });
+}
+
+/**
+ * Añade a cada fila del informe su **tutor** y su **unidad**.
+ *
+ * El tutor es el profesor que le da la clase de Instrumento a esa matrícula, y
+ * la unidad la que figura en la ficha de ese profesor. Va por matrícula
+ * (alumno + enseñanza/curso + especialidad), no por alumno: quien tiene doble
+ * especialidad son dos matrículas y puede tener dos tutores y dos unidades.
+ *
+ * Devuelve filas nuevas (no muta las de entrada). Las matrículas cuyo profesor
+ * de Instrumento aún no está asignado se devuelven tal cual (tutor y unidad
+ * quedan `undefined` → "—").
+ */
+export function enriquecerFilasConTutor<T extends FilaInforme>(
+  filas: T[],
+  entries: HorariosEntry[],
+  profesorado: Profesor[],
+): T[] {
+  if (entries.length === 0) return filas;
+  const tutores = mapaTutores(entries);
+  const indice = indicePorNombre(profesorado);
+
+  return filas.map((fila) => {
+    const { tutor, unidad } = tutorDeMatricula(
+      tutores,
+      indice,
+      fila.nombreCompleto ?? "",
+      fila.ensenanzaCurso ?? "",
+      fila.especialidad ?? "",
+    );
+    if (tutor === null) return fila;
+    return { ...fila, tutor, unidad };
   });
 }
 

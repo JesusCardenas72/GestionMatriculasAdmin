@@ -9,6 +9,50 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.14.0] - 2026-09-10
+
+### Añadido
+
+- **El profesorado tiene pestaña propia y deja de ser una simple lista de nombres.** Sale del menú de *Alumnado Fantasma* y pasa a la barra de pestañas, al lado de Alumnado Fantasma. Ahora cada profesor tiene **ficha completa**: apellidos y nombre, especialidad, unidad, teléfono, correo, departamento y cargo.
+  - **Tabla** con buscador, orden por cualquier columna y filtros por especialidad, departamento, cargo y estado (en activo / bajas archivadas).
+  - **Ficha lateral** con los datos editables, sus clases del curso y sus acciones.
+  - Se puede **dar de alta** un profesor a mano y **darlo de baja**. Una baja se **archiva, no se borra**, para que los horarios de cursos pasados sigan teniendo sentido.
+  - **Exportar a CSV** lo que se esté viendo.
+- **Cargar el archivo del centro ahora reemplaza la lista entera**, en vez de ir añadiendo nombres. Antes de tocar nada se muestra una **pantalla de revisión** con las altas, las bajas, los cambios campo a campo y los que quedan igual, más tres avisos:
+  - profesores que se dan de baja y **tienen clases guardadas** en el curso, con el detalle de cuántas;
+  - profesores que **cambian de unidad** y cuántos alumnos arrastran con ellos;
+  - datos que habías **corregido a mano** y que el archivo devolvería a su valor original.
+  - Si algo sale mal, **«Deshacer carga»** vuelve a la lista anterior.
+- **El lector del archivo entiende el CSV real del centro.** Antes fallaba con él en tres cosas: ahora detecta el **separador** (`;`, coma o tabulador), detecta la **codificación** (UTF-8 o Windows-1252, que es la que hacía que se leyera «Albar?s» en vez de «Albarés») y **descarta las filas de relleno** del final, incluida la del volcado de todos los correos. También recorta los espacios sobrantes de cada campo. Sigue admitiendo Excel además de CSV.
+- **Tutor/a y Unidad de cada matrícula.** El tutor es el profesor que le da la clase de **Instrumento**, y la matrícula toma como unidad la **unidad de su tutor**. Va por matrícula y no por alumno: quien tiene doble especialidad son dos matrículas, cada una con su tutor y su unidad.
+  - **Informes**: dos columnas nuevas, **Tutor/a** y **Unidad**, en los dos modos. Se pueden filtrar, ordenar y **agrupar por unidad**, que es lo que permite sacar listados de clase.
+  - **Local**: la unidad aparece en el encabezado de la ficha, junto al Tutor/a.
+- **Asignar alumnos a un profesor.** Para cuando llega el interino que aún no se había personado: desde su ficha se listan las matrículas del curso **sin profesor de Instrumento**, ya filtradas por su especialidad; al confirmar pasan a tenerlo como tutor y **heredan su unidad**. Queda registrado en el historial de horarios.
+- **Cruces con Horarios y Matriculación** en la pestaña nueva:
+  - **clases, alumnos y tutorías** de cada profesor en el curso activo, como columnas ordenables;
+  - **avisos de coherencia**: matrículas sin profesor de Instrumento, profesores que imparten Instrumento y no tienen unidad, profesores sin ninguna clase y —como red de seguridad— nombres del horario que no estén en el profesorado;
+  - **cobertura por especialidad**: alumnos matriculados frente a profesores que la imparten, con la ratio.
+- **Informes del profesorado.** En *Informes*, junto a *Por alumno* y *Por asignatura*, hay un tercer modo: **Profesorado**. Cada fila es un profesor/a en vez de un alumno, y todo lo demás funciona igual que siempre (filtros, orden, agrupar, ocultar columnas, anchos, exportar a CSV/Excel y vista previa PDF).
+  - **Columnas de ficha**: apellidos y nombre, especialidad, unidad, departamento, cargo, correo, teléfono, en activo, sustituido/a por y las fechas de la sustitución.
+  - **Columnas de carga docente**, calculadas cruzando la ficha con los horarios guardados del curso: n.º de clases, n.º de alumnos, n.º de tutorías, horas semanales, asignaturas, aulas y días con clase.
+  - Las **horas semanales cuentan tramos, no clases**: una clase colectiva figura una vez por cada alumno del grupo, pero el profesor solo la da una vez, así que se cuenta una sola vez. Los días salen en el orden de la semana, no por alfabeto.
+  - **Cuatro informes predefinidos nuevos**: *Directorio del profesorado*, *Carga docente del profesorado*, *Profesorado por departamento* (agrupado) y *Tutorías por unidad*.
+  - En este modo no aparece el botón **«Editar»**: las fichas se cambian desde la pestaña Profesorado. El **Excel de horarios** sigue exigiendo el modo *Por asignatura*.
+- El **correo** de cada profesor se guarda y se ve en la ficha. De momento no se envía nada desde la app.
+
+### Cambiado
+
+- **La copia de seguridad guarda la ficha completa del profesorado**, no solo los nombres. Las copias antiguas se siguen pudiendo restaurar: sus nombres entran como fichas con el resto de campos vacíos.
+- **Sustituir profesorado** se hace ahora desde la pestaña Profesorado. Funciona igual que antes, pero quien sale queda **archivado** en vez de desaparecer.
+- El paso 2 del asistente de *Alumnado Fantasma* ya no sube el CSV: lleva a la pestaña Profesorado.
+
+### Notas técnicas
+
+- El profesorado pasa a vivir en `profesorado.json`. La lista de nombres que consumen el Excel de horarios, la validación de la carga, Informes y las sustituciones se **deriva** de esas fichas, así que nada de eso cambia de comportamiento.
+- **Migración automática**: al abrir esta versión por primera vez, los nombres que hubiera en `horarios-config.json` se convierten en fichas. No se pierde nada.
+
+---
+
 ## [1.13.0] - 2026-09-08
 
 ### Añadido

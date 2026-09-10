@@ -29,15 +29,20 @@ import {
   favoritoDesmarcar,
 } from "./presets-store";
 import {
-  profesoresGuardados,
-  agregarProfesoresDeArchivo,
-  guardarProfesores,
-  previsualizarProfesoresDeArchivo,
-  type ProfesoresPreview,
   getHorariosExcelPath,
   setHorariosExcelPath,
   clearHorariosExcelPath,
 } from "./horarios-store";
+import {
+  aplicarListaDeNombres,
+  deshacerUltimaCarga,
+  hayCopiaAnterior,
+  nombresProfesorado,
+  profesoradoGuardar,
+  profesoradoObtener,
+  profesoradoReemplazar,
+  type Profesor,
+} from "./profesorado-store";
 import {
   campanyas_listar,
   campanyas_guardar,
@@ -467,13 +472,38 @@ function registerIpcHandlers() {
   ipcMain.handle("presets:favoritoMarcar", (_e, id: string) => favoritoMarcar(id));
   ipcMain.handle("presets:favoritoDesmarcar", (_e, id: string) => favoritoDesmarcar(id));
 
-  // ── Horarios: lista de profesores desde CSV ──────────────────────────────
-  ipcMain.handle("horarios:profesoresGuardados", () => profesoresGuardados());
+  // ── Profesorado ───────────────────────────────────────────────────────────
+  // La ficha completa vive en `profesorado.json`. La lista de nombres que
+  // consumen el Excel de horarios, la validación de la carga y las
+  // sustituciones se deriva de ella, así que ese canal sigue igual que antes.
+  ipcMain.handle("horarios:profesoresGuardados", () => ({
+    path: profesoradoObtener().origenArchivo,
+    profesores: nombresProfesorado(),
+  }));
+  ipcMain.handle("horarios:profesoresGuardar", (_e, lista: string[]) => ({
+    profesores: aplicarListaDeNombres(lista).profesores
+      .filter((p) => p.activo)
+      .map((p) => p.apellidosNombre),
+  }));
+
+  ipcMain.handle("profesorado:obtener", () => profesoradoObtener());
+  ipcMain.handle("profesorado:guardar", (_e, profesores: Profesor[]) =>
+    profesoradoGuardar(profesores),
+  );
   ipcMain.handle(
-    "horarios:profesoresPrevisualizarCsv",
-    async (): Promise<ProfesoresPreview | null> => {
+    "profesorado:reemplazar",
+    (_e, profesores: Profesor[], origenArchivo: string | null) =>
+      profesoradoReemplazar(profesores, origenArchivo),
+  );
+  ipcMain.handle("profesorado:hayCopiaAnterior", () => hayCopiaAnterior());
+  ipcMain.handle("profesorado:deshacerUltimaCarga", () => deshacerUltimaCarga());
+  // Igual que con el Excel de horarios: aquí solo se entregan los bytes; el
+  // parseo (codificación, separador, columnas) lo hace el renderer.
+  ipcMain.handle(
+    "profesorado:seleccionarArchivo",
+    async (): Promise<{ fileName: string; base64: string; path: string } | null> => {
       const res = await dialog.showOpenDialog({
-        title: "Selecciona el CSV o Excel de profesorado",
+        title: "Selecciona el archivo de profesorado (CSV o Excel)",
         filters: [
           { name: "CSV o Excel", extensions: ["csv", "xlsx"] },
           { name: "CSV", extensions: ["csv"] },
@@ -482,16 +512,10 @@ function registerIpcHandlers() {
         properties: ["openFile"],
       });
       if (res.canceled || res.filePaths.length === 0) return null;
-      return previsualizarProfesoresDeArchivo(res.filePaths[0]);
+      const file = res.filePaths[0];
+      const buf = fs.readFileSync(file);
+      return { fileName: path.basename(file), base64: buf.toString("base64"), path: file };
     },
-  );
-  ipcMain.handle(
-    "horarios:profesoresConfirmarCsv",
-    async (_e, csvPath: string) => agregarProfesoresDeArchivo(csvPath),
-  );
-  ipcMain.handle(
-    "horarios:profesoresGuardar",
-    (_e, lista: string[]) => guardarProfesores(lista),
   );
 
   // ── Horarios: seleccionar el Excel YA RELLENO por los profesores ──────────

@@ -27,6 +27,47 @@ function generarHoras(inicio: string, fin: string): string[] {
 /** Lunes a Viernes. */
 export const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
+/**
+ * Orden natural de los días de la semana (Lunes = 1 … Domingo = 7).
+ * Admite el nombre completo (con o sin tilde) y las abreviaturas habituales
+ * del centro (L, M, X, J, V). Se usa para que las columnas de días —«Día 1»,
+ * «Día 2»…— se ordenen por semana y no por alfabeto.
+ */
+const ORDEN_DIA_SEMANA: Record<string, number> = {
+  lunes: 1, lun: 1, l: 1,
+  martes: 2, mar: 2, m: 2,
+  miercoles: 3, mie: 3, x: 3,
+  jueves: 4, jue: 4, j: 4,
+  viernes: 5, vie: 5, v: 5,
+  sabado: 6, sab: 6, s: 6,
+  domingo: 7, dom: 7, d: 7,
+};
+
+/** Quita tildes y espacios sobrantes y pasa a minúsculas. */
+function normalizarDia(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\.$/, '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Posición del día dentro de la semana, o `-1` si el texto no es un día.
+ * Devolver `-1` permite a quien ordena decidir si aplica el orden semanal
+ * (cuando ambos valores son días) o el alfabético de siempre.
+ */
+export function ordenDiaSemana(valor: unknown): number {
+  if (typeof valor !== 'string') return -1;
+  return ORDEN_DIA_SEMANA[normalizarDia(valor)] ?? -1;
+}
+
+/** ¿Este texto es el nombre (o la abreviatura) de un día de la semana? */
+export function esDiaSemana(valor: unknown): boolean {
+  return ordenDiaSemana(valor) > 0;
+}
+
 /** Horas de entrada: 9:00 → 20:30 en saltos de 30 min. */
 export const HORAS_ENTRADA = generarHoras('9:00', '20:30');
 

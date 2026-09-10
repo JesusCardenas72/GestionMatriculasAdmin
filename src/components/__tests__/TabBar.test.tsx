@@ -43,4 +43,44 @@ describe("TabBar", () => {
     await userEvent.click(screen.getByRole("button", { name: /Pnte\. Tramitación/ }));
     expect(onChange).toHaveBeenCalledWith(ESTADO.PENDIENTE_TRAMITACION);
   });
+
+  // ── Pestaña Profesorado (v1.14) ──────────────────────────────────────────
+
+  it("muestra la pestaña Profesorado junto a Alumnado Fantasma", () => {
+    render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Profesorado" })).toBeInTheDocument();
+  });
+
+  it("navega a Profesorado al pulsarla", async () => {
+    const onChange = vi.fn();
+    render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "Profesorado" }));
+    expect(onChange).toHaveBeenCalledWith("profesorado");
+  });
+
+  it("muestra el contador de profesores cuando hay alguno", () => {
+    render(
+      <TabBar
+        active={ESTADO.PENDIENTE_TRAMITACION}
+        counts={counts}
+        profesoradoCount={60}
+        onChange={vi.fn()}
+      />,
+    );
+    const boton = screen.getByRole("button", { name: /Profesorado/ });
+    expect(within(boton).getByText("60")).toBeInTheDocument();
+  });
+
+  it("no muestra contador si el profesorado está vacío", () => {
+    render(
+      <TabBar
+        active={ESTADO.PENDIENTE_TRAMITACION}
+        counts={counts}
+        profesoradoCount={0}
+        onChange={vi.fn()}
+      />,
+    );
+    const boton = screen.getByRole("button", { name: "Profesorado" });
+    expect(within(boton).queryByText(/^\d+$/)).not.toBeInTheDocument();
+  });
 });

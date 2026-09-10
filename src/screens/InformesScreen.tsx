@@ -9,6 +9,7 @@ import {
   EyeOff,
   FileSpreadsheet,
   FileText,
+  FileType,
   Filter,
   FilterX,
   GripVertical,
@@ -38,10 +39,12 @@ import type {
   Solicitud,
 } from '../api/types';
 import { ESTADO } from '../api/types';
+import { ordenDiaSemana } from '../data/horariosListas';
 import { useCursoContext } from '../contexts/CursoContextProvider';
 import { useAppMode } from '../contexts/AppModeProvider';
 import { useEscenarioHorario } from '../contexts/EscenarioHorarioContext';
 import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
+import { useProfesorado } from '../hooks/useProfesorado';
 import { useSolicitudes } from '../hooks/useSolicitudes';
 import LocalEditModal from '../components/LocalEditModal';
 import { toTitleCase } from '../utils/formatText';
@@ -55,8 +58,11 @@ import {
 import {
   CAMPO_MAP,
   CAMPOS_ASIGNATURA,
+  CAMPOS_DEFECTO_MODO,
   CAMPOS_HORARIO,
   CAMPOS_META,
+  CAMPOS_PROFESORADO,
+  CAMPOS_PROFESORADO_CARGA,
   ESTADO_ASIGNATURA_LABELS,
   ESTADO_TRAMITE_LABELS,
   INFORME_VACIO,
@@ -67,6 +73,7 @@ import {
   type CampoMeta,
 } from '../data/informesConfig';
 import { buildHtmlInforme } from '../utils/pdfInforme';
+import { buildFilasProfesorado } from '../utils/informeProfesorado';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion, type FilaCrudaHorario } from '../utils/fusionHorarios';
 import { validarCrudasConVentanaNativa } from '../utils/validarHorariosCargados';
@@ -75,6 +82,7 @@ import {
   actualizarHorariosStore,
   detectarHuerfanasAlmacen,
   enriquecerFilasConHorario,
+  enriquecerFilasConTutor,
   type HuerfanaAlmacen,
 } from '../utils/horariosPersistencia';
 import { asignaturasCursadas } from '../utils/repetidorSuelta';
@@ -118,6 +126,7 @@ function huellaConfigPdf(
     mostrarAgrupacion: c?.mostrarAgrupacion ?? true,
     mostrarFecha: c?.mostrarFecha ?? true,
     repetirCabeceraTabla: c?.repetirCabeceraTabla ?? true,
+    saltoPaginaNivel: c?.saltoPaginaNivel ?? null,
     // Ordenado por clave: el orden de las columnas no debe contar como cambio.
     anchosColumna: anchos
       ? Object.keys(anchos).sort().map(k => `${k}:${anchos[k as CampoKey]}`)
@@ -203,7 +212,15 @@ function aplicarOrden(solicitudes: FilaInforme[], orden: { id: string; campo: Ca
     for (const o of orden) {
       const va = String(a[o.campo as keyof FilaInforme] ?? '');
       const vb = String(b[o.campo as keyof FilaInforme] ?? '');
-      const cmp = va.localeCompare(vb, 'es', { sensitivity: 'base', numeric: true });
+      // Si la columna contiene días de la semana (Día 1, Día 2…) se ordena por
+      // el orden natural de la semana —lunes, martes, miércoles…— y no por
+      // alfabeto. Solo cuando AMBOS valores son días; en cualquier otro caso
+      // (texto suelto, celdas vacías) se mantiene la comparación de siempre.
+      const diaA = ordenDiaSemana(va);
+      const diaB = ordenDiaSemana(vb);
+      const cmp = diaA > 0 && diaB > 0
+        ? diaA - diaB
+        : va.localeCompare(vb, 'es', { sensitivity: 'base', numeric: true });
       if (cmp !== 0) return o.direccion === 'asc' ? cmp : -cmp;
     }
     return 0;
@@ -626,18 +643,25 @@ function GrupoCamposDisponibles({
   );
 }
 
-/** Contenido del desplegable "Añadir campo": los tres grupos con su icono de
- *  «insertar todos». Se reutiliza en el estado vacío y en la cabecera de tabla. */
+/** Contenido del desplegable "Añadir campo": los grupos de campos con su icono
+ *  de «insertar todos». Se reutiliza en el estado vacío y en la cabecera de la
+ *  tabla. Los grupos vacíos no se pintan, así que cada modo enseña los suyos:
+ *  matrícula/asignatura/horario en los informes de alumnado y ficha/carga
+ *  docente en los de profesorado. */
 function MenuAnadirCampo({
   matricula,
   asignatura,
   horario,
+  profesoradoFicha,
+  profesoradoCarga,
   onAddCampo,
   onAddGrupo,
 }: {
   matricula: CampoMeta[];
   asignatura: CampoMeta[];
   horario: CampoMeta[];
+  profesoradoFicha: CampoMeta[];
+  profesoradoCarga: CampoMeta[];
   onAddCampo: (key: CampoKey) => void;
   onAddGrupo: (keys: CampoKey[]) => void;
 }) {
@@ -661,6 +685,20 @@ function MenuAnadirCampo({
         titulo="Horario"
         campos={horario}
         mostrarSeparador={matricula.length > 0 || asignatura.length > 0}
+        onAddCampo={onAddCampo}
+        onAddGrupo={onAddGrupo}
+      />
+      <GrupoCamposDisponibles
+        titulo="Ficha del profesorado"
+        campos={profesoradoFicha}
+        mostrarSeparador={false}
+        onAddCampo={onAddCampo}
+        onAddGrupo={onAddGrupo}
+      />
+      <GrupoCamposDisponibles
+        titulo="Carga docente"
+        campos={profesoradoCarga}
+        mostrarSeparador={profesoradoFicha.length > 0}
         onAddCampo={onAddCampo}
         onAddGrupo={onAddGrupo}
       />
@@ -717,6 +755,8 @@ export default function InformesScreen({ config }: Props) {
 
   // Entradas del almacén de horarios del curso (para volcar las columnas de horario al informe)
   const [entriesHorario, setEntriesHorario] = useState<HorariosEntry[]>([]);
+  // Profesorado: aporta la unidad de cada tutor a las columnas Tutor/a y Unidad.
+  const { profesores: profesorado } = useProfesorado();
 
   const solicitudesRemotas = useMemo(
     () => [
@@ -729,15 +769,23 @@ export default function InformesScreen({ config }: Props) {
 
   const allRows = useMemo(
     () => {
+      // El modo profesorado no parte de matrículas: cada fila es un profesor/a
+      // de la ficha, con su carga docente sacada de las clases guardadas.
+      if (informe.modo === 'profesorado') {
+        return buildFilasProfesorado(profesorado, entriesHorario);
+      }
+      // Tutor/a y Unidad se calculan en los dos modos de matrícula.
       if (informe.modo === 'asignatura') {
         const filas = buildFilasAsignatura(solicitudesRemotas, matriculas);
         // Volcamos las columnas de horario (profesor, aula, día, horas…) desde el
         // almacén, reutilizando el mismo emparejamiento por ID/texto/herencia.
-        return enriquecerFilasConHorario(filas, entriesHorario, matriculas);
+        const conHorario = enriquecerFilasConHorario(filas, entriesHorario, matriculas);
+        return enriquecerFilasConTutor(conHorario, entriesHorario, profesorado);
       }
-      return buildFilasAlumno(solicitudesRemotas, matriculas);
+      const filas = buildFilasAlumno(solicitudesRemotas, matriculas);
+      return enriquecerFilasConTutor(filas, entriesHorario, profesorado);
     },
-    [solicitudesRemotas, matriculas, informe.modo, entriesHorario],
+    [solicitudesRemotas, matriculas, informe.modo, entriesHorario, profesorado],
   );
 
   const selectOptions = useMemo((): Map<CampoKey, string[]> => {
@@ -773,6 +821,8 @@ export default function InformesScreen({ config }: Props) {
   const [previewMostrarFecha, setPreviewMostrarFecha] = useState(true);
   // Si la fila de títulos de columna se repite en cada hoja del PDF.
   const [previewRepetirCabecera, setPreviewRepetirCabecera] = useState(true);
+  // Nivel de agrupamiento que empieza en hoja nueva (null = sin saltos).
+  const [previewSaltoNivel, setPreviewSaltoNivel] = useState<number | null>(null);
   // Ancho (%) de cada columna del PDF ajustado a mano arrastrando en la vista
   // previa. `null` = anchos automáticos (proporcionales al contenido).
   const [previewAnchos, setPreviewAnchos] = useState<Partial<Record<CampoKey, number>> | null>(null);
@@ -1020,6 +1070,10 @@ export default function InformesScreen({ config }: Props) {
     .map(k => CAMPO_MAP.get(k))
     .filter(Boolean) as CampoMeta[];
 
+  // Modo del informe ('alumno' cuando el preset es antiguo y no lo trae).
+  const modoActual = informe.modo ?? 'alumno';
+  const esModoProfesorado = modoActual === 'profesorado';
+
   // Subset que realmente se muestra en la tabla (excluye los ocultados con el ojo)
   const camposOcultos = informe.camposOcultos ?? [];
   const camposEnTabla = camposVisibles.filter(c => !camposOcultos.includes(c.key));
@@ -1087,8 +1141,9 @@ export default function InformesScreen({ config }: Props) {
     c => !informe.camposVisibles.includes(c.key),
   );
 
-  // Para el desplegable "+": separamos en tres grupos (matrícula, asignatura y
-  // horario) y los ordenamos alfabéticamente por etiqueta dentro de cada grupo.
+  // Para el desplegable "+": separamos en grupos (matrícula, asignatura,
+  // horario, ficha del profesorado y carga docente) y los ordenamos
+  // alfabéticamente por etiqueta dentro de cada grupo.
   const asignaturaKeys = useMemo(
     () => new Set(CAMPOS_ASIGNATURA.map(c => c.key)),
     [],
@@ -1097,10 +1152,24 @@ export default function InformesScreen({ config }: Props) {
     () => new Set(CAMPOS_HORARIO.map(c => c.key)),
     [],
   );
+  const profFichaKeys = useMemo(
+    () => new Set(CAMPOS_PROFESORADO.map(c => c.key)),
+    [],
+  );
+  const profCargaKeys = useMemo(
+    () => new Set(CAMPOS_PROFESORADO_CARGA.map(c => c.key)),
+    [],
+  );
   const sortByLabel = (a: CampoMeta, b: CampoMeta) =>
     a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
   const camposDispMatricula = camposDisponibles
-    .filter(c => !asignaturaKeys.has(c.key) && !horarioKeys.has(c.key))
+    .filter(
+      c =>
+        !asignaturaKeys.has(c.key) &&
+        !horarioKeys.has(c.key) &&
+        !profFichaKeys.has(c.key) &&
+        !profCargaKeys.has(c.key),
+    )
     .slice()
     .sort(sortByLabel);
   const camposDispAsignatura = camposDisponibles
@@ -1108,8 +1177,11 @@ export default function InformesScreen({ config }: Props) {
     .slice()
     .sort(sortByLabel);
   // El horario respeta el orden natural de CAMPOS_HORARIO (Profesor, Grupo, Aula,
-  // Día/Entrada/Salida…), más intuitivo que el alfabético.
+  // Día/Entrada/Salida…), más intuitivo que el alfabético. Los del profesorado
+  // también van en su orden natural (ficha primero, carga docente después).
   const camposDispHorario = camposDisponibles.filter(c => horarioKeys.has(c.key));
+  const camposDispProfFicha = camposDisponibles.filter(c => profFichaKeys.has(c.key));
+  const camposDispProfCarga = camposDisponibles.filter(c => profCargaKeys.has(c.key));
 
   const resultados = useMemo(() => {
     const filtered = aplicarFiltros(allRows, informe.filtros);
@@ -1158,14 +1230,21 @@ export default function InformesScreen({ config }: Props) {
     }
   }
 
-  // Cambia entre modo "alumno" y "asignatura", depurando los campos/filtros/orden no válidos
+  // Cambia entre los modos "alumno", "asignatura" y "profesorado", depurando
+  // los campos/filtros/orden que no valen en el modo de destino.
   function cambiarModo(modo: ConfigInforme['modo']) {
-    if (informe.modo === modo) return;
+    if ((informe.modo ?? 'alumno') === modo) return;
     const validos = new Set(camposDeModo(modo).map(c => c.key));
     setInforme(prev => {
       let camposVisibles = prev.camposVisibles.filter(k => validos.has(k));
       if (modo === 'asignatura' && !camposVisibles.includes('asigEstado')) {
         camposVisibles = [...camposVisibles, 'asigEstado'];
+      }
+      // Si no sobrevive ninguna columna (siempre que se pasa a profesorado, que
+      // no comparte campos con los otros modos) se arranca con las de serie,
+      // para no dejar el informe en blanco.
+      if (camposVisibles.length === 0) {
+        camposVisibles = [...CAMPOS_DEFECTO_MODO[modo ?? 'alumno']];
       }
       const anchoColumnas = Object.fromEntries(
         Object.entries(prev.anchoColumnas ?? {}).filter(([k]) => validos.has(k as CampoKey)),
@@ -1826,6 +1905,7 @@ export default function InformesScreen({ config }: Props) {
     agrupacionDesc: previewMostrarAgrupacion ? describeAgrupacion(nivelesAgrup) : '',
     mostrarFecha: previewMostrarFecha,
     repetirCabecera: previewRepetirCabecera,
+    saltoPaginaNivel: previewSaltoNivel,
     anchosColumna: anchosColumnaPdf,
     interactivo,
     campos: camposEnTabla,
@@ -1838,7 +1918,7 @@ export default function InformesScreen({ config }: Props) {
   }), [
     previewOrientacion, previewZoom, previewTitulo, previewSubtitulo,
     previewMostrarFiltros, previewMostrarOrden, previewMostrarAgrupacion, previewMostrarFecha,
-    previewRepetirCabecera, anchosColumnaPdf,
+    previewRepetirCabecera, previewSaltoNivel, anchosColumnaPdf,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     informe.filtros, informe.orden, informe.agruparPor, camposEnTabla, resultados,
   ]);
@@ -2047,7 +2127,7 @@ export default function InformesScreen({ config }: Props) {
     if (profesores.length === 0) {
       window.alert(
         'No se ha cargado la lista de profesores.\n' +
-          'Usa Alumnado Fantasma → Profesorado → «Cargar profesorado» antes de generar el Excel de horarios.',
+          'Cárgala en la pestaña Profesorado antes de generar el Excel de horarios.',
       );
       return;
     }
@@ -2186,7 +2266,7 @@ export default function InformesScreen({ config }: Props) {
         if (profesores.length === 0) {
           window.alert(
             'No se ha cargado la lista de profesores.\n' +
-              'Usa Alumnado Fantasma → Profesorado → «Cargar profesorado» antes de generar el Excel de horarios.',
+              'Cárgala en la pestaña Profesorado antes de generar el Excel de horarios.',
           );
           return;
         }
@@ -2320,6 +2400,11 @@ export default function InformesScreen({ config }: Props) {
     setPreviewMostrarAgrupacion(c?.mostrarAgrupacion ?? true);
     setPreviewMostrarFecha(c?.mostrarFecha ?? true);
     setPreviewRepetirCabecera(c?.repetirCabeceraTabla ?? true);
+    // El nivel guardado solo vale si el informe sigue teniendo esa agrupación.
+    const nivelGuardado = c?.saltoPaginaNivel ?? null;
+    setPreviewSaltoNivel(
+      nivelGuardado !== null && nivelGuardado < nivelesAgrup.length ? nivelGuardado : null,
+    );
     setPreviewAnchos(c?.anchosColumna ?? null);
     setPreviewGuardado(null);
     setShowPreview(true);
@@ -2334,6 +2419,7 @@ export default function InformesScreen({ config }: Props) {
     mostrarAgrupacion: previewMostrarAgrupacion,
     mostrarFecha: previewMostrarFecha,
     repetirCabeceraTabla: previewRepetirCabecera,
+    saltoPaginaNivel: previewSaltoNivel,
     anchosColumna: previewAnchos ?? undefined,
   };
 
@@ -2517,15 +2603,15 @@ export default function InformesScreen({ config }: Props) {
                   <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-400" />
                   <span>Excel <span className="text-slate-400 text-xs">(.xlsx)</span></span>
                 </button>
-                <div className="h-px bg-slate-100 my-1" />
-
+                {/* PDF abre la vista previa, donde se ajusta la cabecera y los
+                    anchos antes de guardar o imprimir. */}
                 <button
                   onClick={() => { setShowExportMenu(false); handleAbrirVistaPrevia(); }}
                   disabled={printing}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-40 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)] disabled:opacity-40 transition-colors"
                 >
-                  <Printer className="w-4 h-4 shrink-0 text-amber-600" />
-                  <span>{printing ? 'Generando…' : 'Imprimir PDF'}</span>
+                  <FileType className="w-4 h-4 shrink-0 text-slate-400" />
+                  <span>{printing ? 'Generando…' : <>PDF <span className="text-slate-400 text-xs">(.pdf)</span></>}</span>
                 </button>
               </div>
             )}
@@ -2696,34 +2782,33 @@ export default function InformesScreen({ config }: Props) {
           )}
         </select>
 
-        {/* Conmutador de modo: por alumno / por asignatura */}
+        {/* Conmutador de modo: por alumno / por asignatura / profesorado */}
         <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-          <button
-            onClick={() => cambiarModo('alumno')}
-            className={
-              'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
-              (informe.modo !== 'asignatura'
-                ? 'bg-white text-amber-700 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700')
-            }
-          >
-            Por alumno
-          </button>
-          <button
-            onClick={() => cambiarModo('asignatura')}
-            className={
-              'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ' +
-              (informe.modo === 'asignatura'
-                ? 'bg-white text-amber-700 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700')
-            }
-          >
-            Por asignatura
-          </button>
+          {([
+            { modo: 'alumno' as const,      label: 'Por alumno',     titulo: 'Una fila por alumno' },
+            { modo: 'asignatura' as const,  label: 'Por asignatura', titulo: 'Una fila por alumno y asignatura' },
+            { modo: 'profesorado' as const, label: 'Profesorado',    titulo: 'Una fila por profesor/a, con su ficha y su carga docente' },
+          ]).map(op => (
+            <button
+              key={op.modo}
+              onClick={() => cambiarModo(op.modo)}
+              title={op.titulo}
+              className={
+                'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ' +
+                (modoActual === op.modo
+                  ? 'bg-white text-amber-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700')
+              }
+            >
+              {op.label}
+            </button>
+          ))}
         </div>
 
-        {/* Botón global: activa/desactiva la edición en línea del informe */}
-        {!isSoloLectura && (
+        {/* Botón global: activa/desactiva la edición en línea del informe. En
+            modo profesorado no hay nada que editar aquí: las fichas se cambian
+            desde la pantalla de Profesorado. */}
+        {!isSoloLectura && !esModoProfesorado && (
           <button
             onClick={() => setModoEdicion(v => !v)}
             title={
@@ -2984,6 +3069,8 @@ export default function InformesScreen({ config }: Props) {
                         matricula={camposDispMatricula}
                         asignatura={camposDispAsignatura}
                         horario={camposDispHorario}
+                        profesoradoFicha={camposDispProfFicha}
+                        profesoradoCarga={camposDispProfCarga}
                         onAddCampo={addCampoInline}
                         onAddGrupo={addCamposInline}
                       />
@@ -3325,6 +3412,8 @@ export default function InformesScreen({ config }: Props) {
                               matricula={camposDispMatricula}
                               asignatura={camposDispAsignatura}
                               horario={camposDispHorario}
+                              profesoradoFicha={camposDispProfFicha}
+                              profesoradoCarga={camposDispProfCarga}
                               onAddCampo={addCampoInline}
                               onAddGrupo={addCamposInline}
                             />
@@ -4027,6 +4116,32 @@ export default function InformesScreen({ config }: Props) {
                   Repetir los títulos de columna en cada hoja
                 </label>
 
+                {/* Salto de página entre grupos: solo tiene sentido si el
+                    informe está agrupado por alguna columna. */}
+                {nivelesAgrup.length > 0 && (
+                  <>
+                    <span className="h-4 w-px bg-slate-300" />
+                    <label
+                      className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 select-none"
+                      title="Empieza una hoja nueva cada vez que termina un grupo y empieza el siguiente. En la vista previa el corte se marca con una línea naranja."
+                    >
+                      Salto de página:
+                      <select
+                        value={previewSaltoNivel === null ? '' : String(previewSaltoNivel)}
+                        onChange={e => setPreviewSaltoNivel(e.target.value === '' ? null : Number(e.target.value))}
+                        className="px-1.5 py-0.5 text-[11px] rounded-md border border-slate-200 bg-white text-slate-700 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                      >
+                        <option value="">Sin saltos</option>
+                        {nivelesAgrup.map((k, i) => (
+                          <option key={k} value={i}>
+                            Al cambiar «{CAMPO_MAP.get(k)?.label ?? k}»
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
+
                 <span className="ml-auto text-[11px] text-slate-400">
                   Arrastra la separación entre títulos para ajustar el ancho de las columnas
                 </span>
@@ -4042,7 +4157,7 @@ export default function InformesScreen({ config }: Props) {
                   onClick={handleGuardarConfigPdf}
                   disabled={!hayCambiosPdf}
                   className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="Guarda en el informe el título, el subtítulo, los datos de la cabecera, la repetición de los títulos de columna y el ancho de cada columna"
+                  title="Guarda en el informe el título, el subtítulo, los datos de la cabecera, la repetición de los títulos de columna, el salto de página entre grupos y el ancho de cada columna"
                 >
                   <Save className="w-3 h-3" />
                   {hayCambiosPdf ? 'Guardar configuración' : 'Configuración guardada'}

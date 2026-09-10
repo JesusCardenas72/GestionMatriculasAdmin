@@ -229,7 +229,32 @@ export type CampoKeyHorario =
   | 'h_dia1' | 'h_ent1' | 'h_sal1'
   | 'h_dia2' | 'h_ent2' | 'h_sal2'
   | 'horario1' | 'horario2';
-export type CampoKey = CampoKeyAlumno | CampoKeyAsignatura | CampoKeyHorario | CampoKeyCalculado;
+/**
+ * Tutoría: el profesor de Instrumento de la matrícula y la unidad que hereda
+ * de él. Se calculan cruzando las clases guardadas con el profesorado, así que
+ * no vienen de Dataverse.
+ */
+export type CampoKeyTutoria = 'tutor' | 'unidad';
+/**
+ * Campos del modo «profesorado»: una fila por profesor/a. Los `prof_*` de ficha
+ * salen del almacén de profesorado y los de carga docente (clases, alumnos,
+ * tutorías, horas, asignaturas, aulas y días) se calculan cruzando esa ficha
+ * con las clases guardadas del curso activo.
+ */
+export type CampoKeyProfesorado =
+  | 'prof_nombre' | 'prof_especialidad' | 'prof_unidad'
+  | 'prof_departamento' | 'prof_cargo'
+  | 'prof_email' | 'prof_telefono' | 'prof_activo'
+  | 'prof_sustituto' | 'prof_sustDesde' | 'prof_sustHasta'
+  | 'prof_clases' | 'prof_alumnos' | 'prof_tutorias' | 'prof_horas'
+  | 'prof_asignaturas' | 'prof_aulas' | 'prof_dias';
+export type CampoKey =
+  | CampoKeyAlumno
+  | CampoKeyAsignatura
+  | CampoKeyHorario
+  | CampoKeyTutoria
+  | CampoKeyProfesorado
+  | CampoKeyCalculado;
 
 /** Fila de informe: alumno + (opcionalmente) campos de la asignatura matriculada en modo asignatura */
 export interface FilaInforme extends Solicitud {
@@ -261,10 +286,44 @@ export interface FilaInforme extends Solicitud {
   h_dia2?: string | null;
   h_ent2?: string | null;
   h_sal2?: string | null;
+  // ── Tutoría (calculada: profesor de Instrumento + su unidad) ──
+  /** Profesor que le da Instrumento a esta matrícula. */
+  tutor?: string | null;
+  /** Unidad de la matrícula, heredada de la ficha de su tutor. */
+  unidad?: string | null;
   /** Combinado legible del primer tramo: "Día Entrada–Salida". */
   horario1?: string | null;
   /** Combinado legible del segundo tramo. */
   horario2?: string | null;
+  // ── Profesorado (solo modo «profesorado»: una fila por profesor/a) ──
+  /** "Apellidos, Nombre" de la ficha del profesorado. */
+  prof_nombre?: string;
+  prof_especialidad?: string | null;
+  prof_unidad?: string | null;
+  prof_departamento?: string | null;
+  prof_cargo?: string | null;
+  prof_email?: string | null;
+  prof_telefono?: string | null;
+  /** false = archivado (baja); los archivados siguen estando en la lista. */
+  prof_activo?: boolean;
+  /** Nombre del profesor/a que le sustituye ahora mismo, si hay sustitución. */
+  prof_sustituto?: string | null;
+  prof_sustDesde?: string | null;
+  prof_sustHasta?: string | null;
+  /** Clases guardadas del curso en las que figura como profesor/a. */
+  prof_clases?: number;
+  /** Alumnado distinto al que atiende. */
+  prof_alumnos?: number;
+  /** Matrículas de las que es tutor/a (les da Instrumento). */
+  prof_tutorias?: number;
+  /** Horas lectivas semanales (tramos distintos, en horas con decimales). */
+  prof_horas?: number;
+  /** Asignaturas que imparte, separadas por coma. */
+  prof_asignaturas?: string | null;
+  /** Aulas en las que da clase, separadas por coma. */
+  prof_aulas?: string | null;
+  /** Días de la semana con clase, en orden natural. */
+  prof_dias?: string | null;
 }
 
 export type OperadorFiltro =
@@ -311,8 +370,9 @@ export interface ConfigInforme {
   /** Agrupamiento. Admite varios niveles anidados (en orden). Se acepta también
    *  un único `CampoKey` por compatibilidad con configuraciones antiguas. */
   agruparPor?: CampoKey | CampoKey[] | null;
-  /** 'alumno' (una fila por alumno, por defecto) o 'asignatura' (una fila por alumno × asignatura) */
-  modo?: 'alumno' | 'asignatura';
+  /** 'alumno' (una fila por alumno, por defecto), 'asignatura' (una fila por
+   *  alumno × asignatura) o 'profesorado' (una fila por profesor/a) */
+  modo?: 'alumno' | 'asignatura' | 'profesorado';
   /** Anchos manuales por columna en píxeles. Si no se indica, se calcula automáticamente. */
   anchoColumnas?: Partial<Record<CampoKey, number>>;
   /** Campos configurados pero temporalmente ocultos de la vista de tabla. */
@@ -331,6 +391,11 @@ export interface ConfigInforme {
     mostrarFecha?: boolean;
     /** Repetir la fila de títulos de columna en todas las hojas del PDF. */
     repetirCabeceraTabla?: boolean;
+    /**
+     * Nivel de agrupamiento que empieza en hoja nueva (0 = el primero).
+     * `null` o ausente = el PDF fluye sin saltos de página entre grupos.
+     */
+    saltoPaginaNivel?: number | null;
     /** Ancho de cada columna del PDF en %, ajustado a mano en la vista previa. */
     anchosColumna?: Partial<Record<CampoKey, number>>;
   };

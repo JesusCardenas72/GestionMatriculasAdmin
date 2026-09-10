@@ -37,6 +37,7 @@
 - `electron/local-store.ts` and `presets-store.ts` handle local JSON persistence for offline data and inform presets.
 - `electron/curso-context-store.ts` persists the selected school year (`cursoSeleccionado`) across app restarts (main-process file, not localStorage).
 - `electron/cursos-store.ts` handles per-course JSON files (`matriculas-YY-YY.json`) and supports **backup export** (`cursosExportarBackup`).
+- `electron/profesorado-store.ts` owns `profesorado.json` (full teacher records). **It is the single source of truth for staff**: the plain name list consumed by the horarios Excel dropdown, load validation, Informes and substitutions is *derived* from it via `nombresProfesorado()`. Parsing the staff CSV/XLSX is **not** done here — like the horarios Excel, main hands over the bytes and `src/utils/profesoradoArchivo.ts` (renderer) interprets them, so it can be unit-tested.
 
 ## API & backend
 - Backend is **Power Automate HTTP flows** (no Azure / Entra ID access).

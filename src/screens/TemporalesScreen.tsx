@@ -2,22 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownAZ,
-  ArrowRight,
   ArrowUpAZ,
   CheckCircle,
   ChevronDown,
-  Download,
-  FileSpreadsheet,
   HelpCircle,
   Layers,
   Link2,
   Link2Off,
-  Plus,
   Trash2,
   Undo2,
   UserCheck,
-  UserCog,
-  Users,
   X,
 } from "lucide-react";
 import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
@@ -26,20 +20,10 @@ import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
 import { nombreVisibleTemporal } from "../utils/temporales";
-import { norm } from "../utils/horarioExcel";
 import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
 import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
-import {
-  aplicarSustitucionesEntries,
-  aplicarSustitucionesLista,
-  contarClasesPorProfesor,
-  validarSustituciones,
-  type ParSustitucion,
-  type ProfesorConClases,
-} from "../utils/sustitucionProfesores";
 
 import type { AppConfig } from "../../electron/config-store";
-import type { HorariosCursoData } from "../../electron/horarios-data-store";
 
 type EstadoTemporal = "pendiente" | "vinculado" | "sustituido";
 type ModoAgrupacion = "especialidad" | "curso" | "estado" | "ninguna";
@@ -66,40 +50,21 @@ const ESTADO_BADGE: Record<EstadoTemporal, { label: string; style: React.CSSProp
 export default function TemporalesScreen({
   config,
   onAbrirHorario,
+  onIrAProfesorado,
 }: {
   config: AppConfig;
   /** Abre un snapshot del historial de horarios en la pestaña Horarios Individuales. */
   onAbrirHorario?: (snapshotId: string) => void;
+  /** Lleva a la pestaña Profesorado (el paso 2 la necesita para el Excel). */
+  onIrAProfesorado?: () => void;
 }) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
   const { matriculas, isLoading, actualizar, eliminar } = useLocalMatriculas(curso);
 
   const [mensaje, setMensaje] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [showAyuda, setShowAyuda] = useState(false);
   const [showGuia, setShowGuia] = useState(false);
-  const [showProfesoresMenu, setShowProfesoresMenu] = useState(false);
-  const profesoresMenuRef = useRef<HTMLDivElement>(null);
-  const [showProfesoresPreview, setShowProfesoresPreview] = useState(false);
-  const [profesoresPreview, setProfesoresPreview] = useState<{
-    path: string;
-    columnaDetectada: string;
-    totalProfesores: number;
-    muestraProfesores: string[];
-    nuevos: number;
-    duplicados: number;
-  } | null>(null);
-  const [showProfesoresLista, setShowProfesoresLista] = useState(false);
-  const [profesoresLista, setProfesoresLista] = useState<string[]>([]);
-  const [profesoresListaCargando, setProfesoresListaCargando] = useState(false);
-  const [showProfesoresSustituir, setShowProfesoresSustituir] = useState(false);
-  const [sustitucionDatos, setSustitucionDatos] = useState<{
-    lista: string[];
-    clases: Map<string, ProfesorConClases>;
-  } | null>(null);
-  const [sustitucionCargando, setSustitucionCargando] = useState(false);
-  const [sustitucionAplicando, setSustitucionAplicando] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,17 +91,6 @@ export default function TemporalesScreen({
     hoverTimer.current = null;
     setHoveredId(null);
   };
-
-  useEffect(() => {
-    if (!showProfesoresMenu) return;
-    const onClick = (e: MouseEvent) => {
-      if (profesoresMenuRef.current && !profesoresMenuRef.current.contains(e.target as Node)) {
-        setShowProfesoresMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [showProfesoresMenu]);
 
   const temporales = useMemo(
     () => matriculas.filter((m) => m.esTemporal),
@@ -429,127 +383,6 @@ export default function TemporalesScreen({
     setMensaje(`Eliminados ${aEliminar.length} alumno(s) fantasma.`);
   };
 
-  const handleCargarProfesores = async () => {
-    setShowProfesoresMenu(false);
-    setError(null);
-    setMensaje(null);
-    const preview = await window.adminAPI.horarios.profesoresPrevisualizarCsv();
-    if (preview) {
-      setProfesoresPreview(preview);
-      setShowProfesoresPreview(true);
-    }
-  };
-
-  const handleConfirmarProfesores = async () => {
-    if (!profesoresPreview) return;
-    const result = await window.adminAPI.horarios.profesoresConfirmarCsv(profesoresPreview.path);
-    setShowProfesoresPreview(false);
-    setProfesoresPreview(null);
-    if (result) {
-      const partes = [`${result.agregados} profesor(es) añadido(s)`];
-      if (result.duplicados > 0) partes.push(`${result.duplicados} duplicado(s) omitido(s)`);
-      setMensaje(`${partes.join(", ")}. Total en la lista: ${result.profesores.length}.`);
-    }
-  };
-
-  const handleVerProfesorado = async () => {
-    setShowProfesoresMenu(false);
-    setError(null);
-    setMensaje(null);
-    setProfesoresListaCargando(true);
-    setShowProfesoresLista(true);
-    try {
-      const { profesores } = await window.adminAPI.horarios.profesoresGuardados();
-      setProfesoresLista(profesores);
-    } finally {
-      setProfesoresListaCargando(false);
-    }
-  };
-
-  const handleGuardarProfesorado = async () => {
-    const result = await window.adminAPI.horarios.profesoresGuardar(profesoresLista);
-    setShowProfesoresLista(false);
-    setMensaje(`Lista de profesorado guardada: ${result.profesores.length} profesor(es).`);
-  };
-
-  const handleAbrirSustituirProfesorado = async () => {
-    setShowProfesoresMenu(false);
-    setError(null);
-    setMensaje(null);
-    setSustitucionDatos(null);
-    setSustitucionCargando(true);
-    setShowProfesoresSustituir(true);
-    try {
-      // La lista del desplegable y las clases guardadas viven en almacenes
-      // distintos: necesitamos los dos para saber a cuántas clases afecta cada
-      // profesor antes de sustituirlo.
-      const [{ profesores }, data] = await Promise.all([
-        window.adminAPI.horarios.profesoresGuardados(),
-        window.adminAPI.horarios.data.obtener(curso) as Promise<HorariosCursoData>,
-      ]);
-      setSustitucionDatos({
-        lista: profesores,
-        clases: contarClasesPorProfesor(data.entries ?? []),
-      });
-    } finally {
-      setSustitucionCargando(false);
-    }
-  };
-
-  /**
-   * Aplica las sustituciones: reescribe el profesor de las clases guardadas del
-   * curso activo y actualiza la lista del desplegable. El almacén de horarios va
-   * primero: si fallara, la lista todavía no se habría tocado y no quedaría a medias.
-   */
-  const handleAplicarSustituciones = async (pares: ParSustitucion[]) => {
-    if (!sustitucionDatos) return;
-    setSustitucionAplicando(true);
-    setError(null);
-    try {
-      const ahora = new Date().toISOString();
-      const data: HorariosCursoData = await window.adminAPI.horarios.data.obtener(curso);
-      const { entries, afectadas } = aplicarSustitucionesEntries(data.entries ?? [], pares, ahora);
-
-      if (afectadas > 0) {
-        const detalle = pares.map((p) => `${p.sale} → ${p.entra}`);
-        data.entries = entries;
-        data.snapshots.push({
-          id: crypto.randomUUID(),
-          timestamp: ahora,
-          accion: "sustitucion_profesorado",
-          resumen: {
-            anadidas: 0,
-            actualizadas: afectadas,
-            eliminadas: 0,
-            sinCambio: entries.length - afectadas,
-          },
-          nombre:
-            detalle.length <= 3
-              ? `Sustitución: ${detalle.join(", ")}`
-              : `Sustitución de ${detalle.length} profesores`,
-          entries: [...entries],
-        });
-        data.lastUpdated = ahora;
-        await window.adminAPI.horarios.data.guardar(curso, data);
-      }
-
-      const nuevaLista = aplicarSustitucionesLista(sustitucionDatos.lista, pares);
-      await window.adminAPI.horarios.profesoresGuardar(nuevaLista);
-
-      setShowProfesoresSustituir(false);
-      setSustitucionDatos(null);
-      setMensaje(
-        `Sustitución aplicada: ${afectadas} clase(s) han cambiado de profesor en el curso ${curso}. ` +
-          `La lista de profesorado queda con ${nuevaLista.length} profesor(es).`,
-      );
-    } catch (e) {
-      setError(
-        `No se ha podido aplicar la sustitución: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    } finally {
-      setSustitucionAplicando(false);
-    }
-  };
 
   const handleTiradorMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -597,45 +430,6 @@ export default function TemporalesScreen({
               «PDTE. N — Especialidad Curso» con fondo naranja.
             </p>
           </div>
-          <div className="relative shrink-0" ref={profesoresMenuRef}>
-            <button
-              onClick={() => setShowProfesoresMenu((v) => !v)}
-              className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
-            >
-              <Users className="w-4 h-4" />
-              Profesorado
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showProfesoresMenu ? "rotate-180" : ""}`} />
-            </button>
-            {showProfesoresMenu && (
-              <div className="absolute right-0 mt-1 w-56 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg py-1 z-20">
-                {!isSoloLectura && (
-                  <button
-                    onClick={handleCargarProfesores}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] transition-colors text-left"
-                  >
-                    <Download className="w-4 h-4 text-[var(--tc-ink-soft)]" />
-                    Cargar profesorado
-                  </button>
-                )}
-                <button
-                  onClick={handleVerProfesorado}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] transition-colors text-left"
-                >
-                  <Users className="w-4 h-4 text-[var(--tc-ink-soft)]" />
-                  Ver profesorado
-                </button>
-                {!isSoloLectura && (
-                  <button
-                    onClick={handleAbrirSustituirProfesorado}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--tc-ink)] hover:bg-[var(--tc-primary-tint)] transition-colors text-left"
-                  >
-                    <UserCog className="w-4 h-4 text-[var(--tc-ink-soft)]" />
-                    Sustituir profesorado
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
           <button
             onClick={() => setShowGuia(true)}
             className="shrink-0 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
@@ -661,6 +455,7 @@ export default function TemporalesScreen({
               }}
               embeddedFill={!!asistenteHeight}
               onAbrirHorario={onAbrirHorario}
+              onIrAProfesorado={onIrAProfesorado}
             />
           </div>
 
@@ -995,12 +790,6 @@ export default function TemporalesScreen({
             {mensaje}
           </div>
         )}
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="whitespace-pre-line">{error}</span>
-          </div>
-        )}
       </div>
 
       {showGuia && (
@@ -1014,477 +803,6 @@ export default function TemporalesScreen({
       )}
       {showAyuda && <AyudaModal onCerrar={() => setShowAyuda(false)} onSaberMas={() => { setShowAyuda(false); setShowGuia(true); }} />}
 
-      {showProfesoresPreview && profesoresPreview && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-          onClick={() => setShowProfesoresPreview(false)}
-        >
-          <div
-            className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <FileSpreadsheet className="w-5 h-5 shrink-0 text-emerald-500" />
-                <h3 className="text-sm font-bold text-[var(--tc-ink)]">Previsualización del profesorado</h3>
-              </div>
-              <button
-                onClick={() => setShowProfesoresPreview(false)}
-                className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="px-5 py-4 space-y-4">
-              <div className="bg-[var(--tc-bg)] rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--tc-ink-mute)]">Archivo:</span>
-                  <span className="text-[var(--tc-ink)] font-medium truncate ml-2" title={profesoresPreview.path}>
-                    {profesoresPreview.path.split(/[\\/]/).pop()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--tc-ink-mute)]">Columna detectada:</span>
-                  <span className="text-[var(--tc-ink)] font-medium">{profesoresPreview.columnaDetectada}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--tc-ink-mute)]">Total profesores:</span>
-                  <span className="text-[var(--tc-ink)] font-semibold">{profesoresPreview.totalProfesores}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--tc-ink-mute)]">Nuevos a añadir:</span>
-                  <span className="text-emerald-600 font-semibold">{profesoresPreview.nuevos}</span>
-                </div>
-                {profesoresPreview.duplicados > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-[var(--tc-ink-mute)]">Ya en la lista (se omiten):</span>
-                    <span className="text-amber-600 font-semibold">{profesoresPreview.duplicados}</span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <p className="text-xs text-[var(--tc-ink-mute)] mb-2">
-                  Profesores detectados ({profesoresPreview.muestraProfesores.length}):
-                </p>
-                <div className="bg-[var(--tc-bg)] rounded-lg p-3 max-h-48 overflow-y-auto">
-                  {profesoresPreview.muestraProfesores.length === 0 ? (
-                    <p className="text-xs text-[var(--tc-ink-mute)] italic">No se encontraron profesores en el archivo.</p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {profesoresPreview.muestraProfesores.map((nombre, idx) => (
-                        <li key={idx} className="text-xs text-[var(--tc-ink)]">
-                          <span className="text-[var(--tc-ink-mute)] mr-2">{idx + 1}.</span>
-                          {nombre}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-[var(--tc-border)] shrink-0 bg-[var(--tc-bg)]">
-              <button
-                onClick={() => setShowProfesoresPreview(false)}
-                className="px-3.5 py-2 text-sm font-semibold text-[var(--tc-ink-soft)] rounded-lg hover:bg-[var(--tc-bg-panel)] transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmarProfesores}
-                disabled={profesoresPreview.nuevos === 0}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-              >
-                <Download className="w-4 h-4" />
-                {profesoresPreview.nuevos === 0
-                  ? "Ya cargados"
-                  : `Añadir ${profesoresPreview.nuevos} profesor(es)`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showProfesoresLista && (
-        <ProfesoresListaModal
-          lista={profesoresLista}
-          setLista={setProfesoresLista}
-          cargando={profesoresListaCargando}
-          soloLectura={isSoloLectura}
-          onCerrar={() => setShowProfesoresLista(false)}
-          onGuardar={handleGuardarProfesorado}
-        />
-      )}
-
-      {showProfesoresSustituir && (
-        <SustituirProfesoradoModal
-          curso={curso}
-          datos={sustitucionDatos}
-          cargando={sustitucionCargando}
-          aplicando={sustitucionAplicando}
-          onCerrar={() => setShowProfesoresSustituir(false)}
-          onAplicar={handleAplicarSustituciones}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Modal de listado de profesorado: consultar, editar y eliminar ────────────
-
-function ProfesoresListaModal({
-  lista,
-  setLista,
-  cargando,
-  soloLectura,
-  onCerrar,
-  onGuardar,
-}: {
-  lista: string[];
-  setLista: React.Dispatch<React.SetStateAction<string[]>>;
-  cargando: boolean;
-  soloLectura: boolean;
-  onCerrar: () => void;
-  onGuardar: () => void;
-}) {
-  const editarNombre = (idx: number, valor: string) =>
-    setLista((prev) => prev.map((n, i) => (i === idx ? valor : n)));
-  const eliminarNombre = (idx: number) =>
-    setLista((prev) => prev.filter((_, i) => i !== idx));
-  const eliminarTodos = () => {
-    if (lista.length === 0) return;
-    if (window.confirm(`¿Eliminar TODO el profesorado (${lista.length})? Esta acción se aplica al guardar.`)) {
-      setLista([]);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-      onClick={onCerrar}
-    >
-      <div
-        className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[85vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Users className="w-5 h-5 shrink-0 text-[var(--tc-primary)]" />
-            <h3 className="text-sm font-bold text-[var(--tc-ink)]">
-              Profesorado {!cargando && `(${lista.length})`}
-            </h3>
-          </div>
-          <button
-            onClick={onCerrar}
-            className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 overflow-y-auto">
-          {cargando ? (
-            <p className="text-sm text-[var(--tc-ink-mute)] py-8 text-center">Cargando…</p>
-          ) : lista.length === 0 ? (
-            <p className="text-sm text-[var(--tc-ink-mute)] py-8 text-center italic">
-              No hay profesorado cargado. Usa «Cargar profesorado» para importarlo.
-            </p>
-          ) : (
-            <ul className="space-y-1.5">
-              {lista.map((nombre, idx) => (
-                <li key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-[var(--tc-ink-mute)] w-6 text-right shrink-0">{idx + 1}.</span>
-                  {soloLectura ? (
-                    <span className="flex-1 text-sm text-[var(--tc-ink)] truncate">{nombre}</span>
-                  ) : (
-                    <>
-                      <input
-                        value={nombre}
-                        onChange={(e) => editarNombre(idx, e.target.value)}
-                        className="flex-1 h-8 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--tc-primary-border)]"
-                      />
-                      <button
-                        onClick={() => eliminarNombre(idx)}
-                        title="Eliminar"
-                        className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Footer */}
-        {!soloLectura && (
-          <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-t border-[var(--tc-border)] shrink-0 bg-[var(--tc-bg)]">
-            <button
-              onClick={eliminarTodos}
-              disabled={lista.length === 0}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Eliminar todos
-            </button>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onCerrar}
-                className="px-3.5 py-2 text-sm font-semibold text-[var(--tc-ink-soft)] rounded-lg hover:bg-[var(--tc-bg-panel)] transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={onGuardar}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[var(--tc-primary)] text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-colors shadow-sm"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Guardar cambios
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Modal de sustitución de profesorado: «sale X, entra Y» ───────────────────
-
-/**
- * Cambia unos profesores por otros. Actúa a la vez sobre la lista del
- * desplegable y sobre las clases ya guardadas del curso activo, que es lo que
- * hace que el Excel de horarios se genere ya con el profesor nuevo puesto.
- */
-function SustituirProfesoradoModal({
-  curso,
-  datos,
-  cargando,
-  aplicando,
-  onCerrar,
-  onAplicar,
-}: {
-  curso: string;
-  datos: { lista: string[]; clases: Map<string, ProfesorConClases> } | null;
-  cargando: boolean;
-  aplicando: boolean;
-  onCerrar: () => void;
-  onAplicar: (pares: ParSustitucion[]) => void;
-}) {
-  const [pares, setPares] = useState<ParSustitucion[]>([{ sale: "", entra: "" }]);
-
-  const lista = datos?.lista ?? [];
-  const clases = datos?.clases;
-  const clasesDe = (nombre: string): number =>
-    nombre.trim() === "" ? 0 : clases?.get(norm(nombre))?.clases ?? 0;
-
-  const editarPar = (idx: number, campo: keyof ParSustitucion, valor: string) =>
-    setPares((prev) => prev.map((p, i) => (i === idx ? { ...p, [campo]: valor } : p)));
-  const quitarPar = (idx: number) =>
-    setPares((prev) =>
-      prev.length === 1 ? [{ sale: "", entra: "" }] : prev.filter((_, i) => i !== idx),
-    );
-  const anadirPar = () => setPares((prev) => [...prev, { sale: "", entra: "" }]);
-
-  const errores = useMemo(() => validarSustituciones(pares, lista), [pares, lista]);
-  const completos = useMemo(
-    () => pares.filter((p) => p.sale.trim() !== "" && p.entra.trim() !== ""),
-    [pares],
-  );
-
-  const afectadas = completos.reduce((n, p) => n + clasesDe(p.sale), 0);
-  const avisos = completos
-    .filter((p) => clasesDe(p.entra) > 0)
-    .map(
-      (p) =>
-        `«${p.entra.trim()}» ya tiene ${clasesDe(p.entra)} clase(s) propias: se le sumarán las de «${p.sale.trim()}». Revisa los posibles solapes en el Excel.`,
-    );
-  const puedeAplicar = completos.length > 0 && errores.length === 0 && !aplicando;
-
-  // Cuántos profesores quedarán: los que se van salen de la lista y los que
-  // entran solo suman si no estaban ya en ella.
-  const totalTrasCambio =
-    lista.length -
-    completos.length +
-    completos.filter((p) => !lista.some((n) => norm(n) === norm(p.entra))).length;
-
-  const confirmarYAplicar = () => {
-    const resumen = completos.map((p) => `• ${p.sale.trim()} → ${p.entra.trim()}`).join("\n");
-    const aviso =
-      `Se van a aplicar estas sustituciones en el curso ${curso}:\n\n${resumen}\n\n` +
-      `${afectadas} clase(s) cambiarán de profesor y quienes salen desaparecerán de la lista.\n` +
-      `Queda registrado en el historial de horarios por si necesitas volver atrás.\n\n¿Continuar?`;
-    if (!window.confirm(aviso)) return;
-    onAplicar(completos.map((p) => ({ sale: p.sale.trim(), entra: p.entra.trim() })));
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-      onClick={onCerrar}
-    >
-      <div
-        className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[85vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <UserCog className="w-5 h-5 shrink-0 text-[var(--tc-primary)]" />
-            <h3 className="text-sm font-bold text-[var(--tc-ink)]">
-              Sustituir profesorado — curso {curso}
-            </h3>
-          </div>
-          <button
-            onClick={onCerrar}
-            className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 overflow-y-auto flex flex-col gap-4">
-          <p className="text-sm text-[var(--tc-ink-soft)]">
-            Quien entra se queda con las clases que tenía quien sale, y quien sale desaparece de la
-            lista del desplegable. Así el próximo Excel de horarios se genera ya con el profesor
-            nuevo. Solo afecta al curso <strong>{curso}</strong>.
-          </p>
-
-          {cargando ? (
-            <p className="text-sm text-[var(--tc-ink-mute)] py-8 text-center">Cargando…</p>
-          ) : lista.length === 0 ? (
-            <p className="text-sm text-[var(--tc-ink-mute)] py-8 text-center italic">
-              No hay profesorado cargado. Usa «Cargar profesorado» antes de sustituir a nadie.
-            </p>
-          ) : (
-            <>
-              {/* Cabecera de la tabla */}
-              <div className="flex items-center gap-2 text-xs font-semibold text-[var(--tc-ink-mute)] px-1">
-                <span className="flex-1">Sale</span>
-                <span className="w-4" />
-                <span className="flex-1">Entra</span>
-                <span className="w-8" />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {pares.map((par, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <select
-                      value={par.sale}
-                      onChange={(e) => editarPar(idx, "sale", e.target.value)}
-                      className="flex-1 min-w-0 h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--tc-primary-border)]"
-                    >
-                      <option value="">— Elige quién se va —</option>
-                      {lista.map((nombre) => (
-                        <option key={nombre} value={nombre}>
-                          {nombre}
-                          {clasesDe(nombre) > 0 ? ` (${clasesDe(nombre)} clases)` : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <ArrowRight className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
-                    <input
-                      value={par.entra}
-                      onChange={(e) => editarPar(idx, "entra", e.target.value)}
-                      list="sust-profesores-existentes"
-                      placeholder="Nombre nuevo: Apellidos, Nombre"
-                      className="flex-1 min-w-0 h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--tc-primary-border)]"
-                    />
-                    <button
-                      onClick={() => quitarPar(idx)}
-                      title="Quitar esta sustitución"
-                      className="p-1.5 rounded-lg text-[var(--tc-ink-mute)] hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Nombres ya conocidos, para autocompletar «Entra» */}
-              <datalist id="sust-profesores-existentes">
-                {lista.map((nombre) => (
-                  <option key={nombre} value={nombre} />
-                ))}
-              </datalist>
-
-              <button
-                onClick={anadirPar}
-                className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-[var(--tc-primary)] rounded-lg hover:bg-[var(--tc-primary-tint)] transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Añadir otra sustitución
-              </button>
-
-              {errores.length > 0 && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 flex flex-col gap-1">
-                  {errores.map((err, i) => (
-                    <p key={i} className="text-sm text-red-700 flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                      {err}
-                    </p>
-                  ))}
-                </div>
-              )}
-
-              {avisos.length > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-col gap-1">
-                  {avisos.map((aviso, i) => (
-                    <p key={i} className="text-sm text-amber-800 flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                      {aviso}
-                    </p>
-                  ))}
-                </div>
-              )}
-
-              {completos.length > 0 && errores.length === 0 && (
-                <div className="rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-3 py-2.5">
-                  <p className="text-sm text-[var(--tc-ink)]">
-                    Se cambiarán <strong>{afectadas}</strong> clase(s) de profesor en el curso{" "}
-                    {curso}. La lista de profesorado pasará de {lista.length} a {totalTrasCambio}{" "}
-                    profesor(es).
-                  </p>
-                  {afectadas === 0 && (
-                    <p className="text-xs text-[var(--tc-ink-mute)] mt-1">
-                      Ninguna clase guardada tiene asignado a quien sale: solo cambiará la lista del
-                      desplegable.
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-[var(--tc-border)] shrink-0 bg-[var(--tc-bg)]">
-          <button
-            onClick={onCerrar}
-            className="px-3.5 py-2 text-sm font-semibold text-[var(--tc-ink-soft)] rounded-lg hover:bg-[var(--tc-bg-panel)] transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={confirmarYAplicar}
-            disabled={!puedeAplicar}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[var(--tc-primary)] text-white text-sm font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-          >
-            <CheckCircle className="w-4 h-4" />
-            {aplicando ? "Aplicando…" : "Aplicar sustituciones"}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

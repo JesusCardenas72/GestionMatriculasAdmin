@@ -6,6 +6,7 @@ import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
+import { useProfesorado } from "../hooks/useProfesorado";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useAppMode } from "../contexts/AppModeProvider";
 import TabBar, { type ActiveTab, TABS } from "../components/TabBar";
@@ -20,6 +21,7 @@ import LocalScreen from "./LocalScreen";
 import InformesScreen from "./InformesScreen";
 import HorariosAlumnosScreen from "./HorariosAlumnosScreen";
 import TemporalesScreen from "./TemporalesScreen";
+import ProfesoradoScreen from "./ProfesoradoScreen";
 import ConexionModal from "../components/modals/ConexionModal";
 import CursosModal from "../components/modals/CursosModal";
 import BorrarModal from "../components/modals/BorrarModal";
@@ -48,6 +50,7 @@ const ALL_TABS: ActiveTab[] = [
   "informes",
   "horarios",
   "temporales",
+  "profesorado",
 ];
 
 export default function MainScreen({ config, onConfigSave }: Props) {
@@ -101,6 +104,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
   const q2 = useSolicitudes(config, ESTADO.PENDIENTE_VALIDACION, curso);
   const q3 = useSolicitudes(config, ESTADO.TRAMITADO, curso);
   const { matriculas: localMatriculas } = useLocalMatriculas(curso);
+  const { activos: profesoradoActivo } = useProfesorado();
 
   const queryByEstado = {
     [ESTADO.PENDIENTE_TRAMITACION]: q1,
@@ -109,7 +113,11 @@ export default function MainScreen({ config, onConfigSave }: Props) {
   } as const;
 
   const current =
-    active !== "local" && active !== "temporales" && active !== "informes" && active !== "horarios"
+    active !== "local" &&
+    active !== "temporales" &&
+    active !== "profesorado" &&
+    active !== "informes" &&
+    active !== "horarios"
       ? queryByEstado[active as EstadoTramite]
       : null;
 
@@ -234,6 +242,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
             pendingUploads={pendingUploads}
             localCount={localMatriculas.length}
             temporalesPendientes={temporalesPendientes}
+            profesoradoCount={profesoradoActivo.length}
             onChange={handleTabChange}
           />
         </div>
@@ -405,7 +414,13 @@ export default function MainScreen({ config, onConfigSave }: Props) {
       {active === "local" ? (
         <LocalScreen config={config} />
       ) : active === "temporales" ? (
-        <TemporalesScreen config={config} onAbrirHorario={abrirHorarioSnapshot} />
+        <TemporalesScreen
+          config={config}
+          onAbrirHorario={abrirHorarioSnapshot}
+          onIrAProfesorado={() => handleTabChange("profesorado")}
+        />
+      ) : active === "profesorado" ? (
+        <ProfesoradoScreen />
       ) : active === "informes" ? (
         <InformesScreen config={config} />
       ) : active === "horarios" ? (

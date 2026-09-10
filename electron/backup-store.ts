@@ -2,6 +2,7 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import JSZip from "jszip";
+import { fichaDesdeNombre, type Profesor } from "./profesorado-store";
 
 /**
  * Copia de seguridad completa (Fase 1: GUARDAR).
@@ -136,6 +137,12 @@ export function listarContenidoDisponible(): BackupInventario {
     }
   }
 
+  // El profesorado vive en `profesorado.json` desde la v1.14; si aún no existe
+  // (instalación que no ha abierto la versión nueva) se cuenta la lista antigua.
+  const profesoradoStore = leerJson<{ profesores?: Profesor[] }>(
+    path.join(dir, "profesorado.json"),
+    {},
+  );
   const profesoresCfg = leerJson<{ profesores?: string[] }>(
     path.join(dir, "horarios-config.json"),
     {},
@@ -154,7 +161,7 @@ export function listarContenidoDisponible(): BackupInventario {
   return {
     matriculas,
     horarios,
-    profesorado: profesoresCfg.profesores?.length ?? 0,
+    profesorado: profesoradoStore.profesores?.length ?? profesoresCfg.profesores?.length ?? 0,
     campanyas: campanyas.length,
     presets: presets.length,
     temporalesCursos: Object.keys(temporales).length,
@@ -237,14 +244,21 @@ export async function crearBackup(
     }
   }
 
-  // ── C) Profesorado (solo la lista, sin rutas absolutas de este PC) ──
+  // ── C) Profesorado (la ficha completa, sin rutas absolutas de este PC) ──
   if (seleccion.profesorado) {
-    const cfg = leerJson<{ profesores?: string[] }>(
-      path.join(dir, "horarios-config.json"),
+    const store = leerJson<{ profesores?: Profesor[]; origenArchivo?: string | null }>(
+      path.join(dir, "profesorado.json"),
       {},
     );
-    if (cfg.profesores && cfg.profesores.length > 0) {
-      zip.file("horarios-config.json", JSON.stringify({ profesores: cfg.profesores }, null, 2));
+    if (store.profesores && store.profesores.length > 0) {
+      zip.file(
+        "profesorado.json",
+        JSON.stringify(
+          { version: 1, profesores: store.profesores, origenArchivo: store.origenArchivo ?? null },
+          null,
+          2,
+        ),
+      );
     }
   }
 
@@ -534,27 +548,58 @@ export async function restaurarBackup(
   }
 
   // ── C) Profesorado ──
+  // Las copias hechas con la v1.14 o posterior traen `profesorado.json` con la
+  // ficha completa. Las anteriores solo traen la lista de nombres dentro de
+  // `horarios-config.json`: esas se restauran como fichas con el resto de
+  // campos vacíos, para no perder nada.
   if (seleccion.profesorado) {
-    const deLaCopia = await zipJson<{ profesores?: string[] }>(zip, "horarios-config.json", {});
-    const profesoresCopia = deLaCopia.profesores ?? [];
-    const cfgFile = path.join(dir, "horarios-config.json");
-    const cfgActual = leerJson<{ profesores?: string[] } & Record<string, unknown>>(cfgFile, {});
-    let profesores: string[];
-    if (modo === "reemplazar") {
-      profesores = profesoresCopia;
+    const store = await zipJson<{ profesores?: Profesor[] } | null>(zip, "profesorado.json", null);
+    let fichasCopia: Profesor[];
+    let origenArchivoCopia: string | null = null;
+    if (store && Array.isArray(store.profesores)) {
+      fichasCopia = store.profesores;
+      origenArchivoCopia =
+        (store as { origenArchivo?: string | null }).origenArchivo ?? null;
     } else {
-      const vistos = new Set((cfgActual.profesores ?? []).map(normalizarNombre));
-      profesores = [...(cfgActual.profesores ?? [])];
-      for (const n of profesoresCopia) {
-        const clave = normalizarNombre(n);
-        if (!vistos.has(clave)) {
-          vistos.add(clave);
-          profesores.push(n);
-        }
+      const antigua = await zipJson<{ profesores?: string[] }>(zip, "horarios-config.json", {});
+      fichasCopia = (antigua.profesores ?? []).map(fichaDesdeNombre);
+    }
+
+    const destino = path.join(dir, "profesorado.json");
+    const actual = leerJson<{ profesores?: Profesor[]; actualizado?: string | null; origenArchivo?: string | null }>(
+      destino,
+      {},
+    );
+
+    let profesores: Profesor[];
+    if (modo === "reemplazar") {
+      profesores = fichasCopia;
+    } else {
+      // Fusionar: lo que ya hay manda; de la copia solo entra quien falte.
+      const vistos = new Set((actual.profesores ?? []).map((p) => normalizarNombre(p.apellidosNombre)));
+      profesores = [...(actual.profesores ?? [])];
+      for (const p of fichasCopia) {
+        const clave = normalizarNombre(p.apellidosNombre ?? "");
+        if (clave === "" || vistos.has(clave)) continue;
+        vistos.add(clave);
+        profesores.push(p);
       }
     }
-    // Conservamos el resto de campos del config local (rutas de este PC).
-    fs.writeFileSync(cfgFile, JSON.stringify({ ...cfgActual, profesores }, null, 2), "utf-8");
+
+    fs.writeFileSync(
+      destino,
+      JSON.stringify(
+        {
+          version: 1,
+          profesores,
+          actualizado: actual.actualizado ?? null,
+          origenArchivo: actual.origenArchivo ?? origenArchivoCopia,
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
     categorias.push("Profesorado");
     tick();
   }
