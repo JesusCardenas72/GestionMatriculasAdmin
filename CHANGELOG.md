@@ -9,6 +9,34 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.15.0] - 2026-09-11
+
+### Cambiado
+
+- **Horarios se reorganiza en tres pestañas a todo el ancho**: *Excel de Horarios*, *Horarios Individuales* y *Listados por Asignaturas*. Antes estaban dentro de la columna derecha y la pantalla «saltaba» al cambiar de una a otra. La lista de alumnos queda debajo, ya sin los botones «Cargar otro Excel» ni la papelera de borrar horarios.
+- **Nueva pestaña «Excel de Horarios»**, que reúne todo el ciclo del Excel que antes estaba repartido entre Horarios y Alumnado Fantasma, en tres apartados numerados:
+  1. **Alumnado fantasma**: crear a mano o importando un Excel/CSV, las fechas del selector «Sustituye al alumno fantasma» de Local (plegadas en una línea) y la lista completa. En la lista **solo se desplazan las filas**: la cabecera, el formulario, los contadores y los filtros se quedan fijos.
+  2. **Generar el Excel**: un único botón, que dice «Generar Excel» o, si ya hay horarios cargados, «Generar Excel actualizado» (es la misma operación). Muestra la fecha del último Excel generado e incluye «Comprobar clases huérfanas». La sustitución de los alumnos fantasma vinculados funciona igual que siempre.
+  3. **Cargar el Excel relleno**: cargar, «Comprobar coherencia Local ↔ Horario» y qué carga está activa (nombre, fecha y nº de alumnos). «Borrar horarios cargados» queda discreto al pie.
+  - Con la ventana ancha (desde 1024 píxeles) van en dos columnas; más estrecha, una debajo de otra.
+- **«Historial de horarios» e «Historial de envíos» pasan a ser botones fijos** a la derecha de las pestañas, visibles desde las tres. El de envíos lleva su contador y, al pulsarlo otra vez, vuelve a la pestaña donde estabas.
+- **Desaparece la pestaña Alumnado Fantasma** y su asistente de pasos: todo su contenido está en *Excel de Horarios*. El aviso naranja de fantasmas sin sustituir sale ahora en el icono de Horarios y en la pestaña *Excel de Horarios*.
+- **Al entrar en Horarios** se abre *Horarios Individuales* si hay horarios cargados, y *Excel de Horarios* si no los hay. *Horarios Individuales* y *Listados* sin datos ofrecen el botón «Ir a Excel de Horarios».
+- **«Borrar horarios cargados» ahora borra de verdad** los horarios guardados del curso; el Historial de horarios se conserva y permite restaurarlos. La papelera anterior solo los ocultaba hasta volver a entrar.
+- **En modo Solo Lectura**, Generar, Cargar y Borrar aparecen en gris.
+- Después de cargar un Excel te quedas en *Excel de Horarios*, con el resumen de la carga y un enlace para ver los horarios individuales.
+
+### Corregido
+
+- La guía «¿Cómo funciona?» decía que cargar un Excel «nunca borra» horarios. En realidad sus horarios **sustituyen** a los guardados, y lo anterior queda en el historial. La guía, los avisos de la ficha de Local y la documentación ya hablan de la nueva ubicación en lugar del «paso 3 del asistente».
+
+### Notas técnicas
+
+- El código de la pestaña está en `src/components/excelHorarios/` (`ExcelHorariosPanel`, `CrearAlumnadoFantasma`, `ListaAlumnadoFantasma`, `GenerarExcelHorarios`, `CargarExcelHorarios`). Se eliminan `TemporalesScreen.tsx` y `AsistenteTemporalesModal.tsx`.
+- La fecha del último Excel generado se sigue guardando en el mismo estado del antiguo asistente (`fechaExcelGenerado`), así que no se pierde la que ya hubiera.
+
+---
+
 ## [1.14.0] - 2026-09-10
 
 ### Añadido

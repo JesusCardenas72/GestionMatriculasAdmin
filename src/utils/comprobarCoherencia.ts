@@ -8,7 +8,7 @@ import { SUFIJO_TEMPORAL } from "./temporales";
  * Comprobación de coherencia entre las matrículas de Local y los horarios
  * cargados (el almacén del curso). Es de SOLO LECTURA: detecta y clasifica las
  * incoherencias, no modifica nada. Pensada para el botón «Comprobar coherencia
- * Local ↔ Horario» del Paso 3 del Asistente de Alumnado Fantasma.
+ * Local ↔ Horario» de Horarios → Excel de Horarios (apartado 3).
  *
  * Reproduce el mismo emparejado tolerante que usa la app (ignora acentos,
  * espacios, guiones y el sufijo _Temp) para distinguir un problema real de una

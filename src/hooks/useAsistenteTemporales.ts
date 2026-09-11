@@ -14,8 +14,10 @@ export const ASISTENTE_ESTADO_INICIAL: AsistenteTemporalesEstado = {
  * Estado persistente del asistente paso a paso de alumnos temporales,
  * guardado por curso escolar (docs/alumnos-temporales.md, sección 11).
  *
- * `estado === null` significa que el asistente no se ha iniciado para este
- * curso (se usa para decidir si mostrar la franja de «proceso a medias»).
+ * El asistente de pasos ya no existe (v1.15: su contenido está en Horarios →
+ * Excel de Horarios). De este estado solo se usa `fechaExcelGenerado`, que
+ * muestra el apartado «Generar el Excel»; se mantiene el mismo almacén para
+ * no perder la fecha ya guardada. `estado === null` = nunca se ha guardado.
  */
 export function useAsistenteTemporales(curso: string): {
   estado: AsistenteTemporalesEstado | null;

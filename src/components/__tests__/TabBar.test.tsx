@@ -46,9 +46,22 @@ describe("TabBar", () => {
 
   // ── Pestaña Profesorado (v1.14) ──────────────────────────────────────────
 
-  it("muestra la pestaña Profesorado junto a Alumnado Fantasma", () => {
+  it("muestra la pestaña Profesorado", () => {
     render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} onChange={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Profesorado" })).toBeInTheDocument();
+  });
+
+  // ── Alumnado Fantasma dentro de Horarios (v1.15) ─────────────────────────
+
+  it("ya no tiene pestaña propia de Alumnado Fantasma", () => {
+    render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} temporalesPendientes={4} onChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Alumnado Fantasma/ })).not.toBeInTheDocument();
+  });
+
+  it("muestra en Horarios el aviso de alumnos fantasma sin sustituir", () => {
+    render(<TabBar active={ESTADO.PENDIENTE_TRAMITACION} counts={counts} temporalesPendientes={4} onChange={vi.fn()} />);
+    const boton = screen.getByRole("button", { name: /Horarios/ });
+    expect(within(boton).getByTitle("4 alumno(s) fantasma sin sustituir")).toHaveTextContent("4");
   });
 
   it("navega a Profesorado al pulsarla", async () => {

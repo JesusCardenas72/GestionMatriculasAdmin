@@ -64,8 +64,8 @@ interface Props {
 /**
  * Cuerpo reutilizable del «Historial de horarios»: lista de snapshots (cargas y
  * generaciones de Excel) con nombre editable, restauración, borrado y
- * exportar/importar. Lo usan tanto la ventana flotante de Horarios Individuales
- * como el paso 3 del Asistente de Alumnado Fantasma.
+ * exportar/importar. Lo usa la ventana del botón «Historial de horarios» de la
+ * pantalla Horarios.
  */
 export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose, reloadToken }: Props) {
   const [data, setData] = useState<HorariosCursoData | null>(null);

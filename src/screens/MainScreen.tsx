@@ -20,7 +20,6 @@ import GlobalSearch from "../components/GlobalSearch";
 import LocalScreen from "./LocalScreen";
 import InformesScreen from "./InformesScreen";
 import HorariosAlumnosScreen from "./HorariosAlumnosScreen";
-import TemporalesScreen from "./TemporalesScreen";
 import ProfesoradoScreen from "./ProfesoradoScreen";
 import ConexionModal from "../components/modals/ConexionModal";
 import CursosModal from "../components/modals/CursosModal";
@@ -42,22 +41,19 @@ const TIPO_BADGE: Record<string, string> = {
   historico: "bg-slate-100 text-slate-500",
 };
 
-// Pestañas navegables con flechas ←/→. "temporales" (Alumnado Fantasma) se
-// incluye al final aunque se acceda también desde el menú de Configuración.
+// Pestañas navegables con flechas ←/→. El Alumnado Fantasma ya no tiene pestaña
+// propia: vive en Horarios → Excel de Horarios.
 const ALL_TABS: ActiveTab[] = [
   ...TABS.map((t) => t.estado as ActiveTab),
   "local",
   "informes",
   "horarios",
-  "temporales",
   "profesorado",
 ];
 
 export default function MainScreen({ config, onConfigSave }: Props) {
   const [active, setActive] = useState<ActiveTab>(ESTADO.PENDIENTE_TRAMITACION);
   const [selected, setSelected] = useState<Solicitud | null>(null);
-  /** Snapshot del historial de horarios pendiente de abrir en la pestaña Horarios. */
-  const [horariosSnapshotPendiente, setHorariosSnapshotPendiente] = useState<string | null>(null);
   const [cursoModalOpen, setCursoModalOpen] = useState(false);
   const [versionApp, setVersionApp] = useState(__APP_VERSION__);
 
@@ -114,7 +110,6 @@ export default function MainScreen({ config, onConfigSave }: Props) {
 
   const current =
     active !== "local" &&
-    active !== "temporales" &&
     active !== "profesorado" &&
     active !== "informes" &&
     active !== "horarios"
@@ -135,13 +130,6 @@ export default function MainScreen({ config, onConfigSave }: Props) {
   const handleTabChange = (tab: ActiveTab) => {
     setActive(tab);
     setSelected(null);
-  };
-
-  /** Va a la pestaña Horarios y abre allí el snapshot indicado del historial. */
-  const abrirHorarioSnapshot = (snapshotId: string) => {
-    setSelected(null);
-    setHorariosSnapshotPendiente(snapshotId);
-    setActive("horarios");
   };
 
   const handleTabChangeRef = useRef(handleTabChange);
@@ -413,12 +401,6 @@ export default function MainScreen({ config, onConfigSave }: Props) {
       <ErrorBoundary key={String(active)}>
       {active === "local" ? (
         <LocalScreen config={config} />
-      ) : active === "temporales" ? (
-        <TemporalesScreen
-          config={config}
-          onAbrirHorario={abrirHorarioSnapshot}
-          onIrAProfesorado={() => handleTabChange("profesorado")}
-        />
       ) : active === "profesorado" ? (
         <ProfesoradoScreen />
       ) : active === "informes" ? (
@@ -426,8 +408,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
       ) : active === "horarios" ? (
         <HorariosAlumnosScreen
           config={config}
-          snapshotPendiente={horariosSnapshotPendiente}
-          onSnapshotAbierto={() => setHorariosSnapshotPendiente(null)}
+          onIrAProfesorado={() => handleTabChange("profesorado")}
         />
       ) : (
         <ResizableColumns
@@ -527,7 +508,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
  * Banner global que aparece en TODAS las pantallas cuando hay un escenario de
  * horario activo (un snapshot del historial de horarios seleccionado). Indica
  * al usuario que los datos que ve (lista de alumnos, Excel de Informes,
- * comprobaciones del Asistente, PDF de horarios) vienen de ESE snapshot y no
+ * comprobaciones de Excel de Horarios, PDF de horarios) vienen de ESE snapshot y no
  * del almacén actual. Incluye un botón para volver a la carga más reciente.
  */
 function EscenarioActivoBanner() {
@@ -557,7 +538,7 @@ function EscenarioActivoBanner() {
         <span>
           {" "}— Snapshot del {fecha}
           {escenarioActivo.fileName ? ` · ${escenarioActivo.fileName}` : ""}.
-          Todas las pantallas (Horarios, Informes, Asistente) usan estos datos
+          Todas las pantallas (Horarios, Informes, Excel de Horarios) usan estos datos
           en lugar del estado actual del almacén.
         </span>
       </div>

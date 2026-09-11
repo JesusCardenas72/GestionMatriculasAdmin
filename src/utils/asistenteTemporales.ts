@@ -1,7 +1,4 @@
 import type { MatriculaLocal } from "../api/types";
-import type { AsistenteTemporalesEstado } from "../../electron/temporales-store";
-
-export const TOTAL_PASOS_ASISTENTE = 3;
 
 export interface ContadoresTemporales {
   nTemporales: number;
@@ -28,35 +25,4 @@ export function contarTemporales(matriculas: MatriculaLocal[]): ContadoresTempor
     nSustituidos,
     nPendientes: temporales.length - nVinculados - nSustituidos,
   };
-}
-
-/**
- * ¿Está cumplido el requisito del paso `n` del asistente? (lo que permite
- * avanzar al siguiente). Detección automática. El paso 3 (último) nunca se
- * marca solo: es el final del flujo continuo.
- */
-export function pasoHecho(
-  n: number,
-  _contadores: ContadoresTemporales,
-  estado: Pick<AsistenteTemporalesEstado, "fechaExcelGenerado">,
-): boolean {
-  switch (n) {
-    case 1:
-      return true; // crear fantasmas es opcional; el paso siempre es accesible
-    case 2:
-      return estado.fechaExcelGenerado != null;
-    default:
-      return false;
-  }
-}
-
-/** Primer paso cuyo requisito no está cumplido: hasta ahí puede navegar el usuario. */
-export function primerPasoNoHecho(
-  contadores: ContadoresTemporales,
-  estado: Pick<AsistenteTemporalesEstado, "fechaExcelGenerado">,
-): number {
-  for (let n = 1; n <= TOTAL_PASOS_ASISTENTE; n++) {
-    if (!pasoHecho(n, contadores, estado)) return n;
-  }
-  return TOTAL_PASOS_ASISTENTE;
 }

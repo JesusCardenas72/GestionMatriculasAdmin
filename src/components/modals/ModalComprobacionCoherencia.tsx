@@ -17,7 +17,7 @@ import type { ComprobacionCoherencia } from "../../utils/comprobarCoherencia";
 
 /**
  * Informe de SOLO LECTURA de la comprobación de coherencia entre Local y los
- * horarios cargados (botón del Paso 3 del Asistente). Muestra las incoherencias
+ * horarios cargados (Horarios → Excel de Horarios, apartado 3). Muestra las incoherencias
  * agrupadas por categoría; las acciones de arreglo se añadirán en una segunda fase.
  */
 export function ModalComprobacionCoherencia({

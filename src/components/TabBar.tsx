@@ -1,14 +1,13 @@
 import { LayoutGroup, motion } from "framer-motion";
-import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
 import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive, Users } from "lucide-react";
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
-// "temporales" no aparece en la barra: se accede desde el menú de Configuración.
+// El Alumnado Fantasma no tiene pestaña propia: está en Horarios → Excel de
+// Horarios, y su aviso de pendientes se muestra en el icono de Horarios.
 export type ActiveTab =
   | EstadoTramite
   | "local"
-  | "temporales"
   | "profesorado"
   | "informes"
   | "horarios";
@@ -162,6 +161,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             layout
             onClick={() => onChange("horarios")}
             title="Horarios"
+            aria-label="Horarios"
             className={
               "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
               (active === "horarios" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
@@ -176,34 +176,12 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <CalendarClock className="w-3.5 h-3.5 shrink-0" />
-            </span>
-          </motion.button>
-
-          {/* Alumnado Fantasma */}
-          <motion.button
-            layout
-            onClick={() => onChange("temporales")}
-            title="Alumnado Fantasma"
-            aria-label="Alumnado Fantasma"
-            className={
-              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
-              (active === "temporales" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
-            }
-          >
-            {active === "temporales" && (
-              <motion.span
-                layoutId="tab-pill"
-                className="absolute inset-0 rounded-full bg-[var(--tc-card)] shadow-sm"
-                transition={spring}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-1.5">
-              <img src={alumnadoFantasmaIco} alt="" className="w-4 h-4 shrink-0" />
               {temporalesPendientes !== undefined && temporalesPendientes > 0 && (
                 <span
+                  title={`${temporalesPendientes} alumno(s) fantasma sin sustituir`}
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
                   style={
-                    active === "temporales"
+                    active === "horarios"
                       ? { background: "var(--tc-primary)", color: "#fff" }
                       : { background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }
                   }

@@ -22,9 +22,8 @@ export interface CargaExcelHorariosResult {
 }
 
 /**
- * Lógica ÚNICA de «Cargar Excel de horarios» (botón Horarios → Cargar Excel de
- * horarios). La comparten la pestaña Horarios y el Paso 3 del Asistente de
- * Alumnado Fantasma, para que ambos botones se comporten exactamente igual.
+ * Lógica de «Cargar Excel de horarios» (Horarios → Excel de Horarios, apartado
+ * 3 · Cargar el Excel relleno).
  *
  * Abre el selector de archivo, parsea el Excel, valida los valores contra las
  * listas de los desplegables (abriendo una ventana OS nativa si hay colisiones)

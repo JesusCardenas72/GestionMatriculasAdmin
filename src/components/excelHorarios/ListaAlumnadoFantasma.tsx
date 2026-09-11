@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
   ArrowDownAZ,
   ArrowUpAZ,
   CheckCircle,
   ChevronDown,
-  HelpCircle,
   Layers,
   Link2,
   Link2Off,
@@ -14,16 +12,9 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
-import alumnadoFantasmaIco from "../../public/AlumnadoFantasma.ico";
-import type { MatriculaLocal } from "../api/types";
-import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
-import { useCursoContext } from "../contexts/CursoContextProvider";
-import { useAppMode } from "../contexts/AppModeProvider";
-import { nombreVisibleTemporal } from "../utils/temporales";
-import { GuiaAlumnosTemporalesModal } from "./GuiaAlumnosTemporalesModal";
-import { AsistenteTemporalesModal } from "../components/modals/AsistenteTemporalesModal";
-
-import type { AppConfig } from "../../electron/config-store";
+import type { MatriculaLocal } from "../../api/types";
+import { useAppMode } from "../../contexts/AppModeProvider";
+import { nombreVisibleTemporal } from "../../utils/temporales";
 
 type EstadoTemporal = "pendiente" | "vinculado" | "sustituido";
 type ModoAgrupacion = "especialidad" | "curso" | "estado" | "ninguna";
@@ -47,24 +38,27 @@ const ESTADO_BADGE: Record<EstadoTemporal, { label: string; style: React.CSSProp
   sustituido: { label: "Sustituido", style: { background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0" } },
 };
 
-export default function TemporalesScreen({
-  config,
-  onAbrirHorario,
-  onIrAProfesorado,
+/**
+ * Lista de alumnos fantasma del curso (contadores, filtros, orden, agrupación,
+ * selección y borrado). Antes era la pestaña Alumnado Fantasma; ahora vive en
+ * Horarios → Excel de Horarios, debajo del formulario de alta.
+ */
+export function ListaAlumnadoFantasma({
+  curso,
+  matriculas,
+  isLoading,
+  actualizar,
+  eliminar,
 }: {
-  config: AppConfig;
-  /** Abre un snapshot del historial de horarios en la pestaña Horarios Individuales. */
-  onAbrirHorario?: (snapshotId: string) => void;
-  /** Lleva a la pestaña Profesorado (el paso 2 la necesita para el Excel). */
-  onIrAProfesorado?: () => void;
+  curso: string;
+  matriculas: MatriculaLocal[];
+  isLoading: boolean;
+  actualizar: (localId: string, cambios: Partial<MatriculaLocal>) => Promise<void>;
+  eliminar: (localId: string) => Promise<void>;
 }) {
-  const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
-  const { matriculas, isLoading, actualizar, eliminar } = useLocalMatriculas(curso);
 
   const [mensaje, setMensaje] = useState<string | null>(null);
-  const [showAyuda, setShowAyuda] = useState(false);
-  const [showGuia, setShowGuia] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,11 +69,7 @@ export default function TemporalesScreen({
   const [subAgrupar, setSubAgrupar] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<EstadoTemporal | null>(null);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
-  const [asistenteAbierto, setAsistenteAbierto] = useState(true);
   const [listaAbierto, setListaAbierto] = useState(true);
-  const [asistenteHeight, setAsistenteHeight] = useState<number | null>(null);
-  const asistenteHeightRef = useRef<number | null>(null);
-  const tiradorRef = useRef<HTMLDivElement>(null);
 
   const handleHoverEnter = (id: string, e: React.MouseEvent) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -383,95 +373,10 @@ export default function TemporalesScreen({
     setMensaje(`Eliminados ${aEliminar.length} alumno(s) fantasma.`);
   };
 
-
-  const handleTiradorMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const tirador = tiradorRef.current;
-    if (!tirador) return;
-    const container = tirador.parentElement;
-    if (!container) return;
-    const startY = e.clientY;
-    const startH = container.firstElementChild?.getBoundingClientRect().height ?? 0;
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const diff = ev.clientY - startY;
-      const newHeight = startH + diff;
-      if (newHeight < 100) return;
-      const containerRect = container.getBoundingClientRect();
-      if (newHeight > containerRect.height - 120) return;
-      setAsistenteHeight(newHeight);
-      asistenteHeightRef.current = newHeight;
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    document.body.style.cursor = "row-resize";
-    document.body.style.userSelect = "none";
-  };
-
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="w-full flex flex-col gap-6 min-h-full">
-        {/* Cabecera */}
-        <div className="flex items-center gap-3">
-          <img src={alumnadoFantasmaIco} alt="" className="h-[46px] w-auto shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold text-[var(--tc-ink)]">Alumnado Fantasma</h1>
-            <p className="text-sm text-[var(--tc-ink-soft)]">
-              Plazas previstas por curso y especialidad para que los profesores puedan programar clases
-              antes de que el alumnado se matricule. Aparecen en el Excel de horarios como
-              «PDTE. N — Especialidad Curso» con fondo naranja.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowGuia(true)}
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
-          >
-            <HelpCircle className="w-4 h-4" />
-            ¿Cómo funciona?
-          </button>
-        </div>
-
-        {/* Asistente guiado + Lista con tirador redimensionable */}
-        <div className="flex flex-col min-h-0 flex-1">
-          <div className="shrink-0" style={asistenteHeight ? { height: asistenteHeight } : undefined}>
-            <AsistenteTemporalesModal
-              embedded
-              curso={curso}
-              config={config}
-              onCerrar={() => {}}
-              onVerGuia={() => setShowGuia(true)}
-              collapsed={!asistenteAbierto}
-              onToggleCollapse={() => {
-                setAsistenteAbierto(!asistenteAbierto);
-                setAsistenteHeight(null);
-              }}
-              embeddedFill={!!asistenteHeight}
-              onAbrirHorario={onAbrirHorario}
-              onIrAProfesorado={onIrAProfesorado}
-            />
-          </div>
-
-          <div
-            ref={tiradorRef}
-            onMouseDown={handleTiradorMouseDown}
-            className="group relative h-6 my-1.5 flex items-center justify-center cursor-row-resize shrink-0 select-none hover:bg-[var(--tc-bg-panel)] rounded-lg transition-colors"
-          >
-            <div className="flex flex-col gap-1">
-              <div className="h-0.5 w-8 rounded-2xl bg-[var(--tc-border)] opacity-30 group-hover:opacity-80 transition-all" />
-              <div className="h-0.5 w-8 rounded-2xl bg-[var(--tc-border)] opacity-30 group-hover:opacity-80 transition-all" />
-            </div>
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm p-5">
+    <div className="flex flex-col h-full min-h-0">
+            {/* Título, contadores, orden y selección: fijos, no se desplazan. */}
+            <div className="shrink-0">
               <div className="flex flex-wrap items-center gap-2 mb-2.5">
                 <button
                   onClick={() => setListaAbierto(!listaAbierto)}
@@ -480,12 +385,12 @@ export default function TemporalesScreen({
                 >
                   <ChevronDown className={`w-5 h-5 transition-transform ${listaAbierto ? "" : "-rotate-90"}`} />
                 </button>
-                <h2 className="font-display text-xl font-light text-[var(--tc-ink)] whitespace-nowrap tracking-tight">
+                <h3 className="text-base font-semibold text-[var(--tc-ink)] whitespace-nowrap">
                   Alumnos fantasma del curso {curso}
-                  <span className="text-base text-[var(--tc-ink-soft)] ml-2 font-normal">
+                  <span className="text-sm text-[var(--tc-ink-soft)] ml-2 font-normal">
                     {temporalesFiltrados.length}
                   </span>
-                </h2>
+                </h3>
                 <button
                   onClick={() => setFiltroEstado(filtroEstado === "pendiente" ? null : "pendiente")}
                   className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-shadow hover:shadow-md whitespace-nowrap"
@@ -635,7 +540,10 @@ export default function TemporalesScreen({
                   </button>
                 </div>
               )}
+            </div>
 
+            {/* Solo las filas de alumnos fantasma (y sus sustituciones) se desplazan. */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1" data-lista-fantasmas>
               {listaAbierto && (
                 <>
                 {isLoading ? (
@@ -781,201 +689,13 @@ export default function TemporalesScreen({
                 </>
               )}
             </div>
-          </div>
-        </div>
 
         {mensaje && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+          <div className="shrink-0 mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
             <CheckCircle className="w-4 h-4 shrink-0" />
             {mensaje}
           </div>
         )}
-      </div>
-
-      {showGuia && (
-        <GuiaAlumnosTemporalesModal
-          onCerrar={() => setShowGuia(false)}
-          onSaberMas={() => {
-            setShowGuia(false);
-            setShowAyuda(true);
-          }}
-        />
-      )}
-      {showAyuda && <AyudaModal onCerrar={() => setShowAyuda(false)} onSaberMas={() => { setShowAyuda(false); setShowGuia(true); }} />}
-
-    </div>
-  );
-}
-
-// ── Modal de ayuda: tutorial completo de la funcionalidad ────────────────────
-
-function PasoAyuda({ n, titulo, children }: { n: number; titulo: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <div className="shrink-0 w-7 h-7 rounded-full bg-[var(--tc-primary-tint)] text-[var(--tc-primary)] flex items-center justify-center text-sm font-bold">
-        {n}
-      </div>
-      <div className="flex-1 min-w-0 pt-0.5">
-        <h4 className="text-sm font-semibold text-[var(--tc-ink)] mb-1">{titulo}</h4>
-        <div className="text-[13px] text-[var(--tc-ink-soft)] space-y-1.5 leading-relaxed">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function AyudaModal({ onCerrar, onSaberMas }: { onCerrar: () => void; onSaberMas: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-      onClick={onCerrar}
-    >
-      <div
-        className="bg-[var(--tc-card)] rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[88vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--tc-border)] shrink-0 gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <img src={alumnadoFantasmaIco} alt="" className="w-5 h-5 shrink-0" />
-            <h3 className="text-sm font-bold text-[var(--tc-ink)]">Cómo funcionan los alumnos fantasma</h3>
-          </div>
-          <button
-            onClick={onCerrar}
-            className="p-1.5 rounded-lg hover:bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 overflow-y-auto space-y-5">
-          <p className="text-[13px] text-[var(--tc-ink-soft)] leading-relaxed">
-            Durante la matriculación, algunos profesores deben programar clases con alumnos que aún
-            no se han matriculado (lo harán más tarde). Los <strong>alumnos fantasma</strong> son
-            plazas reservadas que aparecen en el Excel de horarios y, cuando lleguen las matrículas
-            reales, se sustituyen sin perder el trabajo de los profesores.
-          </p>
-
-          <div className="space-y-4">
-            <PasoAyuda n={1} titulo="Crear los alumnos fantasma">
-              <p>
-                <strong>Opción A — Manual:</strong> indica el <strong>curso</strong> (p. ej. EP1),
-                la <strong>especialidad</strong> y el <strong>número de alumnos</strong> previstos y
-                pulsa «Crear alumnos fantasma». Se generan registros llamados{" "}
-                <em>«PDTE. 1 — Canto EP1»</em>, <em>«PDTE. 2 — Canto EP1»</em>… con las asignaturas
-                del catálogo ya asignadas automáticamente.
-              </p>
-              <p>
-                <strong>Opción B — Importar desde Excel o CSV:</strong> pulsa «Importar desde Excel
-                o CSV» y selecciona un archivo con las columnas{" "}
-                <em>Apellidos, Nombre, Grado/Curso y Especialidad</em>. El curso debe escribirse
-                como EE1–EE4 o EP1–EP6. Se crea un alumno fantasma por cada fila con el sufijo{" "}
-                <strong>_Temp</strong> añadido al nombre y los apellidos (p. ej.
-                «García_Temp, Ana_Temp»). Las filas con datos incorrectos se descartan y se
-                informa de los motivos sin interrumpir el resto.
-              </p>
-              <p>
-                Ambas opciones generan alumnos fantasma equivalentes: aparecen en naranja en el Excel de
-                horarios, se vinculan igual a matrículas reales y se sustituyen de la misma forma.
-                En la lista de esta página puedes ver de un vistazo los contadores{" "}
-                <span className="font-semibold" style={{ color: "#c2410c" }}>pendientes</span>,{" "}
-                <span className="font-semibold text-blue-600">vinculados</span> y{" "}
-                <span className="font-semibold text-slate-500">sustituidos</span>.
-              </p>
-            </PasoAyuda>
-
-            <PasoAyuda n={2} titulo="Generar el Excel de horarios">
-              <p>
-                Ve a <strong>Informes</strong>, ponlo en modo «Por asignaturas» y usa{" "}
-                <strong>«Generar Excel Horarios»</strong>. Los alumnos fantasma aparecen con{" "}
-                <strong>fondo naranja</strong> (tanto los «PDTE. N» como los importados con _Temp),
-                fáciles de localizar. Los profesores rellenan profesor, aula, día y horas como con
-                cualquier alumno real.
-              </p>
-            </PasoAyuda>
-
-            <PasoAyuda n={3} titulo="Vincular cada matrícula real con su alumno fantasma">
-              <p>
-                Cuando un alumno se matricula de verdad, abre su ficha en <strong>Local</strong>,
-                despliega la sección <strong>Datos Personales</strong> y busca el selector{" "}
-                <strong>«Sustituye al alumno fantasma»</strong> que aparece justo debajo del campo
-                Provincia. Solo muestra los alumnos fantasma del mismo curso y especialidad. Al elegir
-                uno, el alumno fantasma pasa a estado{" "}
-                <span className="font-semibold text-blue-600">Vinculado</span>.
-              </p>
-            </PasoAyuda>
-
-            <PasoAyuda n={4} titulo="Ejecutar la sustitución">
-              <p>
-                Vuelve aquí y pulsa <strong>«Ejecutar sustituciones»</strong> cuando quieras. El
-                alumno fantasma pasa a{" "}
-                <span className="font-semibold text-slate-500">Sustituido</span> y el alumno real
-                ocupa su lugar en los informes.
-              </p>
-              <p>
-                También puedes fijar una <strong>fecha programada</strong>: la app ejecutará las
-                sustituciones automáticamente la primera vez que se abra a partir de ese día.
-              </p>
-            </PasoAyuda>
-
-            <PasoAyuda n={5} titulo="Fusionar el Excel ya trabajado por los profesores">
-              <p>
-                Una vez ejecutadas las sustituciones, pulsa <strong>«Generar Excel fusionado»</strong>{" "}
-                en esta misma página. La app carga el Excel vinculado (el mismo que usas en la
-                pestaña Horarios) y genera uno nuevo donde:
-              </p>
-              <p>
-                · Los alumnos que ya estaban conservan sus filas y los horarios que metieron los
-                profesores, <strong>sin ninguna modificación</strong>.<br />
-                · Los alumnos fantasma sustituidos aparecen con los datos del <strong>alumno real</strong>,
-                heredando su horario y ya <strong>sin el fondo naranja</strong>.<br />
-                · Los alumnos fantasma aún no sustituidos siguen exactamente como estaban, en naranja.
-              </p>
-              <p>
-                Antes de guardarlo verás un resumen de lo que se conserva, se hereda o queda sin
-                horario. También puedes hacer lo mismo desde <strong>Informes</strong> con{" "}
-                <strong>«Fusión Actualización Nuevo Alumnado»</strong>. La fusión funciona igual con
-                alumnos fantasma «PDTE. N» y con los importados con sufijo _Temp.
-              </p>
-            </PasoAyuda>
-
-            <PasoAyuda n={6} titulo="Enviar los horarios a los nuevos alumnos">
-              <p>
-                En <strong>Horarios → Horarios Individuales</strong>, los alumnos que sustituyeron
-                a un alumno fantasma salen con la etiqueta{" "}
-                <span className="font-semibold text-orange-600">NUEVO</span>. Usa el filtro «Solo
-                nuevos» y el botón <strong>«Sel. nuevos sin enviar»</strong> para seleccionarlos y
-                enviarles el horario por email con el sistema de campañas habitual.
-              </p>
-            </PasoAyuda>
-          </div>
-
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-700 flex gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p>
-              <strong>Importante:</strong> no borres los alumnos fantasma sustituidos hasta haber generado
-              el Excel fusionado; la fusión los necesita para localizar las clases que ya pusieron
-              los profesores. Cuando termines, usa «Eliminar sustituidos» para limpiar.
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-t border-[var(--tc-border)] bg-[var(--tc-bg-panel)] shrink-0 gap-3">
-          <button
-            onClick={onSaberMas}
-            className="px-4 py-2 rounded-lg border border-[var(--tc-border)] text-[var(--tc-primary)] text-sm font-semibold hover:bg-[var(--tc-primary-tint)] transition-colors"
-          >
-            Saber más…
-          </button>
-          <button
-            onClick={onCerrar}
-            className="px-4 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-          >
-            Entendido
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

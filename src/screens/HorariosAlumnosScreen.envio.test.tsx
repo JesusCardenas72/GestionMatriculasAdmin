@@ -5,12 +5,12 @@ import userEvent from "@testing-library/user-event";
 // --- Datos de prueba (ficticios) accesibles desde los factories de vi.mock ---
 const H = vi.hoisted(() => {
   const matriculas = [
-    { localId: "t1", apellidos: "", nombre: "PDTE. 1 — Piano EP1", esTemporal: true, temporalEstado: "pendiente", email: "", ensenanzaCurso: "1º EE.PP.", especialidad: "Piano" },
+    { localId: "t1", apellidos: "", nombre: "PDTE. 1 — Piano EP1", esTemporal: true, temporalEstado: "pendiente", email: "", ensenanzaCurso: "1º EE.PP.", especialidad: "Piano", asignaturas: [] },
     { localId: "r1", apellidos: "García", nombre: "Ana", esTemporal: false, sustituyeATemporalId: "t1", email: "ana@example.com", ensenanzaCurso: "1º EE.PP.", especialidad: "Piano" },
     { localId: "r2", apellidos: "López", nombre: "Beto", esTemporal: false, email: "beto@example.com", ensenanzaCurso: "1º EE.PP.", especialidad: "Violín" },
     { localId: "r3", apellidos: "Ruiz", nombre: "Carlos", esTemporal: false, email: "", ensenanzaCurso: "1º EE.PP.", especialidad: "Canto" },
     // Fantasma nominal (con sufijo _Temp) ya sustituido por una matrícula real con email.
-    { localId: "t2", apellidos: "Soto_Temp", nombre: "Diana_Temp", esTemporal: true, temporalEstado: "sustituido", email: "", ensenanzaCurso: "1º EE.PP.", especialidad: "Flauta" },
+    { localId: "t2", apellidos: "Soto_Temp", nombre: "Diana_Temp", esTemporal: true, temporalEstado: "sustituido", email: "", ensenanzaCurso: "1º EE.PP.", especialidad: "Flauta", asignaturas: [] },
     { localId: "r4", apellidos: "Soto", nombre: "Diana", esTemporal: false, sustituyeATemporalId: "t2", email: "diana@example.com", ensenanzaCurso: "1º EE.PP.", especialidad: "Flauta" },
   ];
   const alumnos = [
@@ -29,12 +29,20 @@ const H = vi.hoisted(() => {
 
 vi.mock("../contexts/CursoContextProvider", () => ({ useCursoContext: () => ({ curso: "2025/2026" }) }));
 vi.mock("../hooks/useLocalMatriculas", () => ({ useLocalMatriculas: () => ({ matriculas: H.matriculas }) }));
-vi.mock("../utils/horarioExcel", () => ({
+vi.mock("../contexts/AppModeProvider", () => ({ useAppMode: () => ({ isSoloLectura: false }) }));
+// Mocks parciales: la pestaña Excel de Horarios importa otras funciones de estos
+// módulos (generar el Excel, clases huérfanas…), que deben seguir existiendo.
+vi.mock("../utils/horarioExcel", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../utils/horarioExcel")>()),
   parseHorariosExcel: vi.fn().mockResolvedValue({ fileName: "horarios.xlsx", alumnos: H.alumnos, incompletas: 0 }),
   extraerCamposInforme: vi.fn().mockResolvedValue([]),
 }));
-vi.mock("../utils/fusionHorarios", () => ({ parseHorariosExcelCrudo: vi.fn().mockResolvedValue([]) }));
-vi.mock("../utils/horariosPersistencia", () => ({
+vi.mock("../utils/fusionHorarios", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../utils/fusionHorarios")>()),
+  parseHorariosExcelCrudo: vi.fn().mockResolvedValue([]),
+}));
+vi.mock("../utils/horariosPersistencia", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../utils/horariosPersistencia")>()),
   actualizarHorariosStore: vi.fn().mockReturnValue({ anadidas: 0, actualizadas: 0, eliminadas: 0, sinCambio: 0, snapshot: null }),
 }));
 vi.mock("../utils/horarioTemplate", () => ({ buildHorarioHtml: () => "" }));
@@ -65,18 +73,58 @@ beforeEach(() => {
     // La pantalla se suscribe a "campaña guardada"; onGuardada devuelve la
     // función de baja que el efecto usa como limpieza.
     dialogoEnviarCampanya: { abrir: vi.fn(), onGuardada: vi.fn(() => () => {}) },
+    // Sin horarios guardados la pantalla abre Excel de Horarios, cuyos apartados
+    // leen la configuración y el estado del alumnado fantasma.
+    temporales: {
+      getConfig: vi.fn().mockResolvedValue({ fechaProgramada: null, ultimaEjecucion: null, selectorDesde: null, selectorHasta: null }),
+      setConfig: vi.fn().mockResolvedValue(undefined),
+      getAsistente: vi.fn().mockResolvedValue(null),
+      setAsistente: vi.fn().mockResolvedValue(undefined),
+    },
   };
 });
 
+/**
+ * Sin horarios guardados la pantalla empieza en «Excel de Horarios»: se carga el
+ * Excel desde su apartado 3 y luego se pasa a «Horarios Individuales».
+ */
 async function cargar() {
   render(
     <EscenarioHorarioProvider>
       <HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />
     </EscenarioHorarioProvider>,
   );
-  const btn = await screen.findByText(/Cargar Excel de horarios/i);
+  const btn = await screen.findByRole("button", { name: /Cargar Excel de horarios/i });
   await userEvent.click(btn);
+  await screen.findByText(/^Cargado «horarios\.xlsx»/);
+  await userEvent.click(screen.getByRole("button", { name: "Horarios Individuales" }));
 }
+
+describe("Horarios — pestañas", () => {
+  it("sin horarios guardados empieza en Excel de Horarios y los historiales están a la vista", async () => {
+    render(
+      <EscenarioHorarioProvider>
+        <HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />
+      </EscenarioHorarioProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "Alumnado fantasma" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Historial de horarios/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Historial de envíos/ })).toBeInTheDocument();
+    // «Cargar otro Excel» ya no existe en la lista de alumnos.
+    expect(screen.queryByText(/Cargar otro Excel/i)).not.toBeInTheDocument();
+  });
+
+  it("Horarios Individuales sin horarios invita a ir a Excel de Horarios", async () => {
+    render(
+      <EscenarioHorarioProvider>
+        <HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />
+      </EscenarioHorarioProvider>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Horarios Individuales" }));
+    await userEvent.click(screen.getByRole("button", { name: /Ir a Excel de Horarios/ }));
+    expect(await screen.findByRole("heading", { name: "Alumnado fantasma" })).toBeInTheDocument();
+  });
+});
 
 /**
  * El envío ya no muestra un modal in-app: abre la ventana nativa

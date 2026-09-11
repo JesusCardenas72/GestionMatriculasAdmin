@@ -196,7 +196,7 @@ export default function LocalDetail({
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [showInlinePdf, setShowInlinePdf] = useState(true);
 
-  // Rango de fechas (Asistente de Alumnado Fantasma) durante el cual se muestra
+  // Rango de fechas (Horarios → Excel de Horarios, apartado 1) durante el cual se muestra
   // el selector «Sustituye al alumno fantasma». Fuera del rango no aparece.
   // null/null = sin límites → siempre visible (retrocompatible).
   const [selectorVisible, setSelectorVisible] = useState(true);
@@ -701,8 +701,8 @@ export default function LocalDetail({
             {/* Temporal: aviso (el selector "Sustituye a…" de matrículas reales está en Datos Personales) */}
             {m.esTemporal && (
               <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
-                Registro fantasma para horarios: no se sube a la nube ni genera PDF. Se sustituirá por un
-                alumno real desde la pestaña Alumnado Fantasma.
+                Registro fantasma para horarios: no se sube a la nube ni genera PDF. Se sustituirá por el
+                alumno real al generar el Excel en Horarios → Excel de Horarios.
               </div>
             )}
           </div>
@@ -1087,7 +1087,7 @@ export default function LocalDetail({
                             </select>
                             {m.sustituyeATemporalId && (
                               <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
-                                Pendiente de ejecutar en Alumnado Fantasma
+                                Se sustituirá al generar el Excel de horarios
                               </span>
                             )}
                           </>
@@ -1099,7 +1099,7 @@ export default function LocalDetail({
                               {temporalVinculado ? nombreVisibleTemporal(temporalVinculado) : "—"}
                             </span>
                             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
-                              Pendiente de ejecutar en Alumnado Fantasma
+                              Se sustituirá al generar el Excel de horarios
                             </span>
                           </>
                         )}

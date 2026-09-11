@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CalendarClock, FileUp, Loader2, Download, Printer, AlertCircle,
+  CalendarClock, FileSpreadsheet, Loader2, Download, Printer, AlertCircle,
   Search, Trash2, Mail, History, CheckSquare, Square, Send, X, Clock,
   CheckCircle2, XCircle, ClipboardList, FileCode2, Ghost, Filter, ListChecks,
   RotateCcw, FileText, Settings2, ShieldCheck, AlertTriangle, Copy,
@@ -26,17 +26,20 @@ import { buildCursoLabel, FORMATO_HORARIO_DEFAULT } from "../horarios/types";
 import type { AppConfig } from "../../electron/config-store";
 import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
 import ResizableColumns from "../components/ResizableColumns";
+import { ExcelHorariosPanel } from "../components/excelHorarios/ExcelHorariosPanel";
 
 interface Props {
   config: AppConfig;
-  /** Id de snapshot a abrir nada más entrar (desde el historial del Asistente). */
-  snapshotPendiente?: string | null;
-  /** Se llama tras intentar abrir el snapshot pendiente, para limpiarlo. */
-  onSnapshotAbierto?: () => void;
+  /** Lleva a la pestaña Profesorado (generar el Excel necesita la lista). */
+  onIrAProfesorado?: () => void;
 }
 
-type PanelDerecho = "preview" | "historial" | "listados";
-type VistaPrincipal = "individuales" | "listados";
+/**
+ * Qué ocupa la pantalla bajo la fila de pestañas: una de las tres pestañas o el
+ * Historial de envíos (que se abre con su botón, a la derecha de las pestañas).
+ */
+type VistaPrincipal = "excel" | "individuales" | "listados" | "envios";
+type PestanaHorarios = Exclude<VistaPrincipal, "envios">;
 
 /**
  * Estado de cobertura de una matrícula real frente al registro de envíos.
@@ -98,7 +101,7 @@ function horasPorAsignatura(clases: import('../horarios/types').ClaseHorario[]):
     .sort((a, b) => b.minutos - a.minutos);
 }
 
-export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSnapshotAbierto }: Props) {
+export default function HorariosAlumnosScreen({ config, onIrAProfesorado }: Props) {
   const { curso } = useCursoContext();
   const anio = `Curso ${curso}`;
   const { matriculas: localMatriculas } = useLocalMatriculas(curso);
@@ -113,8 +116,16 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
   const [descargandoHtml, setDescargandoHtml] = useState(false);
-  const [panelDerecho, setPanelDerecho] = useState<PanelDerecho>("preview");
-  const [vistaPrincipal, setVistaPrincipal] = useState<VistaPrincipal>("individuales");
+  // `null` hasta saber si hay horarios guardados (decide la pestaña inicial).
+  const [vistaPrincipal, setVistaPrincipal] = useState<VistaPrincipal | null>(null);
+  // Pestaña a la que se vuelve al cerrar el Historial de envíos.
+  const ultimaPestanaRef = useRef<PestanaHorarios>("individuales");
+  const irAPestana = useCallback((p: PestanaHorarios) => {
+    ultimaPestanaRef.current = p;
+    setVistaPrincipal(p);
+  }, []);
+  const alternarEnvios = () =>
+    setVistaPrincipal(v => (v === "envios" ? ultimaPestanaRef.current : "envios"));
 
   // Formato visual del horario (vista previa, descargas y email). Se recuerda
   // entre sesiones; por defecto, el formato de notas adhesivas.
@@ -171,7 +182,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
         setCampanyas(updated);
         setCampanyaSeleccionada(updated[0]?.id ?? null);
       }).catch(() => {});
-      setPanelDerecho("historial");
+      setVistaPrincipal("envios");
     });
     return off;
   }, []);
@@ -478,14 +489,19 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
     setCarga(prev => (prev ? { ...prev, alumnos: enriquecerEmails(prev.alumnos) } : prev));
   }, [enriquecerEmails]);
 
-  const handleCargar = async () => {
+  /**
+   * Carga un Excel relleno (apartado «3 · Cargar» de Excel de Horarios).
+   * Devuelve el resumen que muestra ese apartado, `null` si se cancela, y lanza
+   * el error si no se puede leer, para que el apartado lo enseñe.
+   */
+  const handleCargar = async (): Promise<string | null> => {
     setError(null);
     volverAlActualCtx();
+    setCargando(true);
     try {
-      setCargando(true);
       const cargado = await cargarExcelHorarios(curso);
-      if (!cargado) return;
-      const { carga: res, formatoDetectado } = cargado;
+      if (!cargado) return null;
+      const { carga: res, resultado, formatoDetectado } = cargado;
       const alumnosEnriquecidos = enriquecerEmails(res.alumnos);
 
       if (formatoDetectado) setModalFormatoDetectado(formatoDetectado);
@@ -496,10 +512,15 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
       const cargaFinal: CargaHorarios = { ...res, alumnos: alumnosEnriquecidos };
       setCarga(cargaFinal);
       setSelectedClave(alumnosEnriquecidos[0]?.clave ?? null);
+      setSeleccionados(new Set());
+
       if (alumnosEnriquecidos.length === 0)
-        setError("No se ha encontrado ningún alumno con clases asignadas en ese Excel.");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
+        return `Se ha leído «${res.fileName}», pero no tiene ningún alumno con clases asignadas.`;
+      if (!resultado.snapshot)
+        return `Cargado «${res.fileName}». No aportó cambios: todo coincidía con lo ya cargado.`;
+      const partes = [`${resultado.anadidas} añadidas`, `${resultado.actualizadas} actualizadas`];
+      if (resultado.eliminadas > 0) partes.push(`${resultado.eliminadas} eliminadas (no estaban en el Excel)`);
+      return `Cargado «${res.fileName}» con ${alumnosEnriquecidos.length} alumnos. Clases: ${partes.join(", ")}.`;
     } finally {
       setCargando(false);
     }
@@ -513,9 +534,16 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
     setCarga(restantes.length === 0 ? null : { ...carga, alumnos: restantes });
   };
 
-  const handleEliminarTodos = () => {
-    if (!carga || carga.alumnos.length === 0) return;
-    if (!window.confirm(`¿Borrar los ${carga.alumnos.length} horarios cargados?`)) return;
+  /**
+   * «Borrar horarios cargados» (apartado 3, discreto): vacía los horarios
+   * guardados del curso. El historial se conserva, así que se puede restaurar.
+   * La confirmación la pide el propio apartado.
+   */
+  const handleBorrarCargados = async () => {
+    const storeData = await window.adminAPI.horarios.data.obtener(curso);
+    storeData.entries = [];
+    storeData.lastUpdated = new Date().toISOString();
+    await window.adminAPI.horarios.data.guardar(curso, storeData);
     setCarga(null);
     setSelectedClave(null);
     setSeleccionados(new Set());
@@ -527,8 +555,8 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
    * Abre en la app el estado guardado de un snapshot del historial. Si es la
    * carga más reciente (`esActual`), se vuelve al modo normal; si no, se entra en
    * modo "Horario Histórico" (solo lectura visual) con el aviso correspondiente.
-   * El escenario se guarda en el contexto global para que Informes y el
-   * Asistente de Alumnado Fantasma también lo respeten.
+   * El escenario se guarda en el contexto global para que Informes y la
+   * pestaña Excel de Horarios también lo respeten.
    */
   const activarSnapshot = useCallback((snapshot: HorariosSnapshot, esActual: boolean) => {
     const cargaSnap = construirCargaDesdeStore({
@@ -549,31 +577,12 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
     }
   }, [curso, enriquecerEmails, activarEscenario, volverAlActualCtx]);
 
-  /**
-   * Abre automáticamente el snapshot que llega desde el historial del Asistente
-   * («Abrir en la app»). Lo busca en el almacén, lo activa y avisa al padre para
-   * que limpie el id pendiente.
-   */
+  // Pestaña inicial: con horarios guardados, Horarios Individuales (el trabajo
+  // del día a día); sin ellos, Excel de Horarios, que es donde se empieza.
   useEffect(() => {
-    if (!snapshotPendiente) return;
-    let cancelado = false;
-    (async () => {
-      try {
-        const storeData = await window.adminAPI.horarios.data.obtener(curso);
-        if (cancelado) return;
-        const ordenados = [...storeData.snapshots].sort((a, b) =>
-          b.timestamp.localeCompare(a.timestamp),
-        );
-        const snap = ordenados.find((s) => s.id === snapshotPendiente);
-        if (snap) activarSnapshot(snap, ordenados[0]?.id === snap.id);
-      } finally {
-        if (!cancelado) onSnapshotAbierto?.();
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-  }, [snapshotPendiente, curso, activarSnapshot, onSnapshotAbierto]);
+    if (autoLoadando || vistaPrincipal !== null) return;
+    irAPestana(carga ? "individuales" : "excel");
+  }, [autoLoadando, carga, vistaPrincipal, irAPestana]);
 
   /** Vuelve a la carga actual (la más reciente guardada en el almacén). */
   const volverAlActual = useCallback(async () => {
@@ -637,7 +646,7 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
    *  - Si no, `undefined` → la vista lee del almacén por su cuenta.
    *
    * El escenario se gestiona desde el contexto global para que también lo
-   * respeten Informes y el Asistente de Alumnado Fantasma.
+   * respeten Informes y la pestaña Excel de Horarios.
    */
   const docEntriesFuente = useMemo<{ entries?: HorariosEntry[]; etiqueta?: string }>(() => {
     if (!escenarioActivo) return {};
@@ -915,85 +924,22 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
 
   const campanytaActiva = campanyas.find(c => c.id === campanytaSeleccionada) ?? campanyas[0] ?? null;
 
-  // ── Sin datos ──────────────────────────────────────────────────────────────
-  if (!carga) {
-    // Mientras el auto-load del almacén no ha terminado, mostramos solo el spinner
-    // para evitar el flash de pantalla vacía cuando hay datos guardados.
-    if (autoLoadando) {
-      return (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-[var(--tc-ink-mute)]" />
-        </div>
-      );
-    }
+  /** Plazas fantasma aún sin sustituir: aviso naranja en la pestaña Excel de Horarios. */
+  const fantasmasSinSustituir = useMemo(
+    () => localMatriculas.filter(m => m.esTemporal && m.temporalEstado !== "sustituido").length,
+    [localMatriculas],
+  );
 
-    if (panelDerecho === "historial" && campanyas.length > 0) {
-      return (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center gap-3">
-            <button
-              onClick={() => setPanelDerecho("preview")}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--tc-border)] text-sm text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition"
-            >
-              <FileUp className="w-4 h-4" />
-              Cargar Excel
-            </button>
-            <span className="text-sm font-medium text-[var(--tc-ink)]">Historial de envíos</span>
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <HistorialPanel
-              campanyas={campanyas}
-              activa={campanytaActiva}
-              onSelect={setCampanyaSeleccionada}
-              onEliminarCampanya={handleEliminarCampanya}
-              onEliminarAlumno={handleEliminarAlumnoCampanya}
-            />
-          </div>
-        </div>
-      );
-    }
-
+  // Mientras el auto-load del almacén no ha terminado, mostramos solo el spinner
+  // para evitar el flash de pantalla vacía cuando hay datos guardados.
+  if (autoLoadando || vistaPrincipal === null) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="max-w-md text-center">
-          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[var(--tc-primary-tint)] flex items-center justify-center">
-            <CalendarClock className="w-8 h-8 text-[var(--tc-primary)]" />
-          </div>
-          <h2 className="font-display text-2xl text-[var(--tc-ink)] mb-2">Horarios de alumnos</h2>
-          <p className="text-sm text-[var(--tc-ink-soft)] mb-6 leading-relaxed">
-            Carga el Excel de horarios que han rellenado los profesores. La app montará el
-            horario semanal de cada alumno para verlo, descargarlo en PDF y enviarlo por email.
-          </p>
-          <div className="flex flex-col items-center gap-3">
-            <button
-              onClick={handleCargar}
-              disabled={cargando}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--tc-primary)] text-white font-medium text-sm hover:opacity-90 transition disabled:opacity-60"
-            >
-              {cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
-              {cargando ? "Leyendo…" : "Cargar Excel de horarios"}
-            </button>
-            {campanyas.length > 0 && (
-              <button
-                onClick={() => setPanelDerecho("historial")}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--tc-border)] text-sm text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition"
-              >
-                <History className="w-4 h-4" />
-                Ver historial ({campanyas.length} {campanyas.length === 1 ? "campaña" : "campañas"})
-              </button>
-            )}
-          </div>
-          {error && (
-            <p className="mt-5 text-sm text-red-600 flex items-start gap-2 justify-center">
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
-            </p>
-          )}
-        </div>
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-[var(--tc-ink-mute)]" />
       </div>
     );
   }
 
-  // ── Con datos ──────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {historicoActivo && (
@@ -1024,8 +970,87 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
           </button>
         </div>
       )}
-      <div className="flex-1 flex overflow-hidden">
-      {vistaPrincipal !== "listados" ? (
+      {/* Pestañas a todo el ancho + historiales siempre a mano */}
+      <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-3 flex items-stretch gap-1">
+        <PestanaHorarios
+          activa={vistaPrincipal === "excel"}
+          onClick={() => irAPestana("excel")}
+          icono={<FileSpreadsheet className="w-4 h-4" />}
+          texto="Excel de Horarios"
+          aviso={fantasmasSinSustituir}
+          avisoTitulo={`${fantasmasSinSustituir} alumno(s) fantasma sin sustituir`}
+        />
+        <PestanaHorarios
+          activa={vistaPrincipal === "individuales"}
+          onClick={() => irAPestana("individuales")}
+          icono={<CalendarClock className="w-4 h-4" />}
+          texto="Horarios Individuales"
+        />
+        <PestanaHorarios
+          activa={vistaPrincipal === "listados"}
+          onClick={() => irAPestana("listados")}
+          icono={<ClipboardList className="w-4 h-4" />}
+          texto="Listados por Asignaturas"
+        />
+        <div className="ml-auto flex items-center gap-2 pl-3">
+          <button
+            onClick={() => setShowHistorialHorariosModal(true)}
+            title="Cargas y generaciones del Excel: ábrelas, ponles nombre o restáuralas"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--tc-border)] text-[13px] font-medium text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition whitespace-nowrap"
+          >
+            <Clock className="w-4 h-4" />
+            Historial de horarios
+          </button>
+          <button
+            onClick={alternarEnvios}
+            title={vistaPrincipal === "envios" ? "Cerrar el historial de envíos" : "Correos de horarios enviados, por campaña"}
+            className={
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] font-medium transition whitespace-nowrap " +
+              (vistaPrincipal === "envios"
+                ? "border-[var(--tc-primary)] text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
+                : "border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)]")
+            }
+          >
+            <History className="w-4 h-4" />
+            Historial de envíos
+            {campanyas.length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold bg-[var(--tc-bg-panel)] text-[var(--tc-ink-soft)] border border-[var(--tc-border)]">
+                {campanyas.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {vistaPrincipal === "envios" && error && (
+        <p className="shrink-0 px-5 py-2 text-[12px] text-amber-700 bg-amber-50 border-b border-amber-200 flex items-center gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
+        </p>
+      )}
+
+      <div className="flex-1 flex overflow-hidden min-h-0">
+      {vistaPrincipal === "excel" ? (
+        <ExcelHorariosPanel
+          curso={curso}
+          carga={carga}
+          cargando={cargando}
+          onCargar={handleCargar}
+          onBorrar={handleBorrarCargados}
+          onVerIndividuales={() => irAPestana("individuales")}
+          onIrAProfesorado={onIrAProfesorado}
+        />
+      ) : vistaPrincipal === "envios" ? (
+        <HistorialPanel
+          campanyas={campanyas}
+          activa={campanytaActiva}
+          onSelect={setCampanyaSeleccionada}
+          onEliminarCampanya={handleEliminarCampanya}
+          onEliminarAlumno={handleEliminarAlumnoCampanya}
+          onReenviar={carga ? abrirModalEnvio : undefined}
+        />
+      ) : !carga ? (
+        <SinHorariosCargados onIrAExcel={() => irAPestana("excel")} />
+      ) : vistaPrincipal === "individuales" ? (
       <ResizableColumns
         id="horarios"
         defaultLeftSize="320px"
@@ -1035,23 +1060,6 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
         left={
         <div className="h-full flex flex-col bg-[var(--tc-card)]">
         <div className="p-3 border-b border-[var(--tc-border)] space-y-2">
-          <div className="flex gap-1.5">
-            <button
-              onClick={handleCargar}
-              disabled={cargando}
-              className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
-            >
-              {cargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
-              Cargar otro Excel
-            </button>
-            <button
-              onClick={handleEliminarTodos}
-              title="Borrar todos los horarios"
-              className="px-2.5 py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 transition"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
           <p className="text-[11px] text-[var(--tc-ink-mute)] truncate" title={carga.fileName}>
             {carga.fileName} · {carga.alumnos.length} alumnos
             {carga.incompletas > 0 && ` · ${carga.incompletas} incompletas`}
@@ -1223,10 +1231,10 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
                       : <Square className="w-4 h-4" />}
                   </button>
                   <button
-                    onClick={() => { setSelectedClave(a.clave); setPanelDerecho("preview"); }}
+                    onClick={() => setSelectedClave(a.clave)}
                     className={
                       "flex-1 text-left px-2 py-2 pr-7 rounded-lg transition " +
-                      (activo && panelDerecho === "preview"
+                      (activo
                         ? "bg-[var(--tc-primary-tint)]"
                         : "hover:bg-[var(--tc-bg-panel)]")
                     }
@@ -1307,60 +1315,11 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
             <Mail className="w-4 h-4" />
             Enviar a todos ({alumnosConEmail} con email)
           </button>
-          <button
-            onClick={() => setPanelDerecho(p => p === "historial" ? "preview" : "historial")}
-            className={
-              "w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition " +
-              (panelDerecho === "historial"
-                ? "border-[var(--tc-primary)] text-[var(--tc-primary)] bg-[var(--tc-primary-tint)]"
-                : "border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)]")
-            }
-          >
-            <History className="w-4 h-4" />
-            Historial de envíos {campanyas.length > 0 && `(${campanyas.length})`}
-          </button>
-          <button
-            onClick={() => setShowHistorialHorariosModal(true)}
-            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[var(--tc-border)] text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] text-sm font-medium transition"
-          >
-            <Clock className="w-4 h-4" />
-            Historial de horarios
-          </button>
         </div>
       </div>}
       right={
       <div className="h-full flex flex-col bg-[var(--tc-bg)] overflow-hidden min-h-0">
-        {/* Tabs principal */}
-        <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] flex items-stretch">
-          <button
-            onClick={() => { setVistaPrincipal("individuales"); setPanelDerecho("preview"); }}
-            className={
-              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
-              (vistaPrincipal === "individuales"
-                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
-                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
-            }
-          >
-            <CalendarClock className="w-4 h-4" />
-            Horarios Individuales
-          </button>
-          <button
-            onClick={() => { setVistaPrincipal("listados"); setPanelDerecho("listados"); }}
-            className={
-              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
-              (vistaPrincipal === ("listados" as VistaPrincipal)
-                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
-                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
-            }
-          >
-            <ClipboardList className="w-4 h-4" />
-            Listados Por Asignaturas
-          </button>
-        </div>
-
-        {vistaPrincipal === "individuales" ? (
-          panelDerecho === "preview" ? (
-            seleccionado ? (
+            {seleccionado ? (
               <>
                 <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] px-5 flex items-center justify-between">
                   <span className="text-sm font-medium text-[var(--tc-ink)] truncate">
@@ -1426,66 +1385,10 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
               <div className="flex-1 flex items-center justify-center text-sm text-[var(--tc-ink-mute)]">
                 Selecciona un alumno de la lista
               </div>
-            )
-          ) : panelDerecho === "listados" ? (
-            <ListadosPanel
-              alumnos={carga.alumnos}
-              anio={anio}
-              curso={curso}
-              docEntriesFuente={docEntriesFuente.entries}
-              docEntriesFuenteEtiqueta={docEntriesFuente.etiqueta}
-              idxAnulados={idxAnulados}
-              onRecargar={volverAlActual}
-            />
-          ) : (
-            <HistorialPanel
-              campanyas={campanyas}
-              activa={campanytaActiva}
-              onSelect={setCampanyaSeleccionada}
-              onEliminarCampanya={handleEliminarCampanya}
-              onEliminarAlumno={handleEliminarAlumnoCampanya}
-              onReenviar={abrirModalEnvio}
-            />
-          )
-        ) : (
-          <ListadosPanel
-            alumnos={carga.alumnos}
-            anio={anio}
-            curso={curso}
-            docEntriesFuente={docEntriesFuente.entries}
-            docEntriesFuenteEtiqueta={docEntriesFuente.etiqueta}
-            idxAnulados={idxAnulados}
-              onRecargar={volverAlActual}
-          />
-        )}
+            )}
       </div>} />
       ) : (
       <div className="flex-1 flex flex-col bg-[var(--tc-bg)] overflow-hidden">
-        <div className="h-12 shrink-0 border-b border-[var(--tc-border)] bg-[var(--tc-card)] flex items-stretch">
-          <button
-            onClick={() => { setVistaPrincipal("individuales"); setPanelDerecho("preview"); }}
-            className={
-              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
-              (vistaPrincipal === ("individuales" as VistaPrincipal)
-                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
-                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
-            }
-          >
-            <CalendarClock className="w-4 h-4" />
-            Horarios Individuales
-          </button>
-          <button
-            className={
-              "flex-1 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition " +
-              (vistaPrincipal === "listados"
-                ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
-                : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
-            }
-          >
-            <ClipboardList className="w-4 h-4" />
-            Listados Por Asignaturas
-          </button>
-        </div>
         <ListadosPanel
           alumnos={carga.alumnos}
           anio={anio}
@@ -1598,6 +1501,73 @@ export default function HorariosAlumnosScreen({ config, snapshotPendiente, onSna
 }
 
 // ── Subcomponentes ─────────────────────────────────────────────────────────
+
+/** Una pestaña de la fila superior de Horarios (subrayada cuando está activa). */
+function PestanaHorarios({
+  activa,
+  onClick,
+  icono,
+  texto,
+  aviso,
+  avisoTitulo,
+}: {
+  activa: boolean;
+  onClick: () => void;
+  icono: React.ReactNode;
+  texto: string;
+  /** Número del aviso naranja (no se muestra si es 0 o no se indica). */
+  aviso?: number;
+  avisoTitulo?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        "px-4 flex items-center gap-2 text-sm font-medium border-b-2 transition whitespace-nowrap " +
+        (activa
+          ? "border-[var(--tc-primary)] text-[var(--tc-primary)]"
+          : "border-transparent text-[var(--tc-ink-mute)] hover:text-[var(--tc-ink)] hover:border-[var(--tc-border)]")
+      }
+    >
+      {icono}
+      {texto}
+      {!!aviso && (
+        <span
+          title={avisoTitulo}
+          className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
+          style={{ background: "var(--tc-warn-bg)", color: "var(--tc-warn-ink)", border: "1px solid var(--tc-warn-border)" }}
+        >
+          {aviso}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/** Horarios Individuales y Listados sin ningún horario cargado todavía. */
+function SinHorariosCargados({ onIrAExcel }: { onIrAExcel: () => void }) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="max-w-md text-center">
+        <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[var(--tc-primary-tint)] flex items-center justify-center">
+          <CalendarClock className="w-8 h-8 text-[var(--tc-primary)]" />
+        </div>
+        <h2 className="font-display text-2xl text-[var(--tc-ink)] mb-2">Todavía no hay horarios</h2>
+        <p className="text-sm text-[var(--tc-ink-soft)] mb-6 leading-relaxed">
+          Carga primero el Excel que ha rellenado el profesorado. La app montará el horario semanal de cada
+          alumno para verlo, descargarlo en PDF, enviarlo por email y sacar los listados.
+        </p>
+        <button
+          onClick={onIrAExcel}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--tc-primary)] text-white font-medium text-sm hover:opacity-90 transition"
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          Ir a Excel de Horarios
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Panel de listados de alumnado agrupados por Asignatura → Curso → Grupo/Aula/Profesor.

@@ -11,7 +11,7 @@ import type { HorariosEntry, HorariosSnapshot } from "../../electron/horarios-da
  * Escenario de horarios activo en toda la aplicación.
  *
  * Cuando se activa un snapshot del historial de horarios, todas las pantallas
- * (Horarios, Informes, Asistente de Alumnado Fantasma) deben leer los datos de
+ * (Horarios, sus pestañas Excel de Horarios y Listados, Informes) deben leer los datos de
  * ESE snapshot en lugar del estado actual del almacén. Esto permite revisar
  * un momento pasado del curso sin tener que restaurar el almacén.
  *

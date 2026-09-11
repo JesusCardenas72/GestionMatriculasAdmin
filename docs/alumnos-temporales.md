@@ -248,6 +248,8 @@ Las **columnas se mantienen en el mismo orden** que el Excel original y las fila
 
 ## 11. Asistente paso a paso
 
+> **Desde la v1.15 el asistente ya no existe como ventana de pasos, y tampoco la pestaña Alumnado Fantasma.** Todo está en **Horarios → pestaña «Excel de Horarios»**: 1 · Alumnado fantasma (alta, importación, fechas del selector y lista), 2 · Generar el Excel (un único botón: «Generar Excel» o «Generar Excel actualizado»), 3 · Cargar el Excel relleno (con «Comprobar coherencia» y un «Borrar horarios cargados» discreto). «Historial de horarios» e «Historial de envíos» son botones fijos a la derecha de las pestañas de Horarios. Código: `src/components/excelHorarios/`. Lo que sigue describe el diseño anterior y se conserva como referencia.
+
 > Diseño aprobado e implementado el 2026-06-12. Esta sección es la documentación de referencia; el documento original de la sesión de diseño está en `docs/superpowers/specs/2026-06-12-asistente-temporales-design.md`.
 
 ### Qué es
