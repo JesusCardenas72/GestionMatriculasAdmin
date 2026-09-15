@@ -9,6 +9,16 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.18.2] - 2026-09-15
+
+### Corregido
+
+- **Copia de seguridad: faltaba quién forma el Claustro y la CCP.** La copia guardaba las fichas del profesorado pero no los cambios hechos a mano en la ventana «Claustro y CCP» ni la fecha de la última carga. Ahora guarda lo mismo que «Exportar JSON» de la pestaña Profesorado.
+- **Al restaurar una copia se borraban los cambios de Claustro y CCP del equipo.** Ya no:
+  - Con «Reemplazar» se ponen los de la copia.
+  - Con «Fusionar» se mantienen los del equipo y solo se añaden los de profesores que no tenían ningún cambio.
+  - Las copias antiguas, que no los traen, dejan intactos los del equipo.
+
 ## [1.18.1] - 2026-09-15
 
 ### Corregido

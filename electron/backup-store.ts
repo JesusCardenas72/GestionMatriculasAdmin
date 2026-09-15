@@ -2,7 +2,15 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import JSZip from "jszip";
-import { fichaDesdeNombre, type Profesor } from "./profesorado-store";
+import {
+  escribirStore,
+  fichaDesdeNombre,
+  sanearGrupos,
+  type AjusteGrupo,
+  type ComposicionGrupos,
+  type Profesor,
+  type ProfesoradoStore,
+} from "./profesorado-store";
 
 /**
  * Copia de seguridad completa (Fase 1: GUARDAR).
@@ -244,17 +252,21 @@ export async function crearBackup(
     }
   }
 
-  // ── C) Profesorado (la ficha completa, sin rutas absolutas de este PC) ──
+  // ── C) Profesorado: lo mismo que «Exportar JSON» de la pestaña (fichas, bajas,
+  //    retoques de Claustro y CCP y datos de la última carga) ──
   if (seleccion.profesorado) {
-    const store = leerJson<{ profesores?: Profesor[]; origenArchivo?: string | null }>(
-      path.join(dir, "profesorado.json"),
-      {},
-    );
+    const store = leerJson<Partial<ProfesoradoStore>>(path.join(dir, "profesorado.json"), {});
     if (store.profesores && store.profesores.length > 0) {
       zip.file(
         "profesorado.json",
         JSON.stringify(
-          { version: 1, profesores: store.profesores, origenArchivo: store.origenArchivo ?? null },
+          {
+            version: 1,
+            profesores: store.profesores,
+            grupos: sanearGrupos(store.grupos),
+            actualizado: store.actualizado ?? null,
+            origenArchivo: store.origenArchivo ?? null,
+          },
           null,
           2,
         ),
@@ -382,6 +394,21 @@ function ensureDir(dir: string): void {
 
 function normalizarNombre(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Fusiona los retoques de Claustro y CCP: los del equipo mandan; de la copia
+ * solo entran los de profesores que en el equipo no tienen ningún retoque.
+ */
+function fusionarGrupos(actual: ComposicionGrupos, copia: ComposicionGrupos): ComposicionGrupos {
+  const uno = (a: AjusteGrupo, c: AjusteGrupo): AjusteGrupo => {
+    const conRetoque = new Set([...a.incluidos, ...a.excluidos]);
+    return {
+      incluidos: [...a.incluidos, ...c.incluidos.filter((id) => !conRetoque.has(id))],
+      excluidos: [...a.excluidos, ...c.excluidos.filter((id) => !conRetoque.has(id))],
+    };
+  };
+  return sanearGrupos({ claustro: uno(actual.claustro, copia.claustro), ccp: uno(actual.ccp, copia.ccp) });
 }
 
 async function zipFileBuffer(zip: JSZip, p: string): Promise<Buffer | null> {
@@ -551,29 +578,35 @@ export async function restaurarBackup(
   // Las copias hechas con la v1.14 o posterior traen `profesorado.json` con la
   // ficha completa. Las anteriores solo traen la lista de nombres dentro de
   // `horarios-config.json`: esas se restauran como fichas con el resto de
-  // campos vacíos, para no perder nada.
+  // campos vacíos, para no perder nada. Desde la v1.18.2 traen además los
+  // retoques de Claustro y CCP y la fecha de la última carga; si la copia no
+  // los trae, se conservan los del equipo.
   if (seleccion.profesorado) {
-    const store = await zipJson<{ profesores?: Profesor[] } | null>(zip, "profesorado.json", null);
+    const store = await zipJson<Partial<ProfesoradoStore> | null>(zip, "profesorado.json", null);
+    const copiaNueva = !!store && Array.isArray(store.profesores);
     let fichasCopia: Profesor[];
-    let origenArchivoCopia: string | null = null;
-    if (store && Array.isArray(store.profesores)) {
-      fichasCopia = store.profesores;
-      origenArchivoCopia =
-        (store as { origenArchivo?: string | null }).origenArchivo ?? null;
+    if (copiaNueva) {
+      fichasCopia = store!.profesores!;
     } else {
       const antigua = await zipJson<{ profesores?: string[] }>(zip, "horarios-config.json", {});
       fichasCopia = (antigua.profesores ?? []).map(fichaDesdeNombre);
     }
+    const gruposCopia = copiaNueva && store!.grupos ? sanearGrupos(store!.grupos) : null;
+    const origenArchivoCopia = copiaNueva ? (store!.origenArchivo ?? null) : null;
+    const actualizadoCopia = copiaNueva ? (store!.actualizado ?? null) : null;
 
-    const destino = path.join(dir, "profesorado.json");
-    const actual = leerJson<{ profesores?: Profesor[]; actualizado?: string | null; origenArchivo?: string | null }>(
-      destino,
-      {},
-    );
+    const actual = leerJson<Partial<ProfesoradoStore>>(path.join(dir, "profesorado.json"), {});
+    const gruposActuales = sanearGrupos(actual.grupos);
 
     let profesores: Profesor[];
+    let grupos: ComposicionGrupos;
+    let actualizado: string | null;
+    let origenArchivo: string | null;
     if (modo === "reemplazar") {
       profesores = fichasCopia;
+      grupos = gruposCopia ?? gruposActuales;
+      actualizado = copiaNueva && "actualizado" in store! ? actualizadoCopia : (actual.actualizado ?? null);
+      origenArchivo = copiaNueva ? origenArchivoCopia : (actual.origenArchivo ?? null);
     } else {
       // Fusionar: lo que ya hay manda; de la copia solo entra quien falte.
       const vistos = new Set((actual.profesores ?? []).map((p) => normalizarNombre(p.apellidosNombre)));
@@ -584,22 +617,12 @@ export async function restaurarBackup(
         vistos.add(clave);
         profesores.push(p);
       }
+      grupos = gruposCopia ? fusionarGrupos(gruposActuales, gruposCopia) : gruposActuales;
+      actualizado = actual.actualizado ?? actualizadoCopia;
+      origenArchivo = actual.origenArchivo ?? origenArchivoCopia;
     }
 
-    fs.writeFileSync(
-      destino,
-      JSON.stringify(
-        {
-          version: 1,
-          profesores,
-          actualizado: actual.actualizado ?? null,
-          origenArchivo: actual.origenArchivo ?? origenArchivoCopia,
-        },
-        null,
-        2,
-      ),
-      "utf-8",
-    );
+    escribirStore({ version: 1, profesores, grupos, actualizado, origenArchivo });
     categorias.push("Profesorado");
     tick();
   }
