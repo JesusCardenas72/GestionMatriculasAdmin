@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  alternarMiembro,
   destinatariosGrupo,
+  renombrarEnAjuste,
+  situacionEnGrupo,
   destinatariosSeleccion,
   emailValido,
   esMiembroCCP,
@@ -109,6 +112,67 @@ describe("destinatariosGrupo", () => {
       "Beltrán Soto, Luis",
       "Esteban Mora, Rosa",
     ]);
+  });
+});
+
+describe("retoques a mano de Claustro y CCP", () => {
+  const profesorado = [
+    prof("Alba Ruiz, Ana", { cargo: "Directora" }),
+    prof("Beltrán Soto, Luis", { cargo: "FC" }),
+    prof("Castro Gil, Eva", { cargo: "Coord. Bienestar y protección" }),
+    prof("Díaz Pérez, Juan", { cargo: "Secretario", activo: false }),
+  ];
+  const resumenes = resumenPorProfesor([clase("Alumno 1", "Beltrán Soto, Luis")]);
+
+  it("incluidos entran con su motivo y excluidos pasan a «otros»", () => {
+    const r = destinatariosGrupo("ccp", profesorado, resumenes, {
+      incluidos: ["castro gil, eva"],
+      excluidos: ["alba ruiz, ana"],
+    });
+    expect(r.conEmail.map((d) => [d.apellidosNombre, d.motivo])).toEqual([
+      ["Castro Gil, Eva", "Añadido a mano · Coord. Bienestar y protección"],
+    ]);
+    expect(r.otros.map((d) => d.apellidosNombre)).toEqual([
+      "Alba Ruiz, Ana",
+      "Beltrán Soto, Luis",
+    ]);
+  });
+
+  it("una baja no entra aunque esté incluida a mano", () => {
+    const r = destinatariosGrupo("ccp", profesorado, resumenes, {
+      incluidos: ["díaz pérez, juan"],
+      excluidos: [],
+    });
+    const todos = [...r.conEmail, ...r.sinEmail, ...r.otros].map((d) => d.apellidosNombre);
+    expect(todos).not.toContain("Díaz Pérez, Juan");
+  });
+
+  it("situacionEnGrupo distingue regla y retoques", () => {
+    const [alba, luis] = profesorado;
+    expect(situacionEnGrupo("claustro", luis, resumenes).origen).toBe("automatico");
+    expect(situacionEnGrupo("claustro", alba, resumenes).origen).toBe("fuera");
+    expect(
+      situacionEnGrupo("claustro", alba, resumenes, { incluidos: [alba.id], excluidos: [] }),
+    ).toMatchObject({ miembro: true, origen: "incluido" });
+    expect(
+      situacionEnGrupo("claustro", luis, resumenes, { incluidos: [], excluidos: [luis.id] }),
+    ).toMatchObject({ miembro: false, origen: "excluido", motivoAuto: "1 clase · 1 alumno" });
+  });
+
+  it("alternarMiembro solo guarda lo que se aparta de la regla", () => {
+    const vacio = { incluidos: [], excluidos: [] };
+    expect(alternarMiembro(vacio, "a", true, false)).toEqual({ incluidos: ["a"], excluidos: [] });
+    expect(alternarMiembro(vacio, "a", false, true)).toEqual({ incluidos: [], excluidos: ["a"] });
+    // Volver a lo que dice la regla borra el retoque
+    expect(alternarMiembro({ incluidos: ["a"], excluidos: [] }, "a", false, false)).toEqual(vacio);
+    expect(alternarMiembro({ incluidos: [], excluidos: ["a"] }, "a", true, true)).toEqual(vacio);
+  });
+
+  it("renombrarEnAjuste sigue a la ficha renombrada", () => {
+    expect(renombrarEnAjuste({ incluidos: ["a", "b"], excluidos: ["c"] }, "a", "b")).toEqual({
+      incluidos: ["b"],
+      excluidos: ["c"],
+    });
   });
 });
 

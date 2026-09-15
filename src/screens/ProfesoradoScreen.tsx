@@ -5,7 +5,11 @@ import {
   ArrowUpAZ,
   CheckCircle,
   ChevronDown,
+  ArrowDownUp,
   Download,
+  FileDown,
+  FileSpreadsheet,
+  FileUp,
   Info,
   Mail,
   Plus,
@@ -49,14 +53,22 @@ import {
   NOMBRE_GRUPO,
   destinatariosGrupo,
   destinatariosSeleccion,
+  motivoAutomatico,
+  renombrarEnAjuste,
   type GrupoCorreo,
 } from "../utils/profesoradoCorreo";
+import {
+  crearExportacion,
+  interpretarImportacion,
+  nombreArchivoExportacion,
+} from "../utils/profesoradoJson";
 import type { NuevoProfesorDatos, NuevoProfesorPayload } from "./DialogoNuevoProfesor";
+import type { PayloadGruposProfesorado } from "./DialogoGruposProfesorado";
 import ProfesoradoCargaModal from "../components/modals/ProfesoradoCargaModal";
 import AsignarAlumnosModal from "../components/modals/AsignarAlumnosModal";
 import SustituirProfesoradoModal from "../components/modals/SustituirProfesoradoModal";
 import type { AppConfig } from "../../electron/config-store";
-import type { Profesor } from "../../electron/profesorado-store";
+import type { ComposicionGrupos, Profesor } from "../../electron/profesorado-store";
 import type { HorariosCursoData, HorariosEntry } from "../../electron/horarios-data-store";
 
 /** Columnas de la tabla que se pueden ordenar. */
@@ -86,8 +98,17 @@ export default function ProfesoradoScreen({ config }: Props) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
   const { matriculas } = useLocalMatriculas(curso);
-  const { store, profesores, activos, cargando, guardar, reemplazar, deshacerUltimaCarga } =
-    useProfesorado();
+  const {
+    store,
+    profesores,
+    activos,
+    cargando,
+    guardar,
+    reemplazar,
+    guardarGrupos,
+    importar,
+    deshacerUltimaCarga,
+  } = useProfesorado();
 
   const [entries, setEntries] = useState<HorariosEntry[]>([]);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -120,6 +141,7 @@ export default function ProfesoradoScreen({ config }: Props) {
   } | null>(null);
   const [sustitucionAplicando, setSustitucionAplicando] = useState(false);
   const [menuCorreo, setMenuCorreo] = useState(false);
+  const [menuImportExport, setMenuImportExport] = useState(false);
   /** Profesores marcados con la casilla de la tabla, para escribirles un correo. */
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
 
@@ -149,10 +171,10 @@ export default function ProfesoradoScreen({ config }: Props) {
   const avisos = useMemo(() => avisosCoherencia(profesores, entries), [profesores, entries]);
   const gruposCorreo = useMemo<Record<"claustro" | "ccp", ReturnType<typeof destinatariosGrupo>>>(
     () => ({
-      claustro: destinatariosGrupo("claustro", profesores, resumenes),
-      ccp: destinatariosGrupo("ccp", profesores, resumenes),
+      claustro: destinatariosGrupo("claustro", profesores, resumenes, store.grupos.claustro),
+      ccp: destinatariosGrupo("ccp", profesores, resumenes, store.grupos.ccp),
     }),
-    [profesores, resumenes],
+    [profesores, resumenes, store.grupos],
   );
   const cobertura = useMemo(
     () => coberturaPorEspecialidad(profesores, matriculas),
@@ -283,7 +305,10 @@ export default function ProfesoradoScreen({ config }: Props) {
   };
 
   const handleDeshacer = async () => {
-    if (!window.confirm("¿Volver a la lista de profesorado anterior a la última carga?")) return;
+    if (
+      !window.confirm("¿Volver al profesorado anterior a la última carga o importación?")
+    )
+      return;
     limpiarAvisos();
     try {
       const nuevo = await deshacerUltimaCarga();
@@ -345,8 +370,105 @@ export default function ProfesoradoScreen({ config }: Props) {
       editadoAMano: [...tocados],
     };
     await guardar(profesores.map((p) => (p.id === original.id ? ficha : p)));
+    // Al renombrar cambia el id: los retoques de Claustro y CCP le siguen.
+    if (ficha.id !== original.id) {
+      await guardarGrupos({
+        claustro: renombrarEnAjuste(store.grupos.claustro, original.id, ficha.id),
+        ccp: renombrarEnAjuste(store.grupos.ccp, original.id, ficha.id),
+      });
+    }
     setSeleccionadoId(ficha.id);
     setMensaje(`Ficha de «${ficha.apellidosNombre}» guardada.`);
+  };
+
+  /** Abre la ventana «Claustro y CCP» y guarda los retoques que se hagan en ella. */
+  const handleDefinirGrupos = async () => {
+    setMenuCorreo(false);
+    limpiarAvisos();
+    const payload: PayloadGruposProfesorado = {
+      curso,
+      profesores: activos.map((p) => ({
+        id: p.id,
+        apellidosNombre: p.apellidosNombre,
+        cargo: p.cargo,
+        especialidad: p.especialidad,
+        departamento: p.departamento,
+        auto: {
+          claustro: motivoAutomatico("claustro", p, resumenes),
+          ccp: motivoAutomatico("ccp", p, resumenes),
+        },
+      })),
+      grupos: store.grupos,
+    };
+    const json = await window.adminAPI.dialogoGruposProfesorado.abrir(JSON.stringify(payload));
+    if (json === null) return;
+    try {
+      const nuevo = await guardarGrupos(JSON.parse(json) as ComposicionGrupos);
+      const miembros = (g: "claustro" | "ccp") =>
+        destinatariosGrupo(g, nuevo.profesores, resumenes, nuevo.grupos[g]);
+      const c = miembros("claustro");
+      const ccp = miembros("ccp");
+      setMensaje(
+        `Grupos guardados: Claustro con ${c.conEmail.length + c.sinEmail.length} persona(s) y ` +
+          `CCP con ${ccp.conEmail.length + ccp.sinEmail.length}.`,
+      );
+    } catch (e) {
+      setError(`No se han podido guardar los grupos: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  /** Guarda en un .json todo lo de la pestaña (fichas, bajas, grupos y última carga). */
+  const handleExportarJson = async () => {
+    limpiarAvisos();
+    try {
+      const ruta = await window.adminAPI.profesorado.exportarJson(
+        crearExportacion(store),
+        nombreArchivoExportacion(),
+      );
+      if (ruta) {
+        setMensaje(`Profesorado exportado (${profesores.length} profesor(es)) en:\n${ruta}`);
+      }
+    } catch (e) {
+      setError(`No se ha podido exportar: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  /** Sustituye todo lo de la pestaña por el contenido de un .json exportado. */
+  const handleImportarJson = async () => {
+    limpiarAvisos();
+    let sel: { fileName: string; texto: string } | null;
+    try {
+      sel = await window.adminAPI.profesorado.leerJson();
+    } catch (e) {
+      setError(`No se ha podido leer el archivo: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+    if (!sel) return;
+    const r = interpretarImportacion(sel.texto);
+    if (!r.ok) {
+      setError(`«${sel.fileName}»: ${r.error}`);
+      return;
+    }
+    const fecha = r.exportado ? ` (exportado el ${new Date(r.exportado).toLocaleString("es-ES")})` : "";
+    const aviso =
+      `Vas a sustituir TODO el profesorado por el de «${sel.fileName}»${fecha}:\n\n` +
+      `· ${r.enActivo} profesor(es) en activo y ${r.deBaja} de baja\n` +
+      `· ${r.retoquesGrupos} cambio(s) a mano en Claustro y CCP\n\n` +
+      `Ahora mismo hay ${profesores.length} profesor(es). ` +
+      "Se guarda una copia y podrás volver atrás con «Deshacer carga».\n\n¿Importar?";
+    if (!window.confirm(aviso)) return;
+    try {
+      const nuevo = await importar(r.store);
+      setHayCopia(true);
+      setMarcados(new Set());
+      setSeleccionadoId(null);
+      setMensaje(
+        `Profesorado importado desde «${sel.fileName}»: ` +
+          `${nuevo.profesores.filter((p) => p.activo).length} profesor(es) en activo.`,
+      );
+    } catch (e) {
+      setError(`No se ha podido importar: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   /** Archiva (no borra) o reincorpora a un profesor. */
@@ -537,6 +659,15 @@ export default function ProfesoradoScreen({ config }: Props) {
                     <UserCog className="w-4 h-4" />
                     Sustituir
                   </button>
+                  <button
+                    onClick={handleDefinirGrupos}
+                    disabled={activos.length === 0}
+                    title="Definir quién forma el Claustro y la CCP"
+                    className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
+                  >
+                    <Users className="w-4 h-4" />
+                    Claustro y CCP
+                  </button>
                   <div className="relative">
                     <button
                       onClick={() => setMenuCorreo((v) => !v)}
@@ -594,6 +725,13 @@ export default function ProfesoradoScreen({ config }: Props) {
                                 : DESCRIPCION_GRUPO.seleccion}
                             </span>
                           </button>
+                          <button
+                            onClick={handleDefinirGrupos}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-[var(--tc-primary)] bg-[var(--tc-bg-panel)] hover:bg-[var(--tc-primary-tint)] border-t border-[var(--tc-border)] transition-colors"
+                          >
+                            <Users className="w-4 h-4 shrink-0" />
+                            Definir quién forma el Claustro y la CCP…
+                          </button>
                         </div>
                       </>
                     )}
@@ -610,13 +748,57 @@ export default function ProfesoradoScreen({ config }: Props) {
                   )}
                 </>
               )}
-              <button
-                onClick={handleExportar}
-                disabled={visibles.length === 0}
-                className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] disabled:opacity-40 transition-colors"
-              >
-                Exportar CSV
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setMenuImportExport((v) => !v)}
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
+                >
+                  <ArrowDownUp className="w-4 h-4" />
+                  Import/Export
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {menuImportExport && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setMenuImportExport(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg overflow-hidden">
+                      {!isSoloLectura && (
+                        <OpcionMenu
+                          icono={<FileUp className="w-4 h-4" />}
+                          titulo="Importar JSON"
+                          descripcion="Sustituye todo el profesorado, bajas y grupos por un .json exportado"
+                          onClick={() => {
+                            setMenuImportExport(false);
+                            void handleImportarJson();
+                          }}
+                        />
+                      )}
+                      <OpcionMenu
+                        icono={<FileDown className="w-4 h-4" />}
+                        titulo="Exportar JSON"
+                        descripcion="Guarda todo el profesorado, bajas y grupos para importarlo después"
+                        disabled={profesores.length === 0}
+                        onClick={() => {
+                          setMenuImportExport(false);
+                          void handleExportarJson();
+                        }}
+                      />
+                      <OpcionMenu
+                        icono={<FileSpreadsheet className="w-4 h-4" />}
+                        titulo="Exportar CSV"
+                        descripcion="Solo las fichas que se ven con los filtros, para abrir en Excel"
+                        disabled={visibles.length === 0}
+                        onClick={() => {
+                          setMenuImportExport(false);
+                          handleExportar();
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1054,6 +1236,37 @@ function Seccion({
       </button>
       {abierta && <div className="px-4 pb-4">{children}</div>}
     </div>
+  );
+}
+
+/** Opción de un menú desplegable de la barra (icono, título y explicación). */
+function OpcionMenu({
+  icono,
+  titulo,
+  descripcion,
+  disabled,
+  onClick,
+}: {
+  icono: React.ReactNode;
+  titulo: string;
+  descripcion: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full flex items-start gap-2.5 text-left px-4 py-2.5 hover:bg-[var(--tc-bg-panel)] disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors border-b last:border-b-0 border-[var(--tc-border-soft)]"
+    >
+      <span className="mt-0.5 shrink-0 text-[var(--tc-primary)]">{icono}</span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-[var(--tc-ink)]">{titulo}</span>
+        <span className="block text-[11px] leading-snug text-[var(--tc-ink-soft)] mt-0.5">
+          {descripcion}
+        </span>
+      </span>
+    </button>
   );
 }
 

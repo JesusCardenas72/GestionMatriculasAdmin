@@ -1,6 +1,6 @@
 import { norm } from "./horarioExcel";
 import { resumenDe, type ResumenProfesor } from "./profesoradoCruces";
-import type { Profesor } from "../../electron/profesorado-store";
+import type { AjusteGrupo, Profesor } from "../../electron/profesorado-store";
 
 /**
  * Destinatarios de los correos al profesorado desde la pestaña Profesorado.
@@ -12,6 +12,10 @@ import type { Profesor } from "../../electron/profesorado-store";
  *     Jefatura de Estudios y Secretaría), Jefaturas de Departamento y
  *     Coordinación de Formación, siempre en activo.
  *   · Selección — los profesores marcados a mano en la tabla.
+ *
+ * La regla automática de Claustro y CCP se puede retocar a mano (ventana
+ * «Claustro y CCP»): `AjusteGrupo.incluidos` añade a alguien que la regla deja
+ * fuera y `excluidos` saca a quien la regla mete.
  *
  * El cargo es texto libre del CSV del centro («Jefa de Estudios / Adjunta»,
  * «J. Dep. / PRL», «Coord. Formación»…), así que la CCP se reconoce por
@@ -107,11 +111,60 @@ function ordenados(d: DestinatariosGrupo): DestinatariosGrupo {
   };
 }
 
-/** Calcula quién forma el grupo y reparte en con/sin correo. */
+type GrupoFijo = Exclude<GrupoCorreo, "seleccion">;
+
+/**
+ * Por qué la regla automática mete a alguien en el grupo, o `null` si no lo
+ * mete. No mira si está en activo: eso lo decide quien llama.
+ */
+export function motivoAutomatico(
+  grupo: GrupoFijo,
+  p: Profesor,
+  resumenes: Map<string, ResumenProfesor>,
+): string | null {
+  if (grupo === "claustro") {
+    const r = resumenDe(resumenes, p);
+    return r.clases > 0 && r.alumnos > 0 ? motivoClases(r) : null;
+  }
+  const funciones = funcionesCCP(p.cargo);
+  return funciones.length > 0 ? funciones.join(" · ") : null;
+}
+
+export type OrigenMiembro = "automatico" | "incluido" | "excluido" | "fuera";
+
+/**
+ * Situación de un profesor respecto a un grupo, ya aplicados los retoques a
+ * mano. `miembro` es lo que cuenta para el envío.
+ */
+export function situacionEnGrupo(
+  grupo: GrupoFijo,
+  p: Profesor,
+  resumenes: Map<string, ResumenProfesor>,
+  ajuste?: AjusteGrupo,
+): { miembro: boolean; origen: OrigenMiembro; motivoAuto: string | null } {
+  const motivoAuto = motivoAutomatico(grupo, p, resumenes);
+  if (ajuste?.excluidos.includes(p.id)) return { miembro: false, origen: "excluido", motivoAuto };
+  if (ajuste?.incluidos.includes(p.id)) {
+    // Si la regla ya lo incluye, el retoque no cambia nada.
+    return { miembro: true, origen: motivoAuto ? "automatico" : "incluido", motivoAuto };
+  }
+  return motivoAuto
+    ? { miembro: true, origen: "automatico", motivoAuto }
+    : { miembro: false, origen: "fuera", motivoAuto };
+}
+
+/** Texto del motivo para quien está en el grupo porque se añadió a mano. */
+function motivoIncluido(p: Profesor): string {
+  const extra = p.cargo.trim() || p.especialidad.trim();
+  return ["Añadido a mano", extra].filter(Boolean).join(" · ");
+}
+
+/** Calcula quién forma el grupo (con los retoques a mano) y reparte en con/sin correo. */
 export function destinatariosGrupo(
-  grupo: Exclude<GrupoCorreo, "seleccion">,
+  grupo: GrupoFijo,
   profesorado: Profesor[],
   resumenes: Map<string, ResumenProfesor>,
+  ajuste?: AjusteGrupo,
 ): DestinatariosGrupo {
   const conEmail: DestinatarioProfesor[] = [];
   const sinEmail: DestinatarioProfesor[] = [];
@@ -119,25 +172,40 @@ export function destinatariosGrupo(
 
   for (const p of profesorado) {
     if (!p.activo) continue;
-    const r = resumenDe(resumenes, p);
-
-    let motivo: string | null = null;
-    if (grupo === "claustro") {
-      if (r.clases > 0 && r.alumnos > 0) motivo = motivoClases(r);
-    } else {
-      const funciones = funcionesCCP(p.cargo);
-      if (funciones.length > 0) motivo = funciones.join(" · ");
-    }
-
+    const s = situacionEnGrupo(grupo, p, resumenes, ajuste);
     const valido = emailValido(p.email);
-    if (motivo === null) {
+    if (!s.miembro) {
       if (valido) otros.push(aDestinatario(p, p.cargo.trim() || p.especialidad.trim()));
       continue;
     }
+    const motivo = s.origen === "incluido" ? motivoIncluido(p) : (s.motivoAuto ?? "");
     (valido ? conEmail : sinEmail).push(aDestinatario(p, motivo));
   }
 
   return ordenados({ conEmail, sinEmail, otros });
+}
+
+/**
+ * Ajuste de un grupo tras marcar o desmarcar a alguien en la ventana: si lo
+ * que se elige coincide con la regla automática, se quita el retoque.
+ */
+export function alternarMiembro(
+  ajuste: AjusteGrupo,
+  id: string,
+  quiereDentro: boolean,
+  dentroPorRegla: boolean,
+): AjusteGrupo {
+  const incluidos = ajuste.incluidos.filter((x) => x !== id);
+  const excluidos = ajuste.excluidos.filter((x) => x !== id);
+  if (quiereDentro && !dentroPorRegla) incluidos.push(id);
+  if (!quiereDentro && dentroPorRegla) excluidos.push(id);
+  return { incluidos, excluidos };
+}
+
+/** Cambia el `id` de un profesor en los retoques (al renombrar su ficha). */
+export function renombrarEnAjuste(ajuste: AjusteGrupo, idViejo: string, idNuevo: string): AjusteGrupo {
+  const cambiar = (lista: string[]) => [...new Set(lista.map((x) => (x === idViejo ? idNuevo : x)))];
+  return { incluidos: cambiar(ajuste.incluidos), excluidos: cambiar(ajuste.excluidos) };
 }
 
 /** «Pérez Gómez, Ana» → «Ana». Si no hay coma, el nombre entero. */

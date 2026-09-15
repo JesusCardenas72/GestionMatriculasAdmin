@@ -40,9 +40,13 @@ import {
   hayCopiaAnterior,
   nombresProfesorado,
   profesoradoGuardar,
+  profesoradoGuardarGrupos,
+  profesoradoImportar,
   profesoradoObtener,
   profesoradoReemplazar,
+  type ComposicionGrupos,
   type Profesor,
+  type ProfesoradoStore,
 } from "./profesorado-store";
 import {
   campanyas_listar,
@@ -495,6 +499,41 @@ function registerIpcHandlers() {
     "profesorado:reemplazar",
     (_e, profesores: Profesor[], origenArchivo: string | null) =>
       profesoradoReemplazar(profesores, origenArchivo),
+  );
+  ipcMain.handle("profesorado:guardarGrupos", (_e, grupos: ComposicionGrupos) =>
+    profesoradoGuardarGrupos(grupos),
+  );
+  ipcMain.handle("profesorado:importar", (_e, store: ProfesoradoStore) =>
+    profesoradoImportar(store),
+  );
+  // Exportación / importación .json de toda la pestaña. El contenido lo arma y
+  // lo valida el renderer (src/utils/profesoradoJson.ts); aquí solo se elige
+  // el archivo y se leen o escriben los bytes.
+  ipcMain.handle(
+    "profesorado:exportarJson",
+    async (_e, texto: string, nombreSugerido: string): Promise<string | null> => {
+      const res = await dialog.showSaveDialog({
+        title: "Exportar profesorado (.json)",
+        defaultPath: nombreSugerido,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (res.canceled || !res.filePath) return null;
+      fs.writeFileSync(res.filePath, texto, { encoding: "utf-8" });
+      return res.filePath;
+    },
+  );
+  ipcMain.handle(
+    "profesorado:leerJson",
+    async (): Promise<{ fileName: string; texto: string } | null> => {
+      const res = await dialog.showOpenDialog({
+        title: "Importar profesorado (.json)",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        properties: ["openFile"],
+      });
+      if (res.canceled || res.filePaths.length === 0) return null;
+      const file = res.filePaths[0];
+      return { fileName: path.basename(file), texto: fs.readFileSync(file, "utf-8") };
+    },
   );
   ipcMain.handle("profesorado:hayCopiaAnterior", () => hayCopiaAnterior());
   ipcMain.handle("profesorado:deshacerUltimaCarga", () => deshacerUltimaCarga());
@@ -1441,6 +1480,57 @@ function registerIpcHandlers() {
           nuevoWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
         } else {
           nuevoWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+        }
+      });
+    },
+  );
+
+  // ── Ventana nativa modal: quién forma el Claustro y la CCP ───────────────────
+  // Devuelve los retoques (ComposicionGrupos) como JSON o null si se cancela.
+  ipcMain.handle(
+    "profesorado:abrirDialogoGrupos",
+    async (_e, payloadJSON: string): Promise<string | null> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(payloadJSON));
+
+      return new Promise<string | null>((resolve) => {
+        dialogResolvers.set(dialogId, resolve);
+
+        const gruposWin = new BrowserWindow({
+          width: 900,
+          height: 760,
+          minWidth: 620,
+          minHeight: 460,
+          title: "Claustro y CCP — Profesorado",
+          icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+          autoHideMenuBar: true,
+          parent: win ?? undefined,
+          modal: true,
+          webPreferences: {
+            preload: path.join(__dirname, "preload.js"),
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        });
+
+        gruposWin.on("closed", () => {
+          if (dialogResolvers.has(dialogId)) {
+            dialogData.delete(dialogId);
+            dialogResolvers.delete(dialogId);
+            resolve(null);
+          }
+          // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
+        });
+
+        const hash = `dialog-grupos-profesorado?id=${encodeURIComponent(dialogId)}`;
+        if (VITE_DEV_SERVER_URL) {
+          gruposWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+        } else {
+          gruposWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
         }
       });
     },

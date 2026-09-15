@@ -49,18 +49,45 @@ export interface Profesor {
   editadoAMano?: string[];
 }
 
+/**
+ * Retoques a mano de un grupo de correo sobre su regla automática (Claustro:
+ * tiene clases y alumnado; CCP: cargo directivo, jefatura de departamento o
+ * coordinación de formación). Guarda `id` de profesor.
+ */
+export interface AjusteGrupo {
+  /** Están en el grupo aunque la regla automática no los incluya. */
+  incluidos: string[];
+  /** Quedan fuera aunque la regla automática los incluya. */
+  excluidos: string[];
+}
+
+export interface ComposicionGrupos {
+  claustro: AjusteGrupo;
+  ccp: AjusteGrupo;
+}
+
 export interface ProfesoradoStore {
   version: 1;
   profesores: Profesor[];
+  /** Quién forma el Claustro y la CCP además (o en lugar) de la regla automática. */
+  grupos: ComposicionGrupos;
   /** Fecha ISO de la última carga de archivo. */
   actualizado: string | null;
   /** Nombre del archivo del que se cargó la última vez. */
   origenArchivo: string | null;
 }
 
+export function gruposVacios(): ComposicionGrupos {
+  return {
+    claustro: { incluidos: [], excluidos: [] },
+    ccp: { incluidos: [], excluidos: [] },
+  };
+}
+
 const VACIO: ProfesoradoStore = {
   version: 1,
   profesores: [],
+  grupos: gruposVacios(),
   actualizado: null,
   origenArchivo: null,
 };
@@ -148,6 +175,25 @@ function sanear(lista: Profesor[]): Profesor[] {
   return ordenar(out);
 }
 
+function idsUnicos(lista: unknown): string[] {
+  if (!Array.isArray(lista)) return [];
+  const out = new Set<string>();
+  for (const v of lista) {
+    if (typeof v === "string" && v.trim() !== "") out.add(normNombre(v));
+  }
+  return [...out];
+}
+
+/** Normaliza los ajustes de grupos: ids únicos y nadie a la vez dentro y fuera. */
+export function sanearGrupos(g: Partial<ComposicionGrupos> | null | undefined): ComposicionGrupos {
+  const uno = (a: Partial<AjusteGrupo> | undefined): AjusteGrupo => {
+    const incluidos = idsUnicos(a?.incluidos);
+    const dentro = new Set(incluidos);
+    return { incluidos, excluidos: idsUnicos(a?.excluidos).filter((id) => !dentro.has(id)) };
+  };
+  return { claustro: uno(g?.claustro), ccp: uno(g?.ccp) };
+}
+
 function leerJson<T>(file: string, fallback: T): T {
   if (!fs.existsSync(file)) return fallback;
   try {
@@ -170,6 +216,7 @@ function migrarDesdeListaDeNombres(): ProfesoradoStore {
   const store: ProfesoradoStore = {
     version: 1,
     profesores: sanear(nombres.map(fichaDesdeNombre)),
+    grupos: gruposVacios(),
     actualizado: null,
     origenArchivo: null,
   };
@@ -184,13 +231,19 @@ export function leerStore(): ProfesoradoStore {
   return {
     version: 1,
     profesores: sanear(bruto.profesores ?? []),
+    grupos: sanearGrupos(bruto.grupos),
     actualizado: bruto.actualizado ?? null,
     origenArchivo: bruto.origenArchivo ?? null,
   };
 }
 
 export function escribirStore(store: ProfesoradoStore): ProfesoradoStore {
-  const limpio: ProfesoradoStore = { ...store, version: 1, profesores: sanear(store.profesores) };
+  const limpio: ProfesoradoStore = {
+    ...store,
+    version: 1,
+    profesores: sanear(store.profesores),
+    grupos: sanearGrupos(store.grupos),
+  };
   fs.writeFileSync(storePath(), JSON.stringify(limpio, null, 2), "utf-8");
   return limpio;
 }
@@ -218,6 +271,8 @@ export function deshacerUltimaCarga(): ProfesoradoStore {
   const store = escribirStore({
     version: 1,
     profesores: sanear(previa.profesores ?? []),
+    // Copias de antes de la v1.18 no traen grupos: se conservan los actuales.
+    grupos: previa.grupos ? sanearGrupos(previa.grupos) : leerStore().grupos,
     actualizado: previa.actualizado ?? null,
     origenArchivo: previa.origenArchivo ?? null,
   });
@@ -248,8 +303,31 @@ export function profesoradoReemplazar(
   return escribirStore({
     version: 1,
     profesores,
+    // Los ids salen del nombre, así que los retoques de grupos sobreviven a la carga.
+    grupos: leerStore().grupos,
     actualizado: new Date().toISOString(),
     origenArchivo,
+  });
+}
+
+/** Guarda quién forma el Claustro y la CCP (retoques sobre la regla automática). */
+export function profesoradoGuardarGrupos(grupos: ComposicionGrupos): ProfesoradoStore {
+  return escribirStore({ ...leerStore(), grupos });
+}
+
+/**
+ * Sustituye TODO el contenido de la pestaña por una exportación `.json`
+ * (profesorado, bajas, retoques de grupos y datos de la última carga).
+ * Guarda antes una copia, de modo que «Deshacer carga» también la revierte.
+ */
+export function profesoradoImportar(store: ProfesoradoStore): ProfesoradoStore {
+  guardarCopiaAnterior();
+  return escribirStore({
+    version: 1,
+    profesores: store.profesores ?? [],
+    grupos: sanearGrupos(store.grupos),
+    actualizado: store.actualizado ?? null,
+    origenArchivo: store.origenArchivo ?? null,
   });
 }
 

@@ -9,6 +9,22 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.18.0] - 2026-09-15
+
+### Añadido
+
+- **Ventana «Claustro y CCP»** en la pestaña Profesorado (botón «Claustro y CCP» y última opción del menú «Enviar correo»). Sirve para decidir quién forma cada grupo:
+  - Dos pestañas, Claustro y CCP, con el número de personas de cada grupo.
+  - Todo el profesorado en activo con una casilla. De entrada sale marcado según la regla de siempre (Claustro: tiene clases y alumnado este curso; CCP: su cargo).
+  - Lo que cambies a mano se señala con «Añadido a mano» o «Quitado a mano» y se puede devolver a automático, persona a persona o el grupo entero.
+  - Buscador, filtro (todos, dentro, fuera o cambiados a mano) y botones para meter o sacar de golpe a los de la lista.
+  - Los cambios a mano se respetan aunque cambien los horarios o los cargos, se cargue otra lista o se renombre a alguien. Las bajas nunca reciben los correos del grupo.
+- **Exportar e importar toda la pestaña en .json**: fichas (también las bajas), sustituciones, campos retocados a mano, quién forma el Claustro y la CCP y los datos de la última carga. Al importar se comprueba el archivo, se resume lo que trae y se pide confirmación; se guarda una copia y «Deshacer carga» lo revierte.
+
+### Cambiado
+
+- **Desplegable «Import/Export»** en la barra de Profesorado, que reúne Importar JSON, Exportar JSON y Exportar CSV. En modo solo lectura no aparece «Importar JSON».
+
 ## [1.17.0] - 2026-09-15
 
 ### Añadido

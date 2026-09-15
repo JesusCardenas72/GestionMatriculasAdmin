@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Profesor, ProfesoradoStore } from "../../electron/profesorado-store";
+import type { ComposicionGrupos, Profesor, ProfesoradoStore } from "../../electron/profesorado-store";
 
 const PROFESORADO_KEY = ["profesorado"] as const;
 
 const VACIO: ProfesoradoStore = {
   version: 1,
   profesores: [],
+  grupos: { claustro: { incluidos: [], excluidos: [] }, ccp: { incluidos: [], excluidos: [] } },
   actualizado: null,
   origenArchivo: null,
 };
@@ -42,6 +43,16 @@ export function useProfesorado() {
     onSuccess: invalidar,
   });
 
+  const gruposMut = useMutation({
+    mutationFn: (grupos: ComposicionGrupos) => window.adminAPI.profesorado.guardarGrupos(grupos),
+    onSuccess: invalidar,
+  });
+
+  const importarMut = useMutation({
+    mutationFn: (nuevo: ProfesoradoStore) => window.adminAPI.profesorado.importar(nuevo),
+    onSuccess: invalidar,
+  });
+
   const deshacerMut = useMutation({
     mutationFn: () => window.adminAPI.profesorado.deshacerUltimaCarga(),
     onSuccess: invalidar,
@@ -59,6 +70,8 @@ export function useProfesorado() {
     guardar: (profesores: Profesor[]) => guardarMut.mutateAsync(profesores),
     reemplazar: (profesores: Profesor[], origenArchivo: string | null) =>
       reemplazarMut.mutateAsync({ profesores, origenArchivo }),
+    guardarGrupos: (grupos: ComposicionGrupos) => gruposMut.mutateAsync(grupos),
+    importar: (nuevo: ProfesoradoStore) => importarMut.mutateAsync(nuevo),
     deshacerUltimaCarga: () => deshacerMut.mutateAsync(),
     invalidar,
   };

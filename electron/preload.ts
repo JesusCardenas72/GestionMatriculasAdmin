@@ -12,7 +12,7 @@ import type {
   RestauracionModo,
   RestauracionResumen,
 } from "./backup-store";
-import type { Profesor, ProfesoradoStore } from "./profesorado-store";
+import type { ComposicionGrupos, Profesor, ProfesoradoStore } from "./profesorado-store";
 
 const adminAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
@@ -208,6 +208,18 @@ const adminAPI = {
       origenArchivo: string | null,
     ): Promise<ProfesoradoStore> =>
       ipcRenderer.invoke("profesorado:reemplazar", profesores, origenArchivo),
+    /** Guarda quién forma el Claustro y la CCP. */
+    guardarGrupos: (grupos: ComposicionGrupos): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:guardarGrupos", grupos),
+    /** Sustituye toda la pestaña por una importación .json. Guarda copia de lo anterior. */
+    importar: (store: ProfesoradoStore): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:importar", store),
+    /** Pide dónde guardar y escribe el .json. Devuelve la ruta o null si se cancela. */
+    exportarJson: (texto: string, nombreSugerido: string): Promise<string | null> =>
+      ipcRenderer.invoke("profesorado:exportarJson", texto, nombreSugerido),
+    /** Pide un .json y devuelve su texto; la validación la hace el renderer. */
+    leerJson: (): Promise<{ fileName: string; texto: string } | null> =>
+      ipcRenderer.invoke("profesorado:leerJson"),
     hayCopiaAnterior: (): Promise<boolean> =>
       ipcRenderer.invoke("profesorado:hayCopiaAnterior"),
     deshacerUltimaCarga: (): Promise<ProfesoradoStore> =>
@@ -307,6 +319,17 @@ const adminAPI = {
     confirmar: (dialogId: string, fichaJSON: string): Promise<void> =>
       ipcRenderer.invoke("horarios:dialogoConfirmar", dialogId, fichaJSON),
     /** Solo para la ventana de diálogo: cancela. */
+    cancelar: (dialogId: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoCancelar", dialogId),
+  },
+  dialogoGruposProfesorado: {
+    /** Abre la ventana de Claustro y CCP. Devuelve los retoques JSON o null si se cancela. */
+    abrir: (payloadJSON: string): Promise<string | null> =>
+      ipcRenderer.invoke("profesorado:abrirDialogoGrupos", payloadJSON),
+    getData: (dialogId: string): Promise<string | null> =>
+      ipcRenderer.invoke("horarios:dialogoGetData", dialogId),
+    confirmar: (dialogId: string, gruposJSON: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoConfirmar", dialogId, gruposJSON),
     cancelar: (dialogId: string): Promise<void> =>
       ipcRenderer.invoke("horarios:dialogoCancelar", dialogId),
   },
