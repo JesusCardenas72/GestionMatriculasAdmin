@@ -6,6 +6,8 @@ import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
 import { ensenanzaDesdeCode, getCatalogoParaCurso } from "../data/catalogoLocal";
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { buildAmpliacionEmailHtml } from "../utils/emailTemplate";
+import { asuntoAmpliacion } from "../utils/emailAsuntos";
+import { CampoAsunto } from "./CampoAsunto";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 
 const FORMAS_PAGO = ["Pago Único", "Pago Fraccionado", "Solicita Beca", "Becado"];
@@ -71,11 +73,18 @@ interface AsignaturaWiz {
 
 type Paso = 1 | 2 | 3;
 
+/** Correo de la ampliación ya redactado. El PDF se genera y adjunta después, al crearla. */
+export interface CorreoAmpliacion {
+  asunto: string;
+  emailHtml: string;
+  adjuntoPersonalizado?: { nombre: string; base64: string };
+}
+
 interface Props {
   matricula: MatriculaLocal;
   isSaving: boolean;
   onClose: () => void;
-  onCrear: (nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps, adjunto?: { nombre: string; base64: string }) => void;
+  onCrear: (nueva: MatriculaLocal, pdfProps: AmpliacionPdfProps, correo: CorreoAmpliacion) => void;
 }
 
 function calcularNuevoCurso(ensenanzaCurso: string) {
@@ -92,6 +101,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
 
   const [paso, setPaso] = useState<Paso>(1);
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
+  const [asunto, setAsunto] = useState(() => asuntoAmpliacion(nuevoCurso));
   const [fechaInscripcion, setFechaInscripcion] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -252,7 +262,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       observaciones,
       nOrden: m.nOrden,
     };
-    onCrear(nueva, emailHtml, pdfProps, adjuntoPersonalizado ?? undefined);
+    onCrear(nueva, pdfProps, { asunto, emailHtml, adjuntoPersonalizado: adjuntoPersonalizado ?? undefined });
   }
 
   function avanzar() {
@@ -386,6 +396,8 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
           isSaving={isSaving}
           adjuntoPersonalizado={adjuntoPersonalizado}
           onAdjuntoPersonalizado={setAdjuntoPersonalizado}
+          asunto={asunto}
+          onAsuntoChange={setAsunto}
           onObservacionesChange={setObservaciones}
           onCancel={() => setShowEmailPreview(false)}
           onConfirmar={handleConfirmar}
@@ -681,6 +693,8 @@ function EmailPreviewOverlay({
   debePagar,
   adjuntoPersonalizado,
   onAdjuntoPersonalizado,
+  asunto,
+  onAsuntoChange,
   isSaving,
   onObservacionesChange,
   onCancel,
@@ -699,6 +713,8 @@ function EmailPreviewOverlay({
   debePagar: boolean;
   adjuntoPersonalizado: { nombre: string; base64: string } | null;
   onAdjuntoPersonalizado: (v: { nombre: string; base64: string } | null) => void;
+  asunto: string;
+  onAsuntoChange: (v: string) => void;
   isSaving: boolean;
   onObservacionesChange: (v: string) => void;
   onCancel: () => void;
@@ -754,6 +770,7 @@ function EmailPreviewOverlay({
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Panel izquierdo */}
           <div className="w-72 shrink-0 border-r border-slate-200 flex flex-col p-5 gap-4 overflow-y-auto">
+            <CampoAsunto value={asunto} onChange={onAsuntoChange} disabled={isSaving} />
             <div className="flex-1">
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
                 Observaciones
@@ -830,7 +847,7 @@ function EmailPreviewOverlay({
           </button>
           <button
             onClick={onConfirmar}
-            disabled={isSaving}
+            disabled={isSaving || !asunto.trim()}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm bg-violet-600 hover:bg-violet-700"
           >
             {isSaving ? (

@@ -48,7 +48,10 @@ vi.mock("../utils/horariosPersistencia", async (importOriginal) => ({
 vi.mock("../utils/horarioTemplate", () => ({ buildHorarioHtml: () => "" }));
 vi.mock("../utils/horarioListadoTemplate", () => ({ buildListadoHtml: () => "" }));
 vi.mock("../utils/horarioEmailTemplate", () => ({ buildHorarioEmailHtml: () => "" }));
-vi.mock("../api/horarios", () => ({ enviarEmailHorario: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../api/email", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/email")>()),
+  enviarEmail: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("../components/modals/HistorialHorariosModal", () => ({ HistorialHorariosModal: () => null }));
 vi.mock("../components/ResizableColumns", () => ({ default: ({ left, right }: { left: React.ReactNode; right: React.ReactNode }) => <div>{left}{right}</div> }));
 
@@ -91,7 +94,7 @@ beforeEach(() => {
 async function cargar() {
   render(
     <EscenarioHorarioProvider>
-      <HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />
+      <HorariosAlumnosScreen config={{ urlEnviarEmail: "https://flow" } as never} />
     </EscenarioHorarioProvider>,
   );
   const btn = await screen.findByRole("button", { name: /Cargar Excel de horarios/i });
@@ -104,7 +107,7 @@ describe("Horarios — pestañas", () => {
   it("sin horarios guardados empieza en Excel de Horarios y los historiales están a la vista", async () => {
     render(
       <EscenarioHorarioProvider>
-        <HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />
+        <HorariosAlumnosScreen config={{ urlEnviarEmail: "https://flow" } as never} />
       </EscenarioHorarioProvider>,
     );
     expect(await screen.findByRole("heading", { name: "Alumnado fantasma" })).toBeInTheDocument();
@@ -117,7 +120,7 @@ describe("Horarios — pestañas", () => {
   it("Horarios Individuales sin horarios invita a ir a Excel de Horarios", async () => {
     render(
       <EscenarioHorarioProvider>
-        <HorariosAlumnosScreen config={{ urlEnviarEmailHorario: "https://flow" } as never} />
+        <HorariosAlumnosScreen config={{ urlEnviarEmail: "https://flow" } as never} />
       </EscenarioHorarioProvider>,
     );
     await userEvent.click(await screen.findByRole("button", { name: "Horarios Individuales" }));

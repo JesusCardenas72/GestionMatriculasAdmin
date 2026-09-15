@@ -19,6 +19,8 @@ import {
   nombreArchivoDocGrupal,
 } from "../utils/horarioGrupalDoc";
 import { leerArchivoBase64 } from "../utils/fileUtils";
+import { asuntoHorario } from "../utils/emailAsuntos";
+import { CampoAsunto } from "../components/CampoAsunto";
 
 /** Datos que el proceso principal entrega a la ventana nativa de campaña. */
 interface PayloadEnviarCampanya {
@@ -52,6 +54,7 @@ export function DialogoEnviarCampanya() {
   const [nombreCampanya, setNombreCampanya] = useState("");
   const [descripcionCampanya, setDescripcionCampanya] = useState("");
   const [mensajeCampanya, setMensajeCampanya] = useState(MENSAJE_HORARIO_DEFAULT);
+  const [asunto, setAsunto] = useState("");
   const [asignaturasSeleccionadas, setAsignaturasSeleccionadas] = useState<Set<string>>(new Set());
   const [adjuntoPdf, setAdjuntoPdf] = useState(true);
   const [adjuntoHtml, setAdjuntoHtml] = useState(true);
@@ -88,6 +91,7 @@ export function DialogoEnviarCampanya() {
       if (!json) return;
       const data = JSON.parse(json) as PayloadEnviarCampanya;
       setPayload(data);
+      setAsunto(asuntoHorario(data.curso));
       if (data.formato) setFormato(data.formato);
     });
   }, [dialogId]);
@@ -175,7 +179,7 @@ export function DialogoEnviarCampanya() {
   }
 
   async function handleConfirmar() {
-    if (!payload || !nombreCampanya.trim()) return;
+    if (!payload || !nombreCampanya.trim() || !asunto.trim()) return;
     const { destinatarios, config, anio, curso, cargaAlumnos } = payload;
     if (destinatarios.length === 0) return;
 
@@ -244,6 +248,7 @@ export function DialogoEnviarCampanya() {
           adjuntoPersonalizado: adjuntoPersonalizado ?? undefined,
           adjuntoGrupalPdf,
           adjuntoListadoHtml,
+          asunto,
           asignaturas: asignaturasSeleccionadas.size < asignaturasDisponibles.length
             ? [...asignaturasSeleccionadas]
             : undefined,
@@ -269,6 +274,7 @@ export function DialogoEnviarCampanya() {
       fecha: new Date().toISOString(),
       alumnos: resultados,
       config: {
+        asunto: asunto.trim(),
         mensaje: mensajeCampanya,
         formato,
         asignaturas: [...asignaturasSeleccionadas].sort(),
@@ -340,6 +346,8 @@ export function DialogoEnviarCampanya() {
                 className="w-full px-3 py-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm outline-none focus:border-[var(--tc-primary)] resize-none disabled:opacity-60"
               />
             </div>
+
+            <CampoAsunto value={asunto} onChange={setAsunto} disabled={enviando} />
 
             {/* Selección de asignaturas */}
             {asignaturasDisponibles.length > 0 && (
@@ -654,7 +662,7 @@ export function DialogoEnviarCampanya() {
             </button>
             <button
               onClick={() => void handleConfirmar()}
-              disabled={enviando || !nombreCampanya.trim() || asignaturasSeleccionadas.size === 0}
+              disabled={enviando || !nombreCampanya.trim() || asignaturasSeleccionadas.size === 0 || !asunto.trim()}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
             >
               {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

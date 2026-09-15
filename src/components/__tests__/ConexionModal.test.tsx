@@ -23,8 +23,7 @@ const config: AppConfig = {
   urlGuardarAsignaturas: "https://example.com/guardar",
   urlSubirMatricula: "https://example.com/subir",
   urlCrearAmpliacion: "https://example.com/ampliacion",
-  urlEnviarEmailAmpliacion: "https://example.com/email-ampliacion",
-  urlEnviarEmailHorario: "https://example.com/email-horario",
+  urlEnviarEmail: "https://example.com/email",
   apiKey: "clave-de-prueba-1234567890",
 };
 
@@ -33,7 +32,7 @@ const resultados: ResultadoFlow[] = [
   { flow: "AdminListarSolicitudes", descripcion: "Listar matrículas", estado: "ok" },
   { flow: "AdminEditarSolicitud", descripcion: "Editar", estado: "clave-rechazada", detalle: "401" },
   { flow: "AdminBorrarCurso", descripcion: "Borrar curso", estado: "no-comprobable", detalle: "Masivo" },
-  { flow: "AdminEnviarEmailHorario", descripcion: "Email horario", estado: "sin-url" },
+  { flow: "AdminEnviarEmail", descripcion: "Enviar un correo", estado: "sin-url" },
   { flow: "AdminObtenerPDF", descripcion: "PDF", estado: "no-concluyente", detalle: "Timeout" },
 ];
 

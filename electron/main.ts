@@ -8,6 +8,7 @@ import {
   clearConfig,
   hasConfig,
   loadConfig,
+  normalizarConfig,
   saveConfig,
 } from "./config-store";
 import {
@@ -332,7 +333,7 @@ function registerIpcHandlers() {
     if (res.canceled || !res.filePaths || res.filePaths.length === 0) throw new Error("No se seleccionó ningún archivo");
     const file = res.filePaths[0];
     const json = fs.readFileSync(file, { encoding: "utf-8" });
-    const parsed = JSON.parse(json) as AppConfig;
+    const parsed = normalizarConfig(JSON.parse(json));
     saveConfig(parsed);
     return parsed;
   });

@@ -50,8 +50,7 @@ const schema = z.object({
   urlGuardarAsignaturas: urlHttps,
   urlSubirMatricula: urlHttps,
   urlCrearAmpliacion: urlHttps,
-  urlEnviarEmailAmpliacion: z.string().trim(),
-  urlEnviarEmailHorario: z.string().trim(),
+  urlEnviarEmail: z.union([urlHttps, z.literal("")]),
   apiKey: z.string().trim().min(20, "La api-key debe tener al menos 20 caracteres"),
 });
 
@@ -100,8 +99,7 @@ export default function ConfigScreen({
       urlGuardarAsignaturas: "",
       urlSubirMatricula: "",
       urlCrearAmpliacion: "",
-      urlEnviarEmailAmpliacion: "",
-      urlEnviarEmailHorario: "",
+      urlEnviarEmail: "",
       apiKey: "",
     },
   });
@@ -320,14 +318,9 @@ export default function ConfigScreen({
                 {...register("urlCrearAmpliacion")}
               />
               <Field
-                label="AdminEnviarEmailAmpliacion"
-                error={errors.urlEnviarEmailAmpliacion?.message}
-                {...register("urlEnviarEmailAmpliacion")}
-              />
-              <Field
-                label="AdminEnviarEmailHorario"
-                error={errors.urlEnviarEmailHorario?.message}
-                {...register("urlEnviarEmailHorario")}
+                label="AdminEnviarEmail (todos los correos)"
+                error={errors.urlEnviarEmail?.message}
+                {...register("urlEnviarEmail")}
               />
               <ApiKeyField
                 label="API Key"

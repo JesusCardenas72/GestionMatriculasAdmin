@@ -11,7 +11,9 @@ import {
 } from "../api/types";
 import { cursosStore } from "../api/cursosStore";
 import { describirFlowError } from "../api/client";
-import { actualizarSolicitud, crearAmpliacion, enviarEmailAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
+import { actualizarSolicitud, crearAmpliacion, listarAsignaturasSolicitud, obtenerPDF, subirMatriculaEditada } from "../api/solicitudes";
+import { adjuntoDesdeArchivo, enviarEmail, type AdjuntoEmail, type CorreoPreparado } from "../api/email";
+import { useEstadoYCorreo } from "../hooks/useEstadoYCorreo";
 import { useSolicitudes } from "../hooks/useSolicitudes";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useCursoContext } from "../contexts/CursoContextProvider";
@@ -19,7 +21,7 @@ import { useAppMode } from "../contexts/AppModeProvider";
 import LocalList from "../components/LocalList";
 import LocalDetail from "../components/LocalDetail";
 import ResizableColumns from "../components/ResizableColumns";
-import AmpliacionWizard from "../components/AmpliacionWizard";
+import AmpliacionWizard, { type CorreoAmpliacion } from "../components/AmpliacionWizard";
 import TramitarEmailModal from "../components/TramitarEmailModal";
 import type { AsignaturaEmail } from "../utils/emailTemplate";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
@@ -45,7 +47,7 @@ function LocalEmailModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const [loading, setLoading] = useState(false);
+  const envioCorreo = useEstadoYCorreo();
   const esDocumentacion = estado === ESTADO.PENDIENTE_VALIDACION;
   const solicitudLike = {
     rowId: matricula.rowId ?? "",
@@ -77,25 +79,28 @@ function LocalEmailModal({
     estado: a.estado,
   }));
 
-  async function handleConfirm(observaciones: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) {
-    if (!matricula.rowId) return;
-    setLoading(true);
+  /** Primero guarda el estado (sin correo) y después envía el correo por el Flow único. */
+  async function handleConfirm(observaciones: string, correo: CorreoPreparado) {
+    const rowId = matricula.rowId;
+    if (!rowId) return;
     try {
-      await actualizarSolicitud(config, {
-        rowId: matricula.rowId,
-        nuevoEstado: estado,
-        docFaltante: observaciones,
-        emailHtml,
-        email: matricula.email,
-        enviarEmail: true,
-        adjuntoPersonalizadoBase64: adjunto?.base64,
-        adjuntoPersonalizadoNombre: adjunto?.nombre,
-      });
-      onClose();
+      const ok = await envioCorreo.ejecutar(
+        () => actualizarSolicitud(config, {
+          rowId,
+          nuevoEstado: estado,
+          docFaltante: observaciones,
+          email: matricula.email,
+          enviarEmail: false,
+        }),
+        () => enviarEmail(config, {
+          email: matricula.email,
+          nombre: `${matricula.nombre} ${matricula.apellidos}`,
+          ...correo,
+        }),
+      );
+      if (ok) onClose();
     } catch (e) {
-      console.error("Error al reenviar email:", e);
-    } finally {
-      setLoading(false);
+      window.alert(`No se ha podido cambiar el estado, así que no se ha enviado el correo.\n\n${describirFlowError(e)}`);
     }
   }
 
@@ -106,8 +111,9 @@ function LocalEmailModal({
       solicitud={solicitudLike as never}
       asignaturas={asignaturas}
       observacionesIniciales={esDocumentacion ? (matricula.docFaltante ?? "") : ""}
-      loading={loading}
-      onConfirm={(observaciones, emailHtml, adjunto) => void handleConfirm(observaciones, emailHtml, adjunto)}
+      loading={envioCorreo.enviando}
+      errorCorreo={envioCorreo.errorCorreo}
+      onConfirm={(observaciones, correo) => void handleConfirm(observaciones, correo)}
       onCancel={onClose}
     />
   );
@@ -611,7 +617,7 @@ export default function LocalScreen({ config }: Props) {
     }
   }
 
-  async function handleCrearAmpliacion(nueva: MatriculaLocal, emailHtml: string, pdfProps: AmpliacionPdfProps, adjuntoAmpliacion?: { nombre: string; base64: string }) {
+  async function handleCrearAmpliacion(nueva: MatriculaLocal, pdfProps: AmpliacionPdfProps, correo: CorreoAmpliacion) {
     setIsSaving(true);
     try {
       // Generar PDF de la ampliación con el mismo formato que la solicitud
@@ -641,20 +647,22 @@ export default function LocalScreen({ config }: Props) {
           _pendienteSubida: true,
         });
       }
-      if (config.urlEnviarEmailAmpliacion) {
-        try {
-          await enviarEmailAmpliacion(config, {
-            email: nueva.email,
-            nombre: nueva.nombre,
-            apellidos: nueva.apellidos,
-            emailHtml,
-            pdfBase64: pdfBase64 ?? undefined,
-            adjuntoPersonalizadoBase64: adjuntoAmpliacion?.base64,
-            adjuntoPersonalizadoNombre: adjuntoAmpliacion?.nombre,
-          });
-        } catch (e) {
-          console.error("Error enviando email de ampliación:", e);
-        }
+      const adjuntos: AdjuntoEmail[] = [];
+      if (pdfBase64) {
+        const nombrePdf = `Ampliacion_${nueva.nombre} ${nueva.apellidos}`.replace(/[\\/:*?"<>|]/g, "_");
+        adjuntos.push({ Name: `${nombrePdf}.pdf`, ContentBytes: pdfBase64 });
+      }
+      if (correo.adjuntoPersonalizado) adjuntos.push(adjuntoDesdeArchivo(correo.adjuntoPersonalizado));
+      try {
+        await enviarEmail(config, {
+          email: nueva.email,
+          nombre: `${nueva.nombre} ${nueva.apellidos}`,
+          asunto: correo.asunto,
+          emailHtml: correo.emailHtml,
+          adjuntos,
+        });
+      } catch (e) {
+        window.alert(`La ampliación se ha creado, pero el correo no se ha enviado.\n\n${describirFlowError(e)}`);
       }
       setShowAmpliacion(false);
       setSelected(nuevaSinPdf);
@@ -1371,7 +1379,7 @@ export default function LocalScreen({ config }: Props) {
           matricula={selected}
           isSaving={isSaving}
           onClose={() => setShowAmpliacion(false)}
-          onCrear={(nueva, emailHtml, pdfProps, adjunto) => void handleCrearAmpliacion(nueva, emailHtml, pdfProps, adjunto)}
+          onCrear={(nueva, pdfProps, correo) => void handleCrearAmpliacion(nueva, pdfProps, correo)}
         />
       )}
       {showEmailModal && selected && estadoSeleccionado && (

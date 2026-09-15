@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { FileUp, Loader2, Mail, MailX, X } from "lucide-react";
+import { AlertCircle, FileUp, Loader2, Mail, MailX, RotateCw, X } from "lucide-react";
 import { leerArchivoBase64 } from "../utils/fileUtils";
+import { adjuntoDesdeArchivo, type CorreoPreparado } from "../api/email";
+import { asuntoDocumentacion, asuntoTramitada } from "../utils/emailAsuntos";
+import { CampoAsunto } from "./CampoAsunto";
 import type { Solicitud } from "../api/types";
 import type { AsignaturaEmail } from "../utils/emailTemplate";
 import { buildTramitadoEmailHtml, buildDocumentacionEmailHtml } from "../utils/emailTemplate";
@@ -14,9 +17,14 @@ interface Props {
   asignaturas: AsignaturaEmail[];
   observacionesIniciales: string;
   loading: boolean;
-  onConfirm: (observaciones: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) => void;
+  onConfirm: (observaciones: string, correo: CorreoPreparado) => void;
   onConfirmSinEmail?: (observaciones: string) => void;
   onCancel: () => void;
+  /**
+   * Si el estado ya se guardó pero el correo no salió, el motivo. La ventana
+   * sigue abierta y el botón principal pasa a «Reintentar envío del correo».
+   */
+  errorCorreo?: string | null;
 }
 
 export default function TramitarEmailModal({
@@ -29,8 +37,10 @@ export default function TramitarEmailModal({
   onConfirm,
   onConfirmSinEmail,
   onCancel,
+  errorCorreo,
 }: Props) {
   const [observaciones, setObservaciones] = useState(observacionesIniciales);
+  const [asunto, setAsunto] = useState("");
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,8 +48,9 @@ export default function TramitarEmailModal({
     if (open) {
       setObservaciones(observacionesIniciales);
       setAdjuntoPersonalizado(null);
+      setAsunto(mode === "documentacion" ? asuntoDocumentacion() : asuntoTramitada());
     }
-  }, [open, observacionesIniciales]);
+  }, [open, observacionesIniciales, mode]);
 
   async function handleSeleccionarArchivo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -117,6 +128,8 @@ export default function TramitarEmailModal({
             className="w-72 shrink-0 flex flex-col p-5 gap-4 overflow-y-auto"
             style={{ borderRight: "1px solid var(--tc-border)" }}
           >
+            <CampoAsunto value={asunto} onChange={setAsunto} disabled={loading} />
+
             <div className="flex-1">
               <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--tc-ink-soft)" }}>
                 {esDocumentacion ? "Documentación requerida" : "Observaciones"}
@@ -220,6 +233,19 @@ export default function TramitarEmailModal({
           className="flex items-center justify-end gap-3 px-6 py-4 shrink-0 rounded-b-2xl"
           style={{ borderTop: "1px solid var(--tc-border)", background: "var(--tc-bg-panel)" }}
         >
+          {errorCorreo && (
+            <div
+              role="alert"
+              className="mr-auto flex items-start gap-2 text-xs leading-relaxed min-w-0"
+              style={{ color: "var(--tc-danger-ink, #b91c1c)" }}
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words">
+                <strong>El estado ya se ha guardado, pero el correo no ha salido.</strong>{" "}
+                Al reintentar solo se envía el correo. Motivo: {errorCorreo}
+              </span>
+            </div>
+          )}
           <button
             onClick={onCancel}
             disabled={loading}
@@ -230,7 +256,7 @@ export default function TramitarEmailModal({
           >
             Cancelar
           </button>
-          {esDocumentacion && onConfirmSinEmail && (
+          {esDocumentacion && onConfirmSinEmail && !errorCorreo && (
             <button
               onClick={() => onConfirmSinEmail(observaciones)}
               disabled={loading || !observaciones.trim()}
@@ -246,17 +272,25 @@ export default function TramitarEmailModal({
             </button>
           )}
           <button
-            onClick={() => onConfirm(observaciones, emailHtml, adjuntoPersonalizado ?? undefined)}
-            disabled={loading || (esDocumentacion && !observaciones.trim())}
+            onClick={() =>
+              onConfirm(observaciones, {
+                asunto,
+                emailHtml,
+                adjuntos: adjuntoPersonalizado ? [adjuntoDesdeArchivo(adjuntoPersonalizado)] : [],
+              })
+            }
+            disabled={loading || !asunto.trim() || (esDocumentacion && !observaciones.trim())}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm"
             style={{ background: esDocumentacion ? "var(--tc-warn-ink)" : "var(--tc-success-ink)" }}
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
+            ) : errorCorreo ? (
+              <RotateCw className="w-4 h-4" />
             ) : (
               <Mail className="w-4 h-4" />
             )}
-            Confirmar y enviar email
+            {errorCorreo ? "Reintentar envío del correo" : "Confirmar y enviar email"}
           </button>
         </div>
       </div>

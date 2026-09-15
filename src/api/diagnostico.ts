@@ -121,13 +121,8 @@ const NO_COMPROBABLES: { flow: string; descripcion: string; motivo: string }[] =
     motivo: "Es un borrado masivo: no se sondea ni con datos inertes.",
   },
   {
-    flow: "AdminEnviarEmailAmpliacion",
-    descripcion: "Email de ampliación",
-    motivo: "Enviaría un correo real.",
-  },
-  {
-    flow: "AdminEnviarEmailHorario",
-    descripcion: "Email de horario",
+    flow: "AdminEnviarEmail",
+    descripcion: "Enviar un correo (todos los tipos)",
     motivo: "Enviaría un correo real.",
   },
 ];

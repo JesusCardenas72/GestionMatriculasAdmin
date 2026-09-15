@@ -55,11 +55,13 @@ export interface ActualizarSolicitudInput {
   rowId: string;
   nuevoEstado: EstadoTramite;
   docFaltante?: string;
-  emailHtml?: string;
   email?: string;
-  enviarEmail?: boolean;
-  adjuntoPersonalizadoBase64?: string;
-  adjuntoPersonalizadoNombre?: string;
+  /**
+   * Siempre false: los correos ya no los manda este Flow sino AdminEnviarEmail
+   * (ver api/email.ts). Se sigue enviando para que el Flow no entre en su rama
+   * de correo antigua mientras exista.
+   */
+  enviarEmail: false;
 }
 
 export interface EditarSolicitudInput {

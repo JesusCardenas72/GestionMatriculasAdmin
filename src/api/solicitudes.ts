@@ -273,11 +273,3 @@ export function crearAmpliacion(
   assertEscribible("CrearAmpliacion");
   return postFlow<{ rowId: string }>(cfg.urlCrearAmpliacion, cfg.apiKey, input, "AdminCrearAmpliacion");
 }
-
-export function enviarEmailAmpliacion(
-  cfg: AppConfig,
-  input: { email: string; nombre: string; apellidos: string; emailHtml: string; pdfBase64?: string; adjuntoPersonalizadoBase64?: string; adjuntoPersonalizadoNombre?: string },
-): Promise<{ ok: boolean }> {
-  assertEscribible("EnviarEmailAmpliacion");
-  return postFlow<{ ok: boolean }>(cfg.urlEnviarEmailAmpliacion!, cfg.apiKey, input, "AdminEnviarEmailAmpliacion");
-}

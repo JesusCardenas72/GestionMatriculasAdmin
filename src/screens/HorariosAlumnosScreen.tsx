@@ -27,6 +27,7 @@ import type { AppConfig } from "../../electron/config-store";
 import { HistorialHorariosModal } from "../components/modals/HistorialHorariosModal";
 import ResizableColumns from "../components/ResizableColumns";
 import { ExcelHorariosPanel } from "../components/excelHorarios/ExcelHorariosPanel";
+import { MENSAJE_SIN_URL_EMAIL } from "../api/email";
 
 interface Props {
   config: AppConfig;
@@ -765,8 +766,8 @@ export default function HorariosAlumnosScreen({ config, onIrAProfesorado }: Prop
   };
 
   const abrirModalEnvio = (claves: string[]) => {
-    if (!config.urlEnviarEmailHorario) {
-      setError("No está configurada la URL del Flow AdminEnviarEmailHorario. Añádela en Configuración.");
+    if (!config.urlEnviarEmail) {
+      setError(MENSAJE_SIN_URL_EMAIL);
       return;
     }
     // Guardia: fantasmas y alumnos sin email NUNCA reciben correo
@@ -3334,6 +3335,13 @@ function ConfigRemesaCard({ config }: { config: ConfigEnvioCampanya }) {
       </button>
       {abierto && (
         <div className="px-4 pb-4 pt-1 space-y-3 border-t border-[var(--tc-border)]">
+          {config.asunto && (
+            <div>
+              <p className="text-[11px] font-semibold text-[var(--tc-ink-soft)] uppercase tracking-wide mb-1">Asunto</p>
+              <p className="text-sm text-[var(--tc-ink)]">{config.asunto} (Secretaría)</p>
+            </div>
+          )}
+
           <div>
             <p className="text-[11px] font-semibold text-[var(--tc-ink-soft)] uppercase tracking-wide mb-1">Formato del horario</p>
             <p className="text-sm text-[var(--tc-ink)]">{formatoLabel}</p>

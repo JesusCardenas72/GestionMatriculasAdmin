@@ -3,6 +3,9 @@ import { CalendarClock, CheckCircle, Clock, Eye, FileText, HardDrive, Users } fr
 import type { EstadoTramite } from "../api/types";
 import { ESTADO } from "../api/types";
 
+// Los nombres de Local, Informes, Horarios y Profesorado solo caben junto a su
+// icono con la ventana a partir de 1440 px; por debajo queda el icono (con su
+// nombre en el title) para no aplastar el buscador ni partir las pestañas.
 // El Alumnado Fantasma no tiene pestaña propia: está en Horarios → Excel de
 // Horarios, y su aviso de pendientes se muestra en el icono de Horarios.
 export type ActiveTab =
@@ -54,7 +57,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
                   onClick={() => onChange(tab.estado)}
                   title={tab.label}
                   className={
-                    "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+                    "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors overflow-hidden " +
                     (isActive ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
                   }
                 >
@@ -94,7 +97,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             onClick={() => onChange("local")}
             title="Local"
             className={
-              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors overflow-hidden " +
               (active === "local" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
             }
           >
@@ -107,6 +110,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <HardDrive className="w-3.5 h-3.5 shrink-0" />
+              <span className={"hidden min-[1440px]:inline" + (active === "local" ? " font-semibold" : "")}>Local</span>
               {localCount !== undefined && localCount > 0 && (
                 <span
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"
@@ -140,7 +144,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             onClick={() => onChange("informes")}
             title="Informes"
             className={
-              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors overflow-hidden " +
               (active === "informes" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
             }
           >
@@ -153,6 +157,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 shrink-0" />
+              <span className={"hidden min-[1440px]:inline" + (active === "informes" ? " font-semibold" : "")}>Informes</span>
             </span>
           </motion.button>
 
@@ -163,7 +168,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             title="Horarios"
             aria-label="Horarios"
             className={
-              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors overflow-hidden " +
               (active === "horarios" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
             }
           >
@@ -176,6 +181,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+              <span className={"hidden min-[1440px]:inline" + (active === "horarios" ? " font-semibold" : "")}>Horarios</span>
               {temporalesPendientes !== undefined && temporalesPendientes > 0 && (
                 <span
                   title={`${temporalesPendientes} alumno(s) fantasma sin sustituir`}
@@ -199,7 +205,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             title="Profesorado"
             aria-label="Profesorado"
             className={
-              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors overflow-hidden " +
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors overflow-hidden " +
               (active === "profesorado" ? "text-[var(--tc-primary)]" : "text-[var(--tc-ink-soft)] hover:text-[var(--tc-ink)]")
             }
           >
@@ -212,6 +218,7 @@ export default function TabBar({ active, counts, pendingUploads, localCount, tem
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 shrink-0" />
+              <span className={"hidden min-[1440px]:inline" + (active === "profesorado" ? " font-semibold" : "")}>Profesorado</span>
               {profesoradoCount !== undefined && profesoradoCount > 0 && (
                 <span
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold"

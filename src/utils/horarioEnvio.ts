@@ -3,7 +3,7 @@ import type { HorarioAlumno, FormatoHorario } from '../horarios/types';
 import { FORMATO_HORARIO_DEFAULT } from '../horarios/types';
 import { buildHorarioHtml } from './horarioTemplate';
 import { buildHorarioEmailHtml } from './horarioEmailTemplate';
-import { enviarEmailHorario, type AdjuntoEmail } from '../api/horarios';
+import { enviarEmail, type AdjuntoEmail } from '../api/email';
 
 /**
  * Texto suplementario por defecto del correo de horarios. Es editable antes de
@@ -45,12 +45,14 @@ export interface OpcionesEnvioHorario {
   adjuntoListadoHtml?: { nombre: string; base64: string };
   /** Formato visual del horario adjunto (PDF + HTML). Por defecto "notas". */
   formato?: FormatoHorario;
+  /** Asunto del correo (las ventanas lo proponen con asuntoHorario y es editable). */
+  asunto?: string;
 }
 
 /**
  * Envía a un alumno su horario semanal: genera el PDF y el HTML interactivo,
  * compone el cuerpo del correo (con el texto suplementario opcional) y lo manda
- * a través del Flow AdminEnviarEmailHorario. Lanza si algo falla.
+ * a través del Flow único AdminEnviarEmail. Lanza si algo falla.
  */
 export async function enviarHorarioAlumno(
   config: AppConfig,
@@ -118,9 +120,10 @@ export async function enviarHorarioAlumno(
     });
   }
 
-  await enviarEmailHorario(config, {
+  await enviarEmail(config, {
     email: alumno.email,
     nombre: alumno.nombre,
+    asunto: opciones?.asunto?.trim() || `Horario de clases — ${anio}`,
     emailHtml,
     adjuntos,
   });

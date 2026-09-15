@@ -9,6 +9,22 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.16.0] - 2026-09-15
+
+### Cambiado
+
+- **Un único sistema de envío de correos**: todos los correos de la app (horarios individuales y por remesa, matrícula tramitada, documentación requerida, reenvío desde Local y ampliación) salen por un solo Flow de Power Automate, **AdminEnviarEmail** (el antiguo de horarios, renombrado). Solo cambian el asunto, el cuerpo y los adjuntos.
+- **Campo «Asunto» en cada ventana de envío**, ya rellenado y editable. El Flow añade «(Secretaría)» al final. El asunto de los horarios usa el Curso Escolar en vigor (p. ej. «Horario de clases — Curso 26/27»).
+- **Configuración**: los campos «AdminEnviarEmailAmpliacion» y «AdminEnviarEmailHorario» se sustituyen por uno solo, «AdminEnviarEmail (todos los correos)». La dirección que ya estaba guardada para horarios se aprovecha sola.
+- **Tramitar y Pedir documentación funcionan en dos pasos**: primero se cambia el estado y después se envía el correo. Si el correo falla, la ventana no se cierra, avisa de que el estado ya está guardado y ofrece «Reintentar envío del correo», que solo manda el correo.
+- **El historial de envíos de horarios** guarda también el asunto de cada remesa.
+- **Las pestañas Local, Informes, Horarios y Profesorado** muestran su nombre al lado del icono cuando la ventana mide 1440 píxeles o más. En ventanas más estrechas se queda solo el icono (con el nombre al pasar el ratón), para que quepa el buscador.
+
+### Corregido
+
+- Con poco ancho de ventana, «Pnte. Tramitación» y «Pnte. Validación» ya no se parten en dos líneas.
+- Si fallaba el correo de una ampliación o el reenvío desde Local, no se avisaba. Ahora sale un mensaje con el motivo.
+
 ## [1.15.0] - 2026-09-11
 
 ### Cambiado

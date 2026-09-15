@@ -14,8 +14,8 @@ export interface AppConfig {
   urlGuardarAsignaturas: string;
   urlSubirMatricula: string;
   urlCrearAmpliacion: string;
-  urlEnviarEmailAmpliacion?: string;
-  urlEnviarEmailHorario?: string;
+  /** Flow único de correo (AdminEnviarEmail): horarios, ampliación, tramitada y documentación. */
+  urlEnviarEmail?: string;
   apiKey: string;
   /** Clave de acceso al modo Administrador (opcional; si falta se usa la por defecto). */
   adminPassword?: string;
@@ -44,7 +44,20 @@ export function loadConfig(): AppConfig | null {
   assertEncryptionAvailable();
   const encrypted = fs.readFileSync(file);
   const json = safeStorage.decryptString(encrypted);
-  return JSON.parse(json) as AppConfig;
+  return normalizarConfig(JSON.parse(json));
+}
+
+/**
+ * Configuraciones guardadas antes del flow único de correo tenían una URL por
+ * tipo de correo. El flow de horarios pasó a ser el único (AdminEnviarEmail),
+ * así que su URL se hereda; la de ampliación ya no se usa y se descarta.
+ */
+export function normalizarConfig(raw: AppConfig & {
+  urlEnviarEmailHorario?: string;
+  urlEnviarEmailAmpliacion?: string;
+}): AppConfig {
+  const { urlEnviarEmailHorario, urlEnviarEmailAmpliacion: _descartada, ...cfg } = raw;
+  return { ...cfg, urlEnviarEmail: cfg.urlEnviarEmail || urlEnviarEmailHorario || "" };
 }
 
 export function saveConfig(cfg: AppConfig): void {

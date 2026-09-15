@@ -90,6 +90,8 @@ export interface ResultadoEnvio {
  * para no inflar el almacén del historial.
  */
 export interface ConfigEnvioCampanya {
+  /** Asunto del correo (sin « (Secretaría)», que añade el Flow). Falta en remesas antiguas. */
+  asunto?: string;
   /** Mensaje enriquecido (HTML) que se incluyó en el cuerpo del correo. */
   mensaje: string;
   /** Formato del horario elegido ('notas' | 'clasico'). */

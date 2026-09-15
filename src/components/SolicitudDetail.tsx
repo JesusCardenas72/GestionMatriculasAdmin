@@ -16,6 +16,7 @@ import {
   ESTADO_ASIGNATURA_LABEL,
   type AsignaturaMatriculada,
   type EstadoAsignatura,
+  type EstadoTramite,
   type Solicitud,
 } from "../api/types";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,8 @@ import {
 import { tieneSufijoCurso } from "../utils/repetidorSuelta";
 import { actualizarSolicitud } from "../api/solicitudes";
 import { FlowError } from "../api/client";
+import { enviarEmail, type CorreoPreparado } from "../api/email";
+import { useEstadoYCorreo } from "../hooks/useEstadoYCorreo";
 import { cursosStore } from "../api/cursosStore";
 import PdfViewer from "./PdfViewer";
 import ConfirmDialog from "./ConfirmDialog";
@@ -147,6 +150,10 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   const pendingLocalSync = useRef<string | null>(null);
   const [docFaltante, setDocFaltante] = useState(solicitud.docFaltante ?? "");
   const [pending, setPending] = useState<PendingAction>(null);
+  const envioCorreo = useEstadoYCorreo();
+  const { reiniciar: reiniciarEnvioCorreo } = envioCorreo;
+  // Cada vez que se abre o cierra la ventana de envío se olvida el intento anterior.
+  useEffect(() => { reiniciarEnvioCorreo(); }, [pending, reiniciarEnvioCorreo]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [allOpen, setAllOpen] = useState(true);
 
@@ -554,18 +561,26 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     }
   };
 
-  function handleConfirmTramitar(observaciones: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) {
-    mutation.mutate(
-      { rowId: solicitud.rowId, nuevoEstado: ESTADO.TRAMITADO, docFaltante: observaciones, emailHtml, email: solicitud.email, enviarEmail: true, adjuntoPersonalizadoBase64: adjunto?.base64, adjuntoPersonalizadoNombre: adjunto?.nombre },
-      { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
-    );
+  /** Primero cambia el estado (sin correo) y después envía el correo por el Flow único. */
+  async function confirmarConCorreo(nuevoEstado: EstadoTramite, texto: string, correo: CorreoPreparado) {
+    try {
+      const ok = await envioCorreo.ejecutar(
+        () => mutation.mutateAsync({ rowId: solicitud.rowId, nuevoEstado, docFaltante: texto, email: solicitud.email, enviarEmail: false }),
+        () => enviarEmail(config, { email: solicitud.email, nombre: `${solicitud.nombre} ${solicitud.apellidos}`, ...correo }),
+      );
+      if (ok) { setPending(null); onDone(); }
+    } catch {
+      // Falló el cambio de estado: la ficha ya muestra mutation.error.
+      setPending(null);
+    }
   }
 
-  function handleConfirmPedir(docFaltanteText: string, emailHtml: string, adjunto?: { nombre: string; base64: string }) {
-    mutation.mutate(
-      { rowId: solicitud.rowId, nuevoEstado: ESTADO.PENDIENTE_VALIDACION, docFaltante: docFaltanteText, emailHtml, email: solicitud.email, enviarEmail: true, adjuntoPersonalizadoBase64: adjunto?.base64, adjuntoPersonalizadoNombre: adjunto?.nombre },
-      { onSuccess: () => { setPending(null); onDone(); }, onError: () => setPending(null) },
-    );
+  function handleConfirmTramitar(observaciones: string, correo: CorreoPreparado) {
+    void confirmarConCorreo(ESTADO.TRAMITADO, observaciones, correo);
+  }
+
+  function handleConfirmPedir(docFaltanteText: string, correo: CorreoPreparado) {
+    void confirmarConCorreo(ESTADO.PENDIENTE_VALIDACION, docFaltanteText, correo);
   }
 
   function handleConfirmPedirSinEmail(docFaltanteText: string) {
@@ -1266,7 +1281,8 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         solicitud={solicitud}
         asignaturas={listaAsigVisible}
         observacionesIniciales={docFaltante.trim()}
-        loading={mutation.isPending}
+        loading={mutation.isPending || envioCorreo.enviando}
+        errorCorreo={envioCorreo.errorCorreo}
         onConfirm={pending === "pedir" ? handleConfirmPedir : handleConfirmTramitar}
         onConfirmSinEmail={pending === "pedir" ? handleConfirmPedirSinEmail : undefined}
         onCancel={() => setPending(null)}

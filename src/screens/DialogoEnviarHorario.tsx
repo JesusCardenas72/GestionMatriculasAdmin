@@ -31,6 +31,9 @@ import {
   nombreArchivoDocGrupal,
 } from "../utils/horarioGrupalDoc";
 import { leerArchivoBase64 } from "../utils/fileUtils";
+import { MENSAJE_SIN_URL_EMAIL } from "../api/email";
+import { asuntoHorario } from "../utils/emailAsuntos";
+import { CampoAsunto } from "../components/CampoAsunto";
 
 /** Datos que el proceso principal entrega a la ventana nativa de envío. */
 interface PayloadEnviarHorario {
@@ -55,6 +58,7 @@ export function DialogoEnviarHorario() {
   const [cargando, setCargando] = useState(true);
   const [alumno, setAlumno] = useState<HorarioAlumno | null>(null);
   const [mensaje, setMensaje] = useState(MENSAJE_HORARIO_DEFAULT);
+  const [asunto, setAsunto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +88,10 @@ export function DialogoEnviarHorario() {
   useEffect(() => {
     if (!dialogId) return;
     window.adminAPI.dialogoCorreccion.getData(dialogId).then((json) => {
-      if (json) setPayload(JSON.parse(json) as PayloadEnviarHorario);
+      if (!json) return;
+      const data = JSON.parse(json) as PayloadEnviarHorario;
+      setPayload(data);
+      setAsunto(asuntoHorario(data.curso));
     });
   }, [dialogId]);
 
@@ -129,8 +136,8 @@ export function DialogoEnviarHorario() {
   async function handleEnviar() {
     if (!payload || !alumno || !alumno.email) return;
     const { config, curso } = payload;
-    if (!config.urlEnviarEmailHorario) {
-      setError("No está configurada la URL del Flow AdminEnviarEmailHorario. Añádela en Configuración.");
+    if (!config.urlEnviarEmail) {
+      setError(MENSAJE_SIN_URL_EMAIL);
       return;
     }
     setEnviando(true);
@@ -181,6 +188,7 @@ export function DialogoEnviarHorario() {
         adjuntoPersonalizado: adjuntoPersonalizado ?? undefined,
         adjuntoGrupalPdf,
         adjuntoListadoHtml,
+        asunto,
         asignaturas: asignaturasSeleccionadas.size < todasAsignaturas.size
           ? [...asignaturasSeleccionadas]
           : undefined,
@@ -237,6 +245,8 @@ export function DialogoEnviarHorario() {
               )}
               <span style={{ color: "var(--tc-ink-mute)" }}>· {alumno.clases.length} clase{alumno.clases.length === 1 ? "" : "s"}</span>
             </div>
+
+            <CampoAsunto value={asunto} onChange={setAsunto} disabled={enviando || enviado} />
 
             {/* Selección de asignaturas */}
             {(() => {
@@ -464,7 +474,7 @@ export function DialogoEnviarHorario() {
           <button
             type="button"
             onClick={() => void handleEnviar()}
-            disabled={enviando || cargando || !alumno || sinEmail || asignaturasSeleccionadas.size === 0}
+            disabled={enviando || cargando || !alumno || sinEmail || asignaturasSeleccionadas.size === 0 || !asunto.trim()}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tc-primary)] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
           >
             {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
