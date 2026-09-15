@@ -21,3 +21,18 @@ export function asuntoDocumentacion(): string {
 export function asuntoAmpliacion(nuevoCurso: string): string {
   return `Ampliación de matrícula al curso ${nuevoCurso} — ${CENTRO}`;
 }
+
+/** Correo al Claustro desde la pestaña Profesorado. */
+export function asuntoClaustro(curso: string): string {
+  return `Claustro — Curso ${curso}`;
+}
+
+/** Correo a la Comisión de Coordinación Pedagógica. */
+export function asuntoCCP(curso: string): string {
+  return `CCP — Curso ${curso}`;
+}
+
+/** Correo a profesores marcados a mano en la pestaña Profesorado. */
+export function asuntoProfesorado(curso: string): string {
+  return `Comunicación al profesorado — Curso ${curso}`;
+}

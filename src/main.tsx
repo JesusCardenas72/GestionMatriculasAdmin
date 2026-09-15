@@ -7,16 +7,26 @@ import { CursoContextProvider } from "./contexts/CursoContextProvider";
 import { DialogoCorreccionHorarios } from "./screens/DialogoCorreccionHorarios";
 import { DialogoEnviarHorario } from "./screens/DialogoEnviarHorario";
 import { DialogoEnviarCampanya } from "./screens/DialogoEnviarCampanya";
+import { DialogoEnviarProfesorado } from "./screens/DialogoEnviarProfesorado";
+import { DialogoNuevoProfesor } from "./screens/DialogoNuevoProfesor";
 import "./styles/index.css";
 
 const hash = window.location.hash.slice(1); // sin '#'
 const isDialogCorreccion = hash.startsWith("dialog-correccion");
 const isDialogEnviarHorario = hash.startsWith("dialog-enviar-horario");
 const isDialogEnviarCampanya = hash.startsWith("dialog-enviar-campanya");
+const isDialogEnviarProfesorado = hash.startsWith("dialog-enviar-profesorado");
+const isDialogNuevoProfesor = hash.startsWith("dialog-nuevo-profesor");
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
-if (isDialogCorreccion) {
+if (isDialogNuevoProfesor) {
+  root.render(
+    <React.StrictMode>
+      <DialogoNuevoProfesor />
+    </React.StrictMode>,
+  );
+} else if (isDialogCorreccion) {
   root.render(
     <React.StrictMode>
       <DialogoCorreccionHorarios />
@@ -32,6 +42,12 @@ if (isDialogCorreccion) {
   root.render(
     <React.StrictMode>
       <DialogoEnviarCampanya />
+    </React.StrictMode>,
+  );
+} else if (isDialogEnviarProfesorado) {
+  root.render(
+    <React.StrictMode>
+      <DialogoEnviarProfesorado />
     </React.StrictMode>,
   );
 } else {

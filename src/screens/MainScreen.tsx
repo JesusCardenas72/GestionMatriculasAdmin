@@ -402,7 +402,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
       {active === "local" ? (
         <LocalScreen config={config} />
       ) : active === "profesorado" ? (
-        <ProfesoradoScreen />
+        <ProfesoradoScreen config={config} />
       ) : active === "informes" ? (
         <InformesScreen config={config} />
       ) : active === "horarios" ? (

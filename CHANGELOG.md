@@ -9,6 +9,25 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.17.0] - 2026-09-15
+
+### Añadido
+
+- **Botón «Enviar correo» en la pestaña Profesorado**, con tres opciones:
+  - **Claustro**: el profesorado en activo que tiene clases y alumnado este curso.
+  - **CCP** (Comisión de Coordinación Pedagógica): Equipo Directivo, Jefaturas de Departamento y Coordinación de Formación. Se reconocen por su cargo aunque esté escrito de formas distintas («J. Dep.», «Jefa de Estudios / Adjunta»…).
+  - **Profesores marcados**: la tabla tiene ahora una casilla por profesor (y otra en la cabecera para marcar a todos los que se ven con los filtros). Al marcar a alguien aparece una barra con «Quitar marcas» y «Enviar correo».
+- **Ventana de envío al profesorado**: asunto ya rellenado y editable («Claustro — Curso 26/27», «CCP — Curso 26/27»…), mensaje con formato, documentos adjuntos, vista previa y lista de destinatarios para quitar o añadir personas. Avisa de quién no tiene correo en su ficha. Cada correo saluda a su destinatario por su nombre.
+- **Ventana «Nuevo profesor»**: el botón «+ Nuevo» abre una ventana con todos los datos de la ficha (solo el nombre es obligatorio). Sugiere especialidades, departamentos y cargos ya usados, y avisa si el profesor ya existe.
+
+### Corregido
+
+- El botón «+ Nuevo» de Profesorado no hacía nada.
+
+### Cambiado
+
+- El editor de mensajes con formato de la campaña de horarios es ahora una pieza común que comparten las ventanas de envío.
+
 ## [1.16.0] - 2026-09-15
 
 ### Cambiado

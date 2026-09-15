@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Download,
   Info,
+  Mail,
   Plus,
   Search,
   Undo2,
@@ -19,6 +20,7 @@ import { useAppMode } from "../contexts/AppModeProvider";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useProfesorado } from "../hooks/useProfesorado";
+import { MENSAJE_SIN_URL_EMAIL } from "../api/email";
 import { norm } from "../utils/horarioExcel";
 import {
   CAMPOS_ARCHIVO,
@@ -42,9 +44,18 @@ import {
   type ParSustitucion,
   type ProfesorConClases,
 } from "../utils/sustitucionProfesores";
+import {
+  DESCRIPCION_GRUPO,
+  NOMBRE_GRUPO,
+  destinatariosGrupo,
+  destinatariosSeleccion,
+  type GrupoCorreo,
+} from "../utils/profesoradoCorreo";
+import type { NuevoProfesorDatos, NuevoProfesorPayload } from "./DialogoNuevoProfesor";
 import ProfesoradoCargaModal from "../components/modals/ProfesoradoCargaModal";
 import AsignarAlumnosModal from "../components/modals/AsignarAlumnosModal";
 import SustituirProfesoradoModal from "../components/modals/SustituirProfesoradoModal";
+import type { AppConfig } from "../../electron/config-store";
 import type { Profesor } from "../../electron/profesorado-store";
 import type { HorariosCursoData, HorariosEntry } from "../../electron/horarios-data-store";
 
@@ -67,7 +78,11 @@ const COLUMNAS: { key: ColumnaOrden; etiqueta: string; ancho: string; numerica?:
 
 const PLANTILLA_COLUMNAS = COLUMNAS.map((c) => c.ancho).join(" ");
 
-export default function ProfesoradoScreen() {
+interface Props {
+  config: AppConfig;
+}
+
+export default function ProfesoradoScreen({ config }: Props) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
   const { matriculas } = useLocalMatriculas(curso);
@@ -104,6 +119,9 @@ export default function ProfesoradoScreen() {
     clases: Map<string, ProfesorConClases>;
   } | null>(null);
   const [sustitucionAplicando, setSustitucionAplicando] = useState(false);
+  const [menuCorreo, setMenuCorreo] = useState(false);
+  /** Profesores marcados con la casilla de la tabla, para escribirles un correo. */
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
 
   // ── Datos del curso activo ────────────────────────────────────────────────
 
@@ -129,6 +147,13 @@ export default function ProfesoradoScreen() {
 
   const resumenes = useMemo(() => resumenPorProfesor(entries), [entries]);
   const avisos = useMemo(() => avisosCoherencia(profesores, entries), [profesores, entries]);
+  const gruposCorreo = useMemo<Record<"claustro" | "ccp", ReturnType<typeof destinatariosGrupo>>>(
+    () => ({
+      claustro: destinatariosGrupo("claustro", profesores, resumenes),
+      ccp: destinatariosGrupo("ccp", profesores, resumenes),
+    }),
+    [profesores, resumenes],
+  );
   const cobertura = useMemo(
     () => coberturaPorEspecialidad(profesores, matriculas),
     [profesores, matriculas],
@@ -182,6 +207,35 @@ export default function ProfesoradoScreen() {
     orden,
     resumenes,
   ]);
+
+  /** Marcas que siguen existiendo (una carga de archivo puede quitar fichas). */
+  const marcadosVigentes = useMemo(
+    () => profesores.filter((p) => marcados.has(p.id)),
+    [profesores, marcados],
+  );
+  const nMarcadosVisibles = visibles.filter((p) => marcados.has(p.id)).length;
+  const todosVisiblesMarcados = visibles.length > 0 && nMarcadosVisibles === visibles.length;
+
+  const alternarMarca = (id: string) =>
+    setMarcados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  /** La casilla de la cabecera marca o desmarca solo lo que se ve con los filtros. */
+  const alternarMarcaVisibles = () =>
+    setMarcados((prev) => {
+      const next = new Set(prev);
+      for (const p of visibles) {
+        if (todosVisiblesMarcados) next.delete(p.id);
+        else next.add(p.id);
+      }
+      return next;
+    });
+
+  const plantillaFilas = isSoloLectura ? PLANTILLA_COLUMNAS : `20px ${PLANTILLA_COLUMNAS}`;
 
   const seleccionado = useMemo(
     () => profesores.find((p) => p.id === seleccionadoId) ?? null,
@@ -240,11 +294,19 @@ export default function ProfesoradoScreen() {
     }
   };
 
-  /** Alta manual de un profesor. */
+  /** Alta manual de un profesor en una ventana propia (Electron no admite `prompt()`). */
   const handleNuevo = async () => {
-    const nombre = window.prompt("Apellidos y nombre del profesor (p. ej. «Pérez Gómez, Ana»)");
-    if (nombre === null) return;
-    const limpio = nombre.trim();
+    const sugerencias: NuevoProfesorPayload["sugerencias"] = {
+      especialidad: valoresUnicos("especialidad"),
+      departamento: valoresUnicos("departamento"),
+      cargo: valoresUnicos("cargo"),
+    };
+    const payload: NuevoProfesorPayload = { existentes: profesores.map((p) => p.id), sugerencias };
+    const json = await window.adminAPI.dialogoNuevoProfesor.abrir(JSON.stringify(payload));
+    if (json === null) return;
+
+    const datos = JSON.parse(json) as NuevoProfesorDatos;
+    const limpio = datos.apellidosNombre.trim();
     if (limpio === "") return;
     const id = norm(limpio);
     if (profesores.some((p) => p.id === id)) {
@@ -253,21 +315,21 @@ export default function ProfesoradoScreen() {
     }
     limpiarAvisos();
     const ficha: Profesor = {
+      ...datos,
       id,
       apellidosNombre: limpio,
-      especialidad: "",
-      unidad: "",
-      telefono: "",
-      email: "",
-      departamento: "",
-      cargo: "",
       activo: true,
       sustitucion: null,
-      editadoAMano: ["apellidosNombre"],
+      editadoAMano: CAMPOS_ARCHIVO.filter((c) => datos[c] !== ""),
     };
-    await guardar([...profesores, ficha]);
+    try {
+      await guardar([...profesores, ficha]);
+    } catch (e) {
+      setError(`No se ha podido guardar: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
     setSeleccionadoId(id);
-    setMensaje(`«${limpio}» añadido. Completa sus datos en la ficha de la derecha.`);
+    setMensaje(`«${limpio}» añadido al profesorado.`);
   };
 
   /** Guarda los cambios de una ficha, anotando qué campos se han tocado a mano. */
@@ -327,6 +389,37 @@ export default function ProfesoradoScreen() {
     a.download = `Profesorado ${curso.replace("/", "-")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  /** Abre la ventana nativa de correo con los destinatarios del grupo ya calculados. */
+  const handleEnviarCorreo = (grupo: GrupoCorreo) => {
+    setMenuCorreo(false);
+    limpiarAvisos();
+    if (!config.urlEnviarEmail) {
+      setError(MENSAJE_SIN_URL_EMAIL);
+      return;
+    }
+    let destinatarios;
+    if (grupo === "seleccion") {
+      destinatarios = destinatariosSeleccion(profesores, marcados);
+      if (destinatarios.conEmail.length === 0) {
+        setError(
+          marcadosVigentes.length === 0
+            ? "Marca en la tabla a los profesores a los que quieres escribir."
+            : "Ninguno de los profesores marcados tiene un correo válido en su ficha.",
+        );
+        return;
+      }
+    } else {
+      destinatarios = gruposCorreo[grupo];
+      if (destinatarios.conEmail.length === 0 && destinatarios.otros.length === 0) {
+        setError(`Nadie del ${NOMBRE_GRUPO[grupo]} tiene correo en su ficha.`);
+        return;
+      }
+    }
+    void window.adminAPI.dialogoEnviarProfesorado.abrir(
+      JSON.stringify({ grupo, curso, config, destinatarios }),
+    );
   };
 
   const handleAbrirSustituir = async () => {
@@ -444,6 +537,67 @@ export default function ProfesoradoScreen() {
                     <UserCog className="w-4 h-4" />
                     Sustituir
                   </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setMenuCorreo((v) => !v)}
+                      disabled={profesores.length === 0}
+                      className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
+                    >
+                      <Mail className="w-4 h-4" />
+                      Enviar correo
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                    {menuCorreo && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setMenuCorreo(false)} />
+                        <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg overflow-hidden">
+                          {(["claustro", "ccp"] as const).map((g) => {
+                            const d = gruposCorreo[g];
+                            const total = d.conEmail.length + d.sinEmail.length;
+                            return (
+                              <button
+                                key={g}
+                                onClick={() => handleEnviarCorreo(g)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-[var(--tc-bg-panel)] transition-colors border-b last:border-b-0 border-[var(--tc-border-soft)]"
+                              >
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-semibold text-[var(--tc-ink)]">
+                                    {NOMBRE_GRUPO[g]}
+                                  </span>
+                                  <span className="text-[11px] font-medium text-[var(--tc-ink-mute)] tabular-nums">
+                                    {total} persona{total === 1 ? "" : "s"}
+                                    {d.sinEmail.length > 0 && ` · ${d.sinEmail.length} sin correo`}
+                                  </span>
+                                </span>
+                                <span className="block text-[11px] leading-snug text-[var(--tc-ink-soft)] mt-0.5">
+                                  {DESCRIPCION_GRUPO[g]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                          <button
+                            onClick={() => handleEnviarCorreo("seleccion")}
+                            disabled={marcadosVigentes.length === 0}
+                            className="w-full text-left px-4 py-2.5 hover:bg-[var(--tc-bg-panel)] disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                          >
+                            <span className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-[var(--tc-ink)]">
+                                Profesores marcados
+                              </span>
+                              <span className="text-[11px] font-medium text-[var(--tc-ink-mute)] tabular-nums">
+                                {marcadosVigentes.length} marcado{marcadosVigentes.length === 1 ? "" : "s"}
+                              </span>
+                            </span>
+                            <span className="block text-[11px] leading-snug text-[var(--tc-ink-soft)] mt-0.5">
+                              {marcadosVigentes.length === 0
+                                ? "Marca uno o varios con la casilla de la tabla"
+                                : DESCRIPCION_GRUPO.seleccion}
+                            </span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   {hayCopia && (
                     <button
                       onClick={handleDeshacer}
@@ -623,6 +777,40 @@ export default function ProfesoradoScreen() {
             </select>
           </div>
 
+          {/* Barra de profesores marcados */}
+          {!isSoloLectura && marcadosVigentes.length > 0 && (
+            <div className="flex items-center gap-3 flex-wrap rounded-xl border border-[var(--tc-primary-border)] bg-[var(--tc-primary-tint)] px-4 py-2">
+              <span className="text-sm text-[var(--tc-ink)] flex-1 min-w-[200px]">
+                <strong>{marcadosVigentes.length}</strong>{" "}
+                {marcadosVigentes.length === 1 ? "profesor marcado" : "profesores marcados"}
+                {marcadosVigentes.length > nMarcadosVisibles && (
+                  <span className="text-[var(--tc-ink-soft)]">
+                    {" "}
+                    ({marcadosVigentes.length - nMarcadosVisibles}{" "}
+                    {marcadosVigentes.length - nMarcadosVisibles === 1 ? "no se ve" : "no se ven"} con los
+                    filtros actuales)
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={() => setMarcados(new Set())}
+                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Quitar marcas
+              </button>
+              <button
+                onClick={() => handleEnviarCorreo("seleccion")}
+                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-sm font-semibold text-white bg-[var(--tc-primary)] hover:bg-[var(--tc-primary-dark)] transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                {marcadosVigentes.length === 1
+                  ? "Enviar correo a este profesor"
+                  : `Enviar correo a estos ${marcadosVigentes.length}`}
+              </button>
+            </div>
+          )}
+
           {/* Tabla */}
           <div className="bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -630,8 +818,21 @@ export default function ProfesoradoScreen() {
                 {/* Cabecera */}
                 <div
                   className="grid gap-2 px-4 py-2 border-b border-[var(--tc-border)] bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)] uppercase tracking-wide"
-                  style={{ gridTemplateColumns: PLANTILLA_COLUMNAS }}
+                  style={{ gridTemplateColumns: plantillaFilas }}
                 >
+                  {!isSoloLectura && (
+                    <input
+                      type="checkbox"
+                      checked={todosVisiblesMarcados}
+                      ref={(el) => {
+                        if (el) el.indeterminate = nMarcadosVisibles > 0 && !todosVisiblesMarcados;
+                      }}
+                      onChange={alternarMarcaVisibles}
+                      disabled={visibles.length === 0}
+                      title={todosVisiblesMarcados ? "Desmarcar los que se ven" : "Marcar todos los que se ven"}
+                      className="accent-[var(--tc-primary)] w-3.5 h-3.5 self-center cursor-pointer"
+                    />
+                  )}
                   {COLUMNAS.map((c) => (
                     <button
                       key={c.key}
@@ -668,18 +869,40 @@ export default function ProfesoradoScreen() {
                   visibles.map((p) => {
                     const r = resumenDe(resumenes, p);
                     const activa = p.id === seleccionadoId;
+                    const marcado = marcados.has(p.id);
                     return (
-                      <button
+                      <div
                         key={p.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSeleccionadoId(activa ? null : p.id)}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSeleccionadoId(activa ? null : p.id);
+                          }
+                        }}
                         className={
-                          "w-full grid gap-2 px-4 py-2 text-left text-[13px] border-b border-[var(--tc-border-soft)] transition-colors " +
+                          "w-full grid gap-2 px-4 py-2 text-left text-[13px] border-b border-[var(--tc-border-soft)] transition-colors cursor-pointer " +
                           (activa
                             ? "bg-[var(--tc-primary-tint)]"
-                            : "hover:bg-[var(--tc-bg-panel)]")
+                            : marcado
+                              ? "bg-[var(--tc-bg-panel)] hover:bg-[var(--tc-primary-tint)]"
+                              : "hover:bg-[var(--tc-bg-panel)]")
                         }
-                        style={{ gridTemplateColumns: PLANTILLA_COLUMNAS }}
+                        style={{ gridTemplateColumns: plantillaFilas }}
                       >
+                        {!isSoloLectura && (
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={() => alternarMarca(p.id)}
+                            title="Marcar para enviarle un correo"
+                            className="accent-[var(--tc-primary)] w-3.5 h-3.5 self-center cursor-pointer"
+                          />
+                        )}
                         <span className="truncate font-medium text-[var(--tc-ink)] flex items-center gap-1.5">
                           {!p.activo && (
                             <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] border border-[var(--tc-border)]">
@@ -713,7 +936,7 @@ export default function ProfesoradoScreen() {
                         <span className="text-right text-[var(--tc-ink-soft)] tabular-nums">
                           {r.tutorias || "—"}
                         </span>
-                      </button>
+                      </div>
                     );
                   })
                 )}

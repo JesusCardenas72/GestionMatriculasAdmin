@@ -291,6 +291,25 @@ const adminAPI = {
     abrir: (payloadJSON: string): Promise<void> =>
       ipcRenderer.invoke("horarios:abrirDialogoEnviar", payloadJSON),
   },
+  dialogoEnviarProfesorado: {
+    /** Abre la ventana nativa de correo al profesorado (Claustro / CCP). */
+    abrir: (payloadJSON: string): Promise<void> =>
+      ipcRenderer.invoke("profesorado:abrirDialogoEnviarCorreo", payloadJSON),
+  },
+  dialogoNuevoProfesor: {
+    /** Abre la ventana nativa de alta de un profesor. Devuelve la ficha JSON o null si se cancela. */
+    abrir: (payloadJSON: string): Promise<string | null> =>
+      ipcRenderer.invoke("profesorado:abrirDialogoNuevo", payloadJSON),
+    /** Solo para la ventana de diálogo: obtiene los datos de la sesión. */
+    getData: (dialogId: string): Promise<string | null> =>
+      ipcRenderer.invoke("horarios:dialogoGetData", dialogId),
+    /** Solo para la ventana de diálogo: confirma con la ficha rellenada. */
+    confirmar: (dialogId: string, fichaJSON: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoConfirmar", dialogId, fichaJSON),
+    /** Solo para la ventana de diálogo: cancela. */
+    cancelar: (dialogId: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoCancelar", dialogId),
+  },
   dialogoEnviarCampanya: {
     /** Abre la ventana nativa flotante de envío masivo (campaña). */
     abrir: (payloadJSON: string): Promise<void> =>

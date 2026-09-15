@@ -1351,6 +1351,101 @@ function registerIpcHandlers() {
     },
   );
 
+  // ── Ventana nativa flotante de correo al profesorado (Claustro / CCP) ────────
+  // Autónoma como la de campaña: recibe los destinatarios ya calculados en la
+  // pestaña Profesorado y hace el envío por sí misma. No devuelve resultado.
+  ipcMain.handle(
+    "profesorado:abrirDialogoEnviarCorreo",
+    async (_e, payloadJSON: string): Promise<void> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(payloadJSON));
+
+      const correoWin = new BrowserWindow({
+        width: 620,
+        height: 820,
+        minWidth: 460,
+        minHeight: 420,
+        title: "Enviar correo al profesorado",
+        icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+        autoHideMenuBar: true,
+        parent: win ?? undefined,
+        webPreferences: {
+          preload: path.join(__dirname, "preload.js"),
+          contextIsolation: true,
+          nodeIntegration: false,
+        },
+      });
+
+      correoWin.on("closed", () => {
+        dialogData.delete(dialogId);
+        // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+        if (win && !win.isDestroyed()) {
+          win.focus();
+          win.webContents.focus();
+        }
+      });
+
+      const hash = `dialog-enviar-profesorado?id=${encodeURIComponent(dialogId)}`;
+      if (VITE_DEV_SERVER_URL) {
+        correoWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+      } else {
+        correoWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+      }
+    },
+  );
+
+  // ── Ventana nativa modal de alta manual de un profesor ──────────────────────
+  // Sustituye a window.prompt(), que Electron no admite. Devuelve la ficha
+  // rellenada como JSON o null si se cancela / cierra la ventana.
+  ipcMain.handle(
+    "profesorado:abrirDialogoNuevo",
+    async (_e, payloadJSON: string): Promise<string | null> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(payloadJSON));
+
+      return new Promise<string | null>((resolve) => {
+        dialogResolvers.set(dialogId, resolve);
+
+        const nuevoWin = new BrowserWindow({
+          width: 460,
+          height: 680,
+          minWidth: 380,
+          minHeight: 420,
+          title: "Nuevo profesor",
+          icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+          autoHideMenuBar: true,
+          parent: win ?? undefined,
+          modal: true,
+          webPreferences: {
+            preload: path.join(__dirname, "preload.js"),
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        });
+
+        nuevoWin.on("closed", () => {
+          if (dialogResolvers.has(dialogId)) {
+            dialogData.delete(dialogId);
+            dialogResolvers.delete(dialogId);
+            resolve(null);
+          }
+          // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
+        });
+
+        const hash = `dialog-nuevo-profesor?id=${encodeURIComponent(dialogId)}`;
+        if (VITE_DEV_SERVER_URL) {
+          nuevoWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+        } else {
+          nuevoWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+        }
+      });
+    },
+  );
+
   // La ventana de campaña avisa de que guardó una campaña → refrescar historial.
   ipcMain.handle("horarios:campanyaGuardadaNotificar", (): void => {
     if (win && !win.isDestroyed()) {
