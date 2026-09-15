@@ -9,6 +9,13 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.18.1] - 2026-09-15
+
+### Corregido
+
+- **Listados (Informes): faltaban los campos «Ampliación» y «Anulación»** en el botón «+» para añadir columnas. Ya aparecen en el grupo «Matrícula», como campos Sí/No que también se pueden filtrar.
+- La columna «Ampliación» salía vacía en las matrículas guardadas en el equipo: ahora recoge su valor.
+
 ## [1.18.0] - 2026-09-15
 
 ### Añadido

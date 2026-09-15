@@ -269,9 +269,9 @@ export interface FilaInforme extends Solicitud {
   /** true si la fila proviene de un alumno temporal pendiente (placeholder de horarios) */
   esTemporal?: boolean;
   /**
-   * true si la matrícula de origen está ANULADA. No es una columna del informe:
-   * se arrastra para poder descartar estas filas donde no deben salir (p. ej. el
-   * Excel de horarios, que nunca debe incluir alumnado anulado).
+   * true si la matrícula de origen está ANULADA. Se puede mostrar como columna
+   * «Anulación» y además sirve para descartar estas filas donde no deben salir
+   * (p. ej. el Excel de horarios, que nunca debe incluir alumnado anulado).
    */
   anulacion?: boolean;
   /** ID "{nOrden}_{asciiSum(asigNombre)}" que identifica de forma única la fila alumno × asignatura. */

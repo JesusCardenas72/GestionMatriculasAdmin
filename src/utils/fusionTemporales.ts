@@ -94,6 +94,7 @@ function buildFila(m: MatriculaLocal, estado: EstadoTramite): FilaInforme {
     horaSalida: m.horaSalida,
     estado,
     docFaltante: m.docFaltante,
+    ampliacion: m.ampliacion,
     ampliada: m.ampliada,
     repetidor: m.repetidor,
     anulacion: m.anulacion,

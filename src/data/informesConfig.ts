@@ -32,7 +32,9 @@ export const CAMPOS_META: CampoMeta[] = [
   { key: 'horaSalida',           label: 'Hora Salida',         tipo: 'texto'    },
   { key: 'estado',               label: 'Estado',              tipo: 'estado'   },
   { key: 'docFaltante',          label: 'Doc. Faltante',       tipo: 'texto'    },
+  { key: 'ampliacion',           label: 'Ampliación',          tipo: 'booleano' },
   { key: 'ampliada',             label: 'Matrícula ampliada',  tipo: 'booleano' },
+  { key: 'anulacion',            label: 'Anulación',           tipo: 'booleano' },
   { key: 'repetidor',            label: 'Repetidor',           tipo: 'booleano' },
 ];
 

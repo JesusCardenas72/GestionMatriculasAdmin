@@ -326,6 +326,7 @@ function localToSolicitud(r: MatriculaLocal, estado: EstadoTramite): FilaInforme
     horaSalida: r.horaSalida,
     estado,
     docFaltante: r.docFaltante,
+    ampliacion: r.ampliacion,
     ampliada: r.ampliada,
     repetidor: r.repetidor,
     anulacion: r.anulacion,
