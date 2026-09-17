@@ -9,6 +9,15 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.20.0] - 2026-09-17
+
+### Añadido
+
+- **Listado Horarios.Delphos de los profesores marcados**: si en Profesorado se marcan profesores con la casilla de la tabla, el botón muestra cuántos hay y el listado (tabla, PDF y exportación) solo trae sus clases y su horario complementario.
+  - Sin ningún profesor marcado salen todos, como hasta ahora.
+  - Un aviso en la cabecera del listado indica que está limitado a los marcados (con sus nombres al pasar el ratón).
+  - La selección no se guarda en el informe: desde la pestaña Informes salen todos.
+
 ## [1.19.0] - 2026-09-17
 
 ### Añadido

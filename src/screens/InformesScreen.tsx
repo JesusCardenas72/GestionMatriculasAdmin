@@ -113,6 +113,11 @@ interface Props {
   presetVinculado?: string;
   /** Con `presetVinculado`: vuelve a la pantalla de origen. */
   onCerrar?: () => void;
+  /**
+   * Solo estos profesores (apellidos y nombre, como en `h_prof`). Es un filtro
+   * del momento: no se guarda en el informe. Vacío o sin pasar = todos.
+   */
+  soloProfesores?: string[];
 }
 
 interface ColDragState {
@@ -805,7 +810,7 @@ function MenuAnadirCampo({
   );
 }
 
-export default function InformesScreen({ config, presetVinculado, onCerrar }: Props) {
+export default function InformesScreen({ config, presetVinculado, onCerrar, soloProfesores }: Props) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
   /** Si hay un escenario activo en el contexto, se usan sus entries en lugar del almacén. */
@@ -1406,8 +1411,17 @@ export default function InformesScreen({ config, presetVinculado, onCerrar }: Pr
   const camposDispProfFicha = camposDisponibles.filter(c => profFichaKeys.has(c.key));
   const camposDispProfCarga = camposDisponibles.filter(c => profCargaKeys.has(c.key));
 
+  // Profesores elegidos al abrir el listado (normalizados); null = sin filtro.
+  const filtroProfesores = useMemo(
+    () => (soloProfesores && soloProfesores.length > 0 ? new Set(soloProfesores.map(n => norm(n))) : null),
+    [soloProfesores],
+  );
+
   const resultados = useMemo(() => {
-    const filtered = aplicarFiltros(allRows, filtrosConDefectoAnulados(informe.filtros, informe.modo));
+    let filtered = aplicarFiltros(allRows, filtrosConDefectoAnulados(informe.filtros, informe.modo));
+    if (filtroProfesores) {
+      filtered = filtered.filter(f => filtroProfesores.has(norm(String(f.h_prof ?? ''))));
+    }
     const niveles = nivelesAgrupacion(informe.agruparPor);
     const orden = niveles.length
       ? [
@@ -1416,7 +1430,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar }: Pr
         ]
       : informe.orden;
     return aplicarOrden(filtered, orden);
-  }, [allRows, informe.filtros, informe.modo, informe.orden, informe.agruparPor]);
+  }, [allRows, informe.filtros, informe.modo, informe.orden, informe.agruparPor, filtroProfesores]);
 
   // Display columns during drag (with placeholder inserted at drop position)
   const displayColItems = useMemo(() => {
@@ -2149,6 +2163,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar }: Pr
     const sinClases = profesorado
       .filter(p =>
         p.activo &&
+        (!filtroProfesores || filtroProfesores.has(norm(p.apellidosNombre))) &&
         !conClases.has(norm(p.apellidosNombre)) &&
         tieneDatosComplementario(datos?.porProfesor[p.id]),
       )
@@ -2156,7 +2171,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar }: Pr
       .sort((a, b) => a.localeCompare(b, 'es'));
     return { horarioDe, sinClases };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [informe.id, informe.nombre, informe.agruparPor, vinculos, presetVinculado, storeProfesorado.complementario, curso, profesorado, resultados]);
+  }, [informe.id, informe.nombre, informe.agruparPor, vinculos, presetVinculado, storeProfesorado.complementario, curso, profesorado, resultados, filtroProfesores]);
 
   /** Fila de la tabla en pantalla con el horario complementario de un profesor. */
   function filaComplementario(valorGrupo: string, key: string): React.ReactNode {
@@ -2895,6 +2910,17 @@ export default function InformesScreen({ config, presetVinculado, onCerrar }: Pr
               </p>
               {avisoVinculo && (
                 <p className="text-[11px] font-medium text-amber-700">{avisoVinculo}</p>
+              )}
+              {soloProfesores && soloProfesores.length > 0 && (
+                <p
+                  className="text-[11px] font-medium text-indigo-700"
+                  title={soloProfesores.join('\n')}
+                >
+                  Solo {soloProfesores.length === 1
+                    ? `el profesor marcado: ${soloProfesores[0]}`
+                    : `los ${soloProfesores.length} profesores marcados en Profesorado`}.
+                  Sin marcar ninguno salen todos.
+                </p>
               )}
             </div>
           ) : (

@@ -709,12 +709,14 @@ export default function ProfesoradoScreen({ config }: Props) {
 
   // «Listado Horarios.Delphos»: la misma pantalla de Informes, atada a ese
   // informe, con todas sus opciones y con el horario complementario de cada profesor.
+  // Si hay profesores marcados, solo salen ellos; si no, todos.
   if (showListadoDelphos) {
     return (
       <InformesScreen
         config={config}
         presetVinculado={NOMBRE_LISTADO_DELPHOS}
         onCerrar={() => setShowListadoDelphos(false)}
+        soloProfesores={marcadosVigentes.map((p) => p.apellidosNombre)}
       />
     );
   }
@@ -859,11 +861,20 @@ export default function ProfesoradoScreen({ config }: Props) {
               <button
                 onClick={() => setShowListadoDelphos(true)}
                 disabled={profesores.length === 0}
-                title="Clases de cada profesor con su horario complementario, para pasarlo a Delphos"
+                title={
+                  marcadosVigentes.length > 0
+                    ? `Clases y horario complementario ${marcadosVigentes.length === 1 ? "del profesor marcado" : `de los ${marcadosVigentes.length} profesores marcados`}, para pasarlo a Delphos`
+                    : "Clases de cada profesor con su horario complementario, para pasarlo a Delphos (marca profesores para sacar solo los suyos)"
+                }
                 className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-sm font-semibold text-white bg-[var(--tc-primary)] hover:bg-[var(--tc-primary-dark)] disabled:opacity-40 transition-colors"
               >
                 <FileText className="w-4 h-4" />
                 Listado Horarios.Delphos
+                {marcadosVigentes.length > 0 && (
+                  <span className="ml-0.5 px-1.5 rounded-full bg-white/25 text-[11px] leading-5">
+                    {marcadosVigentes.length}
+                  </span>
+                )}
               </button>
               <div className="relative">
                 <button
@@ -1199,7 +1210,7 @@ export default function ProfesoradoScreen({ config }: Props) {
                             checked={marcado}
                             onClick={(e) => e.stopPropagation()}
                             onChange={() => alternarMarca(p.id)}
-                            title="Marcar para enviarle un correo"
+                            title="Marcar para enviarle un correo o sacar su Listado Horarios.Delphos"
                             className="accent-[var(--tc-primary)] w-3.5 h-3.5 self-center cursor-pointer"
                           />
                         )}
