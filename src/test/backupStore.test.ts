@@ -187,6 +187,69 @@ describe("backup-store", () => {
       expect(r.grupos.ccp).toEqual({ incluidos: ["ana"], excluidos: [] });
     });
 
+    const horario = (dia: string) => ({
+      tramos: { TIAL: { dia, horario: "15-16h" } },
+      apoyo: [{ actividad: "Apoyo orquesta", aula: "AUDI", dia: "Lunes", horario: "19-20" }],
+      archivo: "PI-ANA.pdf",
+      archivoModificado: "2026-09-10T08:00:00.000Z",
+      importado: "2026-09-11T08:00:00.000Z",
+    });
+    type ConComplementario = {
+      complementario: Record<
+        string,
+        { carpeta: string | null; porProfesor: Record<string, ReturnType<typeof horario>>; ignorados: string[] }
+      >;
+    };
+
+    it("guarda y restaura el horario complementario de cada profesor", async () => {
+      const complementario = {
+        "26/27": { carpeta: "C:/pdf", porProfesor: { ana: horario("Viernes") }, ignorados: ["otro.pdf"] },
+      };
+      escribirJson("profesorado.json", {
+        version: 1,
+        profesores: [ficha("Ana")],
+        grupos: { claustro: { incluidos: [], excluidos: [] }, ccp: { incluidos: [], excluidos: [] } },
+        actualizado: null,
+        origenArchivo: null,
+        complementario,
+      });
+      expect(listarContenidoDisponible().horariosComplementarios).toBe(1);
+      const zip = path.join(userDataDir, "copia.gmbackup");
+      await crearBackup({ profesorado: true }, zip);
+
+      // Después de la copia se borra…
+      escribirJson("profesorado.json", { version: 1, profesores: [ficha("Ana")], complementario: {} });
+
+      await restaurarBackup(zip, { profesorado: true }, "reemplazar");
+      expect(leerJson<ConComplementario>("profesorado.json").complementario).toEqual(complementario);
+    });
+
+    it("al fusionar, el horario complementario del equipo manda y entra el que falta", async () => {
+      escribirJson("profesorado.json", {
+        version: 1,
+        profesores: [ficha("Ana"), ficha("Luis")],
+        complementario: {
+          "26/27": { carpeta: "C:/pdf", porProfesor: { ana: horario("Viernes"), luis: horario("Martes") }, ignorados: [] },
+        },
+      });
+      const zip = path.join(userDataDir, "copia.gmbackup");
+      await crearBackup({ profesorado: true }, zip);
+
+      escribirJson("profesorado.json", {
+        version: 1,
+        profesores: [ficha("Ana"), ficha("Luis")],
+        complementario: {
+          "26/27": { carpeta: null, porProfesor: { ana: horario("Lunes") }, ignorados: [] },
+        },
+      });
+
+      await restaurarBackup(zip, { profesorado: true }, "fusionar");
+      const r = leerJson<ConComplementario>("profesorado.json").complementario["26/27"];
+      expect(r.porProfesor.ana.tramos.TIAL.dia).toBe("Lunes");
+      expect(r.porProfesor.luis.tramos.TIAL.dia).toBe("Martes");
+      expect(r.carpeta).toBe("C:/pdf");
+    });
+
     it("una copia sin Claustro y CCP (anterior a la v1.18.2) no borra los del equipo", async () => {
       const zip = path.join(userDataDir, "copia.gmbackup");
       const JSZip = (await import("jszip")).default;

@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ComposicionGrupos, Profesor, ProfesoradoStore } from "../../electron/profesorado-store";
+import type {
+  ComplementarioCurso,
+  ComposicionGrupos,
+  Profesor,
+  ProfesoradoStore,
+} from "../../electron/profesorado-store";
 
 const PROFESORADO_KEY = ["profesorado"] as const;
 
@@ -9,6 +14,7 @@ const VACIO: ProfesoradoStore = {
   grupos: { claustro: { incluidos: [], excluidos: [] }, ccp: { incluidos: [], excluidos: [] } },
   actualizado: null,
   origenArchivo: null,
+  complementario: {},
 };
 
 /**
@@ -53,6 +59,12 @@ export function useProfesorado() {
     onSuccess: invalidar,
   });
 
+  const complementarioMut = useMutation({
+    mutationFn: ({ curso, datos }: { curso: string; datos: ComplementarioCurso | null }) =>
+      window.adminAPI.profesorado.guardarComplementario(curso, datos),
+    onSuccess: invalidar,
+  });
+
   const deshacerMut = useMutation({
     mutationFn: () => window.adminAPI.profesorado.deshacerUltimaCarga(),
     onSuccess: invalidar,
@@ -73,6 +85,9 @@ export function useProfesorado() {
     guardarGrupos: (grupos: ComposicionGrupos) => gruposMut.mutateAsync(grupos),
     importar: (nuevo: ProfesoradoStore) => importarMut.mutateAsync(nuevo),
     deshacerUltimaCarga: () => deshacerMut.mutateAsync(),
+    /** Horario complementario (horas no lectivas) de un curso; `null` lo borra. */
+    guardarComplementario: (curso: string, datos: ComplementarioCurso | null) =>
+      complementarioMut.mutateAsync({ curso, datos }),
     invalidar,
   };
 }

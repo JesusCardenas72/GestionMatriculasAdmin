@@ -87,9 +87,32 @@ import {
 } from '../utils/horariosPersistencia';
 import { asignaturasCursadas } from '../utils/repetidorSuelta';
 import type { HorariosCursoData, FormatoHorarios, HorariosEntry } from '../../electron/horarios-data-store';
+import { CODIGOS_COMPLEMENTARIO } from '../../electron/profesorado-complementario';
+import { norm } from '../utils/horarioExcel';
+import {
+  CSS_BLOQUE_COMPLEMENTARIO,
+  htmlBloqueComplementario,
+  tieneDatosComplementario,
+} from '../utils/horarioComplementario';
+import {
+  NOMBRE_LISTADO_DELPHOS,
+  PRESET_DELPHOS_DEFECTO,
+  buscarPresetDelphos,
+  buscarPresetVinculado,
+} from '../utils/listadoDelphos';
 
 interface Props {
   config: AppConfig;
+  /**
+   * Nombre de un informe guardado al que queda atada la pantalla (el botón
+   * «Listado Horarios.Delphos» de Profesorado). Se abre siempre ese informe,
+   * sin selector ni cambio de modo, y cada cambio de columnas, filtros, orden,
+   * agrupamiento o cabecera del PDF se guarda solo en él: así se ve igual desde
+   * Informes y desde el botón.
+   */
+  presetVinculado?: string;
+  /** Con `presetVinculado`: vuelve a la pantalla de origen. */
+  onCerrar?: () => void;
 }
 
 interface ColDragState {
@@ -127,6 +150,8 @@ function huellaConfigPdf(
     mostrarFecha: c?.mostrarFecha ?? true,
     repetirCabeceraTabla: c?.repetirCabeceraTabla ?? true,
     saltoPaginaNivel: c?.saltoPaginaNivel ?? null,
+    incluirComplementario: c?.incluirComplementario ?? true,
+    incluirSinClases: c?.incluirSinClases ?? true,
     // Ordenado por clave: el orden de las columnas no debe contar como cambio.
     anchosColumna: anchos
       ? Object.keys(anchos).sort().map(k => `${k}:${anchos[k as CampoKey]}`)
@@ -253,6 +278,79 @@ export function esFiltroActivo(f: FiltroInforme): boolean {
   const op = getOperadores(meta?.tipo ?? 'texto').find(o => o.key === f.operador);
   if (op && !op.needsValor) return true; // es Sí/No, está vacío, no está vacío…
   return f.valor.trim() !== '';
+}
+
+// ── Filtro directo de anulados (botón de la barra) ─────────────────────────
+export type FiltroAnulados = 'ambos' | 'noAnulados' | 'anulados';
+
+/**
+ * Qué muestra ahora el informe respecto a «Anulación», leyendo sus filtros
+ * (los del botón y los puestos a mano desde la columna). Si el criterio no es
+ * uno de los dos casos claros, se considera «ambos».
+ */
+export function estadoFiltroAnulados(filtros: FiltroInforme[]): FiltroAnulados {
+  // Sin ningún filtro de «Anulación» manda el valor por defecto: no anulados.
+  if (!filtros.some(f => f.campo === 'anulacion' && esFiltroActivo(f))) return 'noAnulados';
+  let si = true;
+  let no = true;
+  for (const f of filtros) {
+    if (f.campo !== 'anulacion' || !esFiltroActivo(f)) continue;
+    if (f.operador === 'es_true') no = false;
+    else if (f.operador === 'es_false') si = false;
+    else if (f.operador === 'en_lista') {
+      const sel = parseListaValor(f.valor);
+      if (!sel.includes('Sí')) si = false;
+      if (!sel.includes('No')) no = false;
+    }
+  }
+  if (si && !no) return 'anulados';
+  if (no && !si) return 'noAnulados';
+  return 'ambos';
+}
+
+/**
+ * Sustituye los filtros de «Anulación» por el del botón: una lista con «No»
+ * (no anulados), con «Sí» (anulados) o con los dos (ambos). El filtro se guarda en
+ * el informe como cualquier otro, así sale en el PDF y en los presets.
+ */
+export function conFiltroAnulados(filtros: FiltroInforme[], estado: FiltroAnulados): FiltroInforme[] {
+  const idx = filtros.findIndex(f => f.campo === 'anulacion');
+  const resto = filtros.filter(f => f.campo !== 'anulacion');
+  const previo = filtros.find(f => f.campo === 'anulacion' && f.operador === 'en_lista');
+  const nuevo: FiltroInforme = {
+    id: previo?.id ?? crypto.randomUUID(),
+    campo: 'anulacion',
+    operador: 'en_lista',
+    // «Ambos» se guarda explícito (Sí y No): sin filtro, el informe volvería
+    // a su valor por defecto, que es «No anulados».
+    valor: JSON.stringify(estado === 'anulados' ? ['Sí'] : estado === 'ambos' ? ['Sí', 'No'] : ['No']),
+  };
+  // Se deja en el mismo puesto que tenía el filtro anterior (la numeración de
+  // las cápsulas no salta); si no había, va al final.
+  const pos = idx === -1 ? resto.length : Math.min(idx, resto.length);
+  return [...resto.slice(0, pos), nuevo, ...resto.slice(pos)];
+}
+
+const ID_DEFECTO_ANULADOS = 'defecto-anulacion';
+
+/**
+ * Filtros que de verdad se aplican: los del informe y, si no tiene ninguno de
+ * «Anulación», el de por defecto (solo no anulados). No se guarda en el
+ * informe; en modo profesorado no hay alumnado y no se añade.
+ */
+export function filtrosConDefectoAnulados(filtros: FiltroInforme[], modo: ConfigInforme['modo']): FiltroInforme[] {
+  if (modo === 'profesorado' || filtros.some(f => f.campo === 'anulacion')) return filtros;
+  return [...filtros, { id: ID_DEFECTO_ANULADOS, campo: 'anulacion', operador: 'en_lista', valor: '["No"]' }];
+}
+
+/** ¿Restringe algo? El «Ambos» de anulación (Sí y No) no cuenta: no quita filas. */
+function filtroRestringe(f: FiltroInforme): boolean {
+  if (!esFiltroActivo(f)) return false;
+  if (f.campo === 'anulacion' && f.operador === 'en_lista') {
+    const sel = parseListaValor(f.valor);
+    return !(sel.includes('Sí') && sel.includes('No'));
+  }
+  return true;
 }
 
 /** Etiqueta legible de un valor de filtro (traduce códigos de estado a su texto). */
@@ -707,7 +805,7 @@ function MenuAnadirCampo({
   );
 }
 
-export default function InformesScreen({ config }: Props) {
+export default function InformesScreen({ config, presetVinculado, onCerrar }: Props) {
   const { curso } = useCursoContext();
   const { isSoloLectura } = useAppMode();
   /** Si hay un escenario activo en el contexto, se usan sus entries en lugar del almacén. */
@@ -721,8 +819,19 @@ export default function InformesScreen({ config }: Props) {
     loadingLocal || q1.isLoading || q2.isLoading || q3.isLoading;
 
   const [informe, setInforme] = useState<ConfigInforme>(() =>
-    deepClone(informeEnCurso ?? INFORME_VACIO),
+    deepClone(
+      presetVinculado
+        ? presetVinculado === NOMBRE_LISTADO_DELPHOS
+          ? PRESET_DELPHOS_DEFECTO
+          : { ...INFORME_VACIO, nombre: presetVinculado }
+        : informeEnCurso ?? INFORME_VACIO,
+    ),
   );
+  // Con informe vinculado: si ya se ha cargado (o creado) su preset, y lo
+  // último guardado en disco, para no volver a guardar lo mismo.
+  const [vinculoListo, setVinculoListo] = useState(!presetVinculado);
+  const guardadoVinculoRef = useRef<string>('');
+  const [vinculoGuardadoEn, setVinculoGuardadoEn] = useState<Date | null>(null);
 
   // Edición directa de una matrícula local desde el informe (queda pendiente de
   // subir a la nube; el cambio es solo local).
@@ -751,13 +860,14 @@ export default function InformesScreen({ config }: Props) {
 
   // Recuerda el informe activo para conservarlo al volver a esta pestaña.
   useEffect(() => {
-    informeEnCurso = informe;
-  }, [informe]);
+    // La vista vinculada no pisa el informe en curso de la pestaña Informes.
+    if (!presetVinculado) informeEnCurso = informe;
+  }, [informe, presetVinculado]);
 
   // Entradas del almacén de horarios del curso (para volcar las columnas de horario al informe)
   const [entriesHorario, setEntriesHorario] = useState<HorariosEntry[]>([]);
   // Profesorado: aporta la unidad de cada tutor a las columnas Tutor/a y Unidad.
-  const { profesores: profesorado } = useProfesorado();
+  const { profesores: profesorado, store: storeProfesorado } = useProfesorado();
 
   const solicitudesRemotas = useMemo(
     () => [
@@ -827,6 +937,10 @@ export default function InformesScreen({ config }: Props) {
   // Ancho (%) de cada columna del PDF ajustado a mano arrastrando en la vista
   // previa. `null` = anchos automáticos (proporcionales al contenido).
   const [previewAnchos, setPreviewAnchos] = useState<Partial<Record<CampoKey, number>> | null>(null);
+  // Listado Horarios.Delphos: horario complementario bajo cada profesor y
+  // profesores que solo tienen horario complementario (sin clases).
+  const [previewComplementario, setPreviewComplementario] = useState(true);
+  const [previewSinClases, setPreviewSinClases] = useState(true);
   // Aviso breve tras pulsar «Guardar configuración» en la vista previa.
   const [previewGuardado, setPreviewGuardado] =
     useState<{ texto: string; ok: boolean } | null>(null);
@@ -928,6 +1042,112 @@ export default function InformesScreen({ config }: Props) {
     })();
     window.adminAPI.presets.ocultosListar().then(setOcultos);
   }, []);
+
+  // Botones de otras pestañas atados a un informe (botón → id del preset).
+  const [vinculos, setVinculos] = useState<Record<string, string>>({});
+  // El informe que estaba vinculado ya no existía y se ha tenido que elegir otro.
+  const [avisoVinculo, setAvisoVinculo] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.adminAPI.presets.vinculosListar().then(setVinculos).catch(() => setVinculos({}));
+  }, []);
+
+  /** Informe nuevo con la configuración de fábrica del botón vinculado. */
+  function presetDeFabricaVinculado(nombre: string): ConfigInforme {
+    const base =
+      presetVinculado === NOMBRE_LISTADO_DELPHOS
+        ? PRESET_DELPHOS_DEFECTO
+        : { ...INFORME_VACIO, nombre: presetVinculado ?? '' };
+    return { ...deepClone(base), id: crypto.randomUUID(), nombre, predefinido: false };
+  }
+
+  /** Ata el botón a un informe, lo guarda en disco y lo abre. */
+  async function fijarVinculo(preset: ConfigInforme) {
+    if (!presetVinculado) return;
+    await window.adminAPI.presets.vinculoFijar(presetVinculado, preset.id);
+    setVinculos(await window.adminAPI.presets.vinculosListar());
+    const abierto: ConfigInforme = { modo: 'alumno', ...deepClone(preset) };
+    guardadoVinculoRef.current = JSON.stringify(abierto);
+    setInforme(abierto);
+    setVinculoListo(true);
+  }
+
+  // Informe vinculado: el elegido la última vez (por id, aunque se haya
+  // renombrado); si ya no existe, el que tenga el nombre del botón; y si
+  // tampoco, uno nuevo con la configuración de fábrica.
+  useEffect(() => {
+    if (!presetVinculado) return;
+    let cancelado = false;
+    void (async () => {
+      const [lista, guardados] = await Promise.all([
+        window.adminAPI.presets.listar(),
+        window.adminAPI.presets.vinculosListar(),
+      ]);
+      const idGuardado = guardados[presetVinculado] ?? null;
+      const candidatos = [
+        ...lista,
+        ...INFORMES_PREDEFINIDOS.filter(p => !lista.some(g => g.id === p.id)),
+      ];
+      let preset = buscarPresetVinculado(candidatos, presetVinculado, idGuardado);
+      if (!preset) {
+        preset = presetDeFabricaVinculado(presetVinculado);
+        await window.adminAPI.presets.guardar(preset);
+        if (!cancelado) setPresets(await window.adminAPI.presets.listar());
+      }
+      if (cancelado) return;
+      if (idGuardado && idGuardado !== preset.id) {
+        setAvisoVinculo(
+          `El informe que estaba vinculado ya no existe. Ahora se usa «${preset.nombre}»; ` +
+            'si no es el bueno, elige otro en «Informe vinculado».',
+        );
+      }
+      await fijarVinculo(preset);
+    })();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetVinculado]);
+
+  /** Cambio de informe vinculado desde el desplegable. */
+  async function handleCambiarVinculo(valor: string) {
+    if (!presetVinculado) return;
+    // Lo pendiente del informe actual se guarda antes de soltarlo.
+    const pendiente = JSON.stringify(informe);
+    if (vinculoListo && pendiente !== guardadoVinculoRef.current) {
+      await window.adminAPI.presets.guardar(deepClone(informe));
+    }
+    let preset: ConfigInforme | undefined;
+    if (valor === '__nuevo__') {
+      const usados = new Set(presets.map(p => p.nombre));
+      let nombre = presetVinculado;
+      for (let n = 2; usados.has(nombre); n++) nombre = `${presetVinculado} (${n})`;
+      preset = presetDeFabricaVinculado(nombre);
+      await window.adminAPI.presets.guardar(preset);
+    } else {
+      preset = [...presets, ...INFORMES_PREDEFINIDOS].find(p => p.id === valor);
+    }
+    if (!preset) return;
+    setPresets(await window.adminAPI.presets.listar());
+    setAvisoVinculo(null);
+    setVinculoGuardadoEn(null);
+    await fijarVinculo(preset);
+  }
+
+  // Informe vinculado: cualquier cambio se guarda solo en su preset, poco
+  // después de hacerlo, para que en Informes se vea igual.
+  useEffect(() => {
+    if (!presetVinculado || !vinculoListo) return;
+    const texto = JSON.stringify(informe);
+    if (texto === guardadoVinculoRef.current) return;
+    const t = setTimeout(() => {
+      void (async () => {
+        await window.adminAPI.presets.guardar(deepClone(informe));
+        guardadoVinculoRef.current = texto;
+        setPresets(await window.adminAPI.presets.listar());
+        setVinculoGuardadoEn(new Date());
+      })();
+    }, 700);
+    return () => clearTimeout(t);
+  }, [informe, presetVinculado, vinculoListo]);
 
   // Carga el formato y las entradas de horarios del curso activo (se resetea al cambiar curso)
   useEffect(() => {
@@ -1086,10 +1306,12 @@ export default function InformesScreen({ config }: Props) {
 
   // Filtros con criterio real (los que de verdad restringen). Se usan para el
   // PDF y el resaltado de columna filtrada.
-  const filtrosActivos = informe.filtros.filter(esFiltroActivo);
+  // Incluyen el «No anulados» por defecto si el informe no dice otra cosa.
+  const filtrosEfectivos = filtrosConDefectoAnulados(informe.filtros, informe.modo);
+  const filtrosActivos = filtrosEfectivos.filter(filtroRestringe);
   // Cápsulas visibles: los activos + el que se esté editando ahora mismo (para
   // que no desaparezca al vaciar su valor a mitad de edición).
-  const chipsVisibles = informe.filtros.filter(f => esFiltroActivo(f) || f.id === chipFiltroId);
+  const chipsVisibles = filtrosEfectivos.filter(f => filtroRestringe(f) || f.id === chipFiltroId);
 
   // ── Separadores verticales de columna ─────────────────────────────────────
   // En la cabecera la línea ES el propio handle de redimensionado (ver abajo),
@@ -1185,7 +1407,7 @@ export default function InformesScreen({ config }: Props) {
   const camposDispProfCarga = camposDisponibles.filter(c => profCargaKeys.has(c.key));
 
   const resultados = useMemo(() => {
-    const filtered = aplicarFiltros(allRows, informe.filtros);
+    const filtered = aplicarFiltros(allRows, filtrosConDefectoAnulados(informe.filtros, informe.modo));
     const niveles = nivelesAgrupacion(informe.agruparPor);
     const orden = niveles.length
       ? [
@@ -1194,7 +1416,7 @@ export default function InformesScreen({ config }: Props) {
         ]
       : informe.orden;
     return aplicarOrden(filtered, orden);
-  }, [allRows, informe.filtros, informe.orden, informe.agruparPor]);
+  }, [allRows, informe.filtros, informe.modo, informe.orden, informe.agruparPor]);
 
   // Display columns during drag (with placeholder inserted at drop position)
   const displayColItems = useMemo(() => {
@@ -1392,12 +1614,22 @@ export default function InformesScreen({ config }: Props) {
   }
 
   function removeFiltro(id: string) {
-    setInforme(prev => ({ ...prev, filtros: prev.filtros.filter(f => f.id !== id) }));
+    setInforme(prev => {
+      // Quitar el filtro de «Anulación» (también el de por defecto) es verlos
+      // todos: si solo se borrase, volvería a «No anulados».
+      const f = filtrosConDefectoAnulados(prev.filtros, prev.modo).find(x => x.id === id);
+      if (f?.campo === 'anulacion') return { ...prev, filtros: conFiltroAnulados(prev.filtros, 'ambos') };
+      return { ...prev, filtros: prev.filtros.filter(x => x.id !== id) };
+    });
   }
 
   // Quita TODOS los filtros de una columna (condiciones + lista de valores), como
   // el "Borrar filtro de…" de Excel.
   function quitarFiltrosDeCampo(campo: CampoKey) {
+    if (campo === 'anulacion') {
+      setInforme(prev => ({ ...prev, filtros: conFiltroAnulados(prev.filtros, 'ambos') }));
+      return;
+    }
     setInforme(prev => ({ ...prev, filtros: prev.filtros.filter(f => f.campo !== campo) }));
   }
 
@@ -1433,6 +1665,7 @@ export default function InformesScreen({ config }: Props) {
   function setSeleccionLista(campo: CampoKey, valoresSel: string[] | null) {
     setInforme(prev => {
       if (valoresSel === null) {
+        if (campo === 'anulacion') return { ...prev, filtros: conFiltroAnulados(prev.filtros, 'ambos') };
         return { ...prev, filtros: prev.filtros.filter(f => !(f.campo === campo && f.operador === 'en_lista')) };
       }
       const valor = JSON.stringify(valoresSel);
@@ -1515,11 +1748,11 @@ export default function InformesScreen({ config }: Props) {
   function renderFiltroPopoverBody(campoKey: CampoKey, onClose: () => void) {
     const label = CAMPO_MAP.get(campoKey)?.label ?? campoKey;
     // Las condiciones excluyen el filtro de lista (que se gestiona con las casillas).
-    const condiciones = informe.filtros.filter(f => f.campo === campoKey && f.operador !== 'en_lista');
+    const condiciones = filtrosEfectivos.filter(f => f.campo === campoKey && f.operador !== 'en_lista');
 
     // Lista de valores tipo Excel.
     const valores = valoresDistintosDeCampo(campoKey);
-    const filtroLista = informe.filtros.find(f => f.campo === campoKey && f.operador === 'en_lista');
+    const filtroLista = filtrosEfectivos.find(f => f.campo === campoKey && f.operador === 'en_lista');
     const seleccionados = filtroLista ? new Set(parseListaValor(filtroLista.valor)) : null;
     const onToggleValor = (v: string) => {
       const base = seleccionados ? new Set(seleccionados) : new Set(valores);
@@ -1530,7 +1763,7 @@ export default function InformesScreen({ config }: Props) {
     const onToggleTodos = (marcarTodos: boolean) =>
       setSeleccionLista(campoKey, marcarTodos ? null : []);
 
-    const hayFiltroActivo = informe.filtros.some(f => f.campo === campoKey && esFiltroActivo(f));
+    const hayFiltroActivo = filtrosActivos.some(f => f.campo === campoKey);
 
     return (
       <>
@@ -1894,6 +2127,72 @@ export default function InformesScreen({ config }: Props) {
   }, [previewAnchos, camposEnTabla]);
 
   /**
+   * «Listado Horarios.Delphos» agrupado primero por profesor: bajo las clases
+   * de cada uno va su horario complementario (Profesorado → Horario
+   * complementario). `null` en cualquier otro informe.
+   */
+  const anexoDelphos = useMemo(() => {
+    // Es el listado de Delphos si se abre desde su botón, si es el informe
+    // vinculado a ese botón o, sin vínculo elegido aún, si se llama así.
+    const idDelphos = vinculos[NOMBRE_LISTADO_DELPHOS];
+    const esDelphos =
+      presetVinculado === NOMBRE_LISTADO_DELPHOS ||
+      (idDelphos ? informe.id === idDelphos : !!buscarPresetDelphos([informe]));
+    if (!esDelphos || nivelesAgrup[0] !== 'h_prof') return null;
+    const datos = storeProfesorado.complementario?.[curso] ?? null;
+    const porNombre = new Map(profesorado.map(p => [norm(p.apellidosNombre), p]));
+    const horarioDe = (valorGrupo: string) => {
+      const p = porNombre.get(norm(valorGrupo));
+      return p ? datos?.porProfesor[p.id] ?? null : null;
+    };
+    const conClases = new Set(resultados.map(f => norm(String(f.h_prof ?? ''))));
+    const sinClases = profesorado
+      .filter(p =>
+        p.activo &&
+        !conClases.has(norm(p.apellidosNombre)) &&
+        tieneDatosComplementario(datos?.porProfesor[p.id]),
+      )
+      .map(p => p.apellidosNombre)
+      .sort((a, b) => a.localeCompare(b, 'es'));
+    return { horarioDe, sinClases };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [informe.id, informe.nombre, informe.agruparPor, vinculos, presetVinculado, storeProfesorado.complementario, curso, profesorado, resultados]);
+
+  /** Fila de la tabla en pantalla con el horario complementario de un profesor. */
+  function filaComplementario(valorGrupo: string, key: string): React.ReactNode {
+    const h = anexoDelphos?.horarioDe(valorGrupo) ?? null;
+    const items = h
+      ? [
+          ...CODIGOS_COMPLEMENTARIO.filter(c => h.tramos[c]).map(c => ({
+            cod: c as string,
+            texto: `${h.tramos[c]!.dia} ${h.tramos[c]!.horario}`.trim(),
+          })),
+          ...h.apoyo.map(f => ({
+            cod: 'APOYO',
+            texto: [f.actividad, f.aula ? `aula ${f.aula}` : '', f.dia, f.horario].filter(Boolean).join(' · '),
+          })),
+        ]
+      : [];
+    return (
+      <tr key={key} className="bg-indigo-50/60 border-b border-slate-200">
+        <td colSpan={camposEnTabla.length + 1} className="px-4 py-2 text-[12px] text-slate-700">
+          <span className="font-semibold text-[#1a1560] mr-2">Horario complementario:</span>
+          {items.length === 0 ? (
+            <span className="italic text-amber-700">sin datos</span>
+          ) : (
+            items.map((it, i) => (
+              <span key={i} className="inline-flex gap-1 mr-4 whitespace-nowrap">
+                <b className="text-[#1a1560]">{it.cod}</b>
+                {it.texto}
+              </span>
+            ))
+          )}
+        </td>
+      </tr>
+    );
+  }
+
+  /**
    * HTML del informe para el PDF. `interactivo` añade los tiradores para
    * ajustar el ancho de columna arrastrando: solo en la vista previa, nunca en
    * el PDF que se guarda o imprime.
@@ -1916,12 +2215,20 @@ export default function InformesScreen({ config }: Props) {
     agruparPorMetas: nivelesAgrup
       .map(k => CAMPO_MAP.get(k))
       .filter(Boolean) as CampoMeta[],
+    anexoGrupo:
+      anexoDelphos && previewComplementario
+        ? v => htmlBloqueComplementario(anexoDelphos.horarioDe(v), camposEnTabla.length)
+        : undefined,
+    gruposSoloAnexo:
+      anexoDelphos && previewComplementario && previewSinClases ? anexoDelphos.sinClases : [],
+    cssExtra: anexoDelphos && previewComplementario ? CSS_BLOQUE_COMPLEMENTARIO : '',
   }), [
+    anexoDelphos, previewComplementario, previewSinClases,
     previewOrientacion, previewZoom, previewTitulo, previewSubtitulo,
     previewMostrarFiltros, previewMostrarOrden, previewMostrarAgrupacion, previewMostrarFecha,
     previewRepetirCabecera, previewSaltoNivel, anchosColumnaPdf,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    informe.filtros, informe.orden, informe.agruparPor, camposEnTabla, resultados,
+    informe.filtros, informe.modo, informe.orden, informe.agruparPor, camposEnTabla, resultados,
   ]);
 
   const previewHtml = useMemo(
@@ -2407,6 +2714,8 @@ export default function InformesScreen({ config }: Props) {
       nivelGuardado !== null && nivelGuardado < nivelesAgrup.length ? nivelGuardado : null,
     );
     setPreviewAnchos(c?.anchosColumna ?? null);
+    setPreviewComplementario(c?.incluirComplementario ?? true);
+    setPreviewSinClases(c?.incluirSinClases ?? true);
     setPreviewGuardado(null);
     setShowPreview(true);
   }
@@ -2422,6 +2731,8 @@ export default function InformesScreen({ config }: Props) {
     repetirCabeceraTabla: previewRepetirCabecera,
     saltoPaginaNivel: previewSaltoNivel,
     anchosColumna: previewAnchos ?? undefined,
+    incluirComplementario: previewComplementario,
+    incluirSinClases: previewSinClases,
   };
 
   // ¿Hay algo distinto de lo que ya tiene guardado el preset? Sirve para
@@ -2540,7 +2851,55 @@ export default function InformesScreen({ config }: Props) {
           <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center shadow-sm">
             <FileText className="w-4.5 h-4.5 text-amber-600" />
           </div>
-          <h2 className="text-[15px] font-bold text-[#1b1b24] leading-tight">Informes</h2>
+          {presetVinculado ? (
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-[15px] font-bold text-[#1b1b24] leading-tight">{presetVinculado}</h2>
+                <label className="flex items-center gap-1.5 text-[12px] text-slate-500">
+                  Informe vinculado:
+                  <select
+                    value={vinculoListo ? informe.id : ''}
+                    onChange={e => void handleCambiarVinculo(e.target.value)}
+                    disabled={!vinculoListo}
+                    title="Informe de la pestaña Informes del que sale este listado"
+                    className="text-sm border border-slate-200 rounded-lg px-2.5 py-1 bg-white text-slate-800 max-w-[320px] focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  >
+                    {!vinculoListo && <option value="">Cargando…</option>}
+                    {presetsFavoritos.length > 0 && (
+                      <optgroup label="★ Favoritos">
+                        {presetsFavoritos.map(p => (
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {presetsOtros.length > 0 && (
+                      <optgroup label={presetsFavoritos.length > 0 ? 'Otros' : 'Informes'}>
+                        {presetsOtros.map(p => (
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <option value="__nuevo__">+ Crear uno nuevo con la configuración de fábrica</option>
+                  </select>
+                </label>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Lo que cambies aquí (columnas, filtros, orden, agrupamiento, PDF) se guarda en el
+                informe «{informe.nombre}» y sale igual en Informes.
+                {vinculoGuardadoEn && (
+                  <span className="text-emerald-600">
+                    {' '}Guardado a las{' '}
+                    {vinculoGuardadoEn.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.
+                  </span>
+                )}
+              </p>
+              {avisoVinculo && (
+                <p className="text-[11px] font-medium text-amber-700">{avisoVinculo}</p>
+              )}
+            </div>
+          ) : (
+            <h2 className="text-[15px] font-bold text-[#1b1b24] leading-tight">Informes</h2>
+          )}
           {modoEdicion && (
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[11px] font-bold uppercase tracking-wide shadow-sm animate-pulse">
               Editando
@@ -2563,6 +2922,15 @@ export default function InformesScreen({ config }: Props) {
                 {' '}campo{camposEnTabla.length !== 1 ? 's' : ''}
               </span>
             </div>
+          )}
+          {onCerrar && (
+            <button
+              onClick={onCerrar}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 text-sm font-medium shadow-sm transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Cerrar
+            </button>
           )}
           {/* Menú de acciones (tres puntos verticales) */}
           <div className="relative">
@@ -2645,7 +3013,8 @@ export default function InformesScreen({ config }: Props) {
               ref={presetMenuRef}
               className="absolute left-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 min-w-[260px]"
             >
-              {/* Nombre del informe */}
+              {/* Nombre del informe (el vinculado no se renombra: se perdería el vínculo) */}
+              {!presetVinculado && (<>
               <div className="px-4 pt-3 pb-2.5">
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">
                   Nombre del informe
@@ -2660,6 +3029,7 @@ export default function InformesScreen({ config }: Props) {
               </div>
 
               <div className="h-px bg-slate-100" />
+              </>)}
 
               {/* Líneas de separación en el cuerpo de datos */}
               <button
@@ -2683,6 +3053,7 @@ export default function InformesScreen({ config }: Props) {
                 </span>
               </button>
 
+              {!presetVinculado && (<>
               <div className="h-px bg-slate-100" />
 
               {/* Acciones de preset */}
@@ -2756,11 +3127,13 @@ export default function InformesScreen({ config }: Props) {
                   </button>
                 </>
               )}
+              </>)}
             </div>
           )}
         </div>
 
         {/* Selector de informe base */}
+        {!presetVinculado && (<>
         <select
           value={currentSelectId}
           onChange={e => loadPredefinido(e.target.value)}
@@ -2805,6 +3178,7 @@ export default function InformesScreen({ config }: Props) {
             </button>
           ))}
         </div>
+        </>)}
 
         {/* Botón global: activa/desactiva la edición en línea del informe. En
             modo profesorado no hay nada que editar aquí: las fichas se cambian
@@ -2828,6 +3202,37 @@ export default function InformesScreen({ config }: Props) {
             {modoEdicion ? 'Editando' : 'Editar'}
           </button>
         )}
+
+        {/* Filtro directo de anulación: No anulados / Anulados / Ambos. Escribe
+            el filtro de la columna «Anulación», así se ve en las cápsulas, sale
+            en el PDF y se guarda con el informe (también en el Listado
+            Horarios.Delphos de Profesorado). */}
+        {!esModoProfesorado && (() => {
+          const actual = estadoFiltroAnulados(filtrosEfectivos);
+          return (
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5" title="Filtrar alumnado por anulación">
+              {([
+                { estado: 'noAnulados' as const, label: 'No anulados', titulo: 'Solo el alumnado sin anulación' },
+                { estado: 'anulados' as const,   label: 'Anulados',    titulo: 'Solo el alumnado con anulación' },
+                { estado: 'ambos' as const,      label: 'Ambos',       titulo: 'Todo el alumnado, anulado o no' },
+              ]).map(op => (
+                <button
+                  key={op.estado}
+                  onClick={() => setInforme(prev => ({ ...prev, filtros: conFiltroAnulados(prev.filtros, op.estado) }))}
+                  title={op.titulo}
+                  className={
+                    'px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ' +
+                    (actual === op.estado
+                      ? (op.estado === 'anulados' ? 'bg-white text-red-700 shadow-sm' : 'bg-white text-amber-700 shadow-sm')
+                      : 'text-slate-500 hover:text-slate-700')
+                  }
+                >
+                  {op.label}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         <div className="flex-1 min-w-2" />
 
@@ -3112,7 +3517,7 @@ export default function InformesScreen({ config }: Props) {
                       const isDragging = colDrag?.colIdx === item.originalIdx;
                       const ordenEntry = informe.orden.find(o => o.campo === c.key);
                       const ordenIdx   = informe.orden.indexOf(ordenEntry!);
-                      const nFiltrosCol = informe.filtros.filter(f => f.campo === c.key && esFiltroActivo(f)).length;
+                      const nFiltrosCol = filtrosActivos.filter(f => f.campo === c.key).length;
                       const popoverAbierto = filterPopoverCampo === c.key;
                       const anchoCol = getAnchoColumna(c.key);
                       const colapsado = anchoCol !== undefined && anchoCol < UMBRAL_COLAPSO_COL;
@@ -3449,7 +3854,7 @@ export default function InformesScreen({ config }: Props) {
                     : 'bg-indigo-100 text-[#1a1560]';
                   const nivelLabelClase = (lvl: number) =>
                     lvl === 0 ? 'text-[13px] font-bold' : 'text-[12px] font-bold';
-                  return resultados.flatMap((s, i) => {
+                  const filasTabla = resultados.flatMap((s, i) => {
                     const rows: React.ReactNode[] = [];
                     if (niveles.length > 0) {
                       // Primer nivel cuyo valor cambia respecto a la fila anterior.
@@ -3458,6 +3863,9 @@ export default function InformesScreen({ config }: Props) {
                         if (formatCelda(s, niveles[lvl]) !== lastVals[lvl]) { cambioDesde = lvl; break; }
                       }
                       if (cambioDesde !== -1) {
+                        if (anexoDelphos && cambioDesde === 0 && lastVals[0] !== null) {
+                          rows.push(filaComplementario(lastVals[0], `comp-${i}`));
+                        }
                         groupRowIdx = 0;
                         for (let lvl = cambioDesde; lvl < niveles.length; lvl++) {
                           const val = formatCelda(s, niveles[lvl]);
@@ -3551,6 +3959,22 @@ export default function InformesScreen({ config }: Props) {
                     );
                     return rows;
                   });
+                  if (anexoDelphos && lastVals[0] !== null) {
+                    filasTabla.push(filaComplementario(lastVals[0], 'comp-ultimo'));
+                  }
+                  // Profesores sin clases pero con horario complementario.
+                  for (const nombre of anexoDelphos?.sinClases ?? []) {
+                    filasTabla.push(
+                      <tr key={`sin-clases-${nombre}`} className={nivelClase(0) + ' select-none'}>
+                        <td colSpan={camposEnTabla.length + 1} className="py-2 px-4">
+                          <span className={nivelLabelClase(0) + ' tracking-wide uppercase'}>{nombre}</span>
+                          <span className="ml-3 text-[11px] font-normal opacity-60">sin clases</span>
+                        </td>
+                      </tr>,
+                      filaComplementario(nombre, `comp-sin-${nombre}`),
+                    );
+                  }
+                  return filasTabla;
                 })()}
               </tbody>
             </table>
@@ -4139,6 +4563,38 @@ export default function InformesScreen({ config }: Props) {
                           </option>
                         ))}
                       </select>
+                    </label>
+                  </>
+                )}
+
+                {anexoDelphos && (
+                  <>
+                    <span className="h-4 w-px bg-slate-300" />
+                    <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 cursor-pointer select-none"
+                      title="Bajo las clases de cada profesor, su horario complementario (Profesorado → Horario complementario)"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={previewComplementario}
+                        onChange={e => setPreviewComplementario(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                      />
+                      Horario complementario
+                    </label>
+                    <label className={
+                        'flex items-center gap-1.5 text-[11px] font-medium select-none ' +
+                        (previewComplementario ? 'text-slate-600 cursor-pointer' : 'text-slate-300 cursor-not-allowed')
+                      }
+                      title="Profesores que tienen horario complementario pero ninguna clase en el listado"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={previewSinClases && previewComplementario}
+                        disabled={!previewComplementario}
+                        onChange={e => setPreviewSinClases(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:opacity-50"
+                      />
+                      Profesores sin clases
                     </label>
                   </>
                 )}

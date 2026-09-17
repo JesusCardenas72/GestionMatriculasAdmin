@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aplicarFiltros, describeFiltro, esFiltroActivo, parseListaValor } from './InformesScreen';
+import { aplicarFiltros, conFiltroAnulados, describeFiltro, esFiltroActivo, estadoFiltroAnulados, filtrosConDefectoAnulados, parseListaValor } from './InformesScreen';
 import type { FilaInforme, FiltroInforme } from '../api/types';
 import { ESTADO } from '../api/types';
 
@@ -134,5 +134,46 @@ describe('describeFiltro — en_lista', () => {
   });
   it('traduce "—" a (vacías)', () => {
     expect(describeFiltro(lista('especialidad', ['—']))).toBe('Especialidad: (vacías)');
+  });
+});
+
+describe('botón de anulados (No anulados / Anulados / Ambos)', () => {
+  const filas = [fila({ nombre: 'A', anulacion: true }), fila({ nombre: 'B', anulacion: false })];
+  const estado: FiltroInforme = { id: 'e', campo: 'estado', operador: 'no_vacio', valor: '' };
+
+  it('sin filtro de anulación, por defecto, solo salen los no anulados', () => {
+    expect(estadoFiltroAnulados([estado])).toBe('noAnulados');
+    const efectivos = filtrosConDefectoAnulados([estado], 'alumno');
+    expect(aplicarFiltros(filas, efectivos).map(r => r.nombre)).toEqual(['B']);
+  });
+
+  it('en modo profesorado no se añade el filtro por defecto', () => {
+    expect(filtrosConDefectoAnulados([estado], 'profesorado')).toEqual([estado]);
+  });
+
+  it('«No anulados» deja solo las no anuladas y se reconoce al releerlo', () => {
+    const f = conFiltroAnulados([estado], 'noAnulados');
+    expect(estadoFiltroAnulados(f)).toBe('noAnulados');
+    expect(aplicarFiltros(filas, f).map(r => r.nombre)).toEqual(['B']);
+  });
+
+  it('«Anulados» sustituye al filtro anterior en su mismo puesto', () => {
+    const previo = conFiltroAnulados([lista('anulacion', ['No']), estado], 'anulados');
+    expect(previo).toHaveLength(2);
+    expect(previo[0].campo).toBe('anulacion');
+    expect(estadoFiltroAnulados(previo)).toBe('anulados');
+    expect(aplicarFiltros(filas, previo).map(r => r.nombre)).toEqual(['A']);
+  });
+
+  it('«Ambos» se guarda explícito y no lo pisa el valor por defecto', () => {
+    const f = conFiltroAnulados([lista('anulacion', ['Sí']), estado], 'ambos');
+    expect(f).toHaveLength(2);
+    expect(estadoFiltroAnulados(f)).toBe('ambos');
+    expect(filtrosConDefectoAnulados(f, 'asignatura')).toEqual(f);
+    expect(aplicarFiltros(filas, filtrosConDefectoAnulados(f, 'asignatura'))).toHaveLength(2);
+  });
+
+  it('reconoce el filtro del preset del Listado Horarios.Delphos', () => {
+    expect(estadoFiltroAnulados([lista('anulacion', ['No'])])).toBe('noAnulados');
   });
 });

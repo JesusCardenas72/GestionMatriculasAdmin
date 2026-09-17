@@ -12,7 +12,12 @@ import type {
   RestauracionModo,
   RestauracionResumen,
 } from "./backup-store";
-import type { ComposicionGrupos, Profesor, ProfesoradoStore } from "./profesorado-store";
+import type {
+  ComplementarioCurso,
+  ComposicionGrupos,
+  Profesor,
+  ProfesoradoStore,
+} from "./profesorado-store";
 
 const adminAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
@@ -172,6 +177,12 @@ const adminAPI = {
       ipcRenderer.invoke("presets:favoritoMarcar", id),
     favoritoDesmarcar: (id: string): Promise<void> =>
       ipcRenderer.invoke("presets:favoritoDesmarcar", id),
+    /** Botones de otras pestañas atados a un informe: nombre del botón → id del preset. */
+    vinculosListar: (): Promise<Record<string, string>> =>
+      ipcRenderer.invoke("presets:vinculosListar"),
+    /** Ata un botón a un informe (`null` quita el vínculo). */
+    vinculoFijar: (boton: string, presetId: string | null): Promise<void> =>
+      ipcRenderer.invoke("presets:vinculoFijar", boton, presetId),
   },
   informe: {
     exportar: async (payload: {
@@ -227,6 +238,27 @@ const adminAPI = {
     /** Abre el diálogo y devuelve los bytes; el parseo lo hace el renderer. */
     seleccionarArchivo: (): Promise<{ fileName: string; base64: string; path: string } | null> =>
       ipcRenderer.invoke("profesorado:seleccionarArchivo"),
+    /** Guarda el horario complementario de un curso (`null` lo borra). */
+    guardarComplementario: (
+      curso: string,
+      datos: ComplementarioCurso | null,
+    ): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:guardarComplementario", curso, datos),
+    /** Pide la carpeta de los PDF del horario complementario. */
+    complementarioElegirCarpeta: (actual: string | null): Promise<string | null> =>
+      ipcRenderer.invoke("profesorado:complementarioElegirCarpeta", actual),
+    /** PDF de la carpeta con su fecha de modificación. */
+    complementarioListar: (
+      carpeta: string,
+    ): Promise<
+      { ok: true; archivos: { nombre: string; modificado: string }[] } | { ok: false; error: string }
+    > => ipcRenderer.invoke("profesorado:complementarioListar", carpeta),
+    /** Bytes (base64) de un PDF de la carpeta. */
+    complementarioLeerPdf: (carpeta: string, nombre: string): Promise<string> =>
+      ipcRenderer.invoke("profesorado:complementarioLeerPdf", carpeta, nombre),
+    /** Abre el PDF con el visor del sistema. Devuelve "" o el mensaje de error. */
+    complementarioAbrirPdf: (carpeta: string, nombre: string): Promise<string> =>
+      ipcRenderer.invoke("profesorado:complementarioAbrirPdf", carpeta, nombre),
   },
   horarios: {
     /** Nombres del profesorado en activo, derivados de `profesorado.json`. */
@@ -330,6 +362,17 @@ const adminAPI = {
       ipcRenderer.invoke("horarios:dialogoGetData", dialogId),
     confirmar: (dialogId: string, gruposJSON: string): Promise<void> =>
       ipcRenderer.invoke("horarios:dialogoConfirmar", dialogId, gruposJSON),
+    cancelar: (dialogId: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoCancelar", dialogId),
+  },
+  dialogoComplementario: {
+    /** Abre la ventana del horario complementario. Devuelve el del curso (JSON) o null si se cancela. */
+    abrir: (payloadJSON: string): Promise<string | null> =>
+      ipcRenderer.invoke("profesorado:abrirDialogoComplementario", payloadJSON),
+    getData: (dialogId: string): Promise<string | null> =>
+      ipcRenderer.invoke("horarios:dialogoGetData", dialogId),
+    confirmar: (dialogId: string, datosJSON: string): Promise<void> =>
+      ipcRenderer.invoke("horarios:dialogoConfirmar", dialogId, datosJSON),
     cancelar: (dialogId: string): Promise<void> =>
       ipcRenderer.invoke("horarios:dialogoCancelar", dialogId),
   },

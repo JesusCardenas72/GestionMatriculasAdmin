@@ -1,6 +1,11 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { sanearComplementario, type ComplementarioCurso } from "./profesorado-complementario";
+
+// El horario complementario vive en un archivo sin dependencias de Node para
+// que la pantalla pueda usar sus constantes y su saneado.
+export * from "./profesorado-complementario";
 
 /**
  * Almacén del profesorado (`profesorado.json`).
@@ -75,6 +80,12 @@ export interface ProfesoradoStore {
   actualizado: string | null;
   /** Nombre del archivo del que se cargó la última vez. */
   origenArchivo: string | null;
+  /**
+   * Horario complementario de cada profesor, por curso escolar («26/27»).
+   * Va aparte de la ficha para que «Cargar lista» (que rehace las fichas desde
+   * el CSV) no lo borre. Al escribir, `undefined` conserva lo que ya hubiera.
+   */
+  complementario?: Record<string, ComplementarioCurso>;
 }
 
 export function gruposVacios(): ComposicionGrupos {
@@ -90,6 +101,7 @@ const VACIO: ProfesoradoStore = {
   grupos: gruposVacios(),
   actualizado: null,
   origenArchivo: null,
+  complementario: {},
 };
 
 function storePath(): string {
@@ -234,6 +246,7 @@ export function leerStore(): ProfesoradoStore {
     grupos: sanearGrupos(bruto.grupos),
     actualizado: bruto.actualizado ?? null,
     origenArchivo: bruto.origenArchivo ?? null,
+    complementario: sanearComplementario(bruto.complementario),
   };
 }
 
@@ -243,6 +256,14 @@ export function escribirStore(store: ProfesoradoStore): ProfesoradoStore {
     version: 1,
     profesores: sanear(store.profesores),
     grupos: sanearGrupos(store.grupos),
+    // Quien no dice nada del horario complementario (cargas, importaciones y
+    // restauraciones antiguas) no lo borra.
+    complementario:
+      store.complementario !== undefined
+        ? sanearComplementario(store.complementario)
+        : fs.existsSync(storePath())
+          ? leerStore().complementario
+          : {},
   };
   fs.writeFileSync(storePath(), JSON.stringify(limpio, null, 2), "utf-8");
   return limpio;
@@ -275,6 +296,7 @@ export function deshacerUltimaCarga(): ProfesoradoStore {
     grupos: previa.grupos ? sanearGrupos(previa.grupos) : leerStore().grupos,
     actualizado: previa.actualizado ?? null,
     origenArchivo: previa.origenArchivo ?? null,
+    // El horario complementario no depende de la carga: se deja como esté.
   });
   try {
     fs.unlinkSync(anteriorPath());
@@ -328,7 +350,24 @@ export function profesoradoImportar(store: ProfesoradoStore): ProfesoradoStore {
     grupos: sanearGrupos(store.grupos),
     actualizado: store.actualizado ?? null,
     origenArchivo: store.origenArchivo ?? null,
+    // Exportaciones anteriores a la v1.19 no lo traen: se conserva el del equipo.
+    complementario: store.complementario,
   });
+}
+
+/**
+ * Guarda el horario complementario de un curso entero (carpeta, horarios por
+ * profesor y PDF ignorados). `null` lo borra.
+ */
+export function profesoradoGuardarComplementario(
+  curso: string,
+  datos: ComplementarioCurso | null,
+): ProfesoradoStore {
+  const actual = leerStore();
+  const complementario = { ...(actual.complementario ?? {}) };
+  if (datos === null) delete complementario[curso];
+  else complementario[curso] = datos;
+  return escribirStore({ ...actual, complementario });
 }
 
 /**

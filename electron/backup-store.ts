@@ -5,8 +5,10 @@ import JSZip from "jszip";
 import {
   escribirStore,
   fichaDesdeNombre,
+  sanearComplementario,
   sanearGrupos,
   type AjusteGrupo,
+  type ComplementarioCurso,
   type ComposicionGrupos,
   type Profesor,
   type ProfesoradoStore,
@@ -27,6 +29,8 @@ export interface BackupInventario {
   matriculas: { curso: string; total: number; pdfs: number }[];
   horarios: { curso: string; entries: number; snapshots: number }[];
   profesorado: number;
+  /** Horarios complementarios guardados (profesor × curso), dentro del profesorado. */
+  horariosComplementarios: number;
   campanyas: number;
   presets: number;
   temporalesCursos: number;
@@ -147,7 +151,10 @@ export function listarContenidoDisponible(): BackupInventario {
 
   // El profesorado vive en `profesorado.json` desde la v1.14; si aún no existe
   // (instalación que no ha abierto la versión nueva) se cuenta la lista antigua.
-  const profesoradoStore = leerJson<{ profesores?: Profesor[] }>(
+  const profesoradoStore = leerJson<{
+    profesores?: Profesor[];
+    complementario?: Record<string, { porProfesor?: Record<string, unknown> }>;
+  }>(
     path.join(dir, "profesorado.json"),
     {},
   );
@@ -170,6 +177,10 @@ export function listarContenidoDisponible(): BackupInventario {
     matriculas,
     horarios,
     profesorado: profesoradoStore.profesores?.length ?? profesoresCfg.profesores?.length ?? 0,
+    horariosComplementarios: Object.values(profesoradoStore.complementario ?? {}).reduce(
+      (n, c) => n + Object.keys(c?.porProfesor ?? {}).length,
+      0,
+    ),
     campanyas: campanyas.length,
     presets: presets.length,
     temporalesCursos: Object.keys(temporales).length,
@@ -266,6 +277,7 @@ export async function crearBackup(
             grupos: sanearGrupos(store.grupos),
             actualizado: store.actualizado ?? null,
             origenArchivo: store.origenArchivo ?? null,
+            complementario: sanearComplementario(store.complementario),
           },
           null,
           2,
@@ -289,6 +301,7 @@ export async function crearBackup(
     presets = lista.length;
     addFileIfExists(zip, path.join(dir, "informes-presets.json"), "informes-presets.json");
     addFileIfExists(zip, path.join(dir, "informes-predefinidos-ocultos.json"), "informes-predefinidos-ocultos.json");
+    addFileIfExists(zip, path.join(dir, "informes-vinculos.json"), "informes-vinculos.json");
   }
 
   // ── F) Alumnos temporales ──
@@ -409,6 +422,28 @@ function fusionarGrupos(actual: ComposicionGrupos, copia: ComposicionGrupos): Co
     };
   };
   return sanearGrupos({ claustro: uno(actual.claustro, copia.claustro), ccp: uno(actual.ccp, copia.ccp) });
+}
+
+/**
+ * Fusiona el horario complementario: lo del equipo manda. De la copia entran
+ * los cursos que falten y, en cada curso, los profesores sin horario en el equipo.
+ */
+function fusionarComplementario(
+  actual: Record<string, ComplementarioCurso>,
+  copia: Record<string, ComplementarioCurso>,
+): Record<string, ComplementarioCurso> {
+  const out = { ...actual };
+  for (const [curso, c] of Object.entries(copia)) {
+    const a = out[curso];
+    out[curso] = a
+      ? {
+          carpeta: a.carpeta ?? c.carpeta,
+          porProfesor: { ...c.porProfesor, ...a.porProfesor },
+          ignorados: [...new Set([...a.ignorados, ...c.ignorados])],
+        }
+      : c;
+  }
+  return out;
 }
 
 async function zipFileBuffer(zip: JSZip, p: string): Promise<Buffer | null> {
@@ -594,6 +629,9 @@ export async function restaurarBackup(
     const gruposCopia = copiaNueva && store!.grupos ? sanearGrupos(store!.grupos) : null;
     const origenArchivoCopia = copiaNueva ? (store!.origenArchivo ?? null) : null;
     const actualizadoCopia = copiaNueva ? (store!.actualizado ?? null) : null;
+    // Desde la v1.19 traen también el horario complementario de cada curso.
+    const complementarioCopia =
+      copiaNueva && store!.complementario ? sanearComplementario(store!.complementario) : null;
 
     const actual = leerJson<Partial<ProfesoradoStore>>(path.join(dir, "profesorado.json"), {});
     const gruposActuales = sanearGrupos(actual.grupos);
@@ -602,7 +640,10 @@ export async function restaurarBackup(
     let grupos: ComposicionGrupos;
     let actualizado: string | null;
     let origenArchivo: string | null;
+    // `undefined` = se conserva el del equipo.
+    let complementario: Record<string, ComplementarioCurso> | undefined;
     if (modo === "reemplazar") {
+      complementario = complementarioCopia ?? undefined;
       profesores = fichasCopia;
       grupos = gruposCopia ?? gruposActuales;
       actualizado = copiaNueva && "actualizado" in store! ? actualizadoCopia : (actual.actualizado ?? null);
@@ -620,9 +661,12 @@ export async function restaurarBackup(
       grupos = gruposCopia ? fusionarGrupos(gruposActuales, gruposCopia) : gruposActuales;
       actualizado = actual.actualizado ?? actualizadoCopia;
       origenArchivo = actual.origenArchivo ?? origenArchivoCopia;
+      complementario = complementarioCopia
+        ? fusionarComplementario(sanearComplementario(actual.complementario), complementarioCopia)
+        : undefined;
     }
 
-    escribirStore({ version: 1, profesores, grupos, actualizado, origenArchivo });
+    escribirStore({ version: 1, profesores, grupos, actualizado, origenArchivo, complementario });
     categorias.push("Profesorado");
     tick();
   }
@@ -667,6 +711,17 @@ export async function restaurarBackup(
         const union = new Set([...leerJson<string[]>(ocultosFile, []), ...ocultosCopia]);
         fs.writeFileSync(ocultosFile, JSON.stringify([...union], null, 2), "utf-8");
       }
+    }
+    // Informes vinculados a botones (p. ej. Listado Horarios.Delphos). Al
+    // fusionar mandan los del equipo.
+    if (zip.file("informes-vinculos.json")) {
+      const vinculosFile = path.join(dir, "informes-vinculos.json");
+      const vinculosCopia = await zipJson<Record<string, string>>(zip, "informes-vinculos.json", {});
+      const final =
+        modo === "reemplazar"
+          ? vinculosCopia
+          : { ...vinculosCopia, ...leerJson<Record<string, string>>(vinculosFile, {}) };
+      fs.writeFileSync(vinculosFile, JSON.stringify(final, null, 2), "utf-8");
     }
     categorias.push("Presets de informes");
     tick();

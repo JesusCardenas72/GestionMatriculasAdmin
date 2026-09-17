@@ -10,6 +10,7 @@ import { DialogoEnviarCampanya } from "./screens/DialogoEnviarCampanya";
 import { DialogoEnviarProfesorado } from "./screens/DialogoEnviarProfesorado";
 import { DialogoNuevoProfesor } from "./screens/DialogoNuevoProfesor";
 import { DialogoGruposProfesorado } from "./screens/DialogoGruposProfesorado";
+import { DialogoHorarioComplementario } from "./screens/DialogoHorarioComplementario";
 import "./styles/index.css";
 
 const hash = window.location.hash.slice(1); // sin '#'
@@ -19,10 +20,17 @@ const isDialogEnviarCampanya = hash.startsWith("dialog-enviar-campanya");
 const isDialogEnviarProfesorado = hash.startsWith("dialog-enviar-profesorado");
 const isDialogNuevoProfesor = hash.startsWith("dialog-nuevo-profesor");
 const isDialogGruposProfesorado = hash.startsWith("dialog-grupos-profesorado");
+const isDialogHorarioComplementario = hash.startsWith("dialog-horario-complementario");
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
-if (isDialogGruposProfesorado) {
+if (isDialogHorarioComplementario) {
+  root.render(
+    <React.StrictMode>
+      <DialogoHorarioComplementario />
+    </React.StrictMode>,
+  );
+} else if (isDialogGruposProfesorado) {
   root.render(
     <React.StrictMode>
       <DialogoGruposProfesorado />

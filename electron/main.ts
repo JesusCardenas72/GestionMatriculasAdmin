@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, MenuItem } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, MenuItem, shell } from "electron";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,6 +28,8 @@ import {
   favoritosListar,
   favoritoMarcar,
   favoritoDesmarcar,
+  vinculoFijar,
+  vinculosListar,
 } from "./presets-store";
 import {
   getHorariosExcelPath,
@@ -40,10 +42,12 @@ import {
   hayCopiaAnterior,
   nombresProfesorado,
   profesoradoGuardar,
+  profesoradoGuardarComplementario,
   profesoradoGuardarGrupos,
   profesoradoImportar,
   profesoradoObtener,
   profesoradoReemplazar,
+  type ComplementarioCurso,
   type ComposicionGrupos,
   type Profesor,
   type ProfesoradoStore,
@@ -476,6 +480,10 @@ function registerIpcHandlers() {
   ipcMain.handle("presets:favoritosListar", () => favoritosListar());
   ipcMain.handle("presets:favoritoMarcar", (_e, id: string) => favoritoMarcar(id));
   ipcMain.handle("presets:favoritoDesmarcar", (_e, id: string) => favoritoDesmarcar(id));
+  ipcMain.handle("presets:vinculosListar", () => vinculosListar());
+  ipcMain.handle("presets:vinculoFijar", (_e, boton: string, presetId: string | null) =>
+    vinculoFijar(boton, presetId),
+  );
 
   // ── Profesorado ───────────────────────────────────────────────────────────
   // La ficha completa vive en `profesorado.json`. La lista de nombres que
@@ -535,6 +543,60 @@ function registerIpcHandlers() {
       return { fileName: path.basename(file), texto: fs.readFileSync(file, "utf-8") };
     },
   );
+  // ── Horario complementario (PDF que entrega cada profesor) ─────────────────
+  // Aquí solo se elige la carpeta, se listan los PDF y se entregan sus bytes;
+  // la lectura del formulario la hace el renderer
+  // (src/utils/horarioComplementarioPdf.ts).
+  ipcMain.handle(
+    "profesorado:guardarComplementario",
+    (_e, curso: string, datos: ComplementarioCurso | null) =>
+      profesoradoGuardarComplementario(curso, datos),
+  );
+  ipcMain.handle(
+    "profesorado:complementarioElegirCarpeta",
+    async (_e, actual: string | null): Promise<string | null> => {
+      const res = await dialog.showOpenDialog({
+        title: "Carpeta con los PDF del horario complementario",
+        defaultPath: actual && fs.existsSync(actual) ? actual : undefined,
+        properties: ["openDirectory"],
+      });
+      if (res.canceled || res.filePaths.length === 0) return null;
+      return res.filePaths[0];
+    },
+  );
+  ipcMain.handle(
+    "profesorado:complementarioListar",
+    (
+      _e,
+      carpeta: string,
+    ): { ok: true; archivos: { nombre: string; modificado: string }[] } | { ok: false; error: string } => {
+      try {
+        if (!fs.existsSync(carpeta)) return { ok: false, error: "La carpeta ya no existe." };
+        const archivos = fs
+          .readdirSync(carpeta, { withFileTypes: true })
+          .filter((d) => d.isFile() && d.name.toLowerCase().endsWith(".pdf"))
+          .map((d) => ({
+            nombre: d.name,
+            modificado: fs.statSync(path.join(carpeta, d.name)).mtime.toISOString(),
+          }))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+        return { ok: true, archivos };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+  );
+  ipcMain.handle(
+    "profesorado:complementarioLeerPdf",
+    (_e, carpeta: string, nombre: string): string =>
+      fs.readFileSync(path.join(carpeta, path.basename(nombre))).toString("base64"),
+  );
+  ipcMain.handle(
+    "profesorado:complementarioAbrirPdf",
+    async (_e, carpeta: string, nombre: string): Promise<string> =>
+      shell.openPath(path.join(carpeta, path.basename(nombre))),
+  );
+
   ipcMain.handle("profesorado:hayCopiaAnterior", () => hayCopiaAnterior());
   ipcMain.handle("profesorado:deshacerUltimaCarga", () => deshacerUltimaCarga());
   // Igual que con el Excel de horarios: aquí solo se entregan los bytes; el
@@ -1531,6 +1593,58 @@ function registerIpcHandlers() {
           gruposWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
         } else {
           gruposWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
+        }
+      });
+    },
+  );
+
+  // ── Ventana nativa modal: horario complementario desde los PDF ───────────────
+  // Devuelve el horario complementario del curso (ComplementarioCurso) como
+  // JSON o null si se cancela.
+  ipcMain.handle(
+    "profesorado:abrirDialogoComplementario",
+    async (_e, payloadJSON: string): Promise<string | null> => {
+      const dialogId = crypto.randomUUID();
+      dialogData.set(dialogId, JSON.parse(payloadJSON));
+
+      return new Promise<string | null>((resolve) => {
+        dialogResolvers.set(dialogId, resolve);
+
+        const compWin = new BrowserWindow({
+          width: 1180,
+          height: 820,
+          minWidth: 760,
+          minHeight: 480,
+          title: "Horario complementario — Profesorado",
+          icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
+          autoHideMenuBar: true,
+          parent: win ?? undefined,
+          modal: true,
+          webPreferences: {
+            preload: path.join(__dirname, "preload.js"),
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        });
+
+        compWin.on("closed", () => {
+          if (dialogResolvers.has(dialogId)) {
+            dialogData.delete(dialogId);
+            dialogResolvers.delete(dialogId);
+            resolve(null);
+          }
+          // Reactivar el foco de la ventana principal (ver comentario en viewWin).
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
+        });
+
+        const hash = `dialog-horario-complementario?id=${encodeURIComponent(dialogId)}`;
+        if (VITE_DEV_SERVER_URL) {
+          compWin.loadURL(`${VITE_DEV_SERVER_URL}#${hash}`);
+        } else {
+          compWin.loadFile(path.join(RENDERER_DIST, "index.html"), { hash });
         }
       });
     },

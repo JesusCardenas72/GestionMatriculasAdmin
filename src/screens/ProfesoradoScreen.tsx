@@ -5,6 +5,8 @@ import {
   ArrowUpAZ,
   CheckCircle,
   ChevronDown,
+  Clock,
+  FileText,
   ArrowDownUp,
   Download,
   FileDown,
@@ -64,15 +66,29 @@ import {
 } from "../utils/profesoradoJson";
 import type { NuevoProfesorDatos, NuevoProfesorPayload } from "./DialogoNuevoProfesor";
 import type { PayloadGruposProfesorado } from "./DialogoGruposProfesorado";
+import type { PayloadComplementario } from "./DialogoHorarioComplementario";
 import ProfesoradoCargaModal from "../components/modals/ProfesoradoCargaModal";
 import AsignarAlumnosModal from "../components/modals/AsignarAlumnosModal";
 import SustituirProfesoradoModal from "../components/modals/SustituirProfesoradoModal";
+import InformesScreen from "./InformesScreen";
+import { NOMBRE_LISTADO_DELPHOS } from "../utils/listadoDelphos";
+import SeccionComplementario from "../components/SeccionComplementario";
+import {
+  complementarioVacio,
+  contarFilasComplementario,
+  tieneDatosComplementario,
+} from "../utils/horarioComplementario";
 import type { AppConfig } from "../../electron/config-store";
-import type { ComposicionGrupos, Profesor } from "../../electron/profesorado-store";
+import type {
+  ComplementarioCurso,
+  ComposicionGrupos,
+  HorarioComplementario,
+  Profesor,
+} from "../../electron/profesorado-store";
 import type { HorariosCursoData, HorariosEntry } from "../../electron/horarios-data-store";
 
 /** Columnas de la tabla que se pueden ordenar. */
-type ColumnaOrden = CampoArchivo | "clases" | "alumnos" | "tutorias";
+type ColumnaOrden = CampoArchivo | "clases" | "alumnos" | "tutorias" | "complementario";
 type FiltroEstado = "activos" | "bajas" | "todos";
 
 const COLUMNAS: { key: ColumnaOrden; etiqueta: string; ancho: string; numerica?: boolean }[] = [
@@ -86,6 +102,7 @@ const COLUMNAS: { key: ColumnaOrden; etiqueta: string; ancho: string; numerica?:
   { key: "clases", etiqueta: "Clases", ancho: "70px", numerica: true },
   { key: "alumnos", etiqueta: "Alumnos", ancho: "75px", numerica: true },
   { key: "tutorias", etiqueta: "Tutorías", ancho: "75px", numerica: true },
+  { key: "complementario", etiqueta: "H. compl.", ancho: "80px", numerica: true },
 ];
 
 const PLANTILLA_COLUMNAS = COLUMNAS.map((c) => c.ancho).join(" ");
@@ -108,6 +125,7 @@ export default function ProfesoradoScreen({ config }: Props) {
     guardarGrupos,
     importar,
     deshacerUltimaCarga,
+    guardarComplementario,
   } = useProfesorado();
 
   const [entries, setEntries] = useState<HorariosEntry[]>([]);
@@ -144,6 +162,21 @@ export default function ProfesoradoScreen({ config }: Props) {
   const [menuImportExport, setMenuImportExport] = useState(false);
   /** Profesores marcados con la casilla de la tabla, para escribirles un correo. */
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [showListadoDelphos, setShowListadoDelphos] = useState(false);
+
+  /** Horario complementario (horas no lectivas) del curso activo. */
+  const complementario = useMemo<ComplementarioCurso>(
+    () => store.complementario?.[curso] ?? complementarioVacio(),
+    [store.complementario, curso],
+  );
+  /** Filas de horario complementario de un profesor (0 = sin datos). */
+  const filasComplementario = useCallback(
+    (p: Profesor): number => {
+      const h = complementario.porProfesor[p.id];
+      return h ? contarFilasComplementario(h) : 0;
+    },
+    [complementario],
+  );
 
   // ── Datos del curso activo ────────────────────────────────────────────────
 
@@ -209,6 +242,12 @@ export default function ProfesoradoScreen({ config }: Props) {
 
     const factor = orden.asc ? 1 : -1;
     return [...lista].sort((a, b) => {
+      if (orden.campo === "complementario") {
+        const va = filasComplementario(a);
+        const vb = filasComplementario(b);
+        if (va !== vb) return (va - vb) * factor;
+        return a.apellidosNombre.localeCompare(b.apellidosNombre, "es");
+      }
       if (orden.campo === "clases" || orden.campo === "alumnos" || orden.campo === "tutorias") {
         const va = resumenDe(resumenes, a)[orden.campo];
         const vb = resumenDe(resumenes, b)[orden.campo];
@@ -228,6 +267,7 @@ export default function ProfesoradoScreen({ config }: Props) {
     filtroEstado,
     orden,
     resumenes,
+    filasComplementario,
   ]);
 
   /** Marcas que siguen existiendo (una carga de archivo puede quitar fichas). */
@@ -370,15 +410,62 @@ export default function ProfesoradoScreen({ config }: Props) {
       editadoAMano: [...tocados],
     };
     await guardar(profesores.map((p) => (p.id === original.id ? ficha : p)));
-    // Al renombrar cambia el id: los retoques de Claustro y CCP le siguen.
+    // Al renombrar cambia el id: los retoques de Claustro y CCP y el horario
+    // complementario de cada curso le siguen.
     if (ficha.id !== original.id) {
       await guardarGrupos({
         claustro: renombrarEnAjuste(store.grupos.claustro, original.id, ficha.id),
         ccp: renombrarEnAjuste(store.grupos.ccp, original.id, ficha.id),
       });
+      for (const [c, datos] of Object.entries(store.complementario ?? {})) {
+        const h = datos.porProfesor[original.id];
+        if (!h) continue;
+        const porProfesor = { ...datos.porProfesor, [ficha.id]: h };
+        delete porProfesor[original.id];
+        await guardarComplementario(c, { ...datos, porProfesor });
+      }
     }
     setSeleccionadoId(ficha.id);
     setMensaje(`Ficha de «${ficha.apellidosNombre}» guardada.`);
+  };
+
+  /** Abre la ventana de los PDF del horario complementario y guarda lo que se decida. */
+  const handleHorarioComplementario = async () => {
+    limpiarAvisos();
+    const payload: PayloadComplementario = { curso, profesores, datos: complementario };
+    const json = await window.adminAPI.dialogoComplementario.abrir(JSON.stringify(payload));
+    if (json === null) return;
+    try {
+      const datos = JSON.parse(json) as ComplementarioCurso;
+      await guardarComplementario(curso, datos);
+      const conDatos = activos.filter((p) => tieneDatosComplementario(datos.porProfesor[p.id])).length;
+      setMensaje(
+        `Horario complementario del curso ${curso} guardado: ${conDatos} de ${activos.length} ` +
+          "profesor(es) en activo lo tienen.",
+      );
+    } catch (e) {
+      setError(
+        `No se ha podido guardar el horario complementario: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  };
+
+  /** Guarda el horario complementario retocado a mano desde la ficha (`null` lo borra). */
+  const handleGuardarComplementarioFicha = async (p: Profesor, h: HorarioComplementario | null) => {
+    limpiarAvisos();
+    const porProfesor = { ...complementario.porProfesor };
+    if (h === null) delete porProfesor[p.id];
+    else porProfesor[p.id] = h;
+    try {
+      await guardarComplementario(curso, { ...complementario, porProfesor });
+      setMensaje(
+        h === null
+          ? `Horario complementario de «${p.apellidosNombre}» borrado.`
+          : `Horario complementario de «${p.apellidosNombre}» guardado.`,
+      );
+    } catch (e) {
+      setError(`No se ha podido guardar: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   /** Abre la ventana «Claustro y CCP» y guarda los retoques que se hagan en ella. */
@@ -620,6 +707,18 @@ export default function ProfesoradoScreen({ config }: Props) {
 
   const nAvisosError = avisos.filter((a) => a.gravedad === "error").length;
 
+  // «Listado Horarios.Delphos»: la misma pantalla de Informes, atada a ese
+  // informe, con todas sus opciones y con el horario complementario de cada profesor.
+  if (showListadoDelphos) {
+    return (
+      <InformesScreen
+        config={config}
+        presetVinculado={NOMBRE_LISTADO_DELPHOS}
+        onCerrar={() => setShowListadoDelphos(false)}
+      />
+    );
+  }
+
   return (
     <div className="flex-1 overflow-hidden flex">
       <div className="flex-1 min-w-0 overflow-y-auto p-6">
@@ -658,6 +757,15 @@ export default function ProfesoradoScreen({ config }: Props) {
                   >
                     <UserCog className="w-4 h-4" />
                     Sustituir
+                  </button>
+                  <button
+                    onClick={handleHorarioComplementario}
+                    disabled={profesores.length === 0}
+                    title="Leer de los PDF del profesorado sus horas no lectivas (horario complementario)"
+                    className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
+                  >
+                    <Clock className="w-4 h-4" />
+                    Horario complementario
                   </button>
                   <button
                     onClick={handleDefinirGrupos}
@@ -748,6 +856,15 @@ export default function ProfesoradoScreen({ config }: Props) {
                   )}
                 </>
               )}
+              <button
+                onClick={() => setShowListadoDelphos(true)}
+                disabled={profesores.length === 0}
+                title="Clases de cada profesor con su horario complementario, para pasarlo a Delphos"
+                className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-sm font-semibold text-white bg-[var(--tc-primary)] hover:bg-[var(--tc-primary-dark)] disabled:opacity-40 transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                Listado Horarios.Delphos
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setMenuImportExport((v) => !v)}
@@ -1050,6 +1167,7 @@ export default function ProfesoradoScreen({ config }: Props) {
                 ) : (
                   visibles.map((p) => {
                     const r = resumenDe(resumenes, p);
+                    const nCompl = filasComplementario(p);
                     const activa = p.id === seleccionadoId;
                     const marcado = marcados.has(p.id);
                     return (
@@ -1118,6 +1236,20 @@ export default function ProfesoradoScreen({ config }: Props) {
                         <span className="text-right text-[var(--tc-ink-soft)] tabular-nums">
                           {r.tutorias || "—"}
                         </span>
+                        <span
+                          className="text-right tabular-nums"
+                          style={{
+                            color:
+                              p.activo && nCompl === 0 ? "var(--tc-warn-ink)" : "var(--tc-ink-soft)",
+                          }}
+                          title={
+                            nCompl === 0
+                              ? `Sin horario complementario en el curso ${curso}`
+                              : `${nCompl} fila(s) de horario complementario`
+                          }
+                        >
+                          {nCompl || "—"}
+                        </span>
                       </div>
                     );
                   })
@@ -1149,6 +1281,9 @@ export default function ProfesoradoScreen({ config }: Props) {
           profesor={seleccionado}
           curso={curso}
           clases={clasesDeProfesor(entries, seleccionado)}
+          complementario={complementario.porProfesor[seleccionado.id] ?? null}
+          carpetaComplementario={complementario.carpeta}
+          onGuardarComplementario={(h) => handleGuardarComplementarioFicha(seleccionado, h)}
           soloLectura={isSoloLectura}
           onCerrar={() => setSeleccionadoId(null)}
           onGuardar={(editada) => handleGuardarFicha(seleccionado, editada)}
@@ -1302,6 +1437,9 @@ function FichaProfesor({
   profesor,
   curso,
   clases,
+  complementario,
+  carpetaComplementario,
+  onGuardarComplementario,
   soloLectura,
   onCerrar,
   onGuardar,
@@ -1311,6 +1449,9 @@ function FichaProfesor({
   profesor: Profesor;
   curso: string;
   clases: HorariosEntry[];
+  complementario: HorarioComplementario | null;
+  carpetaComplementario: string | null;
+  onGuardarComplementario: (h: HorarioComplementario | null) => void;
   soloLectura: boolean;
   onCerrar: () => void;
   onGuardar: (editada: Profesor) => void;
@@ -1374,6 +1515,14 @@ function FichaProfesor({
             </span>
           </div>
         )}
+
+        <SeccionComplementario
+          curso={curso}
+          horario={complementario}
+          carpeta={carpetaComplementario}
+          soloLectura={soloLectura}
+          onGuardar={onGuardarComplementario}
+        />
 
         {/* Clases del curso */}
         <div>

@@ -1,4 +1,8 @@
 import { norm } from "./horarioExcel";
+import {
+  sanearComplementario,
+  type ComplementarioCurso,
+} from "../../electron/profesorado-complementario";
 import type {
   AjusteGrupo,
   ComposicionGrupos,
@@ -9,7 +13,8 @@ import type {
 /**
  * Exportación e importación `.json` de toda la pestaña Profesorado: fichas
  * (también las bajas), sustituciones, campos retocados a mano, quién forma el
- * Claustro y la CCP, y los datos de la última carga de archivo.
+ * Claustro y la CCP, los datos de la última carga de archivo y el horario
+ * complementario (horas no lectivas) de cada curso.
  *
  * Las clases de cada profesor NO van aquí: son de los horarios de cada curso y
  * viven en Horarios.
@@ -27,6 +32,8 @@ export interface ExportacionProfesorado {
   grupos: ComposicionGrupos;
   actualizado: string | null;
   origenArchivo: string | null;
+  /** Desde la v1.19. */
+  complementario?: Record<string, ComplementarioCurso>;
 }
 
 export function crearExportacion(store: ProfesoradoStore, ahora = new Date()): string {
@@ -38,6 +45,7 @@ export function crearExportacion(store: ProfesoradoStore, ahora = new Date()): s
     grupos: store.grupos,
     actualizado: store.actualizado,
     origenArchivo: store.origenArchivo,
+    complementario: store.complementario ?? {},
   };
   return JSON.stringify(datos, null, 2);
 }
@@ -145,6 +153,8 @@ export function interpretarImportacion(contenido: string): ResultadoImportacion 
       grupos,
       actualizado: typeof o.actualizado === "string" ? o.actualizado : null,
       origenArchivo: typeof o.origenArchivo === "string" ? o.origenArchivo : null,
+      // Exportaciones anteriores no lo traen: `undefined` conserva el del equipo.
+      complementario: o.complementario !== undefined ? sanearComplementario(o.complementario) : undefined,
     },
     exportado: typeof o.exportado === "string" ? o.exportado : null,
     enActivo,

@@ -72,6 +72,17 @@ export interface InformeParams {
    * previa: el PDF que se guarda o imprime nunca los lleva.
    */
   interactivo?: boolean;
+  /**
+   * Filas extra al final de cada grupo del PRIMER nivel (recibe el valor del
+   * grupo tal como se ve en su cabecera). Lo usa el listado de horarios para
+   * Delphos para poner, bajo las clases de cada profesor, su horario
+   * complementario.
+   */
+  anexoGrupo?: (valorGrupo: string) => string;
+  /** Grupos de primer nivel sin filas que deben salir igualmente (solo con su anexo). */
+  gruposSoloAnexo?: string[];
+  /** CSS adicional para lo que añada `anexoGrupo`. */
+  cssExtra?: string;
 }
 
 /**
@@ -156,6 +167,9 @@ export function buildHtmlInforme({
   repetirCabecera = true,
   anchosColumna = null,
   interactivo = false,
+  anexoGrupo,
+  gruposSoloAnexo = [],
+  cssExtra = '',
 }: InformeParams): string {
   const hoy = new Date().toLocaleDateString('es-ES', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -201,6 +215,10 @@ export function buildHtmlInforme({
         if (formatValor(s, niveles[lvl]) !== lastVals[lvl]) { cambioDesde = lvl; break; }
       }
       if (cambioDesde !== -1) {
+        // Cierra el grupo de primer nivel anterior con su anexo.
+        if (cambioDesde === 0 && anexoGrupo && lastVals[0] !== null) {
+          groupedSections.push(anexoGrupo(lastVals[0]));
+        }
         groupRowIdx = 0;
         for (let lvl = cambioDesde; lvl < niveles.length; lvl++) {
           const groupVal = formatValor(s, niveles[lvl]);
@@ -230,6 +248,19 @@ export function buildHtmlInforme({
       }
       groupedSections.push(buildDataRow(s, groupRowIdx % 2 === 1 ? ' class="alt"' : ''));
       groupRowIdx++;
+    }
+    if (anexoGrupo && lastVals[0] !== null) groupedSections.push(anexoGrupo(lastVals[0]));
+    if (anexoGrupo) {
+      for (const valor of gruposSoloAnexo) {
+        const salto =
+          saltoPaginaNivel !== null && groupedSections.length > 0 ? ' salto-pagina' : '';
+        groupedSections.push(
+          `<tr class="group-header lvl0${salto}"><td colspan="${campos.length}" style="padding-left:10px">` +
+          `<span class="group-label">${esc(valor)}</span>` +
+          `<span class="group-count">sin clases</span></td></tr>`,
+          anexoGrupo(valor),
+        );
+      }
     }
     bodyRows = groupedSections.join('');
   } else {
@@ -336,6 +367,7 @@ ${interactivo ? `
   }
   .header img { height: 48px; width: auto; object-fit: contain; }
   .header-center { flex: 1; text-align: center; }
+${cssExtra}
 </style>
 </head>
 <body>

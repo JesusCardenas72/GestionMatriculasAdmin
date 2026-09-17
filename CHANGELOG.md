@@ -9,6 +9,22 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.19.0] - 2026-09-17
+
+### Añadido
+
+- **Horario complementario del profesorado** (horas no lectivas) en la pestaña Profesorado:
+  - Botón para leer los PDF del formulario «Comunicación horario complementario» de una carpeta y asignar cada uno a su profesor.
+  - En la ficha lateral se ve con los códigos del formulario (TIAL, TIF, RD, PEM…) y se puede retocar o rellenar a mano (útil con los PDF escaneados).
+  - Se guarda por curso escolar, no se pierde al «Cargar lista» y sigue al profesor si se renombra.
+  - Entra en «Exportar/Importar JSON» y en la copia de seguridad (al fusionar mandan los datos del equipo).
+- **Botón «Listado Horarios.Delphos»** en Profesorado: abre la pantalla de Informes con ese listado (clases de cada profesor con día y horas) y, bajo cada profesor, su horario complementario, listo para pasarlo a Delphos.
+  - Se puede elegir qué informe usa («Informe vinculado») y los cambios de columnas, filtros u orden se guardan en él.
+  - En la vista previa del PDF se puede incluir o quitar el horario complementario y los profesores sin clases.
+- **Informes: filtro directo de anulación** en la barra superior con tres opciones: **No anulados**, **Anulados** y **Ambos**.
+  - Por defecto se muestran solo los **no anulados**; «Ambos» se guarda con el informe.
+  - El filtro se ve en las cápsulas de «Filtros» y sale en el PDF. También está en el Listado Horarios.Delphos.
+
 ## [1.18.2] - 2026-09-15
 
 ### Corregido

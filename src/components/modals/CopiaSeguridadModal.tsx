@@ -312,7 +312,13 @@ export default function CopiaSeguridadModal({ onClose }: Props) {
             checked={sel.profesorado}
             onToggle={(v) => setSel({ ...sel, profesorado: v })}
             label="Profesorado"
-            resumen={`${inv.profesorado} nombre(s)`}
+            resumen={
+              `${inv.profesorado} ficha(s)` +
+              (inv.horariosComplementarios > 0
+                ? ` · ${inv.horariosComplementarios} horario(s) complementario(s)`
+                : "") +
+              " · incluye Claustro y CCP"
+            }
           />
 
           {/* D) Campañas */}

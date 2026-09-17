@@ -105,3 +105,35 @@ export function favoritoMarcar(id: string): void {
 export function favoritoDesmarcar(id: string): void {
   writeFav(readFav().filter((x) => x !== id));
 }
+
+// ── Vínculos: botones de otras pestañas atados a un informe ─────────────────
+// Por ejemplo, «Listado Horarios.Delphos» de Profesorado → id del preset. Se
+// guarda el id (no el nombre) para que un cambio de nombre no rompa el vínculo.
+
+function vinculosPath(): string {
+  return path.join(app.getPath("userData"), "informes-vinculos.json");
+}
+
+export function vinculosListar(): Record<string, string> {
+  const file = vinculosPath();
+  if (!fs.existsSync(file)) return {};
+  try {
+    const datos = JSON.parse(fs.readFileSync(file, "utf-8")) as unknown;
+    if (!datos || typeof datos !== "object" || Array.isArray(datos)) return {};
+    return Object.fromEntries(
+      Object.entries(datos as Record<string, unknown>).filter(
+        (e): e is [string, string] => typeof e[1] === "string",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+/** Ata un botón a un informe (`null` quita el vínculo). */
+export function vinculoFijar(boton: string, presetId: string | null): void {
+  const vinculos = vinculosListar();
+  if (presetId === null) delete vinculos[boton];
+  else vinculos[boton] = presetId;
+  fs.writeFileSync(vinculosPath(), JSON.stringify(vinculos, null, 2), "utf-8");
+}

@@ -42,6 +42,21 @@ const store: ProfesoradoStore = {
   },
   actualizado: "2026-09-01T10:00:00.000Z",
   origenArchivo: "Listado PROFESORES.csv",
+  complementario: {
+    "26/27": {
+      carpeta: "C:/Horario complementario",
+      porProfesor: {
+        "perez gomez, ana": {
+          tramos: { TIAL: { dia: "Lunes", horario: "15-16h" } },
+          apoyo: [{ actividad: "Apoyo orquesta", aula: "AUDI", dia: "Lunes", horario: "19-20" }],
+          archivo: "PI-FAA.pdf",
+          archivoModificado: "2026-09-10T08:00:00.000Z",
+          importado: "2026-09-11T08:00:00.000Z",
+        },
+      },
+      ignorados: ["duplicado.pdf"],
+    },
+  },
 };
 
 describe("exportación / importación .json del profesorado", () => {
@@ -58,6 +73,14 @@ describe("exportación / importación .json del profesorado", () => {
       retoquesGrupos: 2,
       exportado: "2026-09-15T12:00:00.000Z",
     });
+  });
+
+  it("una exportación anterior sin horario complementario no lo borra al importar", () => {
+    const { complementario: _sinComplementario, ...antiguo } = store;
+    const r = interpretarImportacion(crearExportacion(antiguo as ProfesoradoStore).replace(/,\s*"complementario": \{\}/, ""));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.store.complementario).toBeUndefined();
   });
 
   it("acepta el profesorado.json interno (sin tipo ni grupos)", () => {

@@ -400,6 +400,10 @@ export interface ConfigInforme {
     saltoPaginaNivel?: number | null;
     /** Ancho de cada columna del PDF en %, ajustado a mano en la vista previa. */
     anchosColumna?: Partial<Record<CampoKey, number>>;
+    /** Listado Horarios.Delphos: horario complementario bajo cada profesor (por defecto sí). */
+    incluirComplementario?: boolean;
+    /** Listado Horarios.Delphos: también profesores sin clases con horario complementario. */
+    incluirSinClases?: boolean;
   };
 }
 
