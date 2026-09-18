@@ -12,6 +12,7 @@ import {
   nombreNatural,
 } from "../profesoradoCorreo";
 import { resumenPorProfesor } from "../profesoradoCruces";
+import { indiceSustituciones } from "../../../electron/profesorado-sustitucion";
 import type { Profesor } from "../../../electron/profesorado-store";
 import type { HorariosEntry } from "../../../electron/horarios-data-store";
 
@@ -219,5 +220,56 @@ describe("destinatariosSeleccion", () => {
 
   it("sin marcas no hay destinatarios", () => {
     expect(destinatariosSeleccion(profesorado, []).conEmail).toEqual([]);
+  });
+});
+
+describe("bajas temporales — el correo va al titular y a su sustituto", () => {
+  const titular = prof("Pérez, Ana", {
+    id: "titular",
+    cargo: "Jefa de Departamento",
+    sustitucion: { sustitutoId: "sustituto", desde: "2026-10-01", hasta: null },
+  });
+  const sustituto = prof("Gómez, Luis", { id: "sustituto" });
+  const otro = prof("Ruiz, Eva", { id: "otro" });
+  const profesorado = [titular, sustituto, otro];
+  // Las clases siguen a nombre del titular: el Excel de horarios no se toca.
+  const resumenes = resumenPorProfesor([
+    clase("Alumno Uno", "Pérez, Ana"),
+    clase("Alumno Dos", "Ruiz, Eva"),
+  ]);
+  const indice = indiceSustituciones(profesorado, "2026-11-10");
+
+  it("el Claustro incluye a los dos, con el sustituto por las clases del titular", () => {
+    const d = destinatariosGrupo("claustro", profesorado, resumenes, undefined, indice);
+    const nombres = d.conEmail.map((x) => x.apellidosNombre);
+    expect(nombres).toContain("Pérez, Ana");
+    expect(nombres).toContain("Gómez, Luis");
+    expect(d.conEmail.find((x) => x.id === "titular")!.motivo).toContain("De baja temporal");
+    expect(d.conEmail.find((x) => x.id === "sustituto")!.motivo).toContain("Sustituye a Pérez, Ana");
+  });
+
+  it("el sustituto hereda el cargo de CCP del titular", () => {
+    const d = destinatariosGrupo("ccp", profesorado, resumenes, undefined, indice);
+    const ids = d.conEmail.map((x) => x.id);
+    expect(ids).toEqual(expect.arrayContaining(["titular", "sustituto"]));
+    expect(ids).not.toContain("otro");
+  });
+
+  it("sin sustitución vigente, el sustituto no entra en ningún grupo", () => {
+    const sinBaja = [{ ...titular, sustitucion: null }, sustituto, otro];
+    const d = destinatariosGrupo(
+      "claustro",
+      sinBaja,
+      resumenes,
+      undefined,
+      indiceSustituciones(sinBaja, "2026-11-10"),
+    );
+    expect(d.conEmail.map((x) => x.id)).not.toContain("sustituto");
+  });
+
+  it("sin índice de sustituciones, el cálculo es el de siempre", () => {
+    const d = destinatariosGrupo("claustro", profesorado, resumenes);
+    expect(d.conEmail.map((x) => x.id)).toEqual(["titular", "otro"]);
+    expect(d.conEmail.find((x) => x.id === "titular")!.motivo).not.toContain("baja temporal");
   });
 });

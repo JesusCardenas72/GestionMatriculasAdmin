@@ -9,6 +9,24 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.21.0] - 2026-09-18
+
+### Añadido
+
+- **Sustituciones temporales del profesorado** (bajas laborales durante el curso), en la ficha de cada profesor de la pestaña Profesorado:
+  - Botón **«Nombrar sustituto»**: se elige a quien suple al titular (de la lista o creando su ficha), con fecha de inicio, fecha de fin opcional y motivo.
+  - El titular **sigue siendo el titular**: no se toca el Excel de horarios (las clases siguen a su nombre) ni la unidad de su alumnado.
+  - El sustituto temporal **no aparece** en el desplegable de profesores del Excel de horarios, no se le pueden asignar alumnos y no cuenta en el aviso de «profesores sin clases».
+  - Se revierte de dos maneras: **«Se reincorpora»** (vuelve el titular) o **«Cambiar de sustituto»** (el sustituto causa baja y entra otro); la sustitución que termina se guarda con sus fechas en el **historial** de la ficha.
+  - Una sustitución con fecha de fin se cierra sola ese día.
+  - Las fichas y el historial sobreviven a «Cargar lista» del CSV, a «Exportar/Importar JSON» y a la copia de seguridad.
+- **Botón «Ayuda» en la pestaña Profesorado**: abre una guía completa en ventana emergente, pensada para quien no conoce la aplicación, con 10 apartados plegables (tutor y unidad, cargar la lista, moverse por la tabla, la ficha, las dos clases de sustitución, horario complementario, correos, Listado Horarios.Delphos, avisos de coherencia y copias de seguridad) y un resumen del curso.
+- **Correos al Claustro y a la CCP con bajas temporales**: los recibe el titular de baja **y** su sustituto. El sustituto entra en el Claustro por las clases del titular y en la CCP si el titular tiene cargo de CCP; en la lista de destinatarios se ve el motivo («De baja temporal», «Sustituye a …»).
+
+### Cambiado
+
+- El botón **«Sustituir»** de Profesorado pasa a llamarse **«Sustituir titular»** y explica que es el cambio de titular de inicio de curso, para no confundirlo con la sustitución temporal.
+
 ## [1.20.0] - 2026-09-17
 
 ### Añadido

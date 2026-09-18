@@ -6,6 +6,7 @@ import type { FilaInforme, Solicitud } from '../api/types';
 import { ESTADO } from '../api/types';
 import type { Profesor } from '../../electron/profesorado-store';
 import type { HorariosEntry } from '../../electron/horarios-data-store';
+import { sustitucionAbierta } from '../../electron/profesorado-sustitucion';
 
 /**
  * Filas del informe en modo «profesorado»: una por profesor/a del centro.
@@ -167,7 +168,9 @@ export function buildFilasProfesorado(
     const clave = norm(p.apellidosNombre);
     const resumen = resumenes.get(clave) ?? { clases: 0, alumnos: 0, tutorias: 0 };
     const carga = cargas.get(clave) ?? CARGA_VACIA;
-    const sust = p.sustitucion ?? null;
+    // La sustitución temporal sin terminar: una con fecha de fin ya pasada
+    // pertenece al historial y no debe salir en el informe.
+    const sust = sustitucionAbierta(p);
 
     return {
       ...BASE_SOLICITUD,

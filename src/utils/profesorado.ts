@@ -1,5 +1,6 @@
 import { norm, esAsignaturaTutoraInstrumento } from "./horarioExcel";
 import { CAMPOS_ARCHIVO, ETIQUETA_CAMPO, type CampoArchivo } from "./profesoradoArchivo";
+import { idsSustitutosTemporales } from "../../electron/profesorado-sustitucion";
 import type { Profesor } from "../../electron/profesorado-store";
 import type { HorariosEntry } from "../../electron/horarios-data-store";
 
@@ -186,20 +187,31 @@ export function calcularDiferencias(
  *   - las fichas actuales que el archivo no trae, **archivadas** en vez de
  *     borradas, para no dejar huérfanas las clases de cursos pasados.
  *
- * Se conserva la sustitución temporal que ya tuviera una ficha, porque es
- * información de la app y no del archivo.
+ * Se conserva la sustitución temporal que ya tuviera una ficha (y su
+ * historial), porque es información de la app y no del archivo. Los sustitutos
+ * temporales en activo tampoco se archivan aunque el archivo no los traiga: el
+ * CSV del centro solo lista al profesorado titular.
  */
 export function construirListaFinal(actual: Profesor[], nuevos: Profesor[]): Profesor[] {
   const porIdActual = new Map(actual.map((p) => [p.id, p]));
   const enArchivo = new Set(nuevos.map((p) => p.id));
+  const sustitutos = idsSustitutosTemporales(actual);
 
   const final: Profesor[] = nuevos.map((n) => {
     const previo = porIdActual.get(n.id);
-    return { ...n, activo: true, sustitucion: previo?.sustitucion ?? null };
+    return {
+      ...n,
+      activo: true,
+      sustitucion: previo?.sustitucion ?? null,
+      ...(previo?.historialSustituciones && previo.historialSustituciones.length > 0
+        ? { historialSustituciones: previo.historialSustituciones }
+        : {}),
+    };
   });
 
   for (const p of actual) {
-    if (!enArchivo.has(p.id)) final.push({ ...p, activo: false });
+    if (enArchivo.has(p.id)) continue;
+    final.push(sustitutos.has(p.id) ? p : { ...p, activo: false });
   }
 
   return final.sort((a, b) => a.apellidosNombre.localeCompare(b.apellidosNombre, "es"));

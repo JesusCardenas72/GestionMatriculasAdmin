@@ -1,5 +1,6 @@
 import { norm, esAsignaturaTutoraInstrumento } from "./horarioExcel";
 import { claveMatricula, mapaTutores } from "./profesorado";
+import { idsSustitutosTemporales } from "../../electron/profesorado-sustitucion";
 import type { Profesor } from "../../electron/profesorado-store";
 import type { HorariosEntry } from "../../electron/horarios-data-store";
 import type { MatriculaLocal } from "../api/types";
@@ -186,7 +187,12 @@ export function nombresDesconocidos(
   return [...fuera.values()].sort((a, b) => a.localeCompare(b, "es"));
 }
 
-/** Profesores en activo que no tienen ninguna clase en el curso. */
+/**
+ * Profesores en activo que no tienen ninguna clase en el curso.
+ *
+ * Los sustitutos temporales no cuentan: las clases siguen a nombre del titular
+ * al que suplen, así que es normal —y correcto— que ellos no tengan ninguna.
+ */
 export function profesoresSinClases(
   profesorado: Profesor[],
   entries: HorariosEntry[],
@@ -196,7 +202,10 @@ export function profesoresSinClases(
     const prof = (e.h.h_prof ?? "").trim();
     if (prof !== "") conClases.add(norm(prof));
   }
-  return profesorado.filter((p) => p.activo && !conClases.has(norm(p.apellidosNombre)));
+  const sustitutos = idsSustitutosTemporales(profesorado);
+  return profesorado.filter(
+    (p) => p.activo && !sustitutos.has(p.id) && !conClases.has(norm(p.apellidosNombre)),
+  );
 }
 
 const MAX_DETALLE = 12;

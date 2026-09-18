@@ -3,6 +3,10 @@ import {
   sanearComplementario,
   type ComplementarioCurso,
 } from "../../electron/profesorado-complementario";
+import {
+  sanearHistorial,
+  sanearSustitucion,
+} from "../../electron/profesorado-sustitucion";
 import type {
   AjusteGrupo,
   ComposicionGrupos,
@@ -129,7 +133,11 @@ export function interpretarImportacion(contenido: string): ResultadoImportacion 
       departamento: texto(p.departamento).trim(),
       cargo: texto(p.cargo).trim(),
       activo: p.activo !== false,
-      sustitucion: (p.sustitucion as Profesor["sustitucion"]) ?? null,
+      sustitucion: sanearSustitucion(p.sustitucion),
+      ...(() => {
+        const historial = sanearHistorial(p.historialSustituciones);
+        return historial.length > 0 ? { historialSustituciones: historial } : {};
+      })(),
       ...(editados.length > 0 ? { editadoAMano: editados } : {}),
     });
   }

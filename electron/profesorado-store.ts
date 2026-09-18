@@ -2,10 +2,18 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { sanearComplementario, type ComplementarioCurso } from "./profesorado-complementario";
+import {
+  idsSustitutosTemporales,
+  sanearHistorial,
+  sanearSustitucion,
+  type SustitucionTemporal,
+} from "./profesorado-sustitucion";
 
-// El horario complementario vive en un archivo sin dependencias de Node para
-// que la pantalla pueda usar sus constantes y su saneado.
+// El horario complementario y las sustituciones temporales viven en archivos
+// sin dependencias de Node para que la pantalla pueda usar sus constantes, su
+// saneado y sus cálculos.
 export * from "./profesorado-complementario";
+export * from "./profesorado-sustitucion";
 
 /**
  * Almacén del profesorado (`profesorado.json`).
@@ -23,17 +31,6 @@ export * from "./profesorado-complementario";
  * probar con vitest.
  */
 
-/** Sustitución temporal de un profesor. Se rellena en la entrega 2. */
-export interface SustitucionTemporal {
-  /** `id` del profesor que sustituye. */
-  sustitutoId: string;
-  /** Fecha ISO (solo día) en que empieza a sustituir. */
-  desde: string;
-  /** Fecha ISO (solo día) en que termina. `null` = sin fecha de fin conocida. */
-  hasta: string | null;
-  motivo?: string;
-}
-
 export interface Profesor {
   /** Clave estable derivada del nombre (minúsculas, sin acentos ni espacios dobles). */
   id: string;
@@ -48,8 +45,14 @@ export interface Profesor {
   cargo: string;
   /** Una baja se archiva (`false`), no se borra: los cursos pasados la siguen necesitando. */
   activo: boolean;
-  /** Sustitución temporal vigente, si la hay. */
+  /**
+   * Sustitución temporal sin cerrar, si la hay (baja laboral durante el curso).
+   * El titular sigue siendo el titular: sus clases del Excel de horarios y las
+   * unidades de su alumnado no se tocan.
+   */
   sustitucion?: SustitucionTemporal | null;
+  /** Sustituciones temporales ya terminadas, de la más antigua a la más reciente. */
+  historialSustituciones?: SustitucionTemporal[];
   /** Campos retocados a mano; una carga de archivo avisa antes de pisarlos. */
   editadoAMano?: string[];
 }
@@ -178,7 +181,11 @@ function sanear(lista: Profesor[]): Profesor[] {
       departamento: (p.departamento ?? "").trim(),
       cargo: (p.cargo ?? "").trim(),
       activo: p.activo !== false,
-      sustitucion: p.sustitucion ?? null,
+      sustitucion: sanearSustitucion(p.sustitucion),
+      ...(() => {
+        const historial = sanearHistorial(p.historialSustituciones);
+        return historial.length > 0 ? { historialSustituciones: historial } : {};
+      })(),
       ...(p.editadoAMano && p.editadoAMano.length > 0
         ? { editadoAMano: p.editadoAMano }
         : {}),
@@ -383,10 +390,16 @@ export function profesoradoGuardar(profesores: Profesor[]): ProfesoradoStore {
 /**
  * Lista de nombres del profesorado en activo. Es lo que consumen el desplegable
  * del Excel de horarios, la validación de la carga y las sustituciones.
+ *
+ * Los **sustitutos temporales** se quedan fuera a propósito: suplen a un
+ * titular que sigue siéndolo, así que las clases del Excel de horarios deben
+ * seguir a nombre del titular y no debe poder asignárseles ninguna.
  */
 export function nombresProfesorado(): string[] {
-  return leerStore()
-    .profesores.filter((p) => p.activo)
+  const profesores = leerStore().profesores;
+  const sustitutos = idsSustitutosTemporales(profesores);
+  return profesores
+    .filter((p) => p.activo && !sustitutos.has(p.id))
     .map((p) => p.apellidosNombre);
 }
 
@@ -398,10 +411,14 @@ export function nombresProfesorado(): string[] {
  *   - un nombre sin ficha crea una ficha en blanco;
  *   - una ficha cuyo nombre ya no está en la lista se **archiva** (`activo:false`),
  *     nunca se borra, para no dejar huérfanos los horarios de cursos pasados.
+ *
+ * Excepción: los sustitutos temporales no salen en esa lista (no están en el
+ * desplegable del Excel), así que se dejan como están en vez de archivarlos.
  */
 export function aplicarListaDeNombres(lista: string[]): ProfesoradoStore {
   const store = leerStore();
   const porId = new Map(store.profesores.map((p) => [p.id, p]));
+  const sustitutos = idsSustitutosTemporales(store.profesores);
   const enLista = new Set<string>();
 
   const resultado: Profesor[] = [];
@@ -416,7 +433,8 @@ export function aplicarListaDeNombres(lista: string[]): ProfesoradoStore {
   }
 
   for (const p of store.profesores) {
-    if (!enLista.has(p.id)) resultado.push({ ...p, activo: false });
+    if (enLista.has(p.id)) continue;
+    resultado.push(sustitutos.has(p.id) ? p : { ...p, activo: false });
   }
 
   return escribirStore({ ...store, profesores: resultado });

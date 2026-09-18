@@ -333,3 +333,34 @@ describe("cambiosDeUnidad", () => {
     expect(cambiosDeUnidad(cambios, [])).toEqual([]);
   });
 });
+
+describe("construirListaFinal — sustituciones temporales", () => {
+  const titular: Profesor = {
+    id: "pérez, ana",
+    apellidosNombre: "Pérez, Ana",
+    especialidad: "Piano",
+    unidad: "PI-FAA",
+    telefono: "",
+    email: "",
+    departamento: "",
+    cargo: "",
+    activo: true,
+    sustitucion: { sustitutoId: "gómez, luis", desde: "2026-10-01", hasta: null },
+    historialSustituciones: [{ sustitutoId: "ruiz, eva", desde: "2026-09-01", hasta: "2026-09-30" }],
+  };
+  const sustituto: Profesor = { ...titular, id: "gómez, luis", apellidosNombre: "Gómez, Luis", unidad: "", sustitucion: null, historialSustituciones: undefined };
+
+  it("conserva la sustitución y su historial al recargar el CSV", () => {
+    const delArchivo: Profesor = { ...titular, sustitucion: null, historialSustituciones: undefined };
+    const final = construirListaFinal([titular, sustituto], [delArchivo]);
+    const resultado = final.find((p) => p.id === "pérez, ana")!;
+    expect(resultado.sustitucion?.sustitutoId).toBe("gómez, luis");
+    expect(resultado.historialSustituciones).toHaveLength(1);
+  });
+
+  it("no archiva al sustituto temporal aunque el CSV no lo traiga", () => {
+    const delArchivo: Profesor = { ...titular, sustitucion: null, historialSustituciones: undefined };
+    const final = construirListaFinal([titular, sustituto], [delArchivo]);
+    expect(final.find((p) => p.id === "gómez, luis")!.activo).toBe(true);
+  });
+});

@@ -108,6 +108,11 @@ export default function SustituirProfesoradoModal({
             lista del desplegable. Así el próximo Excel de horarios se genera ya con el profesor
             nuevo. Solo afecta al curso <strong>{curso}</strong>.
           </p>
+          <p className="text-[12px] text-[var(--tc-ink-mute)] -mt-2">
+            Esto es un <strong>cambio de titular</strong>. Si es una baja laboral durante el curso y
+            el titular va a volver, ciérrala desde su ficha con «Nombrar sustituto»: así el Excel de
+            horarios y las unidades del alumnado no se tocan.
+          </p>
 
           {cargando ? (
             <p className="text-sm text-[var(--tc-ink-mute)] py-8 text-center">Cargando…</p>

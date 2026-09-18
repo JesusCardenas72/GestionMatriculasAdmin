@@ -1,5 +1,10 @@
 import { norm } from "./horarioExcel";
 import { resumenDe, type ResumenProfesor } from "./profesoradoCruces";
+import {
+  estaSustituido,
+  sustituyeA,
+  type IndiceSustituciones,
+} from "../../electron/profesorado-sustitucion";
 import type { AjusteGrupo, Profesor } from "../../electron/profesorado-store";
 
 /**
@@ -16,6 +21,13 @@ import type { AjusteGrupo, Profesor } from "../../electron/profesorado-store";
  * La regla automática de Claustro y CCP se puede retocar a mano (ventana
  * «Claustro y CCP»): `AjusteGrupo.incluidos` añade a alguien que la regla deja
  * fuera y `excluidos` saca a quien la regla mete.
+ *
+ * **Bajas temporales**: cuando un titular está de baja y otra persona le
+ * sustituye, los correos van a los dos. El titular sigue en su grupo (es quien
+ * tiene las clases y el cargo) y el sustituto entra donde esté el titular:
+ * en el Claustro por las clases de este y en la CCP si el titular tiene un
+ * cargo de CCP. Al terminar la sustitución, el sustituto deja de recibirlos
+ * sin tocar nada más.
  *
  * El cargo es texto libre del CSV del centro («Jefa de Estudios / Adjunta»,
  * «J. Dep. / PRL», «Coord. Formación»…), así que la CCP se reconoce por
@@ -121,13 +133,41 @@ export function motivoAutomatico(
   grupo: GrupoFijo,
   p: Profesor,
   resumenes: Map<string, ResumenProfesor>,
+  indice?: IndiceSustituciones<Profesor>,
 ): string | null {
-  if (grupo === "claustro") {
-    const r = resumenDe(resumenes, p);
-    return r.clases > 0 && r.alumnos > 0 ? motivoClases(r) : null;
+  const propio = (() => {
+    if (grupo === "claustro") {
+      const r = resumenDe(resumenes, p);
+      return r.clases > 0 && r.alumnos > 0 ? motivoClases(r) : null;
+    }
+    const funciones = funcionesCCP(p.cargo);
+    return funciones.length > 0 ? funciones.join(" · ") : null;
+  })();
+
+  // Un titular de baja temporal sigue en su grupo; solo se anota la baja.
+  if (propio !== null) {
+    return indice && estaSustituido(indice, p.id) ? `${propio} · De baja temporal` : propio;
   }
-  const funciones = funcionesCCP(p.cargo);
-  return funciones.length > 0 ? funciones.join(" · ") : null;
+
+  // Quien sustituye entra donde estaría el titular al que suple.
+  if (!indice) return null;
+  const heredados = sustituyeA(indice, p.id)
+    .map((v) => {
+      const suyo =
+        grupo === "claustro"
+          ? (() => {
+              const r = resumenDe(resumenes, v.titular);
+              return r.clases > 0 && r.alumnos > 0 ? motivoClases(r) : null;
+            })()
+          : (() => {
+              const f = funcionesCCP(v.titular.cargo);
+              return f.length > 0 ? f.join(" · ") : null;
+            })();
+      return suyo === null ? null : `Sustituye a ${v.titular.apellidosNombre} · ${suyo}`;
+    })
+    .filter((m): m is string => m !== null);
+
+  return heredados.length > 0 ? heredados.join(" | ") : null;
 }
 
 export type OrigenMiembro = "automatico" | "incluido" | "excluido" | "fuera";
@@ -141,8 +181,9 @@ export function situacionEnGrupo(
   p: Profesor,
   resumenes: Map<string, ResumenProfesor>,
   ajuste?: AjusteGrupo,
+  indice?: IndiceSustituciones<Profesor>,
 ): { miembro: boolean; origen: OrigenMiembro; motivoAuto: string | null } {
-  const motivoAuto = motivoAutomatico(grupo, p, resumenes);
+  const motivoAuto = motivoAutomatico(grupo, p, resumenes, indice);
   if (ajuste?.excluidos.includes(p.id)) return { miembro: false, origen: "excluido", motivoAuto };
   if (ajuste?.incluidos.includes(p.id)) {
     // Si la regla ya lo incluye, el retoque no cambia nada.
@@ -165,6 +206,7 @@ export function destinatariosGrupo(
   profesorado: Profesor[],
   resumenes: Map<string, ResumenProfesor>,
   ajuste?: AjusteGrupo,
+  indice?: IndiceSustituciones<Profesor>,
 ): DestinatariosGrupo {
   const conEmail: DestinatarioProfesor[] = [];
   const sinEmail: DestinatarioProfesor[] = [];
@@ -172,7 +214,7 @@ export function destinatariosGrupo(
 
   for (const p of profesorado) {
     if (!p.activo) continue;
-    const s = situacionEnGrupo(grupo, p, resumenes, ajuste);
+    const s = situacionEnGrupo(grupo, p, resumenes, ajuste, indice);
     const valido = emailValido(p.email);
     if (!s.miembro) {
       if (valido) otros.push(aDestinatario(p, p.cargo.trim() || p.especialidad.trim()));

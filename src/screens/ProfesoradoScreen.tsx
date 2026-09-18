@@ -12,6 +12,7 @@ import {
   FileDown,
   FileSpreadsheet,
   FileUp,
+  HelpCircle,
   Info,
   Mail,
   Plus,
@@ -60,6 +61,19 @@ import {
   type GrupoCorreo,
 } from "../utils/profesoradoCorreo";
 import {
+  esSustitutoTemporal,
+  estaSustituido,
+  fechaCorta,
+  hoyISO,
+  indiceSustituciones,
+  iniciarSustitucionTemporal,
+  renombrarEnSustituciones,
+  sustitucionAbierta,
+  sustituyeA,
+  terminarSustitucionTemporal,
+  historialCompleto,
+} from "../../electron/profesorado-sustitucion";
+import {
   crearExportacion,
   interpretarImportacion,
   nombreArchivoExportacion,
@@ -70,7 +84,11 @@ import type { PayloadComplementario } from "./DialogoHorarioComplementario";
 import ProfesoradoCargaModal from "../components/modals/ProfesoradoCargaModal";
 import AsignarAlumnosModal from "../components/modals/AsignarAlumnosModal";
 import SustituirProfesoradoModal from "../components/modals/SustituirProfesoradoModal";
+import SustitucionTemporalModal, {
+  type DatosSustitucionTemporal,
+} from "../components/modals/SustitucionTemporalModal";
 import InformesScreen from "./InformesScreen";
+import { GuiaProfesoradoModal } from "./GuiaProfesoradoModal";
 import { NOMBRE_LISTADO_DELPHOS } from "../utils/listadoDelphos";
 import SeccionComplementario from "../components/SeccionComplementario";
 import {
@@ -84,6 +102,7 @@ import type {
   ComposicionGrupos,
   HorarioComplementario,
   Profesor,
+  SustitucionTemporal,
 } from "../../electron/profesorado-store";
 import type { HorariosCursoData, HorariosEntry } from "../../electron/horarios-data-store";
 
@@ -106,6 +125,32 @@ const COLUMNAS: { key: ColumnaOrden; etiqueta: string; ancho: string; numerica?:
 ];
 
 const PLANTILLA_COLUMNAS = COLUMNAS.map((c) => c.ancho).join(" ");
+
+/**
+ * Ficha en blanco para un sustituto temporal que todavía no estaba en la lista.
+ * Se deja **sin unidad** a propósito: la unidad es del titular y el alumnado la
+ * conserva aunque esté de baja.
+ */
+/** Nombre legible de un `id` de profesor (o el propio id si ya no tiene ficha). */
+function nombreDeId(profesores: Profesor[], id: string): string {
+  return profesores.find((p) => p.id === id)?.apellidosNombre ?? id;
+}
+
+function fichaEnBlanco(nombre: string): Profesor {
+  const limpio = nombre.trim();
+  return {
+    id: norm(limpio),
+    apellidosNombre: limpio,
+    especialidad: "",
+    unidad: "",
+    telefono: "",
+    email: "",
+    departamento: "",
+    cargo: "",
+    activo: true,
+    sustitucion: null,
+  };
+}
 
 interface Props {
   config: AppConfig;
@@ -158,11 +203,15 @@ export default function ProfesoradoScreen({ config }: Props) {
     clases: Map<string, ProfesorConClases>;
   } | null>(null);
   const [sustitucionAplicando, setSustitucionAplicando] = useState(false);
+  /** Titular al que se le está nombrando (o cambiando) un sustituto temporal. */
+  const [bajaTemporalDe, setBajaTemporalDe] = useState<Profesor | null>(null);
+  const [bajaTemporalGuardando, setBajaTemporalGuardando] = useState(false);
   const [menuCorreo, setMenuCorreo] = useState(false);
   const [menuImportExport, setMenuImportExport] = useState(false);
   /** Profesores marcados con la casilla de la tabla, para escribirles un correo. */
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [showListadoDelphos, setShowListadoDelphos] = useState(false);
+  const [showAyuda, setShowAyuda] = useState(false);
 
   /** Horario complementario (horas no lectivas) del curso activo. */
   const complementario = useMemo<ComplementarioCurso>(
@@ -201,13 +250,21 @@ export default function ProfesoradoScreen({ config }: Props) {
   // ── Cruces ────────────────────────────────────────────────────────────────
 
   const resumenes = useMemo(() => resumenPorProfesor(entries), [entries]);
+  /** Quién sustituye hoy a quién (bajas temporales vigentes). */
+  const indiceSust = useMemo(() => indiceSustituciones(profesores), [profesores]);
   const avisos = useMemo(() => avisosCoherencia(profesores, entries), [profesores, entries]);
   const gruposCorreo = useMemo<Record<"claustro" | "ccp", ReturnType<typeof destinatariosGrupo>>>(
     () => ({
-      claustro: destinatariosGrupo("claustro", profesores, resumenes, store.grupos.claustro),
-      ccp: destinatariosGrupo("ccp", profesores, resumenes, store.grupos.ccp),
+      claustro: destinatariosGrupo(
+        "claustro",
+        profesores,
+        resumenes,
+        store.grupos.claustro,
+        indiceSust,
+      ),
+      ccp: destinatariosGrupo("ccp", profesores, resumenes, store.grupos.ccp, indiceSust),
     }),
-    [profesores, resumenes, store.grupos],
+    [profesores, resumenes, store.grupos, indiceSust],
   );
   const cobertura = useMemo(
     () => coberturaPorEspecialidad(profesores, matriculas),
@@ -409,7 +466,12 @@ export default function ProfesoradoScreen({ config }: Props) {
       id: norm(editada.apellidosNombre),
       editadoAMano: [...tocados],
     };
-    await guardar(profesores.map((p) => (p.id === original.id ? ficha : p)));
+    const lista = profesores.map((p) => (p.id === original.id ? ficha : p));
+    await guardar(
+      ficha.id !== original.id
+        ? renombrarEnSustituciones(lista, original.id, ficha.id)
+        : lista,
+    );
     // Al renombrar cambia el id: los retoques de Claustro y CCP y el horario
     // complementario de cada curso le siguen.
     if (ficha.id !== original.id) {
@@ -481,8 +543,8 @@ export default function ProfesoradoScreen({ config }: Props) {
         especialidad: p.especialidad,
         departamento: p.departamento,
         auto: {
-          claustro: motivoAutomatico("claustro", p, resumenes),
-          ccp: motivoAutomatico("ccp", p, resumenes),
+          claustro: motivoAutomatico("claustro", p, resumenes, indiceSust),
+          ccp: motivoAutomatico("ccp", p, resumenes, indiceSust),
         },
       })),
       grupos: store.grupos,
@@ -492,7 +554,7 @@ export default function ProfesoradoScreen({ config }: Props) {
     try {
       const nuevo = await guardarGrupos(JSON.parse(json) as ComposicionGrupos);
       const miembros = (g: "claustro" | "ccp") =>
-        destinatariosGrupo(g, nuevo.profesores, resumenes, nuevo.grupos[g]);
+        destinatariosGrupo(g, nuevo.profesores, resumenes, nuevo.grupos[g], indiceSust);
       const c = miembros("claustro");
       const ccp = miembros("ccp");
       setMensaje(
@@ -562,7 +624,31 @@ export default function ProfesoradoScreen({ config }: Props) {
   const handleAlternarActivo = async (p: Profesor) => {
     limpiarAvisos();
     const clases = resumenDe(resumenes, p).clases;
+    const vigente = sustitucionAbierta(p);
+    const cubreA = sustituyeA(indiceSust, p.id).map((v) => v.titular.apellidosNombre);
     if (p.activo) {
+      // Una baja definitiva cierra lo temporal: no tiene sentido tener un
+      // sustituto de alguien que ya no está, ni un sustituto archivado.
+      if (vigente) {
+        const sustituto = nombreDeId(profesores, vigente.sustitutoId);
+        if (
+          !window.confirm(
+            `«${p.apellidosNombre}» está de baja temporal y le sustituye «${sustituto}».\n\n` +
+              "Al archivar su ficha, esa sustitución se dará por terminada hoy y pasará al " +
+              `historial: «${sustituto}» dejará de recibir sus correos.\n\n¿Continuar?`,
+          )
+        )
+          return;
+      } else if (cubreA.length > 0) {
+        if (
+          !window.confirm(
+            `«${p.apellidosNombre}» está sustituyendo a ${cubreA.join(", ")}.\n\n` +
+              "Si le archivas, esos profesores se quedarán sin sustituto: tendrás que nombrar " +
+              "otro desde su ficha.\n\n¿Darle de baja igualmente?",
+          )
+        )
+          return;
+      }
       const aviso =
         clases > 0
           ? `«${p.apellidosNombre}» tiene ${clases} clase(s) en el curso ${curso}. ` +
@@ -571,10 +657,14 @@ export default function ProfesoradoScreen({ config }: Props) {
           : `¿Dar de baja a «${p.apellidosNombre}»? Su ficha se archiva, no se borra.`;
       if (!window.confirm(aviso)) return;
     }
-    await guardar(profesores.map((x) => (x.id === p.id ? { ...x, activo: !x.activo } : x)));
+    const lista = profesores.map((x) => (x.id === p.id ? { ...x, activo: !x.activo } : x));
+    await guardar(
+      p.activo && vigente ? terminarSustitucionTemporal(lista, p.id, hoyISO()) : lista,
+    );
     setMensaje(
       p.activo
-        ? `«${p.apellidosNombre}» archivado.`
+        ? `«${p.apellidosNombre}» archivado.` +
+          (vigente ? " Su sustitución temporal se ha dado por terminada." : "")
         : `«${p.apellidosNombre}» vuelve a estar en activo.`,
     );
   };
@@ -703,6 +793,84 @@ export default function ProfesoradoScreen({ config }: Props) {
     }
   };
 
+  /**
+   * Nombra (o cambia) al sustituto temporal de un titular. No toca ni el Excel
+   * de horarios ni las unidades: el titular lo sigue siendo. Si el sustituto no
+   * tenía ficha, se le crea una en blanco.
+   */
+  const handleBajaTemporal = async (datos: DatosSustitucionTemporal) => {
+    const titular = bajaTemporalDe;
+    if (!titular) return;
+    setBajaTemporalGuardando(true);
+    limpiarAvisos();
+    try {
+      let lista = profesores;
+      let sustitutoId = datos.sustitutoId;
+
+      if (datos.nombreNuevo !== "") {
+        sustitutoId = norm(datos.nombreNuevo);
+        if (!lista.some((p) => p.id === sustitutoId)) {
+          lista = [
+            ...lista,
+            {
+              ...fichaEnBlanco(datos.nombreNuevo),
+              especialidad: titular.especialidad,
+              departamento: titular.departamento,
+            },
+          ];
+        }
+      }
+
+      lista = iniciarSustitucionTemporal(lista, {
+        titularId: titular.id,
+        sustitutoId,
+        desde: datos.desde,
+        hasta: datos.hasta,
+        motivo: datos.motivo,
+      });
+
+      await guardar(lista);
+      const nombreSustituto =
+        lista.find((p) => p.id === sustitutoId)?.apellidosNombre ?? sustitutoId;
+      setBajaTemporalDe(null);
+      setMensaje(
+        `«${nombreSustituto}» sustituye a «${titular.apellidosNombre}» desde el ${fechaCorta(datos.desde)}` +
+          (datos.hasta ? ` hasta el ${fechaCorta(datos.hasta)}` : "") +
+          ". El Excel de horarios y las unidades del alumnado no cambian.",
+      );
+    } catch (e) {
+      setError(`No se ha podido guardar la sustitución: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBajaTemporalGuardando(false);
+    }
+  };
+
+  /** Cierra la sustitución temporal de un titular: se reincorpora. */
+  const handleFinSustitucionTemporal = async (titular: Profesor) => {
+    const vigente = sustitucionAbierta(titular);
+    if (!vigente) return;
+    const sustituto =
+      profesores.find((p) => p.id === vigente.sustitutoId)?.apellidosNombre ?? vigente.sustitutoId;
+    const hasta = hoyISO();
+    if (
+      !window.confirm(
+        `¿Dar por terminada la sustitución de «${titular.apellidosNombre}» por «${sustituto}»?\n\n` +
+          `Se cerrará con fecha de hoy (${fechaCorta(hasta)}) y quedará guardada en su historial. ` +
+          "El sustituto dejará de recibir los correos del Claustro y de la CCP.",
+      )
+    )
+      return;
+    limpiarAvisos();
+    try {
+      await guardar(terminarSustitucionTemporal(profesores, titular.id, hasta));
+      setMensaje(
+        `«${titular.apellidosNombre}» se reincorpora: la sustitución de «${sustituto}» ha terminado.`,
+      );
+    } catch (e) {
+      setError(`No se ha podido terminar la sustitución: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   // ── Pintado ───────────────────────────────────────────────────────────────
 
   const nAvisosError = avisos.filter((a) => a.gravedad === "error").length;
@@ -755,10 +923,14 @@ export default function ProfesoradoScreen({ config }: Props) {
                   </button>
                   <button
                     onClick={handleAbrirSustituir}
+                    title={
+                      "Cambio de titular: quien entra se queda con las clases del que se va. " +
+                      "Para una baja laboral durante el curso, usa «Nombrar sustituto» en la ficha del profesor."
+                    }
                     className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
                   >
                     <UserCog className="w-4 h-4" />
-                    Sustituir
+                    Sustituir titular
                   </button>
                   <button
                     onClick={handleHorarioComplementario}
@@ -875,6 +1047,14 @@ export default function ProfesoradoScreen({ config }: Props) {
                     {marcadosVigentes.length}
                   </span>
                 )}
+              </button>
+              <button
+                onClick={() => setShowAyuda(true)}
+                title="Cómo se usa la pestaña Profesorado, paso a paso"
+                className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
+              >
+                <HelpCircle className="w-4 h-4" />
+                Ayuda
               </button>
               <div className="relative">
                 <button
@@ -1220,6 +1400,36 @@ export default function ProfesoradoScreen({ config }: Props) {
                               baja
                             </span>
                           )}
+                          {estaSustituido(indiceSust, p.id) && (
+                            <span
+                              className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border"
+                              style={{
+                                background: "var(--tc-warn-bg)",
+                                color: "var(--tc-warn-ink)",
+                                borderColor: "var(--tc-warn-border)",
+                              }}
+                              title={`De baja temporal. Le sustituye ${
+                                indiceSust.porTitular.get(p.id)?.sustituto.apellidosNombre ?? ""
+                              }`}
+                            >
+                              baja temporal
+                            </span>
+                          )}
+                          {esSustitutoTemporal(indiceSust, p.id) && (
+                            <span
+                              className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border"
+                              style={{
+                                background: "var(--tc-info-bg)",
+                                color: "var(--tc-info-ink)",
+                                borderColor: "var(--tc-info-border)",
+                              }}
+                              title={`Sustituye a ${sustituyeA(indiceSust, p.id)
+                                .map((v) => v.titular.apellidosNombre)
+                                .join(", ")}`}
+                            >
+                              sustituto
+                            </span>
+                          )}
                           <span className="truncate">{p.apellidosNombre}</span>
                         </span>
                         <span className="truncate text-[var(--tc-ink-soft)]">
@@ -1300,6 +1510,13 @@ export default function ProfesoradoScreen({ config }: Props) {
           onGuardar={(editada) => handleGuardarFicha(seleccionado, editada)}
           onAlternarActivo={() => handleAlternarActivo(seleccionado)}
           onAsignarAlumnos={() => setAsignarA(seleccionado)}
+          sustitutoDe={indiceSust.porTitular.get(seleccionado.id)?.sustituto ?? null}
+          titularesQueSustituye={sustituyeA(indiceSust, seleccionado.id).map((v) => v.titular)}
+          nombrePorId={(id) =>
+            profesores.find((p) => p.id === id)?.apellidosNombre ?? id
+          }
+          onBajaTemporal={() => setBajaTemporalDe(seleccionado)}
+          onFinSustitucion={() => handleFinSustitucionTemporal(seleccionado)}
         />
       )}
 
@@ -1332,6 +1549,18 @@ export default function ProfesoradoScreen({ config }: Props) {
                   : "Rellena su unidad para que la hereden."),
             );
           }}
+        />
+      )}
+
+      {showAyuda && <GuiaProfesoradoModal onCerrar={() => setShowAyuda(false)} />}
+
+      {bajaTemporalDe && (
+        <SustitucionTemporalModal
+          titular={bajaTemporalDe}
+          profesores={profesores}
+          guardando={bajaTemporalGuardando}
+          onCerrar={() => setBajaTemporalDe(null)}
+          onAplicar={handleBajaTemporal}
         />
       )}
 
@@ -1456,6 +1685,11 @@ function FichaProfesor({
   onGuardar,
   onAlternarActivo,
   onAsignarAlumnos,
+  sustitutoDe,
+  titularesQueSustituye,
+  nombrePorId,
+  onBajaTemporal,
+  onFinSustitucion,
 }: {
   profesor: Profesor;
   curso: string;
@@ -1468,6 +1702,13 @@ function FichaProfesor({
   onGuardar: (editada: Profesor) => void;
   onAlternarActivo: () => void;
   onAsignarAlumnos: () => void;
+  /** Quien le está sustituyendo ahora mismo, si está de baja temporal. */
+  sustitutoDe: Profesor | null;
+  /** Titulares a los que sustituye esta persona ahora mismo. */
+  titularesQueSustituye: Profesor[];
+  nombrePorId: (id: string) => string;
+  onBajaTemporal: () => void;
+  onFinSustitucion: () => void;
 }) {
   const [borrador, setBorrador] = useState<Profesor>(profesor);
 
@@ -1483,7 +1724,13 @@ function FichaProfesor({
             {profesor.apellidosNombre}
           </h2>
           <p className="text-xs text-[var(--tc-ink-soft)]">
-            {profesor.activo ? "En activo" : "Baja archivada"}
+            {!profesor.activo
+              ? "Baja archivada"
+              : sustitutoDe
+                ? "De baja temporal"
+                : titularesQueSustituye.length > 0
+                  ? "Sustituto temporal"
+                  : "En activo"}
           </p>
         </div>
         <button
@@ -1527,6 +1774,16 @@ function FichaProfesor({
           </div>
         )}
 
+        <SeccionSustitucionTemporal
+          profesor={profesor}
+          sustituto={sustitutoDe}
+          titularesQueSustituye={titularesQueSustituye}
+          nombrePorId={nombrePorId}
+          soloLectura={soloLectura}
+          onBajaTemporal={onBajaTemporal}
+          onFinSustitucion={onFinSustitucion}
+        />
+
         <SeccionComplementario
           curso={curso}
           horario={complementario}
@@ -1567,7 +1824,13 @@ function FichaProfesor({
         <div className="shrink-0 px-4 py-3 border-t border-[var(--tc-border)] flex flex-col gap-2">
           <button
             onClick={onAsignarAlumnos}
-            className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
+            disabled={titularesQueSustituye.length > 0}
+            title={
+              titularesQueSustituye.length > 0
+                ? "Es un sustituto temporal: los alumnos siguen con su titular, no se le asignan."
+                : undefined
+            }
+            className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <UserPlus className="w-4 h-4" />
             Asignar alumnos
@@ -1590,5 +1853,126 @@ function FichaProfesor({
         </div>
       )}
     </aside>
+  );
+}
+
+/**
+ * Sustitución temporal en la ficha: quién le sustituye (o a quién sustituye),
+ * el historial de bajas y los botones para nombrar, cambiar o terminar.
+ *
+ * Es distinto de «Sustituir profesorado»: allí quien entra se queda el puesto y
+ * las clases del Excel; aquí el titular lo sigue siendo y no se toca ni el
+ * Excel de horarios ni la unidad de su alumnado.
+ */
+function SeccionSustitucionTemporal({
+  profesor,
+  sustituto,
+  titularesQueSustituye,
+  nombrePorId,
+  soloLectura,
+  onBajaTemporal,
+  onFinSustitucion,
+}: {
+  profesor: Profesor;
+  sustituto: Profesor | null;
+  titularesQueSustituye: Profesor[];
+  nombrePorId: (id: string) => string;
+  soloLectura: boolean;
+  onBajaTemporal: () => void;
+  onFinSustitucion: () => void;
+}) {
+  const vigente = sustitucionAbierta(profesor);
+  const historial = historialCompleto(profesor).filter((s) => s !== vigente);
+  const esSustituto = titularesQueSustituye.length > 0;
+
+  const linea = (s: SustitucionTemporal) =>
+    `${nombrePorId(s.sustitutoId)} · ${fechaCorta(s.desde)} → ${
+      s.hasta ? fechaCorta(s.hasta) : "sin fecha de fin"
+    }${s.motivo ? ` · ${s.motivo}` : ""}`;
+
+  return (
+    <div>
+      <h3 className="text-[11px] font-semibold text-[var(--tc-ink-mute)] uppercase tracking-wide mb-1.5">
+        Sustitución temporal
+      </h3>
+
+      {esSustituto && (
+        <div
+          className="flex items-start gap-2 rounded-lg border p-2.5 text-[12px] mb-2"
+          style={{
+            background: "var(--tc-info-bg)",
+            color: "var(--tc-info-ink)",
+            borderColor: "var(--tc-info-border)",
+          }}
+        >
+          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            Sustituye a {titularesQueSustituye.map((t) => t.apellidosNombre).join(", ")}. Recibe sus
+            correos del Claustro y de la CCP, pero no aparece en el desplegable del Excel de
+            horarios ni tiene unidad propia.
+          </span>
+        </div>
+      )}
+
+      {vigente && sustituto ? (
+        <div
+          className="flex items-start gap-2 rounded-lg border p-2.5 text-[12px]"
+          style={{
+            background: "var(--tc-warn-bg)",
+            color: "var(--tc-warn-ink)",
+            borderColor: "var(--tc-warn-border)",
+          }}
+        >
+          <Clock className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            De baja temporal. Le sustituye <strong>{sustituto.apellidosNombre}</strong> desde el{" "}
+            {fechaCorta(vigente.desde)}
+            {vigente.hasta ? ` hasta el ${fechaCorta(vigente.hasta)}` : ""}
+            {vigente.motivo ? ` · ${vigente.motivo}` : ""}. Sus clases y las unidades de su alumnado
+            siguen igual.
+          </span>
+        </div>
+      ) : (
+        !esSustituto && (
+          <p className="text-[12px] text-[var(--tc-ink-mute)] italic">
+            Sin sustitución temporal en marcha.
+          </p>
+        )
+      )}
+
+      {historial.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-[11px] text-[var(--tc-ink-soft)] cursor-pointer">
+            Historial de sustituciones ({historial.length})
+          </summary>
+          <ul className="mt-1.5 rounded-lg border border-[var(--tc-border)] divide-y divide-[var(--tc-border-soft)]">
+            {historial.map((s, i) => (
+              <li key={`${s.sustitutoId}-${s.desde}-${i}`} className="px-2.5 py-1.5 text-[11px] text-[var(--tc-ink-soft)]">
+                {linea(s)}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {!soloLectura && !esSustituto && (
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            onClick={onBajaTemporal}
+            className="flex-1 h-8 rounded-lg border border-[var(--tc-border)] text-[12px] font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
+          >
+            {vigente ? "Cambiar de sustituto" : "Nombrar sustituto"}
+          </button>
+          {vigente && (
+            <button
+              onClick={onFinSustitucion}
+              className="flex-1 h-8 rounded-lg border border-[var(--tc-border)] text-[12px] font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
+            >
+              Se reincorpora
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
