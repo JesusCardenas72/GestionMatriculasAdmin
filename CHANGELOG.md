@@ -23,6 +23,8 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 - **Botón «Ayuda» en la pestaña Profesorado**: abre una guía completa en ventana emergente, pensada para quien no conoce la aplicación, con 10 apartados plegables (tutor y unidad, cargar la lista, moverse por la tabla, la ficha, las dos clases de sustitución, horario complementario, correos, Listado Horarios.Delphos, avisos de coherencia y copias de seguridad) y un resumen del curso.
 - **Correos al Claustro y a la CCP con bajas temporales**: los recibe el titular de baja **y** su sustituto. El sustituto entra en el Claustro por las clases del titular y en la CCP si el titular tiene cargo de CCP; en la lista de destinatarios se ve el motivo («De baja temporal», «Sustituye a …»).
 
+- **Informes: numerar las páginas del PDF** («Página X de Y» en la esquina inferior derecha), como casilla de la vista previa desactivada por defecto y guardable en el informe.
+
 ### Cambiado
 
 - El botón **«Sustituir»** de Profesorado pasa a llamarse **«Sustituir titular»** y explica que es el cambio de titular de inicio de curso, para no confundirlo con la sustitución temporal.
