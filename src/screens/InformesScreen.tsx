@@ -73,6 +73,7 @@ import {
   type CampoMeta,
 } from '../data/informesConfig';
 import { buildHtmlInforme } from '../utils/pdfInforme';
+import { numerarPaginasPdf } from '../utils/pdfNumerarPaginas';
 import { buildFilasProfesorado } from '../utils/informeProfesorado';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion, type FilaCrudaHorario } from '../utils/fusionHorarios';
@@ -157,6 +158,7 @@ function huellaConfigPdf(
     saltoPaginaNivel: c?.saltoPaginaNivel ?? null,
     incluirComplementario: c?.incluirComplementario ?? true,
     incluirSinClases: c?.incluirSinClases ?? true,
+    numerarPaginas: c?.numerarPaginas ?? false,
     // Ordenado por clave: el orden de las columnas no debe contar como cambio.
     anchosColumna: anchos
       ? Object.keys(anchos).sort().map(k => `${k}:${anchos[k as CampoKey]}`)
@@ -946,6 +948,8 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   // profesores que solo tienen horario complementario (sin clases).
   const [previewComplementario, setPreviewComplementario] = useState(true);
   const [previewSinClases, setPreviewSinClases] = useState(true);
+  // Número de página («Página X de Y») en la esquina inferior derecha del PDF.
+  const [previewNumerarPaginas, setPreviewNumerarPaginas] = useState(false);
   // Aviso breve tras pulsar «Guardar configuración» en la vista previa.
   const [previewGuardado, setPreviewGuardado] =
     useState<{ texto: string; ok: boolean } | null>(null);
@@ -2731,6 +2735,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
     setPreviewAnchos(c?.anchosColumna ?? null);
     setPreviewComplementario(c?.incluirComplementario ?? true);
     setPreviewSinClases(c?.incluirSinClases ?? true);
+    setPreviewNumerarPaginas(c?.numerarPaginas ?? false);
     setPreviewGuardado(null);
     setShowPreview(true);
   }
@@ -2748,6 +2753,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
     anchosColumna: previewAnchos ?? undefined,
     incluirComplementario: previewComplementario,
     incluirSinClases: previewSinClases,
+    numerarPaginas: previewNumerarPaginas,
   };
 
   // ¿Hay algo distinto de lo que ya tiene guardado el preset? Sirve para
@@ -2807,7 +2813,22 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
     setPrinting(true);
     try {
       await persistirCabeceraPreview();
-      await window.adminAPI.pdf.printHtml(construirHtmlPdf(false));
+      if (previewNumerarPaginas) {
+        // Con numeración hay que generar primero el PDF para poder escribir el
+        // número en cada hoja; se abre en su visor, desde donde se imprime.
+        const res = await window.adminAPI.pdf.generarBase64(
+          construirHtmlPdf(false),
+          previewOrientacion === 'landscape',
+        );
+        if (res.success && res.base64) {
+          await window.adminAPI.pdf.openForPrint(
+            await numerarPaginasPdf(res.base64),
+            `${previewTitulo || informe.nombre}.pdf`,
+          );
+        }
+      } else {
+        await window.adminAPI.pdf.printHtml(construirHtmlPdf(false));
+      }
     } finally {
       setPrinting(false);
     }
@@ -2823,7 +2844,8 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
         previewOrientacion === 'landscape',
       );
       if (res.success && res.base64) {
-        await window.adminAPI.pdf.guardar(res.base64, previewTitulo || informe.nombre);
+        const base64 = previewNumerarPaginas ? await numerarPaginasPdf(res.base64) : res.base64;
+        await window.adminAPI.pdf.guardar(base64, previewTitulo || informe.nombre);
       }
     } finally {
       setPrinting(false);
@@ -4567,6 +4589,18 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
                   Repetir los títulos de columna en cada hoja
                 </label>
 
+                <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 cursor-pointer select-none"
+                  title="Escribe «Página X de Y» en la esquina inferior derecha de cada hoja al guardar o imprimir el PDF (no se ve en esta vista previa)."
+                >
+                  <input
+                    type="checkbox"
+                    checked={previewNumerarPaginas}
+                    onChange={e => setPreviewNumerarPaginas(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  Numerar páginas
+                </label>
+
                 {/* Salto de página entre grupos: solo tiene sentido si el
                     informe está agrupado por alguna columna. */}
                 {nivelesAgrup.length > 0 && (
@@ -4640,7 +4674,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
                   onClick={handleGuardarConfigPdf}
                   disabled={!hayCambiosPdf}
                   className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="Guarda en el informe el título, el subtítulo, los datos de la cabecera, la repetición de los títulos de columna, el salto de página entre grupos y el ancho de cada columna"
+                  title="Guarda en el informe el título, el subtítulo, los datos de la cabecera, la repetición de los títulos de columna, la numeración de páginas, el salto de página entre grupos y el ancho de cada columna"
                 >
                   <Save className="w-3 h-3" />
                   {hayCambiosPdf ? 'Guardar configuración' : 'Configuración guardada'}

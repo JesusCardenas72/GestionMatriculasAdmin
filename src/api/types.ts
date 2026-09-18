@@ -404,6 +404,8 @@ export interface ConfigInforme {
     incluirComplementario?: boolean;
     /** Listado Horarios.Delphos: también profesores sin clases con horario complementario. */
     incluirSinClases?: boolean;
+    /** Numerar las páginas («Página X de Y») en la esquina inferior derecha (por defecto no). */
+    numerarPaginas?: boolean;
   };
 }
 
