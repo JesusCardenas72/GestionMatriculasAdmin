@@ -9,6 +9,15 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.21.1] - 2026-09-18
+
+### Corregido
+
+- **La ventana ya recuerda su tamaño al restaurarla**: al salir de pantalla completa (o al volver a abrir la aplicación) vuelve al último tamaño y posición que tenía sin maximizar, en lugar de seguir ocupando toda la pantalla.
+  - Antes, mientras estaba maximizada se guardaba un tamaño vacío y se perdía la posición; además se anotaban medidas «a medias» durante la animación de maximizar.
+  - Ahora el tamaño restaurado y la marca de «maximizada» se guardan por separado, también al maximizar y al restaurar, y se escribe el archivo una sola vez cuando se termina de mover o redimensionar.
+  - Si venías de la versión anterior con el tamaño perdido, la primera vez se abre a 1280 × 800 y a partir de ahí recuerda el que le des.
+
 ## [1.21.0] - 2026-09-18
 
 ### Añadido

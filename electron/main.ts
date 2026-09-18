@@ -134,12 +134,22 @@ let win: BrowserWindow | null = null;
 const dialogData = new Map<string, unknown>();
 const dialogResolvers = new Map<string, (json: string | null) => void>();
 
+// Tamaño de la ventana principal la primera vez que se abre la aplicación.
+const DEFAULT_WINDOW_WIDTH = 1280;
+const DEFAULT_WINDOW_HEIGHT = 800;
+
 function createWindow() {
   const saved = loadWindowState();
 
+  // Tamaño «restaurado» (el que debe tener la ventana cuando NO está
+  // maximizada). Las versiones anteriores guardaban 0 mientras la ventana
+  // estaba maximizada, así que se descartan esos valores.
+  const normalWidth = saved && saved.width > 0 ? saved.width : DEFAULT_WINDOW_WIDTH;
+  const normalHeight = saved && saved.height > 0 ? saved.height : DEFAULT_WINDOW_HEIGHT;
+
   let windowOptions: Electron.BrowserWindowConstructorOptions = {
-    width: saved?.width ?? 1280,
-    height: saved?.height ?? 800,
+    width: normalWidth,
+    height: normalHeight,
     icon: path.join(process.env.APP_ROOT || __dirname, "PergaminoIcon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -175,30 +185,43 @@ function createWindow() {
 
   const persistState = () => {
     if (!win || win.isDestroyed()) return;
-    const maximized = win.isMaximized();
-    if (!maximized) {
-      const bounds = win.getBounds();
-      saveWindowState({
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
-        maximized: false,
-      });
-    } else {
-      saveWindowState({
-        x: undefined,
-        y: undefined,
-        width: 0,
-        height: 0,
-        maximized: true,
-      });
-    }
+    // `getNormalBounds()` devuelve la posición y el tamaño de la ventana
+    // «restaurada» aunque en ese momento esté maximizada o minimizada. Así se
+    // guarda siempre el tamaño parcial al que debe volver al restaurarla, en
+    // lugar del que ocupa la pantalla completa.
+    const bounds = win.getNormalBounds();
+    const valido = bounds.width > 0 && bounds.height > 0;
+    saveWindowState({
+      x: valido ? bounds.x : undefined,
+      y: valido ? bounds.y : undefined,
+      width: valido ? bounds.width : normalWidth,
+      height: valido ? bounds.height : normalHeight,
+      maximized: win.isMaximized(),
+    });
   };
 
-  win.on("resize", persistState);
-  win.on("move", persistState);
-  win.on("close", persistState);
+  // Al arrastrar o redimensionar, Windows dispara muchísimos eventos seguidos;
+  // se espera a que el usuario termine para escribir el archivo una sola vez.
+  let persistTimer: NodeJS.Timeout | null = null;
+  const persistStateDiferido = () => {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      persistState();
+    }, 400);
+  };
+
+  win.on("resize", persistStateDiferido);
+  win.on("move", persistStateDiferido);
+  win.on("maximize", persistStateDiferido);
+  win.on("unmaximize", persistStateDiferido);
+  win.on("close", () => {
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
+    persistState();
+  });
 
   // Corrector ortográfico: Chromium subraya en zigzag los errores, pero el menú
   // contextual con las sugerencias NO aparece solo en Electron; hay que armarlo
