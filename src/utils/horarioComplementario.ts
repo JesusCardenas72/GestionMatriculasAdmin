@@ -196,6 +196,75 @@ export function estadoArchivo(
   return { estado: "nuevo", profesorId: null };
 }
 
+// ── Qué PDF se queda sin cargar ─────────────────────────────────────────────
+
+/**
+ * Id del profesor con el que está guardado ese PDF **en la versión que hay
+ * ahora en la carpeta** (`null` = ese PDF no está cargado).
+ */
+export function archivoCargado(
+  nombre: string,
+  modificado: string,
+  datos: ComplementarioCurso,
+): string | null {
+  const entrada = Object.entries(datos.porProfesor).find(
+    ([, h]) => h.archivo === nombre && h.archivoModificado === modificado,
+  );
+  return entrada ? entrada[0] : null;
+}
+
+/** Por qué un PDF de la carpeta se queda fuera. */
+export type MotivoSinCargar =
+  | "sin-profesor"
+  | "ilegible"
+  | "ignorado"
+  | "sin-marcar"
+  | "version-nueva"
+  | "repetido"
+  | "sustituido";
+
+export const TEXTO_SIN_CARGAR: Record<MotivoSinCargar, string> = {
+  "sin-profesor": "No se ha reconocido de quién es: elígelo en la lista.",
+  ilegible: "No se ha podido leer (escaneado o estropeado): elige el profesor y se cargará igual.",
+  ignorado: "Marcado como «no es de nadie».",
+  "sin-marcar": "Tiene profesor, pero no está marcado para guardar.",
+  "version-nueva": "El profesor ha mandado una versión más nueva y todavía está sin cargar.",
+  repetido: "Hay otro PDF marcado para ese mismo profesor: se queda el otro.",
+  sustituido: "Ese profesor se queda con otro PDF más nuevo: este ya no hace falta.",
+};
+
+/** Lo mínimo que hace falta saber de un PDF para decir si se carga o no. */
+export interface CargaArchivo {
+  nombre: string;
+  modificado: string;
+  estado: EstadoArchivo;
+  /** Id del profesor elegido, `null` = ignorar, `""` = sin decidir. */
+  eleccion: string | null;
+  marcado: boolean;
+  /** `false` = el PDF ni siquiera se ha podido abrir. */
+  legible: boolean;
+}
+
+/**
+ * Motivo por el que ese PDF **no** queda cargado con el resultado que se va a
+ * guardar, o `null` si sí queda cargado. Sirve para la lista «PDF sin cargar»:
+ * mientras quede alguno, hay un profesor cuyo horario no está entrando.
+ */
+export function motivoSinCargar(
+  archivo: CargaArchivo,
+  resultado: ComplementarioCurso,
+): MotivoSinCargar | null {
+  if (archivoCargado(archivo.nombre, archivo.modificado, resultado)) return null;
+  if (archivo.eleccion === null) return "ignorado";
+  if (archivo.eleccion === "") return archivo.legible ? "sin-profesor" : "ilegible";
+  // Marcado y con profesor, pero no ha entrado: otro PDF le ha ganado el sitio.
+  if (archivo.marcado) return "repetido";
+  const suyo = resultado.porProfesor[archivo.eleccion];
+  if (suyo && suyo.archivo !== archivo.nombre) return "sustituido";
+  if (archivo.estado === "modificado") return "version-nueva";
+  return "sin-marcar";
+}
+
 /** Lo que se decide en la ventana para cada PDF marcado. */
 export interface DecisionArchivo {
   archivo: string;

@@ -1,10 +1,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
   ExternalLink,
+  FileUp,
   FolderOpen,
   Loader2,
   RefreshCw,
@@ -18,14 +20,17 @@ import type { Profesor } from "../../electron/profesorado-store";
 import { leerPdfComplementario, type LecturaComplementario } from "../utils/horarioComplementarioPdf";
 import {
   ETIQUETA_COMPLEMENTARIO,
+  TEXTO_SIN_CARGAR,
   aplicarDecisiones,
   asignarProfesor,
   contarFilasComplementario,
   estadoArchivo,
+  motivoSinCargar,
   tieneDatosComplementario,
   type Asignacion,
   type DecisionArchivo,
   type EstadoArchivo,
+  type MotivoSinCargar,
 } from "../utils/horarioComplementario";
 
 /** Datos que la pestaña Profesorado entrega a la ventana. */
@@ -50,6 +55,19 @@ interface FilaArchivo {
   /** Elección en el desplegable: id de profesor, IGNORAR o "" (sin decidir). */
   eleccion: string;
   marcado: boolean;
+}
+
+/** PDF elegido a mano con el explorador (normalmente, uno rectificado). */
+interface PdfSuelto {
+  /** Ruta completa, tal como la eligió la persona. */
+  ruta: string;
+  nombre: string;
+  modificado: string;
+  /** Ya estaba dentro de la carpeta de los PDF (no hay que copiarlo). */
+  enCarpeta: boolean;
+  lectura: LecturaComplementario | null;
+  error: string | null;
+  eleccion: string;
 }
 
 const ESTILO_ESTADO: Record<EstadoArchivo, { texto: string; clase: string }> = {
@@ -94,6 +112,8 @@ export function DialogoHorarioComplementario() {
   const [verTodos, setVerTodos] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [verFaltan, setVerFaltan] = useState(false);
+  const [suelto, setSuelto] = useState<PdfSuelto | null>(null);
+  const [copiando, setCopiando] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") ?? "light";
@@ -202,7 +222,10 @@ export function DialogoHorarioComplementario() {
 
   const pendientes = filas.filter((f) => f.estado === "nuevo" || f.estado === "modificado");
   const visibles = verTodos ? filas : pendientes;
-  const marcadas = filas.filter((f) => f.marcado && f.eleccion !== "" && f.lectura);
+  // Un PDF que no se ha podido leer también se puede cargar: se queda
+  // enganchado a su profesor (sin datos) para que salga en su ficha y se
+  // rellene a mano, en vez de perderse sin que nadie se entere.
+  const marcadas = filas.filter((f) => f.marcado && f.eleccion !== "");
 
   // Dos PDF marcados para el mismo profesor: el último pisaría al primero.
   const repetidos = useMemo(() => {
@@ -221,11 +244,36 @@ export function DialogoHorarioComplementario() {
       archivo: f.nombre,
       modificado: f.modificado,
       profesorId: f.eleccion === IGNORAR ? null : f.eleccion,
-      tramos: f.lectura!.tramos,
-      apoyo: f.lectura!.apoyo,
+      tramos: f.lectura?.tramos ?? {},
+      apoyo: f.lectura?.apoyo ?? [],
     }));
     return aplicarDecisiones(payload.datos, carpeta, decisiones);
   }, [payload, marcadas, carpeta]);
+
+  /**
+   * PDF de la carpeta que **no** quedan cargados con lo decidido, con el
+   * motivo de cada uno. Mientras quede alguno, hay horario de alguien que se
+   * está quedando fuera.
+   */
+  const sinCargar = useMemo(() => {
+    if (!resultado) return [] as { f: FilaArchivo; motivo: MotivoSinCargar }[];
+    return filas
+      .map((f) => ({
+        f,
+        motivo: motivoSinCargar(
+          {
+            nombre: f.nombre,
+            modificado: f.modificado,
+            estado: f.estado,
+            eleccion: f.eleccion === IGNORAR ? null : f.eleccion,
+            marcado: f.marcado,
+            legible: !!f.lectura,
+          },
+          resultado,
+        ),
+      }))
+      .filter((x): x is { f: FilaArchivo; motivo: MotivoSinCargar } => x.motivo !== null);
+  }, [filas, resultado]);
 
   const sinHorario = useMemo(
     () =>
@@ -244,15 +292,30 @@ export function DialogoHorarioComplementario() {
       if (f.eleccion === IGNORAR) return false;
       return payload?.datos.porProfesor[f.eleccion]?.editadoAMano;
     });
+    // PDF sin datos legibles que dejarían sin horario a quien sí lo tenía.
+    const pisaDatos = marcadas.filter(
+      (f) =>
+        f.eleccion !== IGNORAR &&
+        !tieneDatosComplementario(f.lectura) &&
+        tieneDatosComplementario(payload?.datos.porProfesor[f.eleccion]),
+    );
+    const lista = (fs: typeof marcadas) =>
+      fs.map((f) => `· ${nombrePorId.get(f.eleccion) ?? f.eleccion}`).join("\n");
+    const avisos: string[] = [];
     if (pisaRetoques.length > 0) {
-      const nombres = pisaRetoques.map((f) => `· ${nombrePorId.get(f.eleccion)}`).join("\n");
-      if (
-        !window.confirm(
-          `Estos profesores tienen el horario complementario retocado a mano y se sustituirá por lo que dice su PDF:\n\n${nombres}\n\n¿Continuar?`,
-        )
-      )
-        return;
+      avisos.push(
+        "Estos profesores tienen el horario complementario retocado a mano y se sustituirá por lo " +
+          `que dice su PDF:\n\n${lista(pisaRetoques)}`,
+      );
     }
+    if (pisaDatos.length > 0) {
+      avisos.push(
+        "El PDF que vas a cargar para estos profesores no trae datos legibles: se quedarán sin " +
+          "horario y habrá que rellenarlo a mano en su ficha:\n\n" +
+          lista(pisaDatos),
+      );
+    }
+    if (avisos.length > 0 && !window.confirm(`${avisos.join("\n\n")}\n\n¿Continuar?`)) return;
     await window.adminAPI.dialogoComplementario.confirmar(dialogId, JSON.stringify(resultado));
     window.close();
   }
@@ -262,6 +325,108 @@ export function DialogoHorarioComplementario() {
     window.close();
   }
 
+  /**
+   * Elige con el explorador un PDF concreto (normalmente, la versión
+   * rectificada de uno ya cargado) y lo prepara para decidir de quién es.
+   */
+  const elegirPdfSuelto = async () => {
+    if (!payload) return;
+    setError(null);
+    const sel = await window.adminAPI.profesorado.complementarioElegirPdf(carpeta);
+    if (!sel) return;
+    let lectura: LecturaComplementario | null = null;
+    let fallo: string | null = null;
+    try {
+      lectura = await leerPdfComplementario(sel.base64);
+    } catch (e) {
+      fallo = e instanceof Error ? e.message : String(e);
+    }
+    // Si ese PDF ya estaba (en la lista o guardado), se respeta su profesor.
+    const enLista = filas.find((f) => f.nombre === sel.nombre)?.eleccion;
+    const guardadoCon = Object.entries(payload.datos.porProfesor).find(
+      ([, h]) => h.archivo === sel.nombre,
+    )?.[0];
+    const sugerencia = asignarProfesor(sel.nombre, lectura?.profesor ?? "", payload.profesores);
+    setSuelto({
+      ruta: sel.ruta,
+      nombre: sel.nombre,
+      modificado: sel.modificado,
+      enCarpeta: sel.enCarpeta,
+      lectura,
+      error: fallo,
+      eleccion:
+        (enLista && enLista !== IGNORAR ? enLista : "") ||
+        guardadoCon ||
+        sugerencia?.profesorId ||
+        "",
+    });
+  };
+
+  /**
+   * Mete en la lista el PDF elegido a mano, ya marcado para guardar. Si viene
+   * de fuera se copia antes a la carpeta, para que todo siga junto y luego se
+   * pueda abrir desde la ficha del profesor.
+   */
+  const confirmarSuelto = async () => {
+    if (!suelto || !payload || suelto.eleccion === "") return;
+    setCopiando(true);
+    try {
+      let nombre = suelto.nombre;
+      let modificado = suelto.modificado;
+      if (carpeta && !suelto.enCarpeta) {
+        let res = await window.adminAPI.profesorado.complementarioCopiarPdf(
+          suelto.ruta,
+          carpeta,
+          false,
+        );
+        if (!res.ok && res.existe) {
+          const ok = window.confirm(
+            `En la carpeta de los PDF ya hay un archivo que se llama «${suelto.nombre}».\n\n¿Lo sustituyes por el que acabas de elegir?`,
+          );
+          if (!ok) return;
+          res = await window.adminAPI.profesorado.complementarioCopiarPdf(suelto.ruta, carpeta, true);
+        }
+        if (!res.ok) {
+          setError(`No se ha podido copiar el PDF a la carpeta: ${res.error}`);
+          return;
+        }
+        nombre = res.nombre;
+        modificado = res.modificado;
+      }
+      const { estado, profesorId } = estadoArchivo(nombre, modificado, payload.datos);
+      const fila: FilaArchivo = {
+        nombre,
+        modificado,
+        estado,
+        guardadoCon: profesorId,
+        lectura: suelto.lectura,
+        error: suelto.error,
+        sugerencia: asignarProfesor(nombre, suelto.lectura?.profesor ?? "", payload.profesores),
+        eleccion: suelto.eleccion,
+        marcado: true,
+      };
+      setFilas((prev) => {
+        // El PDF elegido a mano manda: si ese profesor tenía otro marcado
+        // (el que viene a rectificar), aquel se desmarca.
+        const otros = prev.map((f) =>
+          f.nombre !== nombre && f.eleccion === fila.eleccion && f.marcado
+            ? { ...f, marcado: false }
+            : f,
+        );
+        const i = otros.findIndex((f) => f.nombre === nombre);
+        if (i < 0) return [...otros, fila].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+        const copia = [...otros];
+        copia[i] = fila;
+        return copia;
+      });
+      setVerTodos(true);
+      setAbierto(nombre);
+      setSuelto(null);
+    } finally {
+      setCopiando(false);
+    }
+  };
+
   const abrirPdf = async (nombre: string) => {
     if (!carpeta) return;
     const fallo = await window.adminAPI.profesorado.complementarioAbrirPdf(carpeta, nombre);
@@ -269,6 +434,11 @@ export function DialogoHorarioComplementario() {
   };
 
   const cambiosCarpeta = (payload?.datos.carpeta ?? null) !== carpeta;
+  // Horario que se perdería al cargar el PDF suelto sobre ese profesor.
+  const sueltoSustituye =
+    suelto && suelto.eleccion !== "" && suelto.eleccion !== IGNORAR
+      ? (payload?.datos.porProfesor[suelto.eleccion] ?? null)
+      : null;
 
   return (
     <div className="h-screen flex flex-col bg-[var(--tc-bg)] text-[var(--tc-ink)]">
@@ -330,6 +500,15 @@ export function DialogoHorarioComplementario() {
                 <RefreshCw className={`w-4 h-4 ${leyendo ? "animate-spin" : ""}`} />
                 Buscar PDF nuevos
               </button>
+              <button
+                onClick={() => void elegirPdfSuelto()}
+                disabled={!!leyendo}
+                title="Para cargar un PDF rectificado encima de uno ya cargado, o uno que esté fuera de la carpeta"
+                className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
+              >
+                <FileUp className="w-4 h-4" />
+                Cargar un PDF concreto…
+              </button>
             </div>
 
             {error && (
@@ -349,7 +528,15 @@ export function DialogoHorarioComplementario() {
                     {filas.filter((f) => f.estado === "modificado").length}
                   </strong>{" "}
                   cambiados · {filas.filter((f) => f.estado === "importado").length} ya guardados ·{" "}
-                  {filas.filter((f) => f.estado === "ignorado").length} ignorados
+                  {filas.filter((f) => f.estado === "ignorado").length} ignorados ·{" "}
+                  <strong
+                    className={
+                      sinCargar.length > 0 ? "text-[var(--tc-warn-ink)]" : "text-[var(--tc-ink)]"
+                    }
+                  >
+                    {sinCargar.length}
+                  </strong>{" "}
+                  sin cargar
                 </span>
                 <span className="flex-1" />
                 <label className="inline-flex items-center gap-1.5 cursor-pointer">
@@ -410,9 +597,15 @@ export function DialogoHorarioComplementario() {
                             <input
                               type="checkbox"
                               checked={f.marcado}
-                              disabled={!f.lectura || f.eleccion === ""}
+                              disabled={f.eleccion === ""}
                               onChange={(e) => cambiar(f.nombre, { marcado: e.target.checked })}
-                              title={f.eleccion === "" ? "Elige antes el profesor" : "Guardar este PDF"}
+                              title={
+                                f.eleccion === ""
+                                  ? "Elige antes el profesor"
+                                  : f.lectura
+                                    ? "Guardar este PDF"
+                                    : "Cargarlo igualmente: se quedará sin datos, para rellenarlo a mano"
+                              }
                               className="accent-[var(--tc-primary)] w-4 h-4 mt-1 cursor-pointer"
                             />
                           </td>
@@ -462,32 +655,18 @@ export function DialogoHorarioComplementario() {
                             )}
                           </td>
                           <td className="px-2 py-2 border-t border-[var(--tc-border-soft)] min-w-[260px]">
-                            <select
-                              value={f.eleccion}
-                              onChange={(e) =>
-                                cambiar(f.nombre, {
-                                  eleccion: e.target.value,
-                                  marcado: e.target.value !== "" && !!f.lectura,
-                                })
-                              }
-                              className={`w-full h-8 px-2 rounded-lg border bg-[var(--tc-card)] text-[13px] text-[var(--tc-ink)] ${
+                            <SelectorProfesor
+                              valor={f.eleccion}
+                              opciones={opcionesProfesor}
+                              onChange={(v) => cambiar(f.nombre, { eleccion: v, marcado: v !== "" })}
+                              claseBorde={
                                 f.eleccion === ""
                                   ? "border-[var(--tc-warn-border)]"
                                   : repetidos.has(f.eleccion)
                                     ? "border-[var(--tc-danger-border)]"
                                     : "border-[var(--tc-border)]"
-                              }`}
-                            >
-                              <option value="">— Elige el profesor —</option>
-                              <option value={IGNORAR}>No es de nadie (ignorar)</option>
-                              {opcionesProfesor.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.apellidosNombre}
-                                  {p.unidad ? ` (${p.unidad})` : ""}
-                                  {p.activo ? "" : " — baja"}
-                                </option>
-                              ))}
-                            </select>
+                              }
+                            />
                             {f.eleccion === "" && (
                               <p className="text-[11px] text-[var(--tc-warn-ink)] mt-0.5">
                                 No se ha reconocido a quién pertenece.
@@ -523,6 +702,90 @@ export function DialogoHorarioComplementario() {
                   })}
                 </tbody>
               </table>
+            )}
+
+            {/* PDF que se quedan fuera */}
+            {filas.length > 0 && !leyendo && (
+              <div
+                className={`mt-3 rounded-xl border ${
+                  sinCargar.length > 0
+                    ? "border-[var(--tc-warn-border)] bg-[var(--tc-warn-bg)]"
+                    : "border-[var(--tc-success-border)] bg-[var(--tc-success-bg)]"
+                }`}
+              >
+                <div className="flex items-start gap-2 px-3 py-2">
+                  {sinCargar.length > 0 ? (
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-[var(--tc-warn-ink)]" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-[var(--tc-success-ink)]" />
+                  )}
+                  <div className="min-w-0">
+                    <p
+                      className={`text-sm font-semibold ${
+                        sinCargar.length > 0
+                          ? "text-[var(--tc-warn-ink)]"
+                          : "text-[var(--tc-success-ink)]"
+                      }`}
+                    >
+                      {sinCargar.length > 0
+                        ? `PDF que NO se van a cargar (${sinCargar.length} de ${filas.length})`
+                        : `Se cargan los ${filas.length} PDF de la carpeta: no queda ninguno fuera.`}
+                    </p>
+                    {sinCargar.length > 0 && (
+                      <p className="text-[11px] text-[var(--tc-ink-soft)]">
+                        Elige el profesor de cada uno y se cargará, aunque el PDF no se haya podido
+                        leer (entonces se rellena a mano en su ficha).
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {sinCargar.length > 0 && (
+                  <ul>
+                    {sinCargar.map(({ f, motivo }) => (
+                      <li
+                        key={f.nombre}
+                        className="flex flex-wrap items-start gap-2 px-3 py-2 border-t border-[var(--tc-border-soft)] bg-[var(--tc-card)]"
+                      >
+                        <div className="min-w-[220px] flex-1">
+                          <button
+                            onClick={() => void abrirPdf(f.nombre)}
+                            title="Abrir el PDF"
+                            className="text-left text-[13px] text-[var(--tc-ink)] hover:text-[var(--tc-primary)] break-all inline-flex items-start gap-1"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                            {f.nombre}
+                          </button>
+                          <p className="text-[11px] text-[var(--tc-warn-ink)]">
+                            {TEXTO_SIN_CARGAR[motivo]}
+                          </p>
+                          <p className="text-[11px] text-[var(--tc-ink-mute)] truncate">
+                            {f.lectura?.profesor
+                              ? `El PDF pone: «${f.lectura.profesor}»`
+                              : f.error
+                                ? "No se ha podido abrir el PDF, así que no se sabe de quién es."
+                                : "El PDF no trae escrito el nombre del profesor."}
+                          </p>
+                        </div>
+                        <div className="w-[280px] shrink-0">
+                          <SelectorProfesor
+                            valor={f.eleccion}
+                            opciones={opcionesProfesor}
+                            onChange={(v) => cambiar(f.nombre, { eleccion: v, marcado: v !== "" })}
+                            claseBorde={
+                              f.eleccion === ""
+                                ? "border-[var(--tc-warn-border)]"
+                                : "border-[var(--tc-border)]"
+                            }
+                          />
+                          <p className="text-[11px] text-[var(--tc-ink-mute)] mt-0.5">
+                            Al elegir profesor se marca solo para cargarlo.
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
 
             {/* Quién falta */}
@@ -584,9 +847,134 @@ export function DialogoHorarioComplementario() {
               Guardar
             </button>
           </div>
+
+          {suelto && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
+              <div className="w-full max-w-[600px] max-h-full overflow-y-auto rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <FileUp className="w-4 h-4 shrink-0 text-[var(--tc-primary)]" />
+                  <h4 className="flex-1 text-sm font-bold">Cargar este PDF</h4>
+                  <button
+                    onClick={() => setSuelto(null)}
+                    className="p-1 rounded-md text-[var(--tc-ink-mute)] hover:bg-[var(--tc-bg-panel)]"
+                    title="Cancelar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <p className="text-[12px] text-[var(--tc-ink-soft)] break-all">{suelto.ruta}</p>
+
+                <p className="text-[12px]">
+                  {suelto.error ? (
+                    <span className="text-[var(--tc-danger-ink)]">
+                      No se ha podido leer este PDF. Puedes cargarlo igualmente: se quedará sin datos
+                      y lo rellenas a mano en la ficha del profesor.
+                    </span>
+                  ) : !suelto.lectura || suelto.lectura.modo === "vacio" ? (
+                    <span className="text-[var(--tc-warn-ink)]">
+                      No trae datos legibles (escaneado, imagen o sin rellenar). Puedes cargarlo
+                      igualmente y rellenarlo a mano en la ficha.
+                    </span>
+                  ) : (
+                    <span className="text-[var(--tc-ink-soft)]">
+                      Se han leído {contarFilasComplementario(suelto.lectura)} fila(s)
+                      {suelto.lectura.modo === "texto" ? " (por la posición del texto: revísalo)" : ""}.
+                      {suelto.lectura.profesor ? ` El PDF pone: «${suelto.lectura.profesor}»` : ""}
+                    </span>
+                  )}
+                </p>
+
+                <label className="text-[12px] font-semibold text-[var(--tc-ink-soft)]">
+                  ¿De qué profesor es?
+                  <div className="mt-1 font-normal">
+                    <SelectorProfesor
+                      valor={suelto.eleccion}
+                      opciones={opcionesProfesor}
+                      onChange={(v) => setSuelto({ ...suelto, eleccion: v })}
+                      claseBorde={
+                        suelto.eleccion === ""
+                          ? "border-[var(--tc-warn-border)]"
+                          : "border-[var(--tc-border)]"
+                      }
+                    />
+                  </div>
+                </label>
+
+                {sueltoSustituye && (
+                  <p className="text-[12px] text-[var(--tc-warn-ink)]">
+                    {nombrePorId.get(suelto.eleccion)} ya tiene cargado{" "}
+                    {sueltoSustituye.archivo ? `«${sueltoSustituye.archivo}»` : "un horario metido a mano"}
+                    {sueltoSustituye.editadoAMano ? " (retocado a mano)" : ""}. Se sustituirá por este
+                    PDF.
+                  </p>
+                )}
+
+                {!carpeta ? (
+                  <p className="text-[12px] text-[var(--tc-warn-ink)]">
+                    Todavía no has elegido la carpeta de los PDF: este archivo se cargará, pero luego
+                    no se podrá abrir desde la ficha del profesor.
+                  </p>
+                ) : suelto.enCarpeta ? null : (
+                  <p className="text-[12px] text-[var(--tc-ink-mute)]">
+                    Se copiará a la carpeta de los PDF para que todo siga junto.
+                  </p>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="flex-1" />
+                  <button
+                    onClick={() => setSuelto(null)}
+                    className="px-4 py-2 text-sm rounded-lg border border-[var(--tc-border)] text-[var(--tc-ink-mute)] hover:bg-[var(--tc-bg-panel)]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => void confirmarSuelto()}
+                    disabled={suelto.eleccion === "" || suelto.eleccion === IGNORAR || copiando}
+                    className="px-4 py-2 text-sm rounded-lg bg-[var(--tc-primary)] text-white font-medium hover:opacity-90 disabled:opacity-40 inline-flex items-center gap-1.5"
+                  >
+                    {copiando && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Cargar para este profesor
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+/** Desplegable con el profesorado (el mismo en la tabla, la lista y la ventanita). */
+function SelectorProfesor({
+  valor,
+  opciones,
+  onChange,
+  claseBorde = "border-[var(--tc-border)]",
+}: {
+  valor: string;
+  opciones: Profesor[];
+  onChange: (valor: string) => void;
+  claseBorde?: string;
+}) {
+  return (
+    <select
+      value={valor}
+      onChange={(e) => onChange(e.target.value)}
+      className={`w-full h-8 px-2 rounded-lg border bg-[var(--tc-card)] text-[13px] text-[var(--tc-ink)] ${claseBorde}`}
+    >
+      <option value="">— Elige el profesor —</option>
+      <option value={IGNORAR}>No es de nadie (ignorar)</option>
+      {opciones.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.apellidosNombre}
+          {p.unidad ? ` (${p.unidad})` : ""}
+          {p.activo ? "" : " — baja"}
+        </option>
+      ))}
+    </select>
   );
 }
 

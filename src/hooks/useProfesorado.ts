@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   ComplementarioCurso,
   ComposicionGrupos,
+  ConfigFirmas,
   Profesor,
   ProfesoradoStore,
 } from "../../electron/profesorado-store";
@@ -15,6 +16,7 @@ const VACIO: ProfesoradoStore = {
   actualizado: null,
   origenArchivo: null,
   complementario: {},
+  firmas: { claustro: { incluidos: [], excluidos: [] } },
 };
 
 /**
@@ -65,6 +67,11 @@ export function useProfesorado() {
     onSuccess: invalidar,
   });
 
+  const firmasMut = useMutation({
+    mutationFn: (firmas: ConfigFirmas) => window.adminAPI.profesorado.guardarFirmas(firmas),
+    onSuccess: invalidar,
+  });
+
   const deshacerMut = useMutation({
     mutationFn: () => window.adminAPI.profesorado.deshacerUltimaCarga(),
     onSuccess: invalidar,
@@ -88,6 +95,8 @@ export function useProfesorado() {
     /** Horario complementario (horas no lectivas) de un curso; `null` lo borra. */
     guardarComplementario: (curso: string, datos: ComplementarioCurso | null) =>
       complementarioMut.mutateAsync({ curso, datos }),
+    /** Firmantes por defecto de las hojas de firmas. */
+    guardarFirmas: (firmas: ConfigFirmas) => firmasMut.mutateAsync(firmas),
     invalidar,
   };
 }

@@ -9,6 +9,20 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.22.0] - 2026-09-21
+
+### Añadido
+
+- **Hojas de firmas del profesorado** (pestaña Profesorado → botón «Hojas de firmas»): A4 apaisado, con los logos del centro y las páginas numeradas («Página X de Y»). Cada profesor sale numerado, con su nombre y un recuadro de firma de 40 × 20 mm (20 por hoja). Vista previa en la propia ventana y botones «Imprimir» y «Guardar PDF».
+  - **Claustro**: fecha del Claustro y subtítulo libre con el concepto. Salen marcados los firmantes por defecto (el Claustro de los correos), que se pueden marcar o desmarcar para esa vez o guardar como nuevos firmantes por defecto sin cambiar el Claustro de los correos. Se guardan también en «Exportar JSON» y en las copias de seguridad.
+  - **Asistencia diaria**: de lunes a viernes, un día suelto o la semana entera, cada día en hoja aparte. Salen por orden alfabético quienes ese día tienen clases o alguna hora de horario complementario (se entienden los días escritos a mano: «X», «mi.», «L y X», «M-X»…). Con una baja temporal firma quien sustituye, con la nota «Sustituye a …».
+  - Nuevo apartado en la guía de Ayuda de la pestaña.
+
+### Mejorado
+
+- **Carga de PDF del horario complementario**: los PDF que se quedan fuera aparecen listados con el motivo (sin profesor reconocido, sin marcar, repetido, hay uno más nuevo…). Un PDF que no se puede leer (escaneado o estropeado) se puede cargar igualmente eligiendo su profesor, para rellenarlo a mano. Se puede cargar un PDF suelto (rectificado o fuera de la carpeta) sobre un profesor, y se avisa antes de sustituir un horario retocado a mano o de dejar a alguien sin datos.
+- **Nombrar sustituto**: al crear la ficha de un sustituto nuevo se hereda lo que tiene el titular, se sugieren los valores ya usados en el profesorado y se avisa si falta el correo o no tiene formato válido.
+
 ## [1.21.1] - 2026-09-18
 
 ### Corregido

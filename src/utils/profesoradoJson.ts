@@ -10,6 +10,7 @@ import {
 import type {
   AjusteGrupo,
   ComposicionGrupos,
+  ConfigFirmas,
   Profesor,
   ProfesoradoStore,
 } from "../../electron/profesorado-store";
@@ -38,6 +39,8 @@ export interface ExportacionProfesorado {
   origenArchivo: string | null;
   /** Desde la v1.19. */
   complementario?: Record<string, ComplementarioCurso>;
+  /** Firmantes por defecto de las hojas de firmas (desde la v1.22). */
+  firmas?: ConfigFirmas;
 }
 
 export function crearExportacion(store: ProfesoradoStore, ahora = new Date()): string {
@@ -50,6 +53,7 @@ export function crearExportacion(store: ProfesoradoStore, ahora = new Date()): s
     actualizado: store.actualizado,
     origenArchivo: store.origenArchivo,
     complementario: store.complementario ?? {},
+    firmas: store.firmas,
   };
   return JSON.stringify(datos, null, 2);
 }
@@ -163,6 +167,10 @@ export function interpretarImportacion(contenido: string): ResultadoImportacion 
       origenArchivo: typeof o.origenArchivo === "string" ? o.origenArchivo : null,
       // Exportaciones anteriores no lo traen: `undefined` conserva el del equipo.
       complementario: o.complementario !== undefined ? sanearComplementario(o.complementario) : undefined,
+      firmas:
+        o.firmas && typeof o.firmas === "object"
+          ? { claustro: ajuste((o.firmas as Record<string, unknown>).claustro) }
+          : undefined,
     },
     exportado: typeof o.exportado === "string" ? o.exportado : null,
     enActivo,

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   aplicarDecisiones,
+  archivoCargado,
   asignarProfesor,
   codigoDeArchivo,
   estadoArchivo,
   htmlBloqueComplementario,
   inicialesProfesor,
+  motivoSinCargar,
+  type CargaArchivo,
 } from "../horarioComplementario";
 import {
   interpretarContenidoPdf,
@@ -217,6 +220,83 @@ describe("estado de la carpeta y guardado", () => {
     expect(Object.keys(r.porProfesor).sort()).toEqual(["eva", "luis"]);
     expect(r.porProfesor.luis).toMatchObject({ archivo: "ana.pdf", archivoModificado: "m2", importado: "2026-09-17T10:00:00.000Z" });
     expect(r.ignorados.sort()).toEqual(["otro.pdf"]);
+  });
+});
+
+describe("PDF que se quedan sin cargar", () => {
+  const guardado: ComplementarioCurso = {
+    carpeta: "C:/pdf",
+    porProfesor: {
+      ana: {
+        tramos: { TIAL: { dia: "Lunes", horario: "9-10" } },
+        apoyo: [],
+        archivo: "ana.pdf",
+        archivoModificado: "m1",
+        importado: "2026-09-02T00:00:00.000Z",
+      },
+    },
+    ignorados: ["basura.pdf"],
+  };
+  const base: CargaArchivo = {
+    nombre: "x.pdf",
+    modificado: "m",
+    estado: "nuevo",
+    eleccion: "",
+    marcado: false,
+    legible: true,
+  };
+
+  it("no avisa de los PDF que sí quedan cargados", () => {
+    expect(archivoCargado("ana.pdf", "m1", guardado)).toBe("ana");
+    expect(
+      motivoSinCargar(
+        { ...base, nombre: "ana.pdf", modificado: "m1", estado: "importado", eleccion: "ana", marcado: true },
+        guardado,
+      ),
+    ).toBeNull();
+  });
+
+  it("avisa cuando el profesor ha mandado otra versión y sigue la vieja", () => {
+    expect(archivoCargado("ana.pdf", "m2", guardado)).toBeNull();
+    expect(
+      motivoSinCargar(
+        { ...base, nombre: "ana.pdf", modificado: "m2", estado: "modificado", eleccion: "ana" },
+        guardado,
+      ),
+    ).toBe("version-nueva");
+  });
+
+  it("distingue sin profesor, ilegible, ignorado y sin marcar", () => {
+    expect(motivoSinCargar(base, guardado)).toBe("sin-profesor");
+    expect(motivoSinCargar({ ...base, legible: false }, guardado)).toBe("ilegible");
+    expect(motivoSinCargar({ ...base, eleccion: null }, guardado)).toBe("ignorado");
+    expect(motivoSinCargar({ ...base, eleccion: "luis" }, guardado)).toBe("sin-marcar");
+  });
+
+  it("avisa del PDF que pierde el sitio cuando hay dos para el mismo profesor", () => {
+    const r = aplicarDecisiones(guardado, "C:/pdf", [
+      { archivo: "uno.pdf", modificado: "m", profesorId: "luis", tramos: {}, apoyo: [] },
+      { archivo: "dos.pdf", modificado: "m", profesorId: "luis", tramos: {}, apoyo: [] },
+    ]);
+    expect(
+      motivoSinCargar({ ...base, nombre: "uno.pdf", eleccion: "luis", marcado: true }, r),
+    ).toBe("repetido");
+    expect(
+      motivoSinCargar({ ...base, nombre: "dos.pdf", eleccion: "luis", marcado: true }, r),
+    ).toBeNull();
+  });
+
+  it("un PDF ilegible forzado a un profesor deja de estar sin cargar", () => {
+    const r = aplicarDecisiones(guardado, "C:/pdf", [
+      { archivo: "raro.pdf", modificado: "m", profesorId: "luis", tramos: {}, apoyo: [] },
+    ]);
+    expect(r.porProfesor.luis.archivo).toBe("raro.pdf");
+    expect(
+      motivoSinCargar(
+        { ...base, nombre: "raro.pdf", eleccion: "luis", marcado: true, legible: false },
+        r,
+      ),
+    ).toBeNull();
   });
 });
 

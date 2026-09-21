@@ -43,11 +43,13 @@ import {
   nombresProfesorado,
   profesoradoGuardar,
   profesoradoGuardarComplementario,
+  profesoradoGuardarFirmas,
   profesoradoGuardarGrupos,
   profesoradoImportar,
   profesoradoObtener,
   profesoradoReemplazar,
   type ComplementarioCurso,
+  type ConfigFirmas,
   type ComposicionGrupos,
   type Profesor,
   type ProfesoradoStore,
@@ -575,6 +577,9 @@ function registerIpcHandlers() {
     (_e, curso: string, datos: ComplementarioCurso | null) =>
       profesoradoGuardarComplementario(curso, datos),
   );
+  ipcMain.handle("profesorado:guardarFirmas", (_e, firmas: ConfigFirmas) =>
+    profesoradoGuardarFirmas(firmas),
+  );
   ipcMain.handle(
     "profesorado:complementarioElegirCarpeta",
     async (_e, actual: string | null): Promise<string | null> => {
@@ -618,6 +623,69 @@ function registerIpcHandlers() {
     "profesorado:complementarioAbrirPdf",
     async (_e, carpeta: string, nombre: string): Promise<string> =>
       shell.openPath(path.join(carpeta, path.basename(nombre))),
+  );
+  /**
+   * Elige un PDF suelto (el que llega rectificado por correo, o uno que está
+   * fuera de la carpeta) y devuelve sus bytes para leerlo en el renderer.
+   */
+  ipcMain.handle(
+    "profesorado:complementarioElegirPdf",
+    async (
+      _e,
+      carpeta: string | null,
+    ): Promise<{
+      ruta: string;
+      nombre: string;
+      modificado: string;
+      base64: string;
+      enCarpeta: boolean;
+    } | null> => {
+      const res = await dialog.showOpenDialog({
+        title: "Elige el PDF del horario complementario",
+        defaultPath: carpeta && fs.existsSync(carpeta) ? carpeta : undefined,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        properties: ["openFile"],
+      });
+      if (res.canceled || res.filePaths.length === 0) return null;
+      const ruta = res.filePaths[0];
+      return {
+        ruta,
+        nombre: path.basename(ruta),
+        modificado: fs.statSync(ruta).mtime.toISOString(),
+        base64: fs.readFileSync(ruta).toString("base64"),
+        enCarpeta: !!carpeta && path.resolve(path.dirname(ruta)) === path.resolve(carpeta),
+      };
+    },
+  );
+  /**
+   * Copia a la carpeta de los PDF uno elegido de fuera, para que todo siga
+   * junto. Si ya hay otro con el mismo nombre lo avisa (`existe`) en vez de
+   * pisarlo, y solo lo sustituye cuando se le dice que sí.
+   */
+  ipcMain.handle(
+    "profesorado:complementarioCopiarPdf",
+    (
+      _e,
+      origen: string,
+      carpeta: string,
+      sobrescribir: boolean,
+    ):
+      | { ok: true; nombre: string; modificado: string }
+      | { ok: false; error: string; existe?: boolean } => {
+      try {
+        if (!fs.existsSync(carpeta)) return { ok: false, error: "La carpeta ya no existe." };
+        const nombre = path.basename(origen);
+        const destino = path.join(carpeta, nombre);
+        const mismo = path.resolve(origen) === path.resolve(destino);
+        if (!mismo && fs.existsSync(destino) && !sobrescribir) {
+          return { ok: false, error: `Ya hay un archivo «${nombre}» en la carpeta.`, existe: true };
+        }
+        if (!mismo) fs.copyFileSync(origen, destino);
+        return { ok: true, nombre, modificado: fs.statSync(destino).mtime.toISOString() };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    },
   );
 
   ipcMain.handle("profesorado:hayCopiaAnterior", () => hayCopiaAnterior());

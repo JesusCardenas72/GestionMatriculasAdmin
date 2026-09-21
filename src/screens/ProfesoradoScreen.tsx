@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Info,
   Mail,
+  PenLine,
   Plus,
   Search,
   Undo2,
@@ -89,6 +90,7 @@ import SustitucionTemporalModal, {
 } from "../components/modals/SustitucionTemporalModal";
 import InformesScreen from "./InformesScreen";
 import { GuiaProfesoradoModal } from "./GuiaProfesoradoModal";
+import HojasFirmasModal, { type TipoHojaFirmas } from "../components/modals/HojasFirmasModal";
 import { NOMBRE_LISTADO_DELPHOS } from "../utils/listadoDelphos";
 import SeccionComplementario from "../components/SeccionComplementario";
 import {
@@ -171,6 +173,7 @@ export default function ProfesoradoScreen({ config }: Props) {
     importar,
     deshacerUltimaCarga,
     guardarComplementario,
+    guardarFirmas,
   } = useProfesorado();
 
   const [entries, setEntries] = useState<HorariosEntry[]>([]);
@@ -212,6 +215,8 @@ export default function ProfesoradoScreen({ config }: Props) {
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [showListadoDelphos, setShowListadoDelphos] = useState(false);
   const [showAyuda, setShowAyuda] = useState(false);
+  const [menuFirmas, setMenuFirmas] = useState(false);
+  const [hojaFirmas, setHojaFirmas] = useState<TipoHojaFirmas | null>(null);
 
   /** Horario complementario (horas no lectivas) del curso activo. */
   const complementario = useMemo<ComplementarioCurso>(
@@ -479,6 +484,12 @@ export default function ProfesoradoScreen({ config }: Props) {
         claustro: renombrarEnAjuste(store.grupos.claustro, original.id, ficha.id),
         ccp: renombrarEnAjuste(store.grupos.ccp, original.id, ficha.id),
       });
+      if (store.firmas) {
+        await guardarFirmas({
+          ...store.firmas,
+          claustro: renombrarEnAjuste(store.firmas.claustro, original.id, ficha.id),
+        });
+      }
       for (const [c, datos] of Object.entries(store.complementario ?? {})) {
         const h = datos.porProfesor[original.id];
         if (!h) continue;
@@ -796,7 +807,7 @@ export default function ProfesoradoScreen({ config }: Props) {
   /**
    * Nombra (o cambia) al sustituto temporal de un titular. No toca ni el Excel
    * de horarios ni las unidades: el titular lo sigue siendo. Si el sustituto no
-   * tenía ficha, se le crea una en blanco.
+   * tenía ficha, se da de alta con los datos escritos en la propia ventana.
    */
   const handleBajaTemporal = async (datos: DatosSustitucionTemporal) => {
     const titular = bajaTemporalDe;
@@ -807,15 +818,21 @@ export default function ProfesoradoScreen({ config }: Props) {
       let lista = profesores;
       let sustitutoId = datos.sustitutoId;
 
-      if (datos.nombreNuevo !== "") {
-        sustitutoId = norm(datos.nombreNuevo);
+      if (datos.fichaNueva) {
+        const alta = datos.fichaNueva;
+        sustitutoId = norm(alta.apellidosNombre);
         if (!lista.some((p) => p.id === sustitutoId)) {
           lista = [
             ...lista,
             {
-              ...fichaEnBlanco(datos.nombreNuevo),
-              especialidad: titular.especialidad,
-              departamento: titular.departamento,
+              ...fichaEnBlanco(alta.apellidosNombre),
+              especialidad: alta.especialidad.trim(),
+              telefono: alta.telefono.trim(),
+              email: alta.email.trim(),
+              departamento: alta.departamento.trim(),
+              cargo: alta.cargo.trim(),
+              // Todo lo escrito a mano: una carga de archivo avisará antes de pisarlo.
+              editadoAMano: CAMPOS_ARCHIVO.filter((c) => alta[c].trim() !== ""),
             },
           ];
         }
@@ -1048,6 +1065,43 @@ export default function ProfesoradoScreen({ config }: Props) {
                   </span>
                 )}
               </button>
+              <div className="relative">
+                <button
+                  onClick={() => setMenuFirmas((v) => !v)}
+                  disabled={activos.length === 0}
+                  title="Hojas para que firme el profesorado (A4 apaisado, con los logos del centro)"
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
+                >
+                  <PenLine className="w-4 h-4" />
+                  Hojas de firmas
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {menuFirmas && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMenuFirmas(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg overflow-hidden">
+                      <OpcionMenu
+                        icono={<Users className="w-4 h-4" />}
+                        titulo="Claustro"
+                        descripcion="Firmantes por defecto que puedes retocar, concepto y fecha del Claustro"
+                        onClick={() => {
+                          setMenuFirmas(false);
+                          setHojaFirmas("claustro");
+                        }}
+                      />
+                      <OpcionMenu
+                        icono={<Clock className="w-4 h-4" />}
+                        titulo="Asistencia diaria"
+                        descripcion="De lunes a viernes, quien tiene clases u horario complementario ese día"
+                        onClick={() => {
+                          setMenuFirmas(false);
+                          setHojaFirmas("asistencia");
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={() => setShowAyuda(true)}
                 title="Cómo se usa la pestaña Profesorado, paso a paso"
@@ -1553,6 +1607,24 @@ export default function ProfesoradoScreen({ config }: Props) {
       )}
 
       {showAyuda && <GuiaProfesoradoModal onCerrar={() => setShowAyuda(false)} />}
+
+      {hojaFirmas && (
+        <HojasFirmasModal
+          tipoInicial={hojaFirmas}
+          curso={curso}
+          profesores={profesores}
+          entries={entries}
+          resumenes={resumenes}
+          grupos={store.grupos}
+          firmas={store.firmas}
+          complementarioPorId={complementario.porProfesor}
+          soloLectura={isSoloLectura}
+          onGuardarFirmas={async (f) => {
+            await guardarFirmas(f);
+          }}
+          onCerrar={() => setHojaFirmas(null)}
+        />
+      )}
 
       {bajaTemporalDe && (
         <SustitucionTemporalModal

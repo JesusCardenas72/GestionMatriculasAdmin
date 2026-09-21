@@ -74,6 +74,19 @@ export interface ComposicionGrupos {
   ccp: AjusteGrupo;
 }
 
+/**
+ * Configuración de las hojas de firmas. `claustro` son los retoques sobre la
+ * composición del Claustro (la de los correos): quién firma por defecto aunque
+ * no esté en el Claustro y quién no aunque lo esté.
+ */
+export interface ConfigFirmas {
+  claustro: AjusteGrupo;
+}
+
+export function firmasVacias(): ConfigFirmas {
+  return { claustro: { incluidos: [], excluidos: [] } };
+}
+
 export interface ProfesoradoStore {
   version: 1;
   profesores: Profesor[];
@@ -89,6 +102,8 @@ export interface ProfesoradoStore {
    * el CSV) no lo borre. Al escribir, `undefined` conserva lo que ya hubiera.
    */
   complementario?: Record<string, ComplementarioCurso>;
+  /** Firmantes por defecto de las hojas de firmas. Como `complementario`, `undefined` al escribir lo conserva. */
+  firmas?: ConfigFirmas;
 }
 
 export function gruposVacios(): ComposicionGrupos {
@@ -105,6 +120,7 @@ const VACIO: ProfesoradoStore = {
   actualizado: null,
   origenArchivo: null,
   complementario: {},
+  firmas: firmasVacias(),
 };
 
 function storePath(): string {
@@ -213,6 +229,11 @@ export function sanearGrupos(g: Partial<ComposicionGrupos> | null | undefined): 
   return { claustro: uno(g?.claustro), ccp: uno(g?.ccp) };
 }
 
+/** Normaliza la configuración de las hojas de firmas (mismo saneado que los grupos). */
+export function sanearFirmas(f: Partial<ConfigFirmas> | null | undefined): ConfigFirmas {
+  return { claustro: sanearGrupos({ claustro: f?.claustro }).claustro };
+}
+
 function leerJson<T>(file: string, fallback: T): T {
   if (!fs.existsSync(file)) return fallback;
   try {
@@ -254,6 +275,7 @@ export function leerStore(): ProfesoradoStore {
     actualizado: bruto.actualizado ?? null,
     origenArchivo: bruto.origenArchivo ?? null,
     complementario: sanearComplementario(bruto.complementario),
+    firmas: sanearFirmas(bruto.firmas),
   };
 }
 
@@ -271,6 +293,12 @@ export function escribirStore(store: ProfesoradoStore): ProfesoradoStore {
         : fs.existsSync(storePath())
           ? leerStore().complementario
           : {},
+    firmas:
+      store.firmas !== undefined
+        ? sanearFirmas(store.firmas)
+        : fs.existsSync(storePath())
+          ? leerStore().firmas
+          : firmasVacias(),
   };
   fs.writeFileSync(storePath(), JSON.stringify(limpio, null, 2), "utf-8");
   return limpio;
@@ -359,6 +387,7 @@ export function profesoradoImportar(store: ProfesoradoStore): ProfesoradoStore {
     origenArchivo: store.origenArchivo ?? null,
     // Exportaciones anteriores a la v1.19 no lo traen: se conserva el del equipo.
     complementario: store.complementario,
+    firmas: store.firmas,
   });
 }
 
@@ -375,6 +404,11 @@ export function profesoradoGuardarComplementario(
   if (datos === null) delete complementario[curso];
   else complementario[curso] = datos;
   return escribirStore({ ...actual, complementario });
+}
+
+/** Guarda los firmantes por defecto de las hojas de firmas. */
+export function profesoradoGuardarFirmas(firmas: ConfigFirmas): ProfesoradoStore {
+  return escribirStore({ ...leerStore(), firmas });
 }
 
 /**

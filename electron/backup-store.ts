@@ -6,6 +6,7 @@ import {
   escribirStore,
   fichaDesdeNombre,
   sanearComplementario,
+  sanearFirmas,
   sanearGrupos,
   type AjusteGrupo,
   type ComplementarioCurso,
@@ -278,6 +279,7 @@ export async function crearBackup(
             actualizado: store.actualizado ?? null,
             origenArchivo: store.origenArchivo ?? null,
             complementario: sanearComplementario(store.complementario),
+            firmas: sanearFirmas(store.firmas),
           },
           null,
           2,
@@ -666,7 +668,13 @@ export async function restaurarBackup(
         : undefined;
     }
 
-    escribirStore({ version: 1, profesores, grupos, actualizado, origenArchivo, complementario });
+    // Firmantes por defecto de las hojas de firmas (desde la v1.22): al
+    // reemplazar entran los de la copia; al fusionar mandan los del equipo.
+    // `undefined` = se conservan los del equipo.
+    const firmas =
+      modo === "reemplazar" && copiaNueva && store!.firmas ? sanearFirmas(store!.firmas) : undefined;
+
+    escribirStore({ version: 1, profesores, grupos, actualizado, origenArchivo, complementario, firmas });
     categorias.push("Profesorado");
     tick();
   }

@@ -14,6 +14,7 @@ import type {
 } from "./backup-store";
 import type {
   ComplementarioCurso,
+  ConfigFirmas,
   ComposicionGrupos,
   Profesor,
   ProfesoradoStore,
@@ -244,6 +245,9 @@ const adminAPI = {
       datos: ComplementarioCurso | null,
     ): Promise<ProfesoradoStore> =>
       ipcRenderer.invoke("profesorado:guardarComplementario", curso, datos),
+    /** Guarda los firmantes por defecto de las hojas de firmas. */
+    guardarFirmas: (firmas: ConfigFirmas): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:guardarFirmas", firmas),
     /** Pide la carpeta de los PDF del horario complementario. */
     complementarioElegirCarpeta: (actual: string | null): Promise<string | null> =>
       ipcRenderer.invoke("profesorado:complementarioElegirCarpeta", actual),
@@ -259,6 +263,24 @@ const adminAPI = {
     /** Abre el PDF con el visor del sistema. Devuelve "" o el mensaje de error. */
     complementarioAbrirPdf: (carpeta: string, nombre: string): Promise<string> =>
       ipcRenderer.invoke("profesorado:complementarioAbrirPdf", carpeta, nombre),
+    /** Pide un PDF concreto (el rectificado) y devuelve sus bytes. */
+    complementarioElegirPdf: (
+      carpeta: string | null,
+    ): Promise<{
+      ruta: string;
+      nombre: string;
+      modificado: string;
+      base64: string;
+      enCarpeta: boolean;
+    } | null> => ipcRenderer.invoke("profesorado:complementarioElegirPdf", carpeta),
+    /** Copia a la carpeta un PDF de fuera. `existe` = ya hay otro con ese nombre. */
+    complementarioCopiarPdf: (
+      origen: string,
+      carpeta: string,
+      sobrescribir: boolean,
+    ): Promise<
+      { ok: true; nombre: string; modificado: string } | { ok: false; error: string; existe?: boolean }
+    > => ipcRenderer.invoke("profesorado:complementarioCopiarPdf", origen, carpeta, sobrescribir),
   },
   horarios: {
     /** Nombres del profesorado en activo, derivados de `profesorado.json`. */

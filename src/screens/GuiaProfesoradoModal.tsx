@@ -305,8 +305,9 @@ export function GuiaProfesoradoModal({ onCerrar }: { onCerrar: () => void }) {
               </li>
               <li>
                 Elige a quien le sustituye. Si no está en la lista, elige{" "}
-                <strong>«Es alguien que no está en la lista…»</strong> y escribe su nombre como
-                «Apellidos, Nombre»: se le crea la ficha.
+                <strong>«Es alguien que no está en la lista…»</strong> y rellena ahí mismo su ficha:
+                nombre («Apellidos, Nombre»), especialidad, teléfono, <strong>correo</strong>,
+                departamento y cargo. Se le da de alta en el profesorado con esos datos.
               </li>
               <li>
                 Pon la fecha <strong>«Desde»</strong>. La de <strong>«Hasta»</strong> solo si ya se
@@ -314,8 +315,9 @@ export function GuiaProfesoradoModal({ onCerrar }: { onCerrar: () => void }) {
               </li>
               <li>Si quieres, escribe el motivo, y acepta.</li>
               <li>
-                Acuérdate de rellenarle el <strong>correo</strong> en su ficha: sin él no podrá
-                recibir los mensajes del Claustro.
+                Si te faltaba algún dato, la ficha se puede completar después desde la tabla, como la
+                de cualquier otro profesor. Sin <strong>correo</strong> no recibirá los mensajes del
+                Claustro ni de la CCP.
               </li>
             </ol>
 
@@ -355,6 +357,16 @@ export function GuiaProfesoradoModal({ onCerrar }: { onCerrar: () => void }) {
               </li>
               <li>
                 El programa lee cada PDF y lo asigna a su profesor. Revisa la asignación y confirma.
+              </li>
+              <li>
+                Abajo del todo tienes la lista <strong>«PDF que NO se van a cargar»</strong> con el
+                motivo de cada uno y lo que pone dentro del PDF. Eligiendo ahí el profesor se cargan
+                a la fuerza, incluso los que no se han podido leer: así no se queda ninguno fuera.
+              </li>
+              <li>
+                Si un profesor te manda después el PDF <strong>rectificado</strong>, pulsa{" "}
+                <strong>«Cargar un PDF concreto…»</strong>, busca el archivo donde lo tengas y elige a
+                quién pertenece: sustituye al que tenía y se copia a la carpeta.
               </li>
               <li>
                 Lo que no se pueda leer (PDF escaneados, sobre todo) se rellena a mano en la ficha de
@@ -454,9 +466,49 @@ export function GuiaProfesoradoModal({ onCerrar }: { onCerrar: () => void }) {
 
           <Seccion
             n={9}
-            titulo="Avisos de coherencia y cobertura por especialidad"
+            titulo="Hojas de firmas: Claustro y asistencia diaria"
             abierta={abierta === 9}
             onClick={() => alternar(9)}
+          >
+            <p className="text-[13px] mb-2">
+              El botón <strong>«Hojas de firmas»</strong> prepara hojas para que firme el
+              profesorado. Salen en <strong>A4 apaisado</strong>, con los logos del centro, las
+              páginas numeradas («Página X de Y») y, para cada persona, su nombre y un recuadro de
+              firma de <strong>40 × 20 mm</strong> (20 por hoja). A la derecha ves la hoja tal y como
+              saldrá; abajo, «Imprimir» o «Guardar PDF».
+            </p>
+            <ul className="list-disc list-inside text-[13px] space-y-1.5">
+              <li>
+                <strong>Claustro:</strong> escribe la <strong>fecha del Claustro</strong> y, si
+                quieres, un <strong>subtítulo</strong> con el concepto («Sesión ordinaria ·
+                Aprobación de la PGA»). Salen marcados los <strong>firmantes por defecto</strong>:
+                marca o desmarca a quien haga falta solo para esta vez.
+              </li>
+              <li>
+                Si ese cambio debe quedarse para siempre, pulsa{" "}
+                <strong>«Guardar como firmantes por defecto»</strong>. Los firmantes por defecto
+                parten del Claustro de los correos, así que quien entre o salga del Claustro entra o
+                sale también de las firmas; lo que guardes aquí no cambia el Claustro de los correos.
+              </li>
+              <li>
+                <strong>Asistencia diaria:</strong> elige la semana (cualquier día de ella) y los días
+                que quieras imprimir, de uno suelto a la semana entera. Cada día va en hoja aparte, en
+                orden alfabético, con quienes ese día tienen <strong>clases</strong> o alguna hora de{" "}
+                <strong>horario complementario</strong>. Junto a cada día ves cuántos profesores
+                saldrán.
+              </li>
+              <li>
+                Si alguien está de <strong>baja temporal</strong> ese día, en su lugar firma quien le
+                sustituye, con la nota «Sustituye a …».
+              </li>
+            </ul>
+          </Seccion>
+
+          <Seccion
+            n={10}
+            titulo="Avisos de coherencia y cobertura por especialidad"
+            abierta={abierta === 10}
+            onClick={() => alternar(10)}
           >
             <p className="text-[13px] mb-2">
               Son los dos paneles plegables que hay encima de la tabla. Cruzan el profesorado con los
@@ -492,10 +544,10 @@ export function GuiaProfesoradoModal({ onCerrar }: { onCerrar: () => void }) {
           </Seccion>
 
           <Seccion
-            n={10}
+            n={11}
             titulo="Copias de seguridad de esta pestaña"
-            abierta={abierta === 10}
-            onClick={() => alternar(10)}
+            abierta={abierta === 11}
+            onClick={() => alternar(11)}
           >
             <ul className="list-disc list-inside text-[13px] space-y-1.5">
               <li>
