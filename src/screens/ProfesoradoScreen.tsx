@@ -24,7 +24,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useAppMode } from "../contexts/AppModeProvider";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useProfesorado } from "../hooks/useProfesorado";
@@ -160,7 +159,6 @@ interface Props {
 
 export default function ProfesoradoScreen({ config }: Props) {
   const { curso } = useCursoContext();
-  const { isSoloLectura } = useAppMode();
   const { matriculas } = useLocalMatriculas(curso);
   const {
     store,
@@ -359,7 +357,7 @@ export default function ProfesoradoScreen({ config }: Props) {
       return next;
     });
 
-  const plantillaFilas = isSoloLectura ? PLANTILLA_COLUMNAS : `20px ${PLANTILLA_COLUMNAS}`;
+  const plantillaFilas = `20px ${PLANTILLA_COLUMNAS}`;
 
   const seleccionado = useMemo(
     () => profesores.find((p) => p.id === seleccionadoId) ?? null,
@@ -922,131 +920,129 @@ export default function ProfesoradoScreen({ config }: Props) {
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {!isSoloLectura && (
-                <>
+              <>
+                <button
+                  onClick={handleCargarArchivo}
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-sm font-semibold text-white bg-[var(--tc-primary)] hover:bg-[var(--tc-primary-dark)] transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Cargar lista
+                </button>
+                <button
+                  onClick={handleNuevo}
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nuevo
+                </button>
+                <button
+                  onClick={handleAbrirSustituir}
+                  title={
+                    "Cambio de titular: quien entra se queda con las clases del que se va. " +
+                    "Para una baja laboral durante el curso, usa «Nombrar sustituto» en la ficha del profesor."
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
+                >
+                  <UserCog className="w-4 h-4" />
+                  Sustituir titular
+                </button>
+                <button
+                  onClick={handleHorarioComplementario}
+                  disabled={profesores.length === 0}
+                  title="Leer de los PDF del profesorado sus horas no lectivas (horario complementario)"
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
+                >
+                  <Clock className="w-4 h-4" />
+                  Horario complementario
+                </button>
+                <button
+                  onClick={handleDefinirGrupos}
+                  disabled={activos.length === 0}
+                  title="Definir quién forma el Claustro y la CCP"
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
+                >
+                  <Users className="w-4 h-4" />
+                  Claustro y CCP
+                </button>
+                <div className="relative">
                   <button
-                    onClick={handleCargarArchivo}
-                    className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-sm font-semibold text-white bg-[var(--tc-primary)] hover:bg-[var(--tc-primary-dark)] transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Cargar lista
-                  </button>
-                  <button
-                    onClick={handleNuevo}
-                    className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Nuevo
-                  </button>
-                  <button
-                    onClick={handleAbrirSustituir}
-                    title={
-                      "Cambio de titular: quien entra se queda con las clases del que se va. " +
-                      "Para una baja laboral durante el curso, usa «Nombrar sustituto» en la ficha del profesor."
-                    }
-                    className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] transition-colors"
-                  >
-                    <UserCog className="w-4 h-4" />
-                    Sustituir titular
-                  </button>
-                  <button
-                    onClick={handleHorarioComplementario}
+                    onClick={() => setMenuCorreo((v) => !v)}
                     disabled={profesores.length === 0}
-                    title="Leer de los PDF del profesorado sus horas no lectivas (horario complementario)"
                     className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
                   >
-                    <Clock className="w-4 h-4" />
-                    Horario complementario
+                    <Mail className="w-4 h-4" />
+                    Enviar correo
+                    <ChevronDown className="w-3.5 h-3.5" />
                   </button>
-                  <button
-                    onClick={handleDefinirGrupos}
-                    disabled={activos.length === 0}
-                    title="Definir quién forma el Claustro y la CCP"
-                    className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
-                  >
-                    <Users className="w-4 h-4" />
-                    Claustro y CCP
-                  </button>
-                  <div className="relative">
-                    <button
-                      onClick={() => setMenuCorreo((v) => !v)}
-                      disabled={profesores.length === 0}
-                      className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 transition-colors"
-                    >
-                      <Mail className="w-4 h-4" />
-                      Enviar correo
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                    {menuCorreo && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setMenuCorreo(false)} />
-                        <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg overflow-hidden">
-                          {(["claustro", "ccp"] as const).map((g) => {
-                            const d = gruposCorreo[g];
-                            const total = d.conEmail.length + d.sinEmail.length;
-                            return (
-                              <button
-                                key={g}
-                                onClick={() => handleEnviarCorreo(g)}
-                                className="w-full text-left px-4 py-2.5 hover:bg-[var(--tc-bg-panel)] transition-colors border-b last:border-b-0 border-[var(--tc-border-soft)]"
-                              >
-                                <span className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-semibold text-[var(--tc-ink)]">
-                                    {NOMBRE_GRUPO[g]}
-                                  </span>
-                                  <span className="text-[11px] font-medium text-[var(--tc-ink-mute)] tabular-nums">
-                                    {total} persona{total === 1 ? "" : "s"}
-                                    {d.sinEmail.length > 0 && ` · ${d.sinEmail.length} sin correo`}
-                                  </span>
+                  {menuCorreo && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setMenuCorreo(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg overflow-hidden">
+                        {(["claustro", "ccp"] as const).map((g) => {
+                          const d = gruposCorreo[g];
+                          const total = d.conEmail.length + d.sinEmail.length;
+                          return (
+                            <button
+                              key={g}
+                              onClick={() => handleEnviarCorreo(g)}
+                              className="w-full text-left px-4 py-2.5 hover:bg-[var(--tc-bg-panel)] transition-colors border-b last:border-b-0 border-[var(--tc-border-soft)]"
+                            >
+                              <span className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-semibold text-[var(--tc-ink)]">
+                                  {NOMBRE_GRUPO[g]}
                                 </span>
-                                <span className="block text-[11px] leading-snug text-[var(--tc-ink-soft)] mt-0.5">
-                                  {DESCRIPCION_GRUPO[g]}
+                                <span className="text-[11px] font-medium text-[var(--tc-ink-mute)] tabular-nums">
+                                  {total} persona{total === 1 ? "" : "s"}
+                                  {d.sinEmail.length > 0 && ` · ${d.sinEmail.length} sin correo`}
                                 </span>
-                              </button>
-                            );
-                          })}
-                          <button
-                            onClick={() => handleEnviarCorreo("seleccion")}
-                            disabled={marcadosVigentes.length === 0}
-                            className="w-full text-left px-4 py-2.5 hover:bg-[var(--tc-bg-panel)] disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-                          >
-                            <span className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-[var(--tc-ink)]">
-                                Profesores marcados
                               </span>
-                              <span className="text-[11px] font-medium text-[var(--tc-ink-mute)] tabular-nums">
-                                {marcadosVigentes.length} marcado{marcadosVigentes.length === 1 ? "" : "s"}
+                              <span className="block text-[11px] leading-snug text-[var(--tc-ink-soft)] mt-0.5">
+                                {DESCRIPCION_GRUPO[g]}
                               </span>
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => handleEnviarCorreo("seleccion")}
+                          disabled={marcadosVigentes.length === 0}
+                          className="w-full text-left px-4 py-2.5 hover:bg-[var(--tc-bg-panel)] disabled:opacity-50 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-[var(--tc-ink)]">
+                              Profesores marcados
                             </span>
-                            <span className="block text-[11px] leading-snug text-[var(--tc-ink-soft)] mt-0.5">
-                              {marcadosVigentes.length === 0
-                                ? "Marca uno o varios con la casilla de la tabla"
-                                : DESCRIPCION_GRUPO.seleccion}
+                            <span className="text-[11px] font-medium text-[var(--tc-ink-mute)] tabular-nums">
+                              {marcadosVigentes.length} marcado{marcadosVigentes.length === 1 ? "" : "s"}
                             </span>
-                          </button>
-                          <button
-                            onClick={handleDefinirGrupos}
-                            className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-[var(--tc-primary)] bg-[var(--tc-bg-panel)] hover:bg-[var(--tc-primary-tint)] border-t border-[var(--tc-border)] transition-colors"
-                          >
-                            <Users className="w-4 h-4 shrink-0" />
-                            Definir quién forma el Claustro y la CCP…
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  {hayCopia && (
-                    <button
-                      onClick={handleDeshacer}
-                      title="Volver a la lista anterior a la última carga"
-                      className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
-                    >
-                      <Undo2 className="w-4 h-4" />
-                      Deshacer carga
-                    </button>
+                          </span>
+                          <span className="block text-[11px] leading-snug text-[var(--tc-ink-soft)] mt-0.5">
+                            {marcadosVigentes.length === 0
+                              ? "Marca uno o varios con la casilla de la tabla"
+                              : DESCRIPCION_GRUPO.seleccion}
+                          </span>
+                        </button>
+                        <button
+                          onClick={handleDefinirGrupos}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-[var(--tc-primary)] bg-[var(--tc-bg-panel)] hover:bg-[var(--tc-primary-tint)] border-t border-[var(--tc-border)] transition-colors"
+                        >
+                          <Users className="w-4 h-4 shrink-0" />
+                          Definir quién forma el Claustro y la CCP…
+                        </button>
+                      </div>
+                    </>
                   )}
-                </>
-              )}
+                </div>
+                {hayCopia && (
+                  <button
+                    onClick={handleDeshacer}
+                    title="Volver a la lista anterior a la última carga"
+                    className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
+                  >
+                    <Undo2 className="w-4 h-4" />
+                    Deshacer carga
+                  </button>
+                )}
+              </>
               <button
                 onClick={() => setShowListadoDelphos(true)}
                 disabled={profesores.length === 0}
@@ -1126,17 +1122,15 @@ export default function ProfesoradoScreen({ config }: Props) {
                       onClick={() => setMenuImportExport(false)}
                     />
                     <div className="absolute right-0 top-full mt-1 z-50 w-80 rounded-xl border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-lg overflow-hidden">
-                      {!isSoloLectura && (
-                        <OpcionMenu
-                          icono={<FileUp className="w-4 h-4" />}
-                          titulo="Importar JSON"
-                          descripcion="Sustituye todo el profesorado, bajas y grupos por un .json exportado"
-                          onClick={() => {
-                            setMenuImportExport(false);
-                            void handleImportarJson();
-                          }}
-                        />
-                      )}
+                      <OpcionMenu
+                        icono={<FileUp className="w-4 h-4" />}
+                        titulo="Importar JSON"
+                        descripcion="Sustituye todo el profesorado, bajas y grupos por un .json exportado"
+                        onClick={() => {
+                          setMenuImportExport(false);
+                          void handleImportarJson();
+                        }}
+                      />
                       <OpcionMenu
                         icono={<FileDown className="w-4 h-4" />}
                         titulo="Exportar JSON"
@@ -1322,7 +1316,7 @@ export default function ProfesoradoScreen({ config }: Props) {
           </div>
 
           {/* Barra de profesores marcados */}
-          {!isSoloLectura && marcadosVigentes.length > 0 && (
+          {marcadosVigentes.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap rounded-xl border border-[var(--tc-primary-border)] bg-[var(--tc-primary-tint)] px-4 py-2">
               <span className="text-sm text-[var(--tc-ink)] flex-1 min-w-[200px]">
                 <strong>{marcadosVigentes.length}</strong>{" "}
@@ -1364,19 +1358,17 @@ export default function ProfesoradoScreen({ config }: Props) {
                   className="grid gap-2 px-4 py-2 border-b border-[var(--tc-border)] bg-[var(--tc-bg-panel)] text-[11px] font-semibold text-[var(--tc-ink-mute)] uppercase tracking-wide"
                   style={{ gridTemplateColumns: plantillaFilas }}
                 >
-                  {!isSoloLectura && (
-                    <input
-                      type="checkbox"
-                      checked={todosVisiblesMarcados}
-                      ref={(el) => {
-                        if (el) el.indeterminate = nMarcadosVisibles > 0 && !todosVisiblesMarcados;
-                      }}
-                      onChange={alternarMarcaVisibles}
-                      disabled={visibles.length === 0}
-                      title={todosVisiblesMarcados ? "Desmarcar los que se ven" : "Marcar todos los que se ven"}
-                      className="accent-[var(--tc-primary)] w-3.5 h-3.5 self-center cursor-pointer"
-                    />
-                  )}
+                  <input
+                    type="checkbox"
+                    checked={todosVisiblesMarcados}
+                    ref={(el) => {
+                      if (el) el.indeterminate = nMarcadosVisibles > 0 && !todosVisiblesMarcados;
+                    }}
+                    onChange={alternarMarcaVisibles}
+                    disabled={visibles.length === 0}
+                    title={todosVisiblesMarcados ? "Desmarcar los que se ven" : "Marcar todos los que se ven"}
+                    className="accent-[var(--tc-primary)] w-3.5 h-3.5 self-center cursor-pointer"
+                  />
                   {COLUMNAS.map((c) => (
                     <button
                       key={c.key}
@@ -1438,16 +1430,14 @@ export default function ProfesoradoScreen({ config }: Props) {
                         }
                         style={{ gridTemplateColumns: plantillaFilas }}
                       >
-                        {!isSoloLectura && (
-                          <input
-                            type="checkbox"
-                            checked={marcado}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={() => alternarMarca(p.id)}
-                            title="Marcar para enviarle un correo o sacar su Listado Horarios.Delphos"
-                            className="accent-[var(--tc-primary)] w-3.5 h-3.5 self-center cursor-pointer"
-                          />
-                        )}
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => alternarMarca(p.id)}
+                          title="Marcar para enviarle un correo o sacar su Listado Horarios.Delphos"
+                          className="accent-[var(--tc-primary)] w-3.5 h-3.5 self-center cursor-pointer"
+                        />
                         <span className="truncate font-medium text-[var(--tc-ink)] flex items-center gap-1.5">
                           {!p.activo && (
                             <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--tc-bg-panel)] text-[var(--tc-ink-mute)] border border-[var(--tc-border)]">
@@ -1559,7 +1549,6 @@ export default function ProfesoradoScreen({ config }: Props) {
           complementario={complementario.porProfesor[seleccionado.id] ?? null}
           carpetaComplementario={complementario.carpeta}
           onGuardarComplementario={(h) => handleGuardarComplementarioFicha(seleccionado, h)}
-          soloLectura={isSoloLectura}
           onCerrar={() => setSeleccionadoId(null)}
           onGuardar={(editada) => handleGuardarFicha(seleccionado, editada)}
           onAlternarActivo={() => handleAlternarActivo(seleccionado)}
@@ -1618,7 +1607,6 @@ export default function ProfesoradoScreen({ config }: Props) {
           grupos={store.grupos}
           firmas={store.firmas}
           complementarioPorId={complementario.porProfesor}
-          soloLectura={isSoloLectura}
           onGuardarFirmas={async (f) => {
             await guardarFirmas(f);
           }}
@@ -1752,7 +1740,6 @@ function FichaProfesor({
   complementario,
   carpetaComplementario,
   onGuardarComplementario,
-  soloLectura,
   onCerrar,
   onGuardar,
   onAlternarActivo,
@@ -1769,7 +1756,6 @@ function FichaProfesor({
   complementario: HorarioComplementario | null;
   carpetaComplementario: string | null;
   onGuardarComplementario: (h: HorarioComplementario | null) => void;
-  soloLectura: boolean;
   onCerrar: () => void;
   onGuardar: (editada: Profesor) => void;
   onAlternarActivo: () => void;
@@ -1823,7 +1809,6 @@ function FichaProfesor({
             <input
               value={borrador[campo]}
               onChange={(e) => editar(campo, e.target.value)}
-              disabled={soloLectura}
               className="w-full h-9 px-2 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm text-[var(--tc-ink)] disabled:opacity-60 focus:outline-none focus:ring-1 focus:ring-[var(--tc-primary-border)]"
             />
           </label>
@@ -1851,7 +1836,6 @@ function FichaProfesor({
           sustituto={sustitutoDe}
           titularesQueSustituye={titularesQueSustituye}
           nombrePorId={nombrePorId}
-          soloLectura={soloLectura}
           onBajaTemporal={onBajaTemporal}
           onFinSustitucion={onFinSustitucion}
         />
@@ -1860,7 +1844,6 @@ function FichaProfesor({
           curso={curso}
           horario={complementario}
           carpeta={carpetaComplementario}
-          soloLectura={soloLectura}
           onGuardar={onGuardarComplementario}
         />
 
@@ -1892,38 +1875,36 @@ function FichaProfesor({
         </div>
       </div>
 
-      {!soloLectura && (
-        <div className="shrink-0 px-4 py-3 border-t border-[var(--tc-border)] flex flex-col gap-2">
+      <div className="shrink-0 px-4 py-3 border-t border-[var(--tc-border)] flex flex-col gap-2">
+        <button
+          onClick={onAsignarAlumnos}
+          disabled={titularesQueSustituye.length > 0}
+          title={
+            titularesQueSustituye.length > 0
+              ? "Es un sustituto temporal: los alumnos siguen con su titular, no se le asignan."
+              : undefined
+          }
+          className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <UserPlus className="w-4 h-4" />
+          Asignar alumnos
+        </button>
+        <div className="flex items-center gap-2">
           <button
-            onClick={onAsignarAlumnos}
-            disabled={titularesQueSustituye.length > 0}
-            title={
-              titularesQueSustituye.length > 0
-                ? "Es un sustituto temporal: los alumnos siguen con su titular, no se le asignan."
-                : undefined
-            }
-            className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-primary)] hover:bg-[var(--tc-primary-tint)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            onClick={onAlternarActivo}
+            className="flex-1 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
           >
-            <UserPlus className="w-4 h-4" />
-            Asignar alumnos
+            {profesor.activo ? "Dar de baja" : "Reincorporar"}
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onAlternarActivo}
-              className="flex-1 h-9 rounded-lg border border-[var(--tc-border)] text-sm font-medium text-[var(--tc-ink-soft)] hover:bg-[var(--tc-bg-panel)] transition-colors"
-            >
-              {profesor.activo ? "Dar de baja" : "Reincorporar"}
-            </button>
-            <button
-              onClick={() => onGuardar(borrador)}
-              disabled={!sucio || borrador.apellidosNombre.trim() === ""}
-              className="flex-1 h-9 rounded-lg text-sm font-semibold text-white bg-[var(--tc-primary)] hover:bg-[var(--tc-primary-dark)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Guardar
-            </button>
-          </div>
+          <button
+            onClick={() => onGuardar(borrador)}
+            disabled={!sucio || borrador.apellidosNombre.trim() === ""}
+            className="flex-1 h-9 rounded-lg text-sm font-semibold text-white bg-[var(--tc-primary)] hover:bg-[var(--tc-primary-dark)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Guardar
+          </button>
         </div>
-      )}
+      </div>
     </aside>
   );
 }
@@ -1941,7 +1922,6 @@ function SeccionSustitucionTemporal({
   sustituto,
   titularesQueSustituye,
   nombrePorId,
-  soloLectura,
   onBajaTemporal,
   onFinSustitucion,
 }: {
@@ -1949,7 +1929,6 @@ function SeccionSustitucionTemporal({
   sustituto: Profesor | null;
   titularesQueSustituye: Profesor[];
   nombrePorId: (id: string) => string;
-  soloLectura: boolean;
   onBajaTemporal: () => void;
   onFinSustitucion: () => void;
 }) {
@@ -2027,7 +2006,7 @@ function SeccionSustitucionTemporal({
         </details>
       )}
 
-      {!soloLectura && !esSustituto && (
+      {!esSustituto && (
         <div className="flex items-center gap-2 mt-2">
           <button
             onClick={onBajaTemporal}

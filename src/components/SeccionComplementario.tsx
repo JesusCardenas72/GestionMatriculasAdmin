@@ -16,13 +16,11 @@ export default function SeccionComplementario({
   curso,
   horario,
   carpeta,
-  soloLectura,
   onGuardar,
 }: {
   curso: string;
   horario: HorarioComplementario | null;
   carpeta: string | null;
-  soloLectura: boolean;
   onGuardar: (h: HorarioComplementario | null) => void;
 }) {
   const [editando, setEditando] = useState(false);
@@ -86,7 +84,7 @@ export default function SeccionComplementario({
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
         )}
-        {!soloLectura && !editando && (
+        {!editando && (
           <button
             onClick={empezar}
             title="Retocar o rellenar a mano"

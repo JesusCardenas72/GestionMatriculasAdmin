@@ -9,6 +9,13 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.22.1] - 2026-09-21
+
+### Cambiado
+
+- **Profesorado completo en modo Solo Lectura**: quien entra en Solo Lectura puede usar todas las funciones de la pestaña Profesorado igual que Administrador: cargar la lista, crear y editar fichas, bajas y sustituciones, asignar alumnos, horario complementario, Claustro y CCP, importar y exportar, marcar profesores, enviar correos y guardar los firmantes por defecto de las hojas de firmas.
+  - El resto de pestañas siguen con las mismas limitaciones de siempre en Solo Lectura.
+
 ## [1.22.0] - 2026-09-21
 
 ### Añadido

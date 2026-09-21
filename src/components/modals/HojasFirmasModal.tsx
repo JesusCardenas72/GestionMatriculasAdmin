@@ -37,7 +37,6 @@ interface Props {
   grupos: ComposicionGrupos;
   firmas: ConfigFirmas | undefined;
   complementarioPorId: Record<string, HorarioComplementario>;
-  soloLectura: boolean;
   onGuardarFirmas: (firmas: ConfigFirmas) => Promise<void>;
   onCerrar: () => void;
 }
@@ -59,7 +58,6 @@ export default function HojasFirmasModal({
   grupos,
   firmas,
   complementarioPorId,
-  soloLectura,
   onGuardarFirmas,
   onCerrar,
 }: Props) {
@@ -336,23 +334,21 @@ export default function HojasFirmasModal({
                     );
                   })}
                 </div>
-                {!soloLectura && (
-                  <div className="px-4 py-3 border-t border-[var(--tc-border)] shrink-0">
-                    <button
-                      className={botonCls + " w-full justify-center h-8"}
-                      disabled={igualQuePorDefecto}
-                      onClick={() => void handleGuardarPorDefecto()}
-                      title="La próxima vez saldrán marcados estos mismos profesores"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      Guardar como firmantes por defecto
-                    </button>
-                    <p className="text-[11px] leading-snug text-[var(--tc-ink-mute)] mt-2">
-                      Por defecto firma el Claustro (el mismo de los correos). Lo que añadas o quites aquí se
-                      recuerda aparte, sin cambiar el Claustro.
-                    </p>
-                  </div>
-                )}
+                <div className="px-4 py-3 border-t border-[var(--tc-border)] shrink-0">
+                  <button
+                    className={botonCls + " w-full justify-center h-8"}
+                    disabled={igualQuePorDefecto}
+                    onClick={() => void handleGuardarPorDefecto()}
+                    title="La próxima vez saldrán marcados estos mismos profesores"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Guardar como firmantes por defecto
+                  </button>
+                  <p className="text-[11px] leading-snug text-[var(--tc-ink-mute)] mt-2">
+                    Por defecto firma el Claustro (el mismo de los correos). Lo que añadas o quites aquí se
+                    recuerda aparte, sin cambiar el Claustro.
+                  </p>
+                </div>
               </>
             ) : (
               <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto">
