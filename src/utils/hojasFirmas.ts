@@ -32,6 +32,10 @@ export const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"
 export interface Firmante {
   id: string;
   nombre: string;
+  /** Especialidad del profesor (si tiene). Se muestra entre paréntesis tras el nombre, dentro del recuadro. */
+  especialidad?: string;
+  /** Aula(s) que ocupa (para el día, o todas si no es por día). Se muestra bajo el nombre, dentro del recuadro. */
+  aula?: string;
   /** Aclaración bajo el nombre («Sustituye a …»). */
   nota?: string;
 }
@@ -125,8 +129,62 @@ function notaSustitucion(p: Profesor, indice: IndiceSustituciones<Profesor>): st
   return titulares.length > 0 ? `Sustituye a ${titulares.join(" y ")}` : undefined;
 }
 
-export function aFirmante(p: Profesor, indice: IndiceSustituciones<Profesor>): Firmante {
-  return { id: p.id, nombre: p.apellidosNombre, nota: notaSustitucion(p, indice) };
+export function aFirmante(
+  p: Profesor,
+  indice: IndiceSustituciones<Profesor>,
+  aula?: string,
+): Firmante {
+  const esp = p.especialidad?.trim() ? p.especialidad.trim() : undefined;
+  const a = aula?.trim() ? aula.trim() : undefined;
+  return { id: p.id, nombre: p.apellidosNombre, especialidad: esp, aula: a, nota: notaSustitucion(p, indice) };
+}
+
+// ── Aulas ───────────────────────────────────────────────────────────────────
+
+function aulasOrdenadas(aulas: Set<string>): string {
+  return [...aulas].sort((a, b) => a.localeCompare(b, "es", { numeric: true })).join(", ");
+}
+
+/**
+ * Aulas donde imparte un profesor (por su nombre). Si `dia` es un número
+ * (0=lunes…4=viernes) solo las de ese día; si es `null` todas.
+ * Incluye también las aulas del horario complementario (filas de apoyo) y,
+ * si el profesor es sustituto, las aulas del titular al que cubre.
+ */
+export function aulasDeProfesor(
+  p: Profesor,
+  entries: HorariosEntry[],
+  complementarioPorId: Record<string, HorarioComplementario>,
+  indice: IndiceSustituciones<Profesor>,
+  dia: number | null,
+): string | undefined {
+  const personas: Profesor[] = [p, ...sustituyeA(indice, p.id).map((v) => v.titular)];
+  const nombres = new Set(personas.map((x) => norm(x.apellidosNombre)));
+  const aulas = new Set<string>();
+
+  for (const e of entries) {
+    const profNorm = norm((e.h.h_prof ?? "").trim());
+    if (!nombres.has(profNorm)) continue;
+    if (dia !== null) {
+      const dias = [...diasDeTexto(e.h.h_dia1), ...diasDeTexto(e.h.h_dia2)];
+      if (!dias.includes(dia)) continue;
+    }
+    const aula = (e.h.h_aula ?? "").trim();
+    if (aula) aulas.add(aula);
+  }
+
+  for (const persona of personas) {
+    const comp = complementarioPorId[persona.id];
+    if (!comp) continue;
+    for (const f of comp.apoyo) {
+      const aula = f.aula.trim();
+      if (!aula) continue;
+      if (dia !== null && !diasDeTexto(f.dia).includes(dia)) continue;
+      aulas.add(aula);
+    }
+  }
+
+  return aulas.size > 0 ? aulasOrdenadas(aulas) : undefined;
 }
 
 // ── Asistencia ──────────────────────────────────────────────────────────────
@@ -165,6 +223,7 @@ export function diasComplementario(h: HorarioComplementario | undefined): Set<nu
  *
  * Con una baja temporal vigente en esa fecha firma quien sustituye (que
  * cubre el horario del titular) y no el titular.
+ * El aula que se muestra es la que ocupa ese día (clases + apoyo).
  */
 export function firmantesAsistencia(
   profesores: Profesor[],
@@ -172,6 +231,7 @@ export function firmantesAsistencia(
   complementarioPorId: Record<string, HorarioComplementario>,
   dia: number,
   fechaISO: string,
+  entries?: HorariosEntry[],
 ): Firmante[] {
   const indice = indiceSustituciones(profesores, fechaISO);
   const trabajaPropio = (p: Profesor) =>
@@ -182,7 +242,10 @@ export function firmantesAsistencia(
   for (const p of profesores) {
     if (!p.activo || estaSustituido(indice, p.id)) continue;
     const cubre = sustituyeA(indice, p.id).some((v) => trabajaPropio(v.titular));
-    if (trabajaPropio(p) || cubre) out.push(aFirmante(p, indice));
+    if (trabajaPropio(p) || cubre) {
+      const aula = entries ? aulasDeProfesor(p, entries, complementarioPorId, indice, dia) : undefined;
+      out.push(aFirmante(p, indice, aula));
+    }
   }
   return out.sort(porNombre);
 }
@@ -239,9 +302,13 @@ export function htmlHojasFirmas(
         .map(
           (f, i) => `
       <div class="celda">
-        <div class="nombre"><span class="num">${base + i + 1}.</span> ${esc(f.nombre)}</div>
-        ${f.nota ? `<div class="nota">${esc(f.nota)}</div>` : ""}
-        <div class="recuadro"></div>
+        <div class="recuadro">
+          <div class="recuadro-head">
+            <div class="nombre"><span class="num">${base + i + 1}.</span> ${esc(f.nombre)}${f.especialidad ? ` <span class="esp">(${esc(f.especialidad)})</span>` : ""}</div>
+            ${f.aula ? `<div class="aula">Aula: ${esc(f.aula)}</div>` : ""}
+            ${f.nota ? `<div class="nota">${esc(f.nota)}</div>` : ""}
+          </div>
+        </div>
       </div>`,
         )
         .join("");
@@ -284,11 +351,11 @@ export function htmlHojasFirmas(
   html, body { margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; color: #1e1e2e; font-size: 9pt; }
   /* Alto útil de la hoja: 210 mm − 2 × 15 mm de margen (menos un poco de holgura). */
-  .hoja { width: 267mm; height: 179mm; overflow: hidden; break-after: page; page-break-after: always; }
+  .hoja { width: 267mm; height: 179mm; overflow: hidden; break-after: page; page-break-after: always; display: flex; flex-direction: column; }
   .hoja:last-child { break-after: auto; page-break-after: auto; }
   header {
     display: flex; align-items: center; justify-content: space-between; gap: 6mm;
-    padding-bottom: 2.5mm; border-bottom: 2px solid #3525cd;
+    padding-bottom: 2.5mm; border-bottom: 2px solid #3525cd; flex: none;
   }
   header img { height: 15mm; width: auto; object-fit: contain; }
   .centro { flex: 1; text-align: center; }
@@ -297,23 +364,33 @@ export function htmlHojasFirmas(
   .linea { font-size: 9pt; color: #475569; }
   .info {
     display: flex; justify-content: space-between;
-    font-size: 7.5pt; color: #64748b; margin: 1.5mm 0 3mm;
+    font-size: 7.5pt; color: #64748b; margin: 1.2mm 0 1.8mm; flex: none;
   }
   .rejilla {
     display: grid;
+    flex: 1;
+    align-content: stretch;
     grid-template-columns: repeat(${COLUMNAS_HOJA}, 1fr);
-    grid-auto-rows: 36mm;
-    column-gap: 3mm;
+    grid-auto-rows: 1fr;
+    column-gap: 1.6mm;
+    row-gap: 1.6mm;
   }
-  .celda { display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 3mm; }
+  .celda { display: flex; flex-direction: column; min-height: 0; }
   .nombre {
-    font-size: 8.5pt; font-weight: bold; line-height: 1.2;
-    max-height: 2.4em; overflow: hidden;
+    font-size: 7.2pt; font-weight: bold; line-height: 1.15;
+    max-height: 2.6em; overflow: hidden; word-break: break-word;
   }
+  .esp { font-weight: normal; color: #334155; }
   .num { color: #3525cd; font-weight: bold; }
-  .nota { font-size: 6.5pt; color: #64748b; margin-top: 0.3mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Recuadro de firma: 40 mm de largo × 20 mm de alto. */
-  .recuadro { width: 40mm; height: 20mm; border: 0.3mm solid #1e1e2e; margin-top: 1.2mm; flex: none; }
+  .aula { font-size: 6.5pt; color: #334155; margin-top: 0.7mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nota { font-size: 6pt; color: #64748b; margin-top: 0.5mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Recuadro maximizado: ocupa toda la celda con el menor hueco entre cuadros; el nombre va dentro. */
+  .recuadro {
+    flex: 1; width: 100%; min-height: 0;
+    border: 0.35mm solid #1e1e2e;
+    padding: 1.6mm 1.8mm 1mm;
+    display: flex; flex-direction: column; justify-content: flex-start;
+  }
   .vacio { margin-top: 20mm; text-align: center; color: #64748b; font-style: italic; }
 ${
   vistaPrevia

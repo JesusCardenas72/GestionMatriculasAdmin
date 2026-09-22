@@ -9,6 +9,13 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.22.2] - 2026-09-22
+
+### Mejorado
+
+- **Hojas de firmas del profesorado (Claustro y Asistencia diaria)**: recuadros de firma maximizados con el menor espacio entre ellos (rejilla 5×4 en A4 apaisado con `column-gap`/`row-gap` de 1,6 mm y recuadro a `width: 100%`/`flex: 1`).
+  - El **nombre del profesor va dentro del cuadro**, seguido de la **especialidad entre paréntesis** y del **aula que ocupa** (`Aula: …`). Si hay varias aulas ese día se listan separadas por comas y ordenadas; también se recogen las aulas del horario complementario (apoyo) y, en sustituciones temporales, las del titular. Sin aula no se muestra la línea.
+
 ## [1.22.1] - 2026-09-21
 
 ### Cambiado

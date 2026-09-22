@@ -140,8 +140,35 @@ describe("htmlHojasFirmas", () => {
     expect(html).toContain("Hoja 2 de 2");
     expect(html).toContain(`${POR_HOJA + 3}.</span> Profesor ${POR_HOJA + 3}`);
     expect(html.match(/class="recuadro"/g)).toHaveLength(POR_HOJA + 3);
-    expect(html).toContain("width: 40mm; height: 20mm");
+    // Recuadros maximizados: ocupan toda la celda con mínimo hueco entre ellos
+    expect(html).toContain("width: 100%");
+    expect(html).toContain("column-gap: 1.6mm");
+    expect(html).toContain("row-gap: 1.6mm");
     expect(html).toContain("size: A4 landscape");
+  });
+
+  it("mete el nombre dentro del recuadro y añade la especialidad entre paréntesis", () => {
+    const html = htmlHojasFirmas("Doc", [
+      {
+        titulo: "Claustro",
+        lineas: ["Curso 26/27"],
+        firmantes: [
+          { id: "a", nombre: "Pérez Gómez, Ana", especialidad: "Piano" },
+          { id: "b", nombre: "López Ruiz, Bea", especialidad: "" },
+          { id: "c", nombre: "García Díaz, Carlos" },
+        ],
+      },
+    ]);
+    // Nombre + especialidad dentro del recuadro
+    expect(html).toContain('<div class="recuadro">');
+    expect(html).toContain('Pérez Gómez, Ana <span class="esp">(Piano)</span>');
+    // Sin especialidad no añade paréntesis vacíos
+    expect(html).not.toContain("López Ruiz, Bea (");
+    expect(html).not.toContain("García Díaz, Carlos (");
+    // El nombre está dentro del recuadro, no fuera
+    const celdaIdx = html.indexOf('class="recuadro"');
+    const nombreIdx = html.indexOf("Pérez Gómez, Ana");
+    expect(nombreIdx).toBeGreaterThan(celdaIdx);
   });
 
   it("cada día empieza en su hoja y escapa el texto", () => {

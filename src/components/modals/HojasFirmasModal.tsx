@@ -7,6 +7,7 @@ import type { ResumenProfesor } from "../../utils/profesoradoCruces";
 import {
   DIAS_SEMANA,
   aFirmante,
+  aulasDeProfesor,
   diasConClase,
   fechaDelDia,
   fechaLarga,
@@ -139,9 +140,9 @@ export default function HojasFirmasModal({
   const firmantesPorDia = useMemo(
     () =>
       DIAS_SEMANA.map((_, d) =>
-        firmantesAsistencia(profesores, clasesPorDia, complementarioPorId, d, fechaDelDia(lunes, d)),
+        firmantesAsistencia(profesores, clasesPorDia, complementarioPorId, d, fechaDelDia(lunes, d), entries),
       ),
-    [profesores, clasesPorDia, complementarioPorId, lunes],
+    [profesores, clasesPorDia, complementarioPorId, lunes, entries],
   );
 
   const alternarDia = (d: number) =>
@@ -157,7 +158,9 @@ export default function HojasFirmasModal({
   const lineaCurso = `Curso ${curso}`;
   const { nombreDoc, bloques } = useMemo((): { nombreDoc: string; bloques: BloqueFirmas[] } => {
     if (tipo === "claustro") {
-      const firmantes = activos.filter((p) => elegidos.has(p.id)).map((p) => aFirmante(p, indiceClaustro));
+      const firmantes = activos
+        .filter((p) => elegidos.has(p.id))
+        .map((p) => aFirmante(p, indiceClaustro, aulasDeProfesor(p, entries, complementarioPorId, indiceClaustro, null)));
       const fecha = fechaClaustro ? `Fecha del Claustro: ${fechaLarga(fechaClaustro)}` : "";
       return {
         nombreDoc: `Firmas Claustro ${fechaClaustro}`.trim(),
@@ -182,7 +185,7 @@ export default function HojasFirmasModal({
         firmantes: firmantesPorDia[d],
       })),
     };
-  }, [tipo, activos, elegidos, indiceClaustro, fechaClaustro, concepto, lineaCurso, dias, lunes, firmantesPorDia]);
+  }, [tipo, activos, elegidos, indiceClaustro, fechaClaustro, concepto, lineaCurso, dias, lunes, firmantesPorDia, entries, complementarioPorId]);
 
   const vistaPrevia = useMemo(() => htmlHojasFirmas(nombreDoc, bloques, true), [nombreDoc, bloques]);
   const sinContenido = bloques.length === 0 || bloques.every((b) => b.firmantes.length === 0);
@@ -418,7 +421,7 @@ export default function HojasFirmasModal({
               (aviso ? (aviso.ok ? "text-green-700" : "text-red-600") : "text-[var(--tc-ink-mute)]")
             }
           >
-            {aviso?.texto ?? "A4 apaisado · recuadros de firma de 40 × 20 mm · páginas numeradas"}
+            {aviso?.texto ?? "A4 apaisado · recuadros de firma maximizados · páginas numeradas"}
           </span>
           <div className="flex items-center gap-2">
             <button
