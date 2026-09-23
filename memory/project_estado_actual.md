@@ -4,6 +4,12 @@ description: Qué está implementado en la app Electron+React admin del CPM Marc
 type: project
 ---
 
+## Estado implementado (2026-09-23 — v1.22.3)
+
+### Cambios v1.22.3
+- Informes: `docFaltante` etiquetado como **Observaciones** y nuevo `asigObservaciones` (`cr955_Observaciones`) filtrables/insertables.
+- Fix sincronismo: `AdminListarSolicitudes $select` ampliado a `cr955_anulacion/ampliacion/ampliada/repetidor,modifiedon`; `mapSolicitud` distingue `undefined` vs `false` y merges preservan `local.anulacion` cuando la nube no devuelve la columna; `_nubeModificadoEn` se actualiza tras subir.
+
 ## Estado implementado (2026-04-23)
 
 ### Stack
