@@ -36,7 +36,7 @@ export interface Solicitud {
   anulacion?: boolean;
   ampliacion?: boolean;
   ampliada?: boolean;
-  repetidor: boolean;
+  repetidor?: boolean;
   tieneConvalidacion?: boolean;
 }
 
@@ -218,7 +218,7 @@ export interface CrearAmpliacionInput {
 // ── Informes ──────────────────────────────────────────────────────────────────
 
 export type CampoKeyAlumno = keyof Omit<Solicitud, 'rowId' | 'nombreMatricula'>;
-export type CampoKeyAsignatura = 'asigNombre' | 'asigCodigo' | 'asigEstado' | 'asigHorario';
+export type CampoKeyAsignatura = 'asigNombre' | 'asigCodigo' | 'asigEstado' | 'asigHorario' | 'asigObservaciones';
 export type CampoKeyCalculado = 'nombreCompleto';
 /**
  * Campos de horario que se vuelcan desde el almacén interno de horarios al
@@ -264,6 +264,7 @@ export interface FilaInforme extends Solicitud {
   asigCodigo?: number | null;
   asigEstado?: EstadoAsignatura;
   asigHorario?: string | null;
+  asigObservaciones?: string | null;
   /** Campo calculado: "Apellidos, Nombre" */
   nombreCompleto?: string;
   /** true si la fila proviene de un alumno temporal pendiente (placeholder de horarios) */

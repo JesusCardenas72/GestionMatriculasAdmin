@@ -9,6 +9,16 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.22.3] - 2026-09-23
+
+### Añadido
+
+- **Informes — campo Observaciones**: `docFaltante` (`cr955_docfaltante`) aparece ahora como **Observaciones** en `CAMPOS_META` y nuevo `asigObservaciones` (`cr955_Observaciones` de la asignatura) en `CAMPOS_ASIGNATURA`. Ambos son insertables (`Añadir campo` → Matrícula / Asignaturas matriculadas) y filtrables (`igual/contiene/distinto/vacío/no_vacío/en_lista`).
+
+### Corregido
+
+- **Anulación `Sí` se perdía al reiniciar**: `AdminListarSolicitudes` no incluía `cr955_anulacion, cr955_ampliacion, cr955_ampliada, cr955_repetidor, modifiedon` en `$select`, así que `mapSolicitud` devolvía `false` y el sincronismo automático sobreescribía el `true` local. Ahora `$select` incluye esos campos (doc actualizado), `mapSolicitud` distingue `undefined` (no devuelto) de `false`, y los merges `actualizadas`/`handleActualizarDesdeNube` preservan `local.anulacion` cuando la nube devuelve `undefined`. Tras `Subir a la nube` se actualiza `_nubeModificadoEn` para evitar carrera.
+
 ## [1.22.2] - 2026-09-22
 
 ### Mejorado

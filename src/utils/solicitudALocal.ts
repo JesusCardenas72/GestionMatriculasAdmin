@@ -37,7 +37,7 @@ export function solicitudALocal(
     disponibilidadManana: s.disponibilidadManana,
     horaSalida: s.horaSalida,
     docFaltante: s.docFaltante,
-    repetidor: s.repetidor,
+    repetidor: s.repetidor ?? false,
     asignaturas: asignaturas.map((a) => ({
       localId: crypto.randomUUID(),
       rowId: a.rowId,

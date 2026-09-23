@@ -499,6 +499,7 @@ function buildFilasAsignatura(
         asigCodigo: a.codigo,
         asigEstado: a.estado,
         asigHorario: a.horario,
+        asigObservaciones: a.observaciones,
       });
     }
   }

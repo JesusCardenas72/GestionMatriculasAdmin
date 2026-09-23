@@ -31,7 +31,7 @@ export const CAMPOS_META: CampoMeta[] = [
   { key: 'disponibilidadManana', label: 'Disp. Mañana',        tipo: 'booleano' },
   { key: 'horaSalida',           label: 'Hora Salida',         tipo: 'texto'    },
   { key: 'estado',               label: 'Estado',              tipo: 'estado'   },
-  { key: 'docFaltante',          label: 'Doc. Faltante',       tipo: 'texto'    },
+  { key: 'docFaltante',          label: 'Observaciones',       tipo: 'texto'    },
   { key: 'ampliacion',           label: 'Ampliación',          tipo: 'booleano' },
   { key: 'ampliada',             label: 'Matrícula ampliada',  tipo: 'booleano' },
   { key: 'anulacion',            label: 'Anulación',           tipo: 'booleano' },
@@ -40,10 +40,11 @@ export const CAMPOS_META: CampoMeta[] = [
 
 // Campos específicos del modo "por asignatura" (una fila por alumno × asignatura)
 export const CAMPOS_ASIGNATURA: CampoMeta[] = [
-  { key: 'asigNombre',  label: 'Asignatura',         tipo: 'texto',            valorType: 'select_data' },
-  { key: 'asigCodigo',  label: 'Código',             tipo: 'numero'   },
-  { key: 'asigEstado',  label: 'Estado asignatura',  tipo: 'estado_asignatura' },
-  { key: 'asigHorario', label: 'Horario (nube)',     tipo: 'texto'    },
+  { key: 'asigNombre',       label: 'Asignatura',         tipo: 'texto',            valorType: 'select_data' },
+  { key: 'asigCodigo',       label: 'Código',             tipo: 'numero'   },
+  { key: 'asigEstado',       label: 'Estado asignatura',  tipo: 'estado_asignatura' },
+  { key: 'asigHorario',      label: 'Horario (nube)',     tipo: 'texto'    },
+  { key: 'asigObservaciones',label: 'Obs. asignatura',  tipo: 'texto'    },
 ];
 
 /**

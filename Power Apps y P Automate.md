@@ -672,7 +672,7 @@ AdminListarSolicitudes
 "inputs": {
 "parameters": {
 "entityName": "cpmmr_matriculas",
-"$select": "cpmmr_matriculaid,cpmmr_nombrematricula,cpmmr_nombre,cpmmr_apellidos,cpmmr_dni,cpmmr_email,cpmmr_telefono,cpmmr_fechanacimiento,cpmmr_domicilio,cpmmr_localidad,cpmmr_provincia,cpmmr_cp,cpmmr_fechadeinscripcion,cpmmr_ensenanzaycurso,cpmmr_especialidad,cpmmr_formadepago,cpmmr_reducciontasas,cpmmr_autorizacionimagen,cpmmr_disponibilidadmanana,cpmmr_horasalida,cpmmr_estado,cr955_docfaltante,cr955_norden,cr955_cursoescolar,createdon",
+          "$select": "cpmmr_matriculaid,cpmmr_nombrematricula,cpmmr_nombre,cpmmr_apellidos,cpmmr_dni,cpmmr_email,cpmmr_telefono,cpmmr_fechanacimiento,cpmmr_domicilio,cpmmr_localidad,cpmmr_provincia,cpmmr_cp,cpmmr_fechadeinscripcion,cpmmr_ensenanzaycurso,cpmmr_especialidad,cpmmr_formadepago,cpmmr_reducciontasas,cpmmr_autorizacionimagen,cpmmr_disponibilidadmanana,cpmmr_horasalida,cpmmr_estado,cr955_docfaltante,cr955_norden,cr955_cursoescolar,cr955_repetidor,cr955_anulacion,cr955_ampliacion,cr955_ampliada,createdon,modifiedon",
           "$filter": "@if(equals(coalesce(triggerBody()?['estado'], ''), ''), 'cpmmr_matriculaid ne null', concat('cpmmr_estado eq ', triggerBody()?['estado']))",
 "$orderby": "cpmmr_fechadeinscripcion desc"
 },

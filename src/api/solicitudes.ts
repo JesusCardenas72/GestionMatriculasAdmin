@@ -53,6 +53,11 @@ interface DataverseSolicitud {
 }
 
 function mapSolicitud(r: DataverseSolicitud): Solicitud {
+  // Para los booleanos nuevos (cr955_*) distinguir "no devuelto por el $select"
+  // (undefined) de un false real. Así el merge local puede conservar su valor
+  // cuando el Flow aún no incluye la columna en el ListRows.
+  const boolOrUndef = (v: boolean | null | undefined): boolean | undefined =>
+    typeof v === "boolean" ? v : undefined;
   return {
     rowId: r.cpmmr_matriculaid,
     nOrden: r.cr955_norden ?? null,
@@ -80,10 +85,10 @@ function mapSolicitud(r: DataverseSolicitud): Solicitud {
     horaSalida: r.cpmmr_horasalida,
     estado: r.cpmmr_estado,
     docFaltante: r.cr955_docfaltante ?? null,
-    anulacion: !!r.cr955_anulacion,
-    ampliacion: !!r.cr955_ampliacion,
-    ampliada: !!r.cr955_ampliada,
-    repetidor: !!r.cr955_repetidor,
+    anulacion: boolOrUndef(r.cr955_anulacion),
+    ampliacion: boolOrUndef(r.cr955_ampliacion),
+    ampliada: boolOrUndef(r.cr955_ampliada),
+    repetidor: boolOrUndef(r.cr955_repetidor),
   };
 }
 
