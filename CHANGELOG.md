@@ -9,6 +9,13 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.23.0] - 2026-09-23
+
+### Añadido
+
+- **Zoom de la interfaz en Configuración**: slider 70%–150% (`ConfigScreen → Apariencia → Zoom de la interfaz`) con botones `−`/`+` y `100%`. Persiste en `localStorage:app-zoom` y se aplica antes del primer render. Atajos como en navegador: `Ctrl+Rueda` (rueda del ratón), `Ctrl +` / `Ctrl -` y `Ctrl 0` (reset). Usa `webFrame.setZoomFactor` nativo de Electron (recalcula `vh/vw`, `flex` y `h-screen` para que todas las cajas ajusten dinámicamente su alto al nuevo tamaño de ventana) con fallback CSS `zoom` y `resize` dispatch para virtualizers. Funciona en ventana principal y diálogos (`hash`).
+- **Altura dinámica tras zoom**: visores PDF `h-[500px]` → `h-[60vh] max-h-[700px] min-h-[300px]` (`SolicitudDetail`, `LocalDetail`) para que también escalen con la ventana.
+
 ## [1.22.3] - 2026-09-23
 
 ### Añadido

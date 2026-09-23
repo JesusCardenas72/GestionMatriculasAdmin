@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
 import type { AppConfig } from "./config-store";
 import type { CursoConocido } from "./cursos-store";
 import type { ConfigInforme, MatriculaLocal } from "../src/api/types";
@@ -416,6 +416,14 @@ const adminAPI = {
     /** Devuelve el PDF de solicitud de cambio de grupo como base64, o null si no está disponible. */
     solicitudCambioGrupoBase64: (): Promise<string | null> =>
       ipcRenderer.invoke("assets:solicitudCambioGrupoBase64"),
+  },
+  zoom: {
+    get: (): number => {
+      try { return webFrame.getZoomFactor(); } catch { return 1; }
+    },
+    set: (factor: number): void => {
+      try { webFrame.setZoomFactor(factor); } catch { /* noop */ }
+    },
   },
 };
 

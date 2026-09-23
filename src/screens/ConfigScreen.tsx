@@ -21,7 +21,11 @@ import {
   Upload,
   Copy,
   Check,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from "lucide-react";
+import { useZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../hooks/useZoom";
 import type { AppConfig } from "../../electron/config-store";
 import { listarSolicitudes, borrarSolicitud } from "../api/solicitudes";
 import { ESTADO } from "../api/types";
@@ -113,6 +117,7 @@ export default function ConfigScreen({
   const [theme, setTheme] = useState<'light' | 'dark'>(
     () => (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') ?? 'light'
   );
+  const { zoom, setZoom, resetZoom } = useZoom();
 
   function toggleTheme() {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -210,6 +215,86 @@ export default function ConfigScreen({
               }}
             />
           </button>
+        </div>
+
+        {/* ── Zoom de la interfaz ── */}
+        <div
+          className="mt-4 p-4 rounded-xl"
+          style={{ background: "var(--tc-bg-panel)", border: "1px solid var(--tc-border-soft)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)" }}
+            >
+              <ZoomIn className="w-4 h-4" style={{ color: "var(--tc-primary)" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: "var(--tc-ink)" }}>Zoom de la interfaz</p>
+              <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
+                Ajusta el tamaño de toda la aplicación — también <span className="font-semibold">Ctrl+Rueda</span> / <span className="font-semibold">Ctrl +/-/0</span>
+              </p>
+            </div>
+            <span
+              className="text-sm font-bold tabular-nums px-2.5 py-1 rounded-lg shrink-0"
+              style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", color: "var(--tc-ink)" }}
+            >
+              {Math.round(zoom * 100)}%
+            </span>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setZoom(zoom - ZOOM_STEP)}
+              disabled={zoom <= ZOOM_MIN}
+              aria-label="Reducir zoom"
+              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40"
+              style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)" }}
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+
+            <input
+              type="range"
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
+              step={ZOOM_STEP}
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              aria-label="Nivel de zoom"
+              className="flex-1 min-w-0 h-2 rounded-full appearance-none cursor-pointer"
+              style={{ accentColor: "var(--tc-primary)", background: "var(--tc-border)" }}
+            />
+
+            <button
+              type="button"
+              onClick={() => setZoom(zoom + ZOOM_STEP)}
+              disabled={zoom >= ZOOM_MAX}
+              aria-label="Aumentar zoom"
+              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40"
+              style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)" }}
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetZoom}
+              disabled={zoom === 1}
+              aria-label="Restablecer zoom al 100%"
+              title="Restablecer al 100%"
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40"
+              style={{ background: "var(--tc-card)", border: "1px solid var(--tc-border)", color: "var(--tc-ink-soft)" }}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              100%
+            </button>
+          </div>
+          <div className="mt-1.5 flex justify-between text-[10px] tabular-nums" style={{ color: "var(--tc-ink-mute)" }}>
+            <span>{Math.round(ZOOM_MIN * 100)}%</span>
+            <span>{Math.round(ZOOM_MAX * 100)}%</span>
+          </div>
         </div>
 
         {/* Aviso Solo Lectura */}

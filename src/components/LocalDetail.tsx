@@ -1550,7 +1550,7 @@ export default function LocalDetail({
                     />
                   </button>
                   {showInlinePdf && (
-                    <div className="border-t h-[500px]" style={{ borderColor: "var(--tc-border)" }}>
+                    <div className="border-t h-[60vh] max-h-[700px] min-h-[300px]" style={{ borderColor: "var(--tc-border)" }}>
                       {pdfBase64Preview ? (
                         <PdfViewer
                           contentBase64={pdfBase64Preview}

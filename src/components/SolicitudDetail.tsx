@@ -856,7 +856,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               )}
               {pdfVacio && <p className="text-sm italic" style={{ color: "var(--tc-ink-mute)" }}>Esta solicitud no tiene PDF adjunto.</p>}
               {(pdfQuery.data?.contentBase64 ?? localPdfBase64) && (
-<div className="h-[500px]">
+<div className="h-[60vh] max-h-[700px] min-h-[300px]">
                   <PdfViewer
                     contentBase64={(pdfQuery.data?.contentBase64 ?? localPdfBase64)!}
                     fileName={pdfQuery.data?.fileName ?? `matricula_${solicitud.rowId}.pdf`}
