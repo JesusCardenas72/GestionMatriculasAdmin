@@ -1,5 +1,7 @@
 import { ESTADO, ESTADO_ASIGNATURA } from '../api/types';
-import type { CampoKey, ConfigInforme, OperadorFiltro } from '../api/types';
+import type { CampoKey, CampoKeyComplementario, ConfigInforme, OperadorFiltro } from '../api/types';
+import { CODIGOS_COMPLEMENTARIO, type CodigoComplementario } from '../../electron/profesorado-complementario';
+import { ETIQUETA_COMPLEMENTARIO } from '../utils/horarioComplementario';
 
 export interface CampoMeta {
   key: CampoKey;
@@ -84,6 +86,7 @@ export const CAMPOS_TUTORIA: CampoMeta[] = [
  * Los de «carga docente» (clases, alumnos, tutorías, horas, asignaturas, aulas
  * y días) no están en ninguna ficha: se calculan cruzándola con las clases
  * guardadas del curso activo, igual que Tutor/a y Unidad en los otros modos.
+ * El horario complementario va aparte, en `CAMPOS_PROFESORADO_COMPLEMENTARIO`.
  */
 export const CAMPOS_PROFESORADO: CampoMeta[] = [
   { key: 'prof_nombre',       label: 'Apellidos y nombre', tipo: 'texto'   },
@@ -110,9 +113,31 @@ export const CAMPOS_PROFESORADO_CARGA: CampoMeta[] = [
   { key: 'prof_dias',        label: 'Días con clase',   tipo: 'texto'  },
 ];
 
-/** Claves del modo profesorado (ficha + carga docente). */
+/** Clave de un tramo del horario complementario, p. ej. `prof_comp_tial`. */
+function keyTramoComplementario(c: CodigoComplementario): CampoKeyComplementario {
+  return `prof_comp_${c.toLowerCase()}` as CampoKeyComplementario;
+}
+
+/**
+ * Horario complementario (horas no lectivas) del profesorado: el resumen de todo
+ * lo declarado en el formulario «Comunicación horario complementario», un campo
+ * por cada fila del mismo (TIAL, TIF, RD…) con su día y su horario, y otro con
+ * las clases de apoyo. Como la ficha, se saca del almacén de profesorado del
+ * curso activo.
+ */
+export const CAMPOS_PROFESORADO_COMPLEMENTARIO: CampoMeta[] = [
+  { key: 'prof_comp',         label: 'Horario complementario', tipo: 'texto' },
+  ...CODIGOS_COMPLEMENTARIO.map<CampoMeta>(c => ({
+    key: keyTramoComplementario(c),
+    label: `${c} · ${ETIQUETA_COMPLEMENTARIO[c]}`,
+    tipo: 'texto',
+  })),
+  { key: 'prof_comp_apoyo',   label: 'Clases de apoyo',        tipo: 'texto' },
+];
+
+/** Claves del modo profesorado (ficha + carga docente + horario complementario). */
 export const PROFESORADO_KEYS = new Set<CampoKey>(
-  [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA].map(c => c.key),
+  [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA, ...CAMPOS_PROFESORADO_COMPLEMENTARIO].map(c => c.key),
 );
 
 /** Claves de los campos de horario, para distinguirlos del resto de columnas. */
@@ -133,6 +158,7 @@ export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
     ...CAMPOS_TUTORIA,
     ...CAMPOS_PROFESORADO,
     ...CAMPOS_PROFESORADO_CARGA,
+    ...CAMPOS_PROFESORADO_COMPLEMENTARIO,
   ].map(c => [c.key, c]),
 );
 
@@ -144,7 +170,9 @@ export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
  * comparte ninguna columna con los otros dos.
  */
 export function camposDeModo(modo: ConfigInforme['modo']): CampoMeta[] {
-  if (modo === 'profesorado') return [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA];
+  if (modo === 'profesorado') {
+    return [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA, ...CAMPOS_PROFESORADO_COMPLEMENTARIO];
+  }
   return modo === 'asignatura'
     ? [...CAMPOS_ASIGNATURA, ...CAMPOS_HORARIO, ...CAMPOS_TUTORIA, ...CAMPOS_META]
     : [...CAMPOS_TUTORIA, ...CAMPOS_META];

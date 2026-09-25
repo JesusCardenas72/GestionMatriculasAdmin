@@ -9,6 +9,16 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.24.0] - 2026-09-25
+
+### Añadido
+
+- **Informes → Profesorado: campos de Horario complementario insertables** (`InformesScreen → Añadir campo → Horario complementario`): 17 campos nuevos en modo profesorado — `Horario complementario` (resumen `TIAL jue. 15-16 · …`), un campo por código del formulario (`TIAL`/`TIF`/`RD`/`PEM1-5`/`LJD`/`LCCP`/`LCBP`/`LCFTD`/`LCOP`/`AFI`/`OTROS` con `día horario`, p. ej. `Jueves 15:00-16:00`) y `Clases de apoyo` (`Actividad · aula · día · horario`). Provienen de `Profesorado → Horario complementario` (`complementario[curso].porProfesor`) del curso activo. Filtrables (`igual/contiene/distinto/vacío/no_vacío/en_lista`), ordenables, agrupables y exportables (CSV/XLSX/PDF). Implementado en `src/data/informesConfig.ts:CAMPOS_PROFESORADO_COMPLEMENTARIO`, `src/api/types.ts:CampoKeyComplementario/FilaInforme` y `src/utils/informeProfesorado.ts:buildFilasProfesorado`.
+
+### Cambiado
+
+- **Informes → Profesorado: el sustituto hereda unidad y horario complementario del titular** (`src/utils/informeProfesorado.ts:buildFilasProfesorado`): si un profesor es sustituto temporal (`sustitucionAbierta` del titular apunta a su `id`), su fila muestra `prof_unidad` y todos los campos `prof_comp*` del titular (varios titulares → unidades combinadas `PI-FAA, VC-GUIT` y complementarios fusionados por código + apoyo concatenado). Al terminar la sustitución (`hasta < hoy`) vuelve a su unidad/complementario propios. No afecta a carga docente (`prof_clases/horas`), que sigue a nombre del titular según el flujo temporal.
+
 ## [1.23.0] - 2026-09-23
 
 ### Añadido

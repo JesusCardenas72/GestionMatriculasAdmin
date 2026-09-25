@@ -4,7 +4,11 @@ description: Qué está implementado en la app Electron+React admin del CPM Marc
 type: project
 ---
 
-## Estado implementado (2026-09-23 — v1.23.0)
+## Estado implementado (2026-09-25 — v1.24.0)
+
+### Cambios v1.24.0
+- Informes → Profesorado: 17 campos de Horario complementario insertables (`Añadir campo → Horario complementario`): `prof_comp`/`prof_comp_apoyo` + 15 por código `prof_comp_tial`…`prof_comp_otros`; el sustituto hereda `prof_unidad` y `prof_comp*` del titular (`sustitucionAbierta`), multi-titular combina unidades y complementarios.
+- Tests `informeProfesorado.test.ts` +4 (herencia de unidad/complementario, merge multi-titular, reversión).
 
 ### Cambios v1.23.0
 - Zoom 70–150% en Configuración (slider + `Ctrl+Rueda`/`Ctrl +/-/0`), persistido en `localStorage:app-zoom`, aplicado vía `webFrame.setZoomFactor` nativo (recalcula `vh/vw`/`flex`/`h-screen` dinámicamente) con fallback `zoom` CSS y `resize` dispatch; `h-[500px]` PDF viewers → `h-[60vh] max-h-[700px] min-h-[300px]`.

@@ -63,6 +63,7 @@ import {
   CAMPOS_META,
   CAMPOS_PROFESORADO,
   CAMPOS_PROFESORADO_CARGA,
+  CAMPOS_PROFESORADO_COMPLEMENTARIO,
   ESTADO_ASIGNATURA_LABELS,
   ESTADO_TRAMITE_LABELS,
   INFORME_VACIO,
@@ -754,13 +755,14 @@ function GrupoCamposDisponibles({
  *  de «insertar todos». Se reutiliza en el estado vacío y en la cabecera de la
  *  tabla. Los grupos vacíos no se pintan, así que cada modo enseña los suyos:
  *  matrícula/asignatura/horario en los informes de alumnado y ficha/carga
- *  docente en los de profesorado. */
+ *  docente/horario complementario en los de profesorado. */
 function MenuAnadirCampo({
   matricula,
   asignatura,
   horario,
   profesoradoFicha,
   profesoradoCarga,
+  profesoradoComplementario,
   onAddCampo,
   onAddGrupo,
 }: {
@@ -769,6 +771,7 @@ function MenuAnadirCampo({
   horario: CampoMeta[];
   profesoradoFicha: CampoMeta[];
   profesoradoCarga: CampoMeta[];
+  profesoradoComplementario: CampoMeta[];
   onAddCampo: (key: CampoKey) => void;
   onAddGrupo: (keys: CampoKey[]) => void;
 }) {
@@ -806,6 +809,13 @@ function MenuAnadirCampo({
         titulo="Carga docente"
         campos={profesoradoCarga}
         mostrarSeparador={profesoradoFicha.length > 0}
+        onAddCampo={onAddCampo}
+        onAddGrupo={onAddGrupo}
+      />
+      <GrupoCamposDisponibles
+        titulo="Horario complementario"
+        campos={profesoradoComplementario}
+        mostrarSeparador={profesoradoFicha.length > 0 || profesoradoCarga.length > 0}
         onAddCampo={onAddCampo}
         onAddGrupo={onAddGrupo}
       />
@@ -889,9 +899,11 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   const allRows = useMemo(
     () => {
       // El modo profesorado no parte de matrículas: cada fila es un profesor/a
-      // de la ficha, con su carga docente sacada de las clases guardadas.
+      // de la ficha, con su carga docente sacada de las clases guardadas y su
+      // horario complementario (TIAL, TIF, RD…).
       if (informe.modo === 'profesorado') {
-        return buildFilasProfesorado(profesorado, entriesHorario);
+        const complementario = storeProfesorado.complementario?.[curso]?.porProfesor ?? {};
+        return buildFilasProfesorado(profesorado, entriesHorario, complementario);
       }
       // Tutor/a y Unidad se calculan en los dos modos de matrícula.
       if (informe.modo === 'asignatura') {
@@ -904,7 +916,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
       const filas = buildFilasAlumno(solicitudesRemotas, matriculas);
       return enriquecerFilasConTutor(filas, entriesHorario, profesorado);
     },
-    [solicitudesRemotas, matriculas, informe.modo, entriesHorario, profesorado],
+    [solicitudesRemotas, matriculas, informe.modo, entriesHorario, profesorado, storeProfesorado.complementario, curso],
   );
 
   const selectOptions = useMemo((): Map<CampoKey, string[]> => {
@@ -1375,8 +1387,8 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   );
 
   // Para el desplegable "+": separamos en grupos (matrícula, asignatura,
-  // horario, ficha del profesorado y carga docente) y los ordenamos
-  // alfabéticamente por etiqueta dentro de cada grupo.
+  // horario, ficha del profesorado, carga docente y horario complementario) y
+  // los ordenamos alfabéticamente por etiqueta dentro de cada grupo.
   const asignaturaKeys = useMemo(
     () => new Set(CAMPOS_ASIGNATURA.map(c => c.key)),
     [],
@@ -1393,6 +1405,10 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
     () => new Set(CAMPOS_PROFESORADO_CARGA.map(c => c.key)),
     [],
   );
+  const profCompKeys = useMemo(
+    () => new Set(CAMPOS_PROFESORADO_COMPLEMENTARIO.map(c => c.key)),
+    [],
+  );
   const sortByLabel = (a: CampoMeta, b: CampoMeta) =>
     a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
   const camposDispMatricula = camposDisponibles
@@ -1401,7 +1417,8 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
         !asignaturaKeys.has(c.key) &&
         !horarioKeys.has(c.key) &&
         !profFichaKeys.has(c.key) &&
-        !profCargaKeys.has(c.key),
+        !profCargaKeys.has(c.key) &&
+        !profCompKeys.has(c.key),
     )
     .slice()
     .sort(sortByLabel);
@@ -1411,10 +1428,11 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
     .sort(sortByLabel);
   // El horario respeta el orden natural de CAMPOS_HORARIO (Profesor, Grupo, Aula,
   // Día/Entrada/Salida…), más intuitivo que el alfabético. Los del profesorado
-  // también van en su orden natural (ficha primero, carga docente después).
+  // también van en su orden natural (ficha, carga docente y complementario).
   const camposDispHorario = camposDisponibles.filter(c => horarioKeys.has(c.key));
   const camposDispProfFicha = camposDisponibles.filter(c => profFichaKeys.has(c.key));
   const camposDispProfCarga = camposDisponibles.filter(c => profCargaKeys.has(c.key));
+  const camposDispProfComp = camposDisponibles.filter(c => profCompKeys.has(c.key));
 
   // Profesores elegidos al abrir el listado (normalizados); null = sin filtro.
   const filtroProfesores = useMemo(
@@ -3526,6 +3544,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
                         horario={camposDispHorario}
                         profesoradoFicha={camposDispProfFicha}
                         profesoradoCarga={camposDispProfCarga}
+                        profesoradoComplementario={camposDispProfComp}
                         onAddCampo={addCampoInline}
                         onAddGrupo={addCamposInline}
                       />
@@ -3869,6 +3888,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
                               horario={camposDispHorario}
                               profesoradoFicha={camposDispProfFicha}
                               profesoradoCarga={camposDispProfCarga}
+                              profesoradoComplementario={camposDispProfComp}
                               onAddCampo={addCampoInline}
                               onAddGrupo={addCamposInline}
                             />

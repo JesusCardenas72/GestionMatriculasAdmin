@@ -1,3 +1,5 @@
+import type { CodigoComplementario } from '../../electron/profesorado-complementario';
+
 export const ESTADO = {
   PENDIENTE_TRAMITACION: 856530000,
   PENDIENTE_VALIDACION: 856530001,
@@ -243,13 +245,19 @@ export type CampoKeyTutoria = 'tutor' | 'unidad';
  * tutorías, horas, asignaturas, aulas y días) se calculan cruzando esa ficha
  * con las clases guardadas del curso activo.
  */
+/**
+ * Clave de un tramo del horario complementario: `prof_comp_tial`,
+ * `prof_comp_rif`, `prof_comp_rd`… (un campo por código del formulario).
+ */
+export type CampoKeyComplementario = `prof_comp_${Lowercase<CodigoComplementario>}`;
 export type CampoKeyProfesorado =
   | 'prof_nombre' | 'prof_especialidad' | 'prof_unidad'
   | 'prof_departamento' | 'prof_cargo'
   | 'prof_email' | 'prof_telefono' | 'prof_activo'
   | 'prof_sustituto' | 'prof_sustDesde' | 'prof_sustHasta'
   | 'prof_clases' | 'prof_alumnos' | 'prof_tutorias' | 'prof_horas'
-  | 'prof_asignaturas' | 'prof_aulas' | 'prof_dias';
+  | 'prof_asignaturas' | 'prof_aulas' | 'prof_dias'
+  | 'prof_comp' | 'prof_comp_apoyo' | CampoKeyComplementario;
 export type CampoKey =
   | CampoKeyAlumno
   | CampoKeyAsignatura
@@ -258,8 +266,14 @@ export type CampoKey =
   | CampoKeyProfesorado
   | CampoKeyCalculado;
 
+/**
+ * Un valor por cada tramo del horario complementario (`prof_comp_tial`…), en la
+ * forma en que se escribe en el formulario («Jueves 15:00-16:00»).
+ */
+type TramosComplementarioFila = { [K in CampoKeyComplementario]?: string | null };
+
 /** Fila de informe: alumno + (opcionalmente) campos de la asignatura matriculada en modo asignatura */
-export interface FilaInforme extends Solicitud {
+export interface FilaInforme extends Solicitud, TramosComplementarioFila {
   asigNombre?: string;
   asigCodigo?: number | null;
   asigEstado?: EstadoAsignatura;
@@ -327,6 +341,10 @@ export interface FilaInforme extends Solicitud {
   prof_aulas?: string | null;
   /** Días de la semana con clase, en orden natural. */
   prof_dias?: string | null;
+  /** Todos los tramos y filas de apoyo en una sola cadena («TIAL jue. 15-16h · …»). */
+  prof_comp?: string | null;
+  /** Filas de «acompañamiento y clases de apoyo», separadas por «·». */
+  prof_comp_apoyo?: string | null;
 }
 
 export type OperadorFiltro =

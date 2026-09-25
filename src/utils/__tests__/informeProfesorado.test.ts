@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildFilasProfesorado, cargaPorProfesor } from "../informeProfesorado";
 import type { Profesor } from "../../../electron/profesorado-store";
 import type { HorariosEntry, ValoresH } from "../../../electron/horarios-data-store";
+import type { HorarioComplementario } from "../../../electron/profesorado-complementario";
 
 function prof(nombre: string, extra: Partial<Profesor> = {}): Profesor {
   return {
@@ -156,5 +157,144 @@ describe("buildFilasProfesorado", () => {
       entries,
     );
     expect(filas.map(f => f.prof_activo)).toEqual([true, false]);
+  });
+
+  it("vuelca el horario complementario (TIAL, TIF, RD…) a campos insertables y deja null lo vacío", () => {
+    const h: HorarioComplementario = {
+      tramos: {
+        TIAL: { dia: "Jueves", horario: "15:00-16:00" },
+        RD: { dia: "Lunes", horario: "12:00-13:00" },
+      },
+      apoyo: [{ actividad: "Acompañamiento", aula: "A1", dia: "Miércoles", horario: "16:00-17:00" }],
+      archivo: null,
+      archivoModificado: null,
+      importado: new Date().toISOString(),
+    };
+    const [fila] = buildFilasProfesorado([prof("Pérez, Luis")], entries, {
+      "pérez, luis": h,
+    });
+    // Un campo por código: día + horario
+    expect(fila.prof_comp_tial).toBe("Jueves 15:00-16:00");
+    expect(fila.prof_comp_rd).toBe("Lunes 12:00-13:00");
+    // Sin datos → null (para que «está vacío» filtre bien)
+    expect(fila.prof_comp_tif).toBeNull();
+    expect(fila.prof_comp_pem1).toBeNull();
+    // Resumen de todo junto con el prefijo del código
+    expect(fila.prof_comp).toBe(
+      "TIAL Jueves 15:00-16:00 · RD Lunes 12:00-13:00 · APOYO Acompañamiento · aula A1 · Miércoles · 16:00-17:00",
+    );
+    // Apoyo en su propio campo
+    expect(fila.prof_comp_apoyo).toBe("Acompañamiento · aula A1 · Miércoles · 16:00-17:00");
+  });
+
+  it("deja a null el resumen y los tramos cuando no hay horario complementario", () => {
+    const [fila] = buildFilasProfesorado([prof("Gómez, Marta")], entries, {});
+    expect(fila.prof_comp).toBeNull();
+    expect(fila.prof_comp_apoyo).toBeNull();
+    expect(fila.prof_comp_tial).toBeNull();
+  });
+
+  it("busca el horario complementario también por id normalizado", () => {
+    const h: HorarioComplementario = {
+      tramos: { TIF: { dia: "Martes", horario: "10:00-11:00" } },
+      apoyo: [],
+      archivo: null,
+      archivoModificado: null,
+      importado: new Date().toISOString(),
+    };
+    // La clave del almacén viene normalizada (sin acentos, minúsculas)
+    const [fila] = buildFilasProfesorado([prof("Pérez, Luis")], entries, {
+      "perez, luis": h,
+    });
+    expect(fila.prof_comp_tif).toBe("Martes 10:00-11:00");
+  });
+
+  it("el sustituto toma la unidad del titular al que sustituye", () => {
+    const titular = prof("Pérez, Luis", {
+      unidad: "PI-FAA",
+      sustitucion: { sustitutoId: "gómez, marta", desde: "2020-01-01", hasta: null },
+    });
+    const sustituto = prof("Gómez, Marta", { unidad: "VC-GUIT" });
+    const filas = buildFilasProfesorado([titular, sustituto], entries, {});
+    const filaTitular = filas.find(f => f.rowId === "pérez, luis")!;
+    const filaSust = filas.find(f => f.rowId === "gómez, marta")!;
+    expect(filaTitular.prof_unidad).toBe("PI-FAA");
+    // El sustituto hereda la unidad del titular, no la suya propia
+    expect(filaSust.prof_unidad).toBe("PI-FAA");
+  });
+
+  it("el sustituto toma el horario complementario del titular, no el suyo propio", () => {
+    const hTitular: HorarioComplementario = {
+      tramos: { TIAL: { dia: "Jueves", horario: "15:00-16:00" }, RD: { dia: "Lunes", horario: "12:00-13:00" } },
+      apoyo: [],
+      archivo: null, archivoModificado: null, importado: new Date().toISOString(),
+    };
+    const hSustituto: HorarioComplementario = {
+      tramos: { TIF: { dia: "Martes", horario: "10:00-11:00" } },
+      apoyo: [],
+      archivo: null, archivoModificado: null, importado: new Date().toISOString(),
+    };
+    const titular = prof("Pérez, Luis", {
+      unidad: "PI-FAA",
+      sustitucion: { sustitutoId: "gómez, marta", desde: "2020-01-01", hasta: null },
+    });
+    const sustituto = prof("Gómez, Marta", { unidad: "VC-GUIT" });
+    const filas = buildFilasProfesorado([titular, sustituto], entries, {
+      "pérez, luis": hTitular,
+      "gómez, marta": hSustituto,
+    });
+    const filaSust = filas.find(f => f.rowId === "gómez, marta")!;
+    expect(filaSust.prof_comp_tial).toBe("Jueves 15:00-16:00");
+    expect(filaSust.prof_comp_rd).toBe("Lunes 12:00-13:00");
+    // El TIF del sustituto no se ve: ha tomado el del titular
+    expect(filaSust.prof_comp_tif).toBeNull();
+    expect(filaSust.prof_comp).toBe("TIAL Jueves 15:00-16:00 · RD Lunes 12:00-13:00");
+    expect(filaSust.prof_unidad).toBe("PI-FAA");
+  });
+
+  it("si el sustituto cubre a varios titulares combina unidades y complementarios", () => {
+    const h1: HorarioComplementario = {
+      tramos: { TIAL: { dia: "Jueves", horario: "15:00-16:00" } },
+      apoyo: [{ actividad: "Apoyo A", aula: "A1", dia: "Lunes", horario: "10:00-11:00" }],
+      archivo: null, archivoModificado: null, importado: new Date().toISOString(),
+    };
+    const h2: HorarioComplementario = {
+      tramos: { RD: { dia: "Lunes", horario: "12:00-13:00" } },
+      apoyo: [],
+      archivo: null, archivoModificado: null, importado: new Date().toISOString(),
+    };
+    const titular1 = prof("Pérez, Luis", { unidad: "PI-FAA", sustitucion: { sustitutoId: "gómez, marta", desde: "2020-01-01", hasta: null } });
+    const titular2 = prof("Ruiz, Ana", { unidad: "VC-GUIT", sustitucion: { sustitutoId: "gómez, marta", desde: "2020-01-01", hasta: null } });
+    const sustituto = prof("Gómez, Marta", { unidad: "" });
+    const filas = buildFilasProfesorado([titular1, titular2, sustituto], entries, {
+      "pérez, luis": h1,
+      "ruiz, ana": h2,
+    });
+    const filaSust = filas.find(f => f.rowId === "gómez, marta")!;
+    // Unidades distintas combinadas y ordenadas
+    expect(filaSust.prof_unidad).toBe("PI-FAA, VC-GUIT");
+    // Complementario combinado: TIAL del primero, RD del segundo, apoyo del primero
+    expect(filaSust.prof_comp_tial).toBe("Jueves 15:00-16:00");
+    expect(filaSust.prof_comp_rd).toBe("Lunes 12:00-13:00");
+    expect(filaSust.prof_comp_apoyo).toBe("Apoyo A · aula A1 · Lunes · 10:00-11:00");
+  });
+
+  it("si la sustitución ya terminó el sustituto vuelve a su propia unidad y complementario", () => {
+    const hTitular: HorarioComplementario = {
+      tramos: { TIAL: { dia: "Jueves", horario: "15:00-16:00" } },
+      apoyo: [], archivo: null, archivoModificado: null, importado: new Date().toISOString(),
+    };
+    const titular = prof("Pérez, Luis", {
+      unidad: "PI-FAA",
+      // Terminó ayer: ya no está vigente/abierta
+      sustitucion: { sustitutoId: "gómez, marta", desde: "2020-01-01", hasta: "2020-01-10" },
+    });
+    const sustituto = prof("Gómez, Marta", { unidad: "VC-GUIT" });
+    const filas = buildFilasProfesorado([titular, sustituto], entries, {
+      "pérez, luis": hTitular,
+    });
+    const filaSust = filas.find(f => f.rowId === "gómez, marta")!;
+    expect(filaSust.prof_unidad).toBe("VC-GUIT");
+    expect(filaSust.prof_comp_tial).toBeNull();
   });
 });

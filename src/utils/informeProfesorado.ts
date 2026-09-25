@@ -2,11 +2,18 @@ import { norm } from './horarioExcel';
 import { resumenPorProfesor } from './profesoradoCruces';
 import { ordenDiaSemana } from '../data/horariosListas';
 import { aMin } from './horarioGrid';
-import type { FilaInforme, Solicitud } from '../api/types';
+import type { CampoKeyComplementario, FilaInforme, Solicitud } from '../api/types';
 import { ESTADO } from '../api/types';
 import type { Profesor } from '../../electron/profesorado-store';
 import type { HorariosEntry } from '../../electron/horarios-data-store';
 import { sustitucionAbierta } from '../../electron/profesorado-sustitucion';
+import {
+  CODIGOS_COMPLEMENTARIO,
+  type CodigoComplementario,
+  type FilaApoyo,
+  type HorarioComplementario,
+  type TramoComplementario,
+} from '../../electron/profesorado-complementario';
 
 /**
  * Filas del informe en modo «profesorado»: una por profesor/a del centro.
@@ -93,6 +100,40 @@ export interface CargaProfesor {
 
 const CARGA_VACIA: CargaProfesor = { horas: 0, asignaturas: null, aulas: null, dias: null };
 
+// ── Horario complementario (TIAL, TIF, RD…) volcado a los campos del informe ──
+
+function keyTramo(c: CodigoComplementario): CampoKeyComplementario {
+  return `prof_comp_${c.toLowerCase()}` as CampoKeyComplementario;
+}
+function textoTramo(dia: string, horario: string): string {
+  return `${dia} ${horario}`.trim();
+}
+function textoApoyo(f: FilaApoyo): string {
+  return [f.actividad, f.aula ? `aula ${f.aula}` : '', f.dia, f.horario].filter(Boolean).join(' · ');
+}
+type CamposComplementario = {
+  prof_comp: string | null;
+  prof_comp_apoyo: string | null;
+} & { [K in CampoKeyComplementario]?: string | null };
+
+function camposComplementario(h: HorarioComplementario | null | undefined): CamposComplementario {
+  const porCodigo: Partial<Record<CampoKeyComplementario, string | null>> = {};
+  const resumenPartes: string[] = [];
+  for (const c of CODIGOS_COMPLEMENTARIO) {
+    const t = h?.tramos[c];
+    const txt = t ? textoTramo(t.dia, t.horario) : '';
+    const valor: string | null = txt !== '' ? txt : null;
+    porCodigo[keyTramo(c)] = valor;
+    if (valor) resumenPartes.push(`${c} ${valor}`);
+  }
+  const apoyo = h?.apoyo ?? [];
+  const apoyoTextos = apoyo.map(textoApoyo).filter(Boolean);
+  const apoyoValor: string | null = apoyoTextos.length > 0 ? apoyoTextos.join(' · ') : null;
+  for (const t of apoyoTextos) resumenPartes.push(`APOYO ${t}`);
+  const resumen: string | null = resumenPartes.length > 0 ? resumenPartes.join(' · ') : null;
+  return { prof_comp: resumen, prof_comp_apoyo: apoyoValor, ...porCodigo } as CamposComplementario;
+}
+
 /**
  * Asignaturas, aulas, días y horas semanales de cada profesor/a, indexado por
  * nombre normalizado (igual que `resumenPorProfesor`).
@@ -155,14 +196,55 @@ export function cargaPorProfesor(entries: HorariosEntry[]): Map<string, CargaPro
   return out;
 }
 
-/** Una fila de informe por profesor/a, con su ficha y su carga docente. */
+/** Una fila de informe por profesor/a, con su ficha, su carga docente y su horario complementario. */
 export function buildFilasProfesorado(
   profesores: Profesor[],
   entries: HorariosEntry[],
+  complementario: Record<string, HorarioComplementario> = {},
 ): FilaInforme[] {
   const resumenes = resumenPorProfesor(entries);
   const cargas = cargaPorProfesor(entries);
   const nombrePorId = new Map(profesores.map(p => [p.id, p.apellidosNombre]));
+
+  // Índice inverso sustituto → titulares que sustituye (sustitución abierta, aunque aún no haya empezado,
+  // para que el informe ya refleje lo decidido). Un sustituto puede cubrir a varios titulares a la vez.
+  const titularesPorSustituto = new Map<string, Profesor[]>();
+  for (const t of profesores) {
+    const s = sustitucionAbierta(t);
+    if (!s) continue;
+    const arr = titularesPorSustituto.get(s.sustitutoId);
+    if (arr) arr.push(t);
+    else titularesPorSustituto.set(s.sustitutoId, [t]);
+  }
+  const unidadDeTitulares = (titulares: Profesor[]): string | null => {
+    const vals = titulares.map(tt => limpio(tt.unidad)).filter((v): v is string => v !== null);
+    if (vals.length === 0) return null;
+    if (vals.length === 1) return vals[0];
+    return [...new Set(vals)].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })).join(', ');
+  };
+  const complementarioDeTitulares = (titulares: Profesor[]): CamposComplementario => {
+    const horarios = titulares
+      .map(tt => complementario[tt.id] ?? complementario[norm(tt.id)] ?? null)
+      .filter((h): h is HorarioComplementario => h !== null);
+    if (horarios.length === 0) return camposComplementario(null);
+    if (horarios.length === 1) return camposComplementario(horarios[0]);
+    const tramos: Partial<Record<CodigoComplementario, TramoComplementario>> = {};
+    for (const c of CODIGOS_COMPLEMENTARIO) {
+      for (const h of horarios) {
+        const tramo = h.tramos[c];
+        if (tramo) { tramos[c] = tramo; break; }
+      }
+    }
+    const apoyo = horarios.flatMap(h => h.apoyo);
+    const combinado: HorarioComplementario = {
+      tramos,
+      apoyo,
+      archivo: null,
+      archivoModificado: null,
+      importado: new Date().toISOString(),
+    };
+    return camposComplementario(combinado);
+  };
 
   return profesores.map(p => {
     const clave = norm(p.apellidosNombre);
@@ -171,13 +253,20 @@ export function buildFilasProfesorado(
     // La sustitución temporal sin terminar: una con fecha de fin ya pasada
     // pertenece al historial y no debe salir en el informe.
     const sust = sustitucionAbierta(p);
+    // Si este profesor es sustituto temporal, hereda unidad y horario complementario del titular al que sustituye.
+    const titulares = titularesPorSustituto.get(p.id) ?? null;
+    const prof_unidad = titulares ? unidadDeTitulares(titulares) : limpio(p.unidad);
+    const comp = titulares ? complementarioDeTitulares(titulares) : (() => {
+      const h = complementario[p.id] ?? complementario[norm(p.id)] ?? null;
+      return camposComplementario(h);
+    })();
 
     return {
       ...BASE_SOLICITUD,
       rowId: p.id,
       prof_nombre: p.apellidosNombre,
       prof_especialidad: limpio(p.especialidad),
-      prof_unidad: limpio(p.unidad),
+      prof_unidad,
       prof_departamento: limpio(p.departamento),
       prof_cargo: limpio(p.cargo),
       prof_email: limpio(p.email),
@@ -193,6 +282,7 @@ export function buildFilasProfesorado(
       prof_asignaturas: carga.asignaturas,
       prof_aulas: carga.aulas,
       prof_dias: carga.dias,
+      ...comp,
     } satisfies FilaInforme;
   });
 }
