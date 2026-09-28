@@ -3,6 +3,7 @@ import {
   alternarMiembro,
   destinatariosGrupo,
   renombrarEnAjuste,
+  sinEnAjuste,
   situacionEnGrupo,
   destinatariosSeleccion,
   emailValido,
@@ -51,18 +52,26 @@ describe("funcionesCCP — cargos reales del CSV del centro", () => {
     ["Directora", ["Dirección"]],
     ["Jefe de estudios", ["Jefatura de Estudios"]],
     ["Jefa de Estudios / Adjunta", ["Jefatura de Estudios"]],
+    ["Jefatura de Estudios", ["Jefatura de Estudios"]],
     ["Secretario", ["Secretaría"]],
     ["Jefa de Departamento", ["Jefatura de Departamento"]],
     ["Jefe de departamento de Agrupaciones Instrumentales", ["Jefatura de Departamento"]],
-    ["Jefe de Departamento Cuerda /Coor. Bienestar y protección", ["Jefatura de Departamento"]],
+    ["Jefe de Departamento Cuerda /Coor. Bienestar y protección", ["Jefatura de Departamento", "Coordinación"]],
     ["J. Dep. / PRL", ["Jefatura de Departamento"]],
     ["Coord. Formación", ["Coordinación de Formación"]],
     ["Coordinadora de Formación", ["Coordinación de Formación"]],
+    ["Coordinación de Formación", ["Coordinación de Formación"]],
+    ["Coord. Bienestar y protección", ["Coordinación"]],
+    ["Coor. de Aula", ["Coordinación"]],
+    ["Jefa de Área", ["Jefatura"]],
+    ["Jefatura de Departamento de Lenguaje", ["Jefatura de Departamento"]],
+    ["Secretaria", ["Secretaría"]],
+    ["Jefa de Estudios y Coordinadora de Aula", ["Jefatura de Estudios", "Coordinación"]],
   ])("«%s» pertenece a la CCP", (cargo, esperado) => {
     expect(funcionesCCP(cargo)).toEqual(esperado);
   });
 
-  it.each(["", "FC", "IC", "I C", "I P", "FC concursillo", "Coord. Bienestar y protección", "Subdirector"])(
+  it.each(["", "FC", "IC", "I C", "I P", "FC concursillo", "Subdirector", "Profesora"])(
     "«%s» no pertenece a la CCP",
     (cargo) => {
       expect(esMiembroCCP(cargo)).toBe(false);
@@ -120,7 +129,7 @@ describe("retoques a mano de Claustro y CCP", () => {
   const profesorado = [
     prof("Alba Ruiz, Ana", { cargo: "Directora" }),
     prof("Beltrán Soto, Luis", { cargo: "FC" }),
-    prof("Castro Gil, Eva", { cargo: "Coord. Bienestar y protección" }),
+    prof("Castro Gil, Eva", { cargo: "Profesora" }),
     prof("Díaz Pérez, Juan", { cargo: "Secretario", activo: false }),
   ];
   const resumenes = resumenPorProfesor([clase("Alumno 1", "Beltrán Soto, Luis")]);
@@ -131,7 +140,7 @@ describe("retoques a mano de Claustro y CCP", () => {
       excluidos: ["alba ruiz, ana"],
     });
     expect(r.conEmail.map((d) => [d.apellidosNombre, d.motivo])).toEqual([
-      ["Castro Gil, Eva", "Añadido a mano · Coord. Bienestar y protección"],
+      ["Castro Gil, Eva", "Añadido a mano · Profesora"],
     ]);
     expect(r.otros.map((d) => d.apellidosNombre)).toEqual([
       "Alba Ruiz, Ana",
@@ -174,6 +183,30 @@ describe("retoques a mano de Claustro y CCP", () => {
       incluidos: ["b"],
       excluidos: ["c"],
     });
+  });
+
+  it("sinEnAjuste quita a esa persona de los retoques del grupo", () => {
+    expect(sinEnAjuste({ incluidos: ["a", "b"], excluidos: ["c"] }, "a")).toEqual({
+      incluidos: ["b"],
+      excluidos: ["c"],
+    });
+    expect(sinEnAjuste({ incluidos: ["a"], excluidos: ["c"] }, "b")).toEqual({
+      incluidos: ["a"],
+      excluidos: ["c"],
+    });
+  });
+
+  it("al guardar la ficha con otro cargo manda la regla, no el retoque viejo", () => {
+    const luis = profesorado[1];
+    const retoque = { incluidos: [], excluidos: [luis.id] };
+    // Con el cargo actual (FC) la regla lo deja fuera: igual con o sin retoque.
+    expect(situacionEnGrupo("ccp", luis, resumenes, retoque).miembro).toBe(false);
+    // Ahora le ponen «Director» y se limpia su retoque: entra por el cargo nuevo.
+    const conCargoNuevo = { ...luis, cargo: "Director" };
+    expect(funcionesCCP(conCargoNuevo.cargo)).toEqual(["Dirección"]);
+    expect(
+      situacionEnGrupo("ccp", conCargoNuevo, resumenes, sinEnAjuste(retoque, luis.id)).miembro,
+    ).toBe(true);
   });
 });
 

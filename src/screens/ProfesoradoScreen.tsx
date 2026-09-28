@@ -58,6 +58,7 @@ import {
   destinatariosSeleccion,
   motivoAutomatico,
   renombrarEnAjuste,
+  sinEnAjuste,
   type GrupoCorreo,
 } from "../utils/profesoradoCorreo";
 import {
@@ -99,6 +100,7 @@ import {
 } from "../utils/horarioComplementario";
 import type { AppConfig } from "../../electron/config-store";
 import type {
+  AjusteGrupo,
   ComplementarioCurso,
   ComposicionGrupos,
   HorarioComplementario,
@@ -477,11 +479,8 @@ export default function ProfesoradoScreen({ config }: Props) {
     );
     // Al renombrar cambia el id: los retoques de Claustro y CCP y el horario
     // complementario de cada curso le siguen.
-    if (ficha.id !== original.id) {
-      await guardarGrupos({
-        claustro: renombrarEnAjuste(store.grupos.claustro, original.id, ficha.id),
-        ccp: renombrarEnAjuste(store.grupos.ccp, original.id, ficha.id),
-      });
+    const renombrado = ficha.id !== original.id;
+    if (renombrado) {
       if (store.firmas) {
         await guardarFirmas({
           ...store.firmas,
@@ -495,6 +494,20 @@ export default function ProfesoradoScreen({ config }: Props) {
         delete porProfesor[original.id];
         await guardarComplementario(c, { ...datos, porProfesor });
       }
+    }
+    // El cargo es lo que decide si va en la CCP: si cambia, el retoque hecho
+    // con el viejo no debe tapar a la regla, así que se le quita a esa persona
+    // y vuelven a mandar el cargo nuevo y el resto de la ficha.
+    const cargoCambiado = original.cargo.trim() !== ficha.cargo.trim();
+    if (renombrado || cargoCambiado) {
+      const renombrar = (a: AjusteGrupo) =>
+        renombrado ? renombrarEnAjuste(a, original.id, ficha.id) : a;
+      const claustro = renombrar(store.grupos.claustro);
+      const ccp = renombrar(store.grupos.ccp);
+      await guardarGrupos({
+        claustro,
+        ccp: cargoCambiado ? sinEnAjuste(ccp, ficha.id) : ccp,
+      });
     }
     setSeleccionadoId(ficha.id);
     setMensaje(`Ficha de «${ficha.apellidosNombre}» guardada.`);

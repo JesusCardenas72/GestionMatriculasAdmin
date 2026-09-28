@@ -34,7 +34,7 @@ export interface Firmante {
   nombre: string;
   /** Especialidad del profesor (si tiene). Se muestra entre paréntesis tras el nombre, dentro del recuadro. */
   especialidad?: string;
-  /** Aula(s) que ocupa (para el día, o todas si no es por día). Se muestra bajo el nombre, dentro del recuadro. */
+  /** Aula(s) que ocupa ese día. Solo la hoja de Asistencia la muestra, bajo el nombre, dentro del recuadro. */
   aula?: string;
   /** Aclaración bajo el nombre («Sustituye a …»). */
   nota?: string;

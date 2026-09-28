@@ -59,8 +59,8 @@ export interface Profesor {
 
 /**
  * Retoques a mano de un grupo de correo sobre su regla automática (Claustro:
- * tiene clases y alumnado; CCP: cargo directivo, jefatura de departamento o
- * coordinación de formación). Guarda `id` de profesor.
+ * tiene clases y alumnado; CCP: cargo con Dirección, Secretaría, Jefatura o
+ * Coordinación). Guarda `id` de profesor.
  */
 export interface AjusteGrupo {
   /** Están en el grupo aunque la regla automática no los incluya. */
@@ -349,6 +349,33 @@ export function profesoradoObtener(): ProfesoradoStore {
 }
 
 /**
+ * Retira de la CCP a quien haya cambiado de cargo entre la lista guardada y la
+ * nueva: su retoque se hizo con el cargo viejo, así que ahora manda la regla
+ * con el nuevo. Los retoques del Claustro no dependen del cargo y se quedan.
+ */
+function sinCargoDeCCPcambiado(
+  grupos: ComposicionGrupos,
+  antes: Profesor[],
+  despues: Profesor[],
+): ComposicionGrupos {
+  const cargoViejo = new Map(antes.map((p) => [p.id, p.cargo.trim()]));
+  const cambiados = new Set(
+    despues
+      .filter((p) => {
+        const viejo = cargoViejo.get(p.id);
+        return viejo !== undefined && viejo !== p.cargo.trim();
+      })
+      .map((p) => p.id),
+  );
+  if (cambiados.size === 0) return grupos;
+  const limpiar = (a: AjusteGrupo): AjusteGrupo => ({
+    incluidos: a.incluidos.filter((id) => !cambiados.has(id)),
+    excluidos: a.excluidos.filter((id) => !cambiados.has(id)),
+  });
+  return { claustro: grupos.claustro, ccp: limpiar(grupos.ccp) };
+}
+
+/**
  * Reemplaza el profesorado entero (es lo que hace «Cargar lista»).
  * Guarda antes una copia de la lista anterior.
  */
@@ -357,11 +384,18 @@ export function profesoradoReemplazar(
   origenArchivo: string | null,
 ): ProfesoradoStore {
   guardarCopiaAnterior();
+  const anterior = leerStore();
   return escribirStore({
     version: 1,
     profesores,
-    // Los ids salen del nombre, así que los retoques de grupos sobreviven a la carga.
-    grupos: leerStore().grupos,
+    // Los ids salen del nombre, así que los retoques de grupos sobreviven a
+    // la carga; el de CCP de quien cambie de cargo no, porque se hizo con el
+    // cargo viejo.
+    grupos: sinCargoDeCCPcambiado(
+      anterior.grupos,
+      anterior.profesores,
+      profesores,
+    ),
     actualizado: new Date().toISOString(),
     origenArchivo,
   });

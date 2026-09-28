@@ -1,10 +1,16 @@
 ---
 name: Estado actual de la app GestionMatriculasAdmin
-description: Qué está implementado en la app Electron+React admin del CPM Marcos Redondo a fecha 2026-04-23
+description: Qué está implementado en la app Electron+React admin del CPM Marcos Redondo a fecha 2026-09-28
 type: project
 ---
 
-## Estado implementado (2026-09-25 — v1.24.0)
+## Estado implementado (2026-09-28 — v1.25.0)
+
+### Cambios v1.25.0
+- Hojas de firmas del Claustro **sin aula**: `HojasFirmasModal` llama a `aFirmante(p, indiceClaustro)` sin pasar aulas (memo sin `entries`/`complementarioPorId`); el aula solo la muestra la hoja de Asistencia diaria.
+- **Regla de la CCP ampliada**: `FAMILIAS_CCP` en `profesoradoCorreo.ts` (familias Dirección, Secretaría, Jefatura, Coordinación; cada familia aporta 1 etiqueta, la concreta antes que la genérica). Entra cualquier cargo con Director/Dirección, Secretario/a, Jefa/Jefatura (`Estudios`, `Departamento`, `J. Dep.`, `Área`…), Coordinador/a (`Formación`, `Coord. Bienestar…`, `Coor. de Aula`…); fuera `Subdirector`, `FC`, `Profesora`. Descripción del grupo y textos de Guía/diálogo actualizados.
+- **Al guardar la ficha manda la regla**: si cambia el `Cargo`, `sinEnAjuste(ccp, ficha.id)` limpia la marca manual de esa persona en `handleGuardarFicha`; al **Cargar lista**, `profesoradoReemplazar` hace lo propio con `sinCargoDeCCPcambiado`. Los retoques de Claustro no dependen del cargo y se conservan (solo les sigue el renombrado).
+- Tests: `profesoradoCorreo.test.ts` ampliado (etiquetas por familia, negativos, `sinEnAjuste`) + nuevo `src/test/profesoradoStore.test.ts` (retoques al reemplazar la lista, mock de `electron` con tmpdir al estilo de `backupStore.test.ts`). `tsc -b` OK, **43 archivos / 558 tests en verde**.
 
 ### Cambios v1.24.0
 - Informes → Profesorado: 17 campos de Horario complementario insertables (`Añadir campo → Horario complementario`): `prof_comp`/`prof_comp_apoyo` + 15 por código `prof_comp_tial`…`prof_comp_otros`; el sustituto hereda `prof_unidad` y `prof_comp*` del titular (`sustitucionAbierta`), multi-titular combina unidades y complementarios.

@@ -13,9 +13,9 @@ import type { AjusteGrupo, Profesor } from "../../electron/profesorado-store";
  *   · Claustro — todo el profesorado en activo que tiene clases (y por tanto
  *     alumnado) en el curso. Las bajas archivadas y quien no da ninguna clase
  *     este curso se quedan fuera.
- *   · CCP (Comisión de Coordinación Pedagógica) — Equipo Directivo (Director,
- *     Jefatura de Estudios y Secretaría), Jefaturas de Departamento y
- *     Coordinación de Formación, siempre en activo.
+ *   · CCP (Comisión de Coordinación Pedagógica) — quien en su cargo lleva
+ *     Dirección, Secretaría, Jefatura o Coordinación (sea del tipo que sea),
+ *     siempre en activo.
  *   · Selección — los profesores marcados a mano en la tabla.
  *
  * La regla automática de Claustro y CCP se puede retocar a mano (ventana
@@ -44,17 +44,49 @@ export const NOMBRE_GRUPO: Record<GrupoCorreo, string> = {
 
 export const DESCRIPCION_GRUPO: Record<GrupoCorreo, string> = {
   claustro: "Profesorado en activo con clases y alumnado este curso",
-  ccp: "Comisión de Coordinación Pedagógica: Equipo Directivo, Jefaturas de Departamento y Coordinación de Formación",
+  ccp: "Comisión de Coordinación Pedagógica: quien en su cargo tiene Dirección, Secretaría, Jefatura o Coordinación",
   seleccion: "Profesores marcados en la tabla",
 };
 
-/** Patrones de cargo (sobre el texto normalizado: minúsculas y sin tildes). */
-const PATRONES_CCP: { etiqueta: string; re: RegExp }[] = [
-  { etiqueta: "Dirección", re: /(^|[^a-z])director(a)?\b/ },
-  { etiqueta: "Jefatura de Estudios", re: /\bjef[ea]s?\s+de\s+estudios?\b/ },
-  { etiqueta: "Secretaría", re: /\bsecretari[oa]\b/ },
-  { etiqueta: "Jefatura de Departamento", re: /\bjef[ea]s?\s+(de\s+)?dep(artamento|\.)?|\bj\.\s*dep\b/ },
-  { etiqueta: "Coordinación de Formación", re: /\bcoord(inador(a)?|\.)?\s*(de\s+)?formacion\b/ },
+/** Patrón de cargo (sobre el texto normalizado: minúsculas y sin tildes). */
+interface PatronCargo {
+  etiqueta: string;
+  re: RegExp;
+}
+
+/**
+ * Familias de cargo que dan derecho a la CCP. Cada familia aporta como mucho
+ * una etiqueta y se queda con el patrón concreto que primero coincida: así
+ * «Jefa de Estudios» sigue poniendo «Jefatura de Estudios» y no la
+ * genérica «Jefatura», y «Coordinadora de Formación» la de Formación y no
+ * «Coordinación».
+ */
+const FAMILIAS_CCP: PatronCargo[][] = [
+  [
+    {
+      etiqueta: "Dirección",
+      re: /(^|[^a-z])director(a)?\b|(^|[^a-z])direccion\b/,
+    },
+  ],
+  [{ etiqueta: "Secretaría", re: /\bsecretari[oa]\b/ }],
+  [
+    {
+      etiqueta: "Jefatura de Estudios",
+      re: /\bjef(?:atura|e|a)s?\s+de\s+estudios?\b/,
+    },
+    {
+      etiqueta: "Jefatura de Departamento",
+      re: /\bjef(?:atura|e|a)s?\s+(?:de\s+)?dep(?:artamento|\.)?|\bj\.\s*dep\b/,
+    },
+    { etiqueta: "Jefatura", re: /\bjef/ },
+  ],
+  [
+    {
+      etiqueta: "Coordinación de Formación",
+      re: /\bcoord(?:inador(?:a)?|inaci(?:on)?|\.)?\s*(?:de\s+)?formacion\b/,
+    },
+    { etiqueta: "Coordinación", re: /\bcoor/ },
+  ],
 ];
 
 /**
@@ -64,7 +96,12 @@ const PATRONES_CCP: { etiqueta: string; re: RegExp }[] = [
 export function funcionesCCP(cargo: string): string[] {
   const texto = norm(cargo ?? "");
   if (texto === "") return [];
-  return PATRONES_CCP.filter((p) => p.re.test(texto)).map((p) => p.etiqueta);
+  const funciones: string[] = [];
+  for (const familia of FAMILIAS_CCP) {
+    const p = familia.find((x) => x.re.test(texto));
+    if (p) funciones.push(p.etiqueta);
+  }
+  return funciones;
 }
 
 export function esMiembroCCP(cargo: string): boolean {
@@ -248,6 +285,18 @@ export function alternarMiembro(
 export function renombrarEnAjuste(ajuste: AjusteGrupo, idViejo: string, idNuevo: string): AjusteGrupo {
   const cambiar = (lista: string[]) => [...new Set(lista.map((x) => (x === idViejo ? idNuevo : x)))];
   return { incluidos: cambiar(ajuste.incluidos), excluidos: cambiar(ajuste.excluidos) };
+}
+
+/**
+ * Quita a una persona de los retoques de un grupo. Se usa al guardar su ficha
+ * cuando cambia algo que decide si va en el grupo (el cargo): así el retoque
+ * hecho con los datos viejos no tapa a la regla automática con los nuevos.
+ */
+export function sinEnAjuste(ajuste: AjusteGrupo, id: string): AjusteGrupo {
+  return {
+    incluidos: ajuste.incluidos.filter((x) => x !== id),
+    excluidos: ajuste.excluidos.filter((x) => x !== id),
+  };
 }
 
 /** «Pérez Gómez, Ana» → «Ana». Si no hay coma, el nombre entero. */

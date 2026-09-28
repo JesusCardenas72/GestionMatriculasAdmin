@@ -400,9 +400,10 @@ export function GuiaProfesoradoModal({ onCerrar }: { onCerrar: () => void }) {
                 curso.
               </li>
               <li>
-                <strong>CCP</strong>: Equipo Directivo (Dirección, Jefatura de Estudios y
-                Secretaría), Jefaturas de Departamento y Coordinación de Formación. Se reconocen por
-                lo que ponga en el campo <strong>«Cargo»</strong> de cada ficha.
+                <strong>CCP</strong>: quien en el campo <strong>«Cargo»</strong> de su ficha lleva
+                <strong> Dirección</strong>, <strong>Secretaría</strong>, <strong>Jefatura</strong> o{" "}
+                <strong>Coordinación</strong>, sea del tipo que sea («Director», «Secretario»,
+                «Jefa de Estudios», «J. Dep.», «Coord. Bienestar»…). Las bajas no entran.
               </li>
               <li>
                 <strong>Profesores marcados</strong>: los que hayas marcado con las casillas de la
@@ -428,7 +429,10 @@ export function GuiaProfesoradoModal({ onCerrar }: { onCerrar: () => void }) {
               <li>
                 <strong>«Claustro y CCP»</strong> (botón propio, o la última opción del menú de
                 correo): sirve para <strong>retocar a mano</strong> quién forma cada grupo, cuando la
-                regla automática no acierta. Lo que marques ahí manda sobre la regla.
+                regla automática no acierta. Lo que marques ahí manda sobre la regla; si cambias
+                después el <strong>cargo</strong> de esa persona en su ficha (o te la cargas de
+                nuevo del CSV), se le quitan sus marcas de la <strong>CCP</strong> y vuelve a
+                decidir la regla.
               </li>
               <li>
                 Quien no tenga correo en su ficha aparece aparte, en «sin correo»: rellénaselo y

@@ -30,7 +30,8 @@ const REGLA: Record<GrupoFijo, (curso: string) => string> = {
   claustro: (curso) =>
     `Automáticamente: el profesorado en activo con clases y alumnado en el curso ${curso}.`,
   ccp: () =>
-    "Automáticamente: quien tiene en su cargo Dirección, Jefatura de Estudios, Secretaría, Jefatura de Departamento o Coordinación de Formación.",
+    "Automáticamente: quien tiene en su cargo Dirección, Secretaría, Jefatura o Coordinación, " +
+    "sea del tipo que sea («Director», «Secretario», «Jefa de Estudios», «J. Dep.», «Coord. …»).",
 };
 
 function leerDialogId(): string {
@@ -140,7 +141,8 @@ export function DialogoGruposProfesorado() {
             <h3 className="text-sm font-bold text-[var(--tc-ink)]">Claustro y CCP</h3>
             <p className="text-[11px] text-[var(--tc-ink-mute)]">
               Marca o desmarca a quien deba estar en cada grupo. Lo que cambies a mano se respeta
-              aunque cambien los horarios o los cargos.
+              aunque cambien los horarios; en la CCP, si cambias después el cargo de alguien en su
+              ficha, vuelve a mandar la regla.
             </p>
           </div>
         </div>

@@ -9,6 +9,18 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.25.0] - 2026-09-28
+
+### Cambiado
+
+- **Profesorado → Grupos de correo: la regla de la CCP se amplía** (`src/utils/profesoradoCorreo.ts:FAMILIAS_CCP/funcionesCCP`): entra en la CCP todo el que en su campo `Cargo` lleve **Dirección, Secretaría, Jefatura o Coordinación** de cualquier tipo — antes solo Equipo Directivo, Jefaturas de Departamento y Coordinación de Formación. Cubre `Director/a`, `Dirección`, `Secretario/a`, `Jefa de Estudios`, `Jefatura de Departamento`, `J. Dep.`, `Jefa de Área`, `Coordinación de Formación`, `Coord. Bienestar y protección`, `Coor. de Aula`… y sigue valiendo el texto libre (`Subdirector`, `FC`, `Profesora`, etc. siguen fuera). Cada familia aporta como mucho una etiqueta: «Jefa de Estudios» → `Jefatura de Estudios` (no la genérica `Jefatura`) y «Coordinadora de Formación» → `Coordinación de Formación` (no `Coordinación`). Claustro conserva su regla (en activo con clases y alumnado).
+- **Profesorado → Grupos de correo: al guardar la ficha manda la regla sobre el retoque viejo** (`src/screens/ProfesoradoScreen.tsx:handleGuardarFicha`, `src/utils/profesoradoCorreo.ts:sinEnAjuste`): si el `Cargo` de la persona cambia, se le quita su marca manual de CCP y vuelven a mandar el cargo nuevo y el resto de la ficha; lo mismo al pulsar **Cargar lista** (`electron/profesorado-store.ts:profesoradoReemplazar` con `sinCargoDeCCPcambiado`). Los retoques del Claustro no dependen del cargo y se conservan (solo les sigue el renombrado de siempre).
+- **Hojas de firmas del Claustro sin aula** (`src/components/modals/HojasFirmasModal.tsx`): la hoja de firmas del Claustro ya no dibuja el recuadro de aula bajo el nombre; el aula solo aparece en la hoja de Asistencia diaria.
+
+### Añadido
+
+- Tests de la regla de grupos y de los retoques: `src/utils/__tests__/profesoradoCorreo.test.ts` (etiquetas por familia, casos que antes no entraban, negativos, `sinEnAjuste`) y nuevo `src/test/profesoradoStore.test.ts` (los retoques de CCP/Claustro al reemplazar la lista con la pestaña Profesorado). 43 archivos / 558 tests en verde.
+
 ## [1.24.0] - 2026-09-25
 
 ### Añadido

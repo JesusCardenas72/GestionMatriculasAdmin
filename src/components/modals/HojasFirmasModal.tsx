@@ -7,7 +7,6 @@ import type { ResumenProfesor } from "../../utils/profesoradoCruces";
 import {
   DIAS_SEMANA,
   aFirmante,
-  aulasDeProfesor,
   diasConClase,
   fechaDelDia,
   fechaLarga,
@@ -160,7 +159,7 @@ export default function HojasFirmasModal({
     if (tipo === "claustro") {
       const firmantes = activos
         .filter((p) => elegidos.has(p.id))
-        .map((p) => aFirmante(p, indiceClaustro, aulasDeProfesor(p, entries, complementarioPorId, indiceClaustro, null)));
+        .map((p) => aFirmante(p, indiceClaustro));
       const fecha = fechaClaustro ? `Fecha del Claustro: ${fechaLarga(fechaClaustro)}` : "";
       return {
         nombreDoc: `Firmas Claustro ${fechaClaustro}`.trim(),
@@ -185,7 +184,7 @@ export default function HojasFirmasModal({
         firmantes: firmantesPorDia[d],
       })),
     };
-  }, [tipo, activos, elegidos, indiceClaustro, fechaClaustro, concepto, lineaCurso, dias, lunes, firmantesPorDia, entries, complementarioPorId]);
+  }, [tipo, activos, elegidos, indiceClaustro, fechaClaustro, concepto, lineaCurso, dias, lunes, firmantesPorDia]);
 
   const vistaPrevia = useMemo(() => htmlHojasFirmas(nombreDoc, bloques, true), [nombreDoc, bloques]);
   const sinContenido = bloques.length === 0 || bloques.every((b) => b.firmantes.length === 0);
