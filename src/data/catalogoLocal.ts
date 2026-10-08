@@ -13,7 +13,8 @@ export function ensenanzaDesdeCode(ensenanzaCurso: string): string {
   return m ? (ENSENANZA_MAP[m[1]] ?? "") : "";
 }
 
-function normDescripcion(s: string): string {
+/** Normaliza un nombre para compararlo sin tildes, mayúsculas ni espacios de más. */
+export function normDescripcion(s: string): string {
   return (s ?? "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

@@ -9,6 +9,15 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.26.0] - 2026-10-08
+
+### Añadido
+
+- **Informes → «Becas»: Excel para los certificados de becas de Enseñanzas Profesionales** (`src/components/modals/CertificadosBecasModal.tsx`, `src/utils/becasCertificados.ts`, `src/utils/becasNotas.ts`): se carga el listado de solicitantes del organismo (DNI, Orden, Nombre, Expediente, Prueba de acceso) y el CSV de notas del curso anterior exportado de Delphos (`datNotasAA-AA.csv`), y la app rellena el resto con la matrícula del curso en vigor y el plan de estudios. El Excel conserva los títulos exactos de la plantilla de Word (hoja `Hoja1`, tabla `Tabla1`, incluida la errata «Curos Anterior») para seguir haciendo la combinación de correspondencia, y añade una hoja «Incidencias» (Pendiente/Decidido). Reglas: nota final = Extraordinaria si es numérica (un «No presentado» en la Extraordinaria no anula la Ordinaria; 2,5 solo si no hay ninguna nota), aprobada con ≥ 5, matriculadas = todas menos convalidadas (también las pendientes), al repetidor se le toma el mismo curso como anterior, 1º → N/A y nota de la prueba de acceso. La matrícula se busca por DNI (y por nombre si no aparece, con aviso); las notas, por nombre dentro de la especialidad.
+- **Revisión a mano de los «A revisar»** (`src/components/modals/RevisarBecaDialog.tsx`): las cápsulas de recuento filtran la tabla (Solicitantes, Completos, A revisar, Decididos por ti) y cada alumno abre una ficha con su listado, su matrícula, sus notas asignatura por asignatura y todas las salidas para cada aviso (qué DNI usar, otra matrícula u otras notas con buscador, datos a mano, qué hacer con cada asignatura sin nota, corregir cualquier columna). Las decisiones se recuerdan por curso en el equipo.
+- **Plan de estudios de Enseñanzas Profesionales** (`src/data/planEstudiosEP.ts`): horas semanales por asignatura, curso y especialidad (incluido Piano, del documento de la Consejería de oct-2025); el nº de asignaturas por curso y ciclo y las horas se calculan.
+- Tests: `src/data/__tests__/planEstudiosEP.test.ts` (cuadra con la hoja oficial y con el catálogo de Delphos) y `src/utils/__tests__/becasCertificados.test.ts`. 45 archivos / 625 tests en verde.
+
 ## [1.25.0] - 2026-09-28
 
 ### Cambiado

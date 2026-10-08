@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   FileText,
   FileType,
+  GraduationCap,
   Filter,
   FilterX,
   GripVertical,
@@ -47,6 +48,7 @@ import { useLocalMatriculas } from '../hooks/useLocalMatriculas';
 import { useProfesorado } from '../hooks/useProfesorado';
 import { useSolicitudes } from '../hooks/useSolicitudes';
 import LocalEditModal from '../components/LocalEditModal';
+import CertificadosBecasModal from '../components/modals/CertificadosBecasModal';
 import { toTitleCase } from '../utils/formatText';
 import {
   FORMAS_PAGO,
@@ -859,6 +861,9 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   // Modo edición global: convierte las celdas editables del informe en campos
   // que se guardan en Local (pendientes de subir) al salir de cada campo.
   const [modoEdicion, setModoEdicion] = useState(false);
+
+  // Excel de los certificados de becas (Enseñanzas Profesionales).
+  const [showBecas, setShowBecas] = useState(false);
 
   // Guarda un solo campo de una matrícula local desde la edición en línea.
   function handleGuardarCampoInline(localId: string, changes: Partial<MatriculaLocal>) {
@@ -2999,6 +3004,16 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
               Cerrar
             </button>
           )}
+          {!presetVinculado && !soloProfesores && (
+            <button
+              onClick={() => setShowBecas(true)}
+              title="Excel para los certificados de becas (Enseñanzas Profesionales)"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border bg-white text-[var(--tc-primary)] border-[var(--tc-primary-border)] hover:bg-[var(--tc-primary-tint)] text-sm font-medium shadow-sm transition-colors"
+            >
+              <GraduationCap className="w-4 h-4" />
+              Becas
+            </button>
+          )}
           {/* Menú de acciones (tres puntos verticales) */}
           <div className="relative">
             <button
@@ -4068,6 +4083,10 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
             </span>
           </div>
         </div>
+      )}
+
+      {showBecas && (
+        <CertificadosBecasModal curso={curso} onCerrar={() => setShowBecas(false)} />
       )}
 
       {/* ── Modal: edición directa de una matrícula local ──────────────────── */}
