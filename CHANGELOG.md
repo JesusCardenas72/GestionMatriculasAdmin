@@ -9,6 +9,20 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.0] - 2026-10-08
+
+### Añadido
+
+- **Solicitudes → comprobación con las notas del curso anterior** (`src/utils/comprobarNotas.ts`, `src/components/ComprobacionNotasPanel.tsx`): en la ficha de cada solicitud en **Pnte. Tramitación** y **Pnte. Validación** aparece el recuadro «Notas del curso 25/26», que compara la matrícula con el CSV de notas de Delphos (`datNotasAA-AA.csv`, se carga una vez por curso y la app lo recuerda; si es de otro año, avisa y no lo guarda). Avisa de: suspensas o «No presentado» que no están como «Asignatura (Nº)» Pendiente, pendientes que en realidad están aprobadas («Ya superada», aprobada…), curso o marca de repetidor que no cuadran con las suspensas, alumnos sin ninguna nota final (abandono) y alumnos que no aparecen en el archivo. Reglas: nota final = Extraordinaria si es numérica (un «No presentado» en la Extraordinaria no anula la Ordinaria); Profesionales promociona con 2 suspensas como máximo y Elementales con 1, si no repite el curso completo; el repetidor de 6º EP solo cursa las suspensas como «(6º)» Pendiente y el de 4º EE repite todo; de 4º EE a 1º EP no pasan pendientes; 1º EE no se comprueba y en 1º EP quien no aparece es alumno nuevo.
+- **No se puede tramitar con avisos sin resolver**: «Aprobar y tramitar» y «Documentación recibida — Tramitar» quedan bloqueados mientras haya avisos o cambios de asignaturas sin guardar. Cada aviso trae su salida: «Añadir como pendiente», «Pasar a Pendiente», «Quitar de la matrícula» (o «Corregir todo»), «Preparar texto para pedir documentación», «Buscar en las notas» y «Es correcto así» con motivo opcional. Al guardar, el **motivo** de cada corrección se añade a las Notas del Administrador, que van en el correo de «Pedir documentación»; Local se actualiza con la sincronización de siempre.
+- El archivo de notas y las decisiones se guardan por curso en `notas-anteriores/` (`electron/notas-anteriores-store.ts`, hook `useNotasAnteriores`).
+- El emparejamiento por nombre compara nombre y apellidos por separado, con erratas pequeñas («Elema/Elena», «José Mª/José María», «Zi Xuan/Zixuan»), para no confundir a dos hermanos.
+- Tests: `src/utils/comprobarNotas.test.ts` y `src/components/__tests__/ComprobacionNotasPanel.test.tsx`. 47 archivos / 658 tests en verde.
+
+### Corregido
+
+- **Solicitudes → «Guardar cambios» de asignaturas** (`src/components/SolicitudDetail.tsx`): tras guardar no se volvían a leer las asignaturas de la nube, así que las añadidas seguían como nuevas, el botón no desaparecía y un segundo guardado las duplicaba.
+
 ## [1.26.0] - 2026-10-08
 
 ### Añadido

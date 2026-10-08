@@ -55,6 +55,13 @@ import {
   type ProfesoradoStore,
 } from "./profesorado-store";
 import {
+  notasAnterioresDecisiones,
+  notasAnterioresGuardar,
+  notasAnterioresGuardarDecision,
+  notasAnterioresObtener,
+  type NotasAnterioresGuardadas,
+} from "./notas-anteriores-store";
+import {
   campanyas_listar,
   campanyas_guardar,
   campanyas_eliminar,
@@ -523,6 +530,23 @@ function registerIpcHandlers() {
       .filter((p) => p.activo)
       .map((p) => p.apellidosNombre),
   }));
+
+  ipcMain.handle("notasAnteriores:obtener", (_e, curso: string) =>
+    notasAnterioresObtener(curso),
+  );
+  ipcMain.handle(
+    "notasAnteriores:guardar",
+    (_e, curso: string, datos: NotasAnterioresGuardadas) =>
+      notasAnterioresGuardar(curso, datos),
+  );
+  ipcMain.handle("notasAnteriores:decisiones", (_e, curso: string) =>
+    notasAnterioresDecisiones(curso),
+  );
+  ipcMain.handle(
+    "notasAnteriores:guardarDecision",
+    (_e, curso: string, rowId: string, decision: unknown) =>
+      notasAnterioresGuardarDecision(curso, rowId, decision),
+  );
 
   ipcMain.handle("profesorado:obtener", () => profesoradoObtener());
   ipcMain.handle("profesorado:guardar", (_e, profesores: Profesor[]) =>

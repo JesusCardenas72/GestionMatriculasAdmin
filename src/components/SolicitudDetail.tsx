@@ -44,7 +44,17 @@ import { cursosStore } from "../api/cursosStore";
 import PdfViewer from "./PdfViewer";
 import ConfirmDialog from "./ConfirmDialog";
 import TramitarEmailModal from "./TramitarEmailModal";
+import ComprobacionNotasPanel from "./ComprobacionNotasPanel";
 import { useAppMode } from "../contexts/AppModeProvider";
+import { useNotasAnteriores } from "../hooks/useNotasAnteriores";
+import {
+  comprobarMatricula,
+  cursoAnterior,
+  textoMotivos,
+  textoPedirCurso,
+  type AvisoNotas,
+  type DecisionNotas,
+} from "../utils/comprobarNotas";
 
 interface Props {
   config: AppConfig;
@@ -52,6 +62,8 @@ interface Props {
   onDone: () => void;
   onConvalidacionDetected?: (rowId: string, tiene: boolean) => void;
 }
+
+const SIN_DECISION: DecisionNotas = {};
 
 type PendingAction = "pedir" | "aprobar" | "tramitar" | "borrar" | null;
 type AsignaturaLocal = AsignaturaMatriculada & { isNew?: boolean; deleted?: boolean };
@@ -175,6 +187,11 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   const [addAsignaturaId, setAddAsignaturaId] = useState("");
   const [addEstado, setAddEstado] = useState<EstadoAsignatura>(ESTADO_ASIGNATURA.MATRICULADA);
   const [asigSaved, setAsigSaved] = useState(false);
+  // Motivos de las correcciones hechas desde la comprobación de notas (clave del
+  // aviso → texto para el alumno). Se añaden a las observaciones al guardar.
+  const [motivosNotas, setMotivosNotas] = useState<Record<string, string>>({});
+  const notasAnteriores = useNotasAnteriores(curso);
+  const [errorCargaNotas, setErrorCargaNotas] = useState<string | null>(null);
 
   const { cursoActual, especialidadStr } = parseEnsenanzaCurso(solicitud.ensenanzaCurso);
   const especialidad = solicitud.especialidad || especialidadStr;
@@ -186,6 +203,8 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     setAsigItems(null);
     setShowAdd(false);
     setAsigSaved(false);
+    setMotivosNotas({});
+    setErrorCargaNotas(null);
     setLocalPdfBase64(null);
     const navegacionReciente = Date.now() - keepPdfExpandedAtRef.current < 1000;
     keepPdfExpandedAtRef.current = 0;
@@ -360,6 +379,97 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   const isP2 = solicitud.estado === ESTADO.PENDIENTE_VALIDACION;
   const isP3 = solicitud.estado === ESTADO.TRAMITADO;
 
+  // ── Comprobación con las notas del curso anterior ────────────────────────
+  // Solo antes de tramitar y en matrículas normales (no anulaciones ni ampliaciones).
+  const anteriorNotas = cursoAnterior(curso);
+  const comprobarNotas =
+    (isP1 || isP2) && !solicitud.anulacion && !solicitud.ampliacion && !!anteriorNotas;
+  const notasGuardadas = notasAnteriores.notas.data ?? null;
+  const decisionNotas: DecisionNotas =
+    notasAnteriores.decisiones.data?.[solicitud.rowId] ?? SIN_DECISION;
+  const comprobacionNotas = useMemo(() => {
+    if (!comprobarNotas || !notasGuardadas || !asigItems || !anteriorNotas) return null;
+    return comprobarMatricula(
+      {
+        nombre: solicitud.nombre,
+        apellidos: solicitud.apellidos,
+        ensenanzaCurso: solicitud.ensenanzaCurso,
+        especialidad: especialidad ?? "",
+        repetidor: !!solicitud.repetidor,
+        asignaturas: asigItems
+          .filter((i) => !i.deleted)
+          .map((i) => ({ id: i.rowId, nombre: i.nombre, estado: i.estado })),
+      },
+      notasGuardadas.lectura.matriculas,
+      anteriorNotas.texto,
+      decisionNotas,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comprobarNotas, notasGuardadas, asigItems, solicitud, especialidad, anteriorNotas?.texto, decisionNotas]);
+  // Mientras queden avisos (o correcciones sin guardar) no se puede tramitar.
+  const bloqueoNotas =
+    !!comprobacionNotas?.aplica &&
+    (comprobacionNotas.avisos.length > 0 || hayChangiosAsig);
+  // Las correcciones se explican en el correo al guardarlas: sin guardar, no se pide documentación.
+  const pedirBloqueado = !!comprobacionNotas?.aplica && hayChangiosAsig;
+  const motivoBloqueoNotas = bloqueoNotas
+    ? comprobacionNotas!.avisos.length > 0
+      ? "Resuelve antes los avisos de la comprobación con las notas del curso anterior"
+      : "Guarda antes los cambios de las asignaturas"
+    : undefined;
+
+  function guardarDecisionNotas(cambios: Partial<DecisionNotas>) {
+    const nueva: DecisionNotas = { ...decisionNotas, ...cambios };
+    const vacia = nueva.notasId === undefined && !Object.keys(nueva.aceptados ?? {}).length;
+    notasAnteriores.guardarDecision.mutate({
+      rowId: solicitud.rowId,
+      decision: vacia ? null : nueva,
+    });
+  }
+
+  function corregirNotas(avisos: AvisoNotas[]) {
+    for (const a of avisos) {
+      const c = a.correccion;
+      if (!c) continue;
+      if (c.tipo === "anadir") {
+        setAsigItems((prev) => [
+          ...prev!,
+          {
+            rowId: `new-${Date.now()}-${c.asignatura.rowId}`,
+            nombre: c.nombre,
+            estado: ESTADO_ASIGNATURA.PENDIENTE,
+            asignaturaId: c.asignatura.rowId,
+            observaciones: null,
+            isNew: true,
+          },
+        ]);
+      } else if (c.tipo === "cambiar-estado") {
+        cambiarEstadoAsig(c.id, c.estado);
+      } else {
+        eliminarAsig(c.id);
+      }
+    }
+    setMotivosNotas((prev) => ({
+      ...prev,
+      ...Object.fromEntries(avisos.filter((a) => a.motivo).map((a) => [a.clave, a.motivo!])),
+    }));
+  }
+
+  function prepararTextoNotas(a: AvisoNotas) {
+    if (!a.motivo) return;
+    const texto = textoPedirCurso(a.motivo);
+    setDocFaltante((prev) => (prev.includes(texto) ? prev : prev.trim() ? `${prev.trim()}\n\n${texto}` : texto));
+  }
+
+  async function cargarNotas() {
+    setErrorCargaNotas(null);
+    try {
+      setErrorCargaNotas(await notasAnteriores.cargar.mutateAsync());
+    } catch (e) {
+      setErrorCargaNotas(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   function cambiarEstadoAsig(rowId: string, nuevoEstado: EstadoAsignatura) {
     setAsigItems((prev) =>
       prev!.map((i) => (i.rowId === rowId ? { ...i, estado: nuevoEstado } : i)),
@@ -423,11 +533,19 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     const nuevos = asigItems
       .filter((i) => !i.deleted && i.isNew)
       .map((i) => ({ codigo: parseInt(i.asignaturaId, 10), nombre: i.nombre, estado: i.estado }));
-    const resumen = buildObservaciones(asigItems, originales);
+    const cambios = buildObservaciones(asigItems, originales);
+    const motivos = cambios ? textoMotivos(Object.values(motivosNotas)) : "";
+    const resumen = motivos ? `${cambios}\n\n${motivos}` : cambios;
     guardarMutation.mutate(
       { matriculaId: solicitud.rowId, eliminados, actualizados, nuevos },
       {
         onSuccess: () => {
+          // Se vuelve a leer de la nube: las añadidas ya tienen su rowId real
+          // y no quedan como «cambios sin guardar».
+          void asignaturasQuery.refetch().then((r) => {
+            if (r.data) setAsigItems(r.data.map((a) => ({ ...a })));
+          });
+          setMotivosNotas({});
           setAsigSaved(true);
           setTimeout(() => setAsigSaved(false), 3000);
           if (resumen) {
@@ -940,6 +1058,34 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         {/* Columna izquierda: asignaturas + notas */}
         <div className="overflow-y-auto pr-2 flex flex-col gap-4 shrink-0 h-full" style={{ minWidth: 0 }}>
 
+          {comprobarNotas && (
+            <ComprobacionNotasPanel
+              cursoAnteriorTexto={anteriorNotas!.texto}
+              archivo={notasGuardadas}
+              cargando={notasAnteriores.cargar.isPending}
+              errorCarga={errorCargaNotas}
+              onCargar={() => void cargarNotas()}
+              comprobacion={comprobacionNotas}
+              cambiosSinGuardar={hayChangiosAsig}
+              readOnly={isSoloLectura}
+              nombreAlumno={`${solicitud.nombre} ${solicitud.apellidos}`}
+              especialidad={especialidad ?? ""}
+              notasTodas={notasGuardadas?.lectura.matriculas ?? []}
+              eleccionManual={decisionNotas.notasId !== undefined}
+              onCorregir={corregirNotas}
+              onPrepararTexto={prepararTextoNotas}
+              onAceptar={(a, motivo) =>
+                guardarDecisionNotas({ aceptados: { ...decisionNotas.aceptados, [a.clave]: motivo } })
+              }
+              onDeshacerAceptado={(clave) => {
+                const { [clave]: _quitado, ...resto } = decisionNotas.aceptados ?? {};
+                guardarDecisionNotas({ aceptados: resto });
+              }}
+              onElegirNotas={(id) => guardarDecisionNotas({ notasId: id })}
+              onDeshacerEleccion={() => guardarDecisionNotas({ notasId: undefined })}
+            />
+          )}
+
           {/* Título sección asignaturas */}
           <div className="flex items-center justify-between">
             <h3 className="font-display text-[17px] font-normal" style={{ color: "var(--tc-ink)", letterSpacing: -0.3 }}>
@@ -1219,9 +1365,15 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         {isP1 && (
           <>
             <button
-              onClick={() => !isSoloLectura && setPending("pedir")}
-              disabled={mutation.isPending || isSoloLectura}
-              title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+              onClick={() => !isSoloLectura && !pedirBloqueado && setPending("pedir")}
+              disabled={mutation.isPending || isSoloLectura || pedirBloqueado}
+              title={
+                isSoloLectura
+                  ? "No disponible en modo Solo Lectura"
+                  : pedirBloqueado
+                    ? "Guarda antes los cambios de las asignaturas: el motivo de la corrección va en el correo"
+                    : undefined
+              }
               className="px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 border: "1.5px solid var(--tc-warn-border)",
@@ -1235,16 +1387,16 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               Pedir documentación
             </button>
             <button
-              onClick={() => !isSoloLectura && setPending("aprobar")}
-              disabled={mutation.isPending || isSoloLectura}
-              title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+              onClick={() => !isSoloLectura && !bloqueoNotas && setPending("aprobar")}
+              disabled={mutation.isPending || isSoloLectura || bloqueoNotas}
+              title={isSoloLectura ? "No disponible en modo Solo Lectura" : motivoBloqueoNotas}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                background: isSoloLectura
+                background: isSoloLectura || bloqueoNotas
                   ? "var(--tc-border)"
                   : "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
-                boxShadow: isSoloLectura ? "none" : "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
-                color: isSoloLectura ? "var(--tc-ink-mute)" : "white",
+                boxShadow: isSoloLectura || bloqueoNotas ? "none" : "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+                color: isSoloLectura || bloqueoNotas ? "var(--tc-ink-mute)" : "white",
               }}
             >
               {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1257,16 +1409,16 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         )}
         {isP2 && (
           <button
-            onClick={() => !isSoloLectura && setPending("tramitar")}
-            disabled={mutation.isPending || isSoloLectura}
-            title={isSoloLectura ? "No disponible en modo Solo Lectura" : undefined}
+            onClick={() => !isSoloLectura && !bloqueoNotas && setPending("tramitar")}
+            disabled={mutation.isPending || isSoloLectura || bloqueoNotas}
+            title={isSoloLectura ? "No disponible en modo Solo Lectura" : motivoBloqueoNotas}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              background: isSoloLectura
+              background: isSoloLectura || bloqueoNotas
                 ? "var(--tc-border)"
                 : "linear-gradient(135deg, var(--tc-primary) 0%, var(--tc-primary-dark) 100%)",
-              boxShadow: isSoloLectura ? "none" : "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
-              color: isSoloLectura ? "var(--tc-ink-mute)" : "white",
+              boxShadow: isSoloLectura || bloqueoNotas ? "none" : "0 6px 16px -4px rgba(184,92,58,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+              color: isSoloLectura || bloqueoNotas ? "var(--tc-ink-mute)" : "white",
             }}
           >
             {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}

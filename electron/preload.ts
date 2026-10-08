@@ -19,6 +19,10 @@ import type {
   Profesor,
   ProfesoradoStore,
 } from "./profesorado-store";
+import type {
+  DecisionesNotasGuardadas,
+  NotasAnterioresGuardadas,
+} from "./notas-anteriores-store";
 
 const adminAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
@@ -207,6 +211,22 @@ const adminAPI = {
     },
     seleccionarArchivo: (extensiones: string[]): Promise<{ fileName: string; base64: string; path: string } | null> =>
       ipcRenderer.invoke("archivo:seleccionar", extensiones),
+  },
+  /** Notas del curso anterior (Delphos) y decisiones al comprobar matrículas, por curso. */
+  notasAnteriores: {
+    obtener: (curso: string): Promise<NotasAnterioresGuardadas | null> =>
+      ipcRenderer.invoke("notasAnteriores:obtener", curso),
+    guardar: (curso: string, datos: NotasAnterioresGuardadas): Promise<void> =>
+      ipcRenderer.invoke("notasAnteriores:guardar", curso, datos),
+    decisiones: (curso: string): Promise<DecisionesNotasGuardadas> =>
+      ipcRenderer.invoke("notasAnteriores:decisiones", curso),
+    /** `decision` null borra la decisión de esa matrícula. */
+    guardarDecision: (
+      curso: string,
+      rowId: string,
+      decision: unknown,
+    ): Promise<DecisionesNotasGuardadas> =>
+      ipcRenderer.invoke("notasAnteriores:guardarDecision", curso, rowId, decision),
   },
   profesorado: {
     /** Ficha completa de todo el profesorado + fecha y archivo de la última carga. */
