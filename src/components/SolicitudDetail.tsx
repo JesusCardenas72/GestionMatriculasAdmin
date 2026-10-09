@@ -191,7 +191,6 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   // aviso → texto para el alumno). Se añaden a las observaciones al guardar.
   const [motivosNotas, setMotivosNotas] = useState<Record<string, string>>({});
   const notasAnteriores = useNotasAnteriores(curso);
-  const [errorCargaNotas, setErrorCargaNotas] = useState<string | null>(null);
 
   const { cursoActual, especialidadStr } = parseEnsenanzaCurso(solicitud.ensenanzaCurso);
   const especialidad = solicitud.especialidad || especialidadStr;
@@ -204,7 +203,6 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     setShowAdd(false);
     setAsigSaved(false);
     setMotivosNotas({});
-    setErrorCargaNotas(null);
     setLocalPdfBase64(null);
     const navegacionReciente = Date.now() - keepPdfExpandedAtRef.current < 1000;
     keepPdfExpandedAtRef.current = 0;
@@ -461,14 +459,6 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     setDocFaltante((prev) => (prev.includes(texto) ? prev : prev.trim() ? `${prev.trim()}\n\n${texto}` : texto));
   }
 
-  async function cargarNotas() {
-    setErrorCargaNotas(null);
-    try {
-      setErrorCargaNotas(await notasAnteriores.cargar.mutateAsync());
-    } catch (e) {
-      setErrorCargaNotas(e instanceof Error ? e.message : String(e));
-    }
-  }
 
   function cambiarEstadoAsig(rowId: string, nuevoEstado: EstadoAsignatura) {
     setAsigItems((prev) =>
@@ -1062,9 +1052,6 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             <ComprobacionNotasPanel
               cursoAnteriorTexto={anteriorNotas!.texto}
               archivo={notasGuardadas}
-              cargando={notasAnteriores.cargar.isPending}
-              errorCarga={errorCargaNotas}
-              onCargar={() => void cargarNotas()}
               comprobacion={comprobacionNotas}
               cambiosSinGuardar={hayChangiosAsig}
               readOnly={isSoloLectura}

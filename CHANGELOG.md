@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.1] - 2026-10-09
+
+### Cambiado
+
+- **El archivo de notas del curso anterior se carga desde el menú de configuración** (botón del engranaje → «Notas del curso 25/26», `src/components/modals/NotasAnterioresModal.tsx`): la ventana muestra el archivo cargado (nombre, nº de matrículas y fecha) y el botón «Cargar archivo…» / «Cambiar archivo…»; si es de otro año, avisa y no lo guarda. En Solo Lectura el botón está gris. El menú muestra el nombre del archivo o «Sin cargar».
+- La ficha de la solicitud ya no tiene botón de carga: si falta el archivo, el recuadro «Notas del curso 25/26» indica que se carga desde el engranaje.
+- Tests: `src/components/__tests__/NotasAnterioresModal.test.tsx`. 48 archivos / 662 tests en verde.
+
 ## [1.27.0] - 2026-10-08
 
 ### Añadido

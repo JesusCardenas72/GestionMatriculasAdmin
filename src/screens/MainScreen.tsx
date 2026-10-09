@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle, DatabaseBackup, FolderOpen, History } from "lucide-react";
+import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle, DatabaseBackup, FolderOpen, History, FileSpreadsheet } from "lucide-react";
 import type { AppConfig } from "../../electron/config-store";
 import { ESTADO, type EstadoTramite, type Solicitud } from "../api/types";
 import { useSolicitudes } from "../hooks/useSolicitudes";
@@ -23,6 +23,9 @@ import HorariosAlumnosScreen from "./HorariosAlumnosScreen";
 import ProfesoradoScreen from "./ProfesoradoScreen";
 import ConexionModal from "../components/modals/ConexionModal";
 import CursosModal from "../components/modals/CursosModal";
+import NotasAnterioresModal from "../components/modals/NotasAnterioresModal";
+import { useNotasAnteriores } from "../hooks/useNotasAnteriores";
+import { cursoAnterior } from "../utils/comprobarNotas";
 import BorrarModal from "../components/modals/BorrarModal";
 import AyudaModal from "../components/modals/AyudaModal";
 import CopiaSeguridadModal from "../components/modals/CopiaSeguridadModal";
@@ -64,6 +67,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [conexionModalOpen, setConexionModalOpen] = useState(false);
   const [cursosModalOpen, setCursosModalOpen] = useState(false);
+  const [notasModalOpen, setNotasModalOpen] = useState(false);
   const [borrarModalOpen, setBorrarModalOpen] = useState(false);
   const [ayudaModalOpen, setAyudaModalOpen] = useState(false);
   const [copiaModalOpen, setCopiaModalOpen] = useState(false);
@@ -94,6 +98,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
 
   const { curso, tipo, readOnly } = useCursoContext();
   const { isSoloLectura, salir } = useAppMode();
+  const notasAnteriores = useNotasAnteriores(curso);
 
   const qc = useQueryClient();
   const q1 = useSolicitudes(config, ESTADO.PENDIENTE_TRAMITACION, curso);
@@ -333,6 +338,24 @@ export default function MainScreen({ config, onConfigSave }: Props) {
                   </div>
                 </button>
 
+                {/* Notas del curso anterior (comprobación de pendientes) */}
+                <button
+                  onClick={() => { setSettingsMenuOpen(false); setNotasModalOpen(true); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--tc-primary-tint)] hover:text-[var(--tc-primary)]"
+                >
+                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--tc-ink)] leading-tight">
+                      Notas del curso {cursoAnterior(curso)?.texto ?? "anterior"}
+                    </p>
+                    <p className="text-xs text-[var(--tc-ink-mute)] leading-tight truncate">
+                      {notasAnteriores.notas.data
+                        ? notasAnteriores.notas.data.fileName
+                        : "Sin cargar · para comprobar pendientes"}
+                    </p>
+                  </div>
+                </button>
+
                 {/* Borrar cursos de Dataverse */}
                 <button
                   onClick={() => { setSettingsMenuOpen(false); setBorrarModalOpen(true); }}
@@ -460,6 +483,10 @@ export default function MainScreen({ config, onConfigSave }: Props) {
         open={cursoModalOpen}
         onClose={() => setCursoModalOpen(false)}
       />
+
+      {notasModalOpen && (
+        <NotasAnterioresModal onClose={() => setNotasModalOpen(false)} />
+      )}
 
       {conexionModalOpen && (
         <ConexionModal

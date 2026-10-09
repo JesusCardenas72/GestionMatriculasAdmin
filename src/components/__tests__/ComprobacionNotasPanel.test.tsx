@@ -43,7 +43,6 @@ function pintar(
   props: Partial<Parameters<typeof ComprobacionNotasPanel>[0]> = {},
 ) {
   const fns = {
-    onCargar: vi.fn(),
     onCorregir: vi.fn(),
     onPrepararTexto: vi.fn(),
     onAceptar: vi.fn(),
@@ -58,8 +57,6 @@ function pintar(
         fileName: "datNotas25-26.csv",
         cargadoEn: "2026-10-08T10:00:00Z",
       }}
-      cargando={false}
-      errorCarga={null}
       comprobacion={conAviso}
       cambiosSinGuardar={false}
       readOnly={false}
@@ -75,13 +72,13 @@ function pintar(
 }
 
 describe("ComprobacionNotasPanel", () => {
-  it("sin archivo invita a cargarlo", async () => {
-    const fns = pintar({ archivo: null, comprobacion: null });
+  it("sin archivo indica que se carga desde el engranaje", () => {
+    pintar({ archivo: null, comprobacion: null });
     expect(screen.getByText("Sin archivo de notas")).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: /Cargar archivo de notas/ }),
-    );
-    expect(fns.onCargar).toHaveBeenCalled();
+    expect(screen.getByText(/menú de configuración/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Cargar archivo/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("con avisos avisa de que no se puede tramitar y corrige", async () => {

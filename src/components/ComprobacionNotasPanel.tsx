@@ -4,9 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  FileUp,
   Info,
-  Loader2,
   RotateCcw,
   Search,
   X,
@@ -31,9 +29,6 @@ interface Props {
   /** «25/26». */
   cursoAnteriorTexto: string;
   archivo: { fileName: string; cargadoEn: string } | null;
-  cargando: boolean;
-  errorCarga: string | null;
-  onCargar: () => void;
   /** null mientras no hay archivo o no han llegado las asignaturas. */
   comprobacion: ComprobacionNotas | null;
   /** Hay correcciones sin guardar en la nube. */
@@ -187,7 +182,15 @@ export default function ComprobacionNotasPanel(p: Props) {
           <Info className="w-4 h-4 shrink-0" style={{ color: colores.ink }} />
         )}
         <div className="min-w-0 flex-1">
-          <div className="font-semibold" style={{ color: "var(--tc-ink)" }}>
+          <div
+            className="font-semibold"
+            style={{ color: "var(--tc-ink)" }}
+            title={
+              p.archivo
+                ? `Archivo: ${p.archivo.fileName} (cargado el ${new Date(p.archivo.cargadoEn).toLocaleDateString("es-ES")}). Se cambia desde el menú de configuración.`
+                : undefined
+            }
+          >
             Notas del curso {p.cursoAnteriorTexto}
           </div>
           <div
@@ -197,49 +200,16 @@ export default function ComprobacionNotasPanel(p: Props) {
             {resumen}
           </div>
         </div>
-        {p.archivo && !p.readOnly && (
-          <button
-            type="button"
-            onClick={p.onCargar}
-            disabled={p.cargando}
-            title={`Archivo: ${p.archivo.fileName} (cargado el ${new Date(p.archivo.cargadoEn).toLocaleDateString("es-ES")}). Pulsa para cambiarlo.`}
-            className="text-[11px] underline shrink-0 disabled:opacity-50"
-            style={{ color: "var(--tc-ink-mute)" }}
-          >
-            Cambiar archivo
-          </button>
-        )}
       </div>
 
       <div className="px-3.5 pb-3 flex flex-col gap-2.5">
-        {p.errorCarga && (
-          <p className="text-[12px]" style={{ color: "var(--tc-danger-ink)" }}>
-            {p.errorCarga}
-          </p>
-        )}
-
         {estado === "sin-archivo" && (
-          <>
-            <p style={{ color: "var(--tc-ink-soft)" }}>
-              Carga el archivo de notas de Delphos del curso{" "}
-              {p.cursoAnteriorTexto} (p.&nbsp;ej. «datNotas
-              {p.cursoAnteriorTexto.replace("/", "-")}.csv») para comprobar que
-              las suspensas están matriculadas como pendientes. Se carga una vez
-              y la app lo recuerda.
-            </p>
-            {!p.readOnly && (
-              <div>
-                <Boton primario onClick={p.onCargar} disabled={p.cargando}>
-                  {p.cargando ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <FileUp className="w-3.5 h-3.5" />
-                  )}
-                  Cargar archivo de notas
-                </Boton>
-              </div>
-            )}
-          </>
+          <p style={{ color: "var(--tc-ink-soft)" }}>
+            Para comprobar que las suspensas están matriculadas como pendientes,
+            carga el archivo de notas de Delphos del curso{" "}
+            {p.cursoAnteriorTexto} desde el menú de configuración (botón del
+            engranaje) → «Notas del curso {p.cursoAnteriorTexto}».
+          </p>
         )}
 
         {c && !c.aplica && p.archivo && (
