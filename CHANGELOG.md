@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.8] - 2026-10-13
+
+### Cambiado
+
+- **Las copias automáticas previas a una restauración ya no se acumulan** (fase C, punto 7; `limpiarRespaldosPrevios` en `electron/backup-store.ts`). Antes de restaurar una copia de seguridad, la app guarda sola una copia completa del estado actual en `_pre-restore`, dentro de su carpeta de datos, y nunca las borraba (en el equipo de desarrollo, 820 MB en tres copias). Regla nueva: **se conserva solo la más reciente, y esa se borra a los 30 días.** Se aplica al abrir la app y al crear una copia nueva. No afecta a las copias que se guardan a mano desde Configuración → «Guardar copia de seguridad», que siguen donde se eligió guardarlas.
+- La ventana de restauración indica que esa copia se conserva 30 días.
+- Tests: `src/test/backupStore.test.ts`. 53 archivos / 693 tests en verde.
+
 ## [1.27.7] - 2026-10-13
 
 ### Cambiado

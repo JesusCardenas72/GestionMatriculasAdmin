@@ -125,7 +125,8 @@ export default function RestaurarCopiaModal({ zipPath, manifest, onClose }: Prop
             </ul>
             {resultado.respaldoPrevio && (
               <p className="text-xs break-all" style={{ color: "var(--tc-ink-mute)" }}>
-                Copia del estado anterior guardada en: {resultado.respaldoPrevio}
+                Copia del estado anterior guardada en: {resultado.respaldoPrevio}. Se conserva
+                30 días y se sustituye en la siguiente restauración.
               </p>
             )}
             <div

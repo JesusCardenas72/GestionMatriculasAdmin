@@ -486,12 +486,58 @@ export async function respaldoAutomaticoPrevio(): Promise<string | null> {
 
   if (Object.keys(sel).length === 0) return null; // nada que respaldar
 
-  const dir = path.join(userData(), "_pre-restore");
+  const dir = preRestoreDir();
   ensureDir(dir);
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   const destPath = path.join(dir, `pre-restore-${ts}.gmbackup`);
   await crearBackup(sel, destPath);
+  limpiarRespaldosPrevios();
   return destPath;
+}
+
+function preRestoreDir(): string {
+  return path.join(userData(), "_pre-restore");
+}
+
+/** Días que se conserva la última copia automática previa a una restauración. */
+export const DIAS_RESPALDO_PREVIO = 30;
+
+/**
+ * Las copias automáticas de `_pre-restore` solo sirven para deshacer la última
+ * restauración, y cada una pesa lo que todos los datos del equipo. Regla: se
+ * conserva solo la más reciente, y esa se borra a los 30 días. Se aplica al
+ * arrancar la app y al crear una copia nueva. No toca las copias que el
+ * usuario guarda a mano, que viven donde él elige.
+ */
+export function limpiarRespaldosPrevios(ahora: Date = new Date()): { borradas: number } {
+  const dir = preRestoreDir();
+  let borradas = 0;
+  let copias: { ruta: string; fecha: number }[];
+  try {
+    copias = fs
+      .readdirSync(dir)
+      .filter((f) => /^pre-restore-.*\.gmbackup$/.test(f))
+      .map((f) => {
+        const ruta = path.join(dir, f);
+        return { ruta, fecha: fs.statSync(ruta).mtimeMs };
+      })
+      .sort((a, b) => b.fecha - a.fecha);
+  } catch {
+    return { borradas };
+  }
+
+  const limite = ahora.getTime() - DIAS_RESPALDO_PREVIO * 24 * 60 * 60 * 1000;
+  copias.forEach((copia, i) => {
+    const esLaUltima = i === 0;
+    if (esLaUltima && copia.fecha >= limite) return;
+    try {
+      fs.rmSync(copia.ruta, { force: true });
+      borradas++;
+    } catch {
+      /* en uso: se intentará en el siguiente arranque */
+    }
+  });
+  return { borradas };
 }
 
 // ── Restaurar ─────────────────────────────────────────────────────────────────

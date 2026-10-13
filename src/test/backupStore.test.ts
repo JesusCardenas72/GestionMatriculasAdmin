@@ -21,6 +21,7 @@ import {
   restaurarBackup,
   leerManifest,
   listarContenidoDisponible,
+  limpiarRespaldosPrevios,
 } from "../../electron/backup-store";
 
 function escribirJson(rel: string, data: unknown): void {
@@ -289,5 +290,65 @@ describe("backup-store", () => {
     expect(inv.presets).toBe(1);
     expect(inv.profesorado).toBe(2);
     expect(inv.cursoSeleccionado).toBe("25/26");
+  });
+});
+
+describe("limpieza de _pre-restore", () => {
+  const AHORA = new Date("2026-10-13T12:00:00.000Z");
+  const dir = () => path.join(userDataDir, "_pre-restore");
+
+  /** Crea un archivo en `_pre-restore` con una antigüedad dada en días. */
+  function copiaDeHace(dias: number, nombre = `pre-restore-hace-${dias}.gmbackup`): string {
+    fs.mkdirSync(dir(), { recursive: true });
+    const ruta = path.join(dir(), nombre);
+    fs.writeFileSync(ruta, "copia", "utf-8");
+    const fecha = new Date(AHORA.getTime() - dias * 24 * 60 * 60 * 1000);
+    fs.utimesSync(ruta, fecha, fecha);
+    return ruta;
+  }
+
+  it("conserva solo la copia más reciente", () => {
+    copiaDeHace(20);
+    copiaDeHace(5);
+    copiaDeHace(12);
+
+    expect(limpiarRespaldosPrevios(AHORA)).toEqual({ borradas: 2 });
+    expect(fs.readdirSync(dir())).toEqual(["pre-restore-hace-5.gmbackup"]);
+  });
+
+  it("borra también la más reciente cuando tiene más de 30 días", () => {
+    copiaDeHace(31);
+    copiaDeHace(45);
+
+    expect(limpiarRespaldosPrevios(AHORA)).toEqual({ borradas: 2 });
+    expect(fs.readdirSync(dir())).toEqual([]);
+  });
+
+  it("no toca la última si aún no ha cumplido 30 días", () => {
+    copiaDeHace(29);
+
+    expect(limpiarRespaldosPrevios(AHORA)).toEqual({ borradas: 0 });
+    expect(fs.readdirSync(dir())).toHaveLength(1);
+  });
+
+  it("no borra otros archivos de la carpeta ni falla si no existe", () => {
+    expect(limpiarRespaldosPrevios(AHORA)).toEqual({ borradas: 0 });
+
+    copiaDeHace(90, "mi-copia-manual.gmbackup");
+    copiaDeHace(90, "notas.txt");
+    expect(limpiarRespaldosPrevios(AHORA)).toEqual({ borradas: 0 });
+    expect(fs.readdirSync(dir()).sort()).toEqual(["mi-copia-manual.gmbackup", "notas.txt"]);
+  });
+
+  it("al restaurar, la copia nueva sustituye a las anteriores", async () => {
+    escribirJson("informes-presets.json", [{ id: "a" }]);
+    const zip = path.join(userDataDir, "copia.gmbackup");
+    await crearBackup({ presets: true }, zip);
+    const vieja = copiaDeHace(1);
+
+    const resumen = await restaurarBackup(zip, { presets: true }, "reemplazar");
+
+    expect(fs.existsSync(vieja)).toBe(false);
+    expect(fs.readdirSync(dir())).toEqual([path.basename(resumen.respaldoPrevio!)]);
   });
 });

@@ -92,6 +92,7 @@ import {
   crearBackup,
   leerManifest,
   restaurarBackup,
+  limpiarRespaldosPrevios,
   type BackupSeleccion,
   type RestauracionModo,
 } from "./backup-store";
@@ -1757,6 +1758,7 @@ app.whenReady().then(() => {
     });
   });
   void vaciarCacheDeCodigoSiSobra(session.defaultSession);
+  limpiarRespaldosPrevios(); // _pre-restore: solo la última copia, y 30 días
   registerIpcHandlers();
   cursosMigrarLegacy();
   cursosMigrarPdfAFicheros(); // one-shot: extrae _pdfBase64 del JSON a ficheros sueltos
