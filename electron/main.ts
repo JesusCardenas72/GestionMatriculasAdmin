@@ -106,6 +106,7 @@ import {
 } from "./horarios-data-store";
 import { cerrarVentanaPdf, generarPdfBase64 } from "./pdf-fabrica";
 import { limitarCacheDeRed, vaciarCacheDeCodigoSiSobra } from "./cache-chromium";
+import { estadoActualizacion, iniciarActualizador, instalarActualizacion } from "./actualizador";
 import {
   temporalesGetAsistente,
   temporalesGetConfig,
@@ -356,6 +357,8 @@ function createWindow() {
 
 function registerIpcHandlers() {
   ipcMain.handle("app:getVersion", () => app.getVersion());
+  ipcMain.handle("actualizacion:estado", () => estadoActualizacion());
+  ipcMain.handle("actualizacion:instalar", () => instalarActualizacion());
   ipcMain.handle("config:has", () => hasConfig());
   ipcMain.handle("config:load", () => loadConfig());
   ipcMain.handle("config:save", (_e, cfg: AppConfig) => saveConfig(cfg));
@@ -1763,6 +1766,9 @@ app.whenReady().then(() => {
   cursosMigrarLegacy();
   cursosMigrarPdfAFicheros(); // one-shot: extrae _pdfBase64 del JSON a ficheros sueltos
   createWindow();
+  iniciarActualizador((estado) => {
+    if (win && !win.isDestroyed()) win.webContents.send("actualizacion:cambio", estado);
+  });
 });
 
 app.on("window-all-closed", () => {

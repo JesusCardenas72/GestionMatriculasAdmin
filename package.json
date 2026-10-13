@@ -1,6 +1,6 @@
 {
   "name": "gestion-matriculas-admin",
-  "version": "1.27.8",
+  "version": "1.28.0",
   "private": true,
   "description": "App de escritorio para administradores de solicitudes de matricula",
   "main": "dist-electron/main.js",
@@ -10,6 +10,7 @@
     "build": "npm run limpiar && tsc -b && vite build",
     "preview": "vite preview",
     "dist": "npm run build && electron-builder && vitest run src/test/tamanoPaquete.test.ts",
+    "publicar": "node scripts/publicar.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -31,6 +32,7 @@
     "@vitejs/plugin-react": "^4.3.3",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.38.0",
     "jsdom": "^29.0.2",

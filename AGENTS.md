@@ -9,8 +9,10 @@
 ## Build & dev commands
 - `npm run dev` — starts Vite dev server **and** launches Electron (opens DevTools automatically in dev).
 - `npm run build` — empties `dist-electron/` (`npm run limpiar`), then runs `tsc -b` and `vite build`. Produces `dist/` (renderer) and `dist-electron/` (main + preload).
-- `npm run dist` — runs `npm run build`, then `electron-builder`, then the package-size test. Outputs to `release/`.
+- `npm run dist` — runs `npm run build`, then `electron-builder`, then the package-size test. Outputs to `release/`: a per-user one-click NSIS installer (`…-Instalador.exe`, no admin rights, installs to `%LOCALAPPDATA%\Programs`), the portable `.exe` (kept as fallback) and `win-unpacked/`. Both use the same data folder (`%APPDATA%\gestion-matriculas-admin`).
 - **Package weight rule:** `dependencies` holds **only `pdf-to-printer`** (the one module main loads from `node_modules` at runtime). Everything Vite bundles goes in `devDependencies`, otherwise electron-builder copies it again into the package. `src/test/tamanoPaquete.test.ts` enforces this and a 30 MB limit for the packaged app.
+- `npm run publicar` — (`scripts/publicar.mjs`) runs `npm run dist`, asks for confirmation and force-pushes the installer, its `.blockmap` and `latest.yml` to the `gh-pages` branch (single commit, rewritten each time). GitHub Pages serves it at the `publish.url` of `electron-builder.json`; every installed app updates itself from there on launch. Requires a clean git tree. **Publishing updates every machine: never run it without the user asking.**
+- **Auto-update:** `electron/actualizador.ts` (electron-updater, bundled by Vite — keep it in `devDependencies`) checks on launch and every 4 h; only in the installed app, never in dev or in the portable. States go to the renderer through `window.adminAPI.actualizacion`. `App.tsx` shows `PantallaActualizacion` **instead of** the LaunchGate while checking/downloading/installing (do not put update UI inside `LaunchGate.tsx`), a small notice when the check failed, and `AvisoReiniciar` once inside (`src/components/AvisoActualizacion.tsx`).
 - **No separate `lint` or `typecheck` scripts.** `tsc -b` during build is the only type-check step.
 
 ## Testing

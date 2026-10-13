@@ -1,6 +1,12 @@
 {
   "appId": "com.gestionmatriculas.admin",
   "productName": "Gestion Matriculas Admin",
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "https://jesuscardenas72.github.io/GestionMatriculasAdmin/"
+    }
+  ],
   "directories": {
     "output": "release"
   },
@@ -21,6 +27,7 @@
   ],
   "win": {
     "target": [
+      "nsis",
       "portable",
       "dir"
     ],
@@ -30,7 +37,13 @@
     "artifactName": "GestionMatriculas-v${version}-Portable.exe"
   },
   "nsis": {
-    "oneClick": false,
-    "allowToChangeInstallationDirectory": true
+    "oneClick": true,
+    "perMachine": false,
+    "artifactName": "GestionMatriculas-v${version}-Instalador.exe",
+    "shortcutName": "Gestión Matrículas",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "runAfterFinish": true,
+    "deleteAppDataOnUninstall": false
   }
 }

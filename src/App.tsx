@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useConfig } from "./hooks/useConfig";
 import { useCursosConocidos } from "./hooks/useCursosConocidos";
@@ -6,6 +6,13 @@ import { useMigracionTextoLocal } from "./hooks/useMigracionTextoLocal";
 import { useAppMode } from "./contexts/AppModeProvider";
 import LaunchGate from "./screens/LaunchGate";
 import AdminSecretPanel from "./components/AdminSecretPanel";
+import {
+  AvisoReiniciar,
+  AvisoSinActualizar,
+  bloqueaEntrada,
+  PantallaActualizacion,
+  useActualizacion,
+} from "./components/AvisoActualizacion";
 
 // La pantalla de entrada (LaunchGate) arranca sola; el resto de la app se
 // carga al elegir modo.
@@ -23,6 +30,8 @@ export default function App() {
   const { state, save } = useConfig();
   const { cursos } = useCursosConocidos();
   useMigracionTextoLocal(cursos.map((c) => c.curso));
+  const actualizacion = useActualizacion();
+  const [sinEsperar, setSinEsperar] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('theme') ?? 'light';
@@ -30,10 +39,15 @@ export default function App() {
   }, []);
 
   if (!modo) {
+    // Antes de entrar: si hay versión nueva, se espera a instalarla.
+    if (bloqueaEntrada(actualizacion) && !sinEsperar) {
+      return <PantallaActualizacion estado={actualizacion} onSaltar={() => setSinEsperar(true)} />;
+    }
     return (
       <>
         <LaunchGate />
         <AdminSecretPanel />
+        <AvisoSinActualizar estado={actualizacion} />
       </>
     );
   }
@@ -75,6 +89,8 @@ export default function App() {
   return (
     <>
       <AdminSecretPanel />
+      {/* Con la app abierta varios días: aviso para reiniciar e instalar. */}
+      <AvisoReiniciar estado={actualizacion} />
       <Suspense fallback={cargando}>
         <MainScreen
           config={state.config}

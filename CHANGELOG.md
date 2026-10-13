@@ -9,6 +9,19 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.28.0] - 2026-10-13
+
+### Añadido
+
+- **Instalador y actualización automática** (fase B de `plan_GestionMatriculasAdmin_React_Vite_PWA.md`, vía 1).
+  - `npm run dist` genera, además del portable, `GestionMatriculas-vX-Instalador.exe`: un clic, por usuario, sin permisos de administrador, y no borra los datos al desinstalar. Instalada o portable, la app usa la misma carpeta de datos.
+  - **Al abrirse, la app instalada comprueba si hay versión nueva** (`electron/actualizador.ts`). Si la hay, en lugar de la pantalla de entrada muestra «Descargando la versión X… N %», la instala y se reinicia sola. Si no puede comprobarlo (sin red, o más de 15 segundos sin respuesta), deja entrar y lo avisa. Si la descarga pasa de un minuto, ofrece «Entrar sin esperar» y la versión se instala al cerrar.
+  - Con la app abierta, vuelve a comprobar cada 4 horas y avisa con «Reiniciar ahora» cuando hay una versión descargada.
+  - **`npm run publicar`** (`scripts/publicar.mjs`): compila, genera el instalador, pide confirmación y lo sube a la rama `gh-pages`, que GitHub Pages sirve en `https://jesuscardenas72.github.io/GestionMatriculasAdmin/`. Exige que no haya cambios sin confirmar en git.
+  - Ni el modo desarrollo ni el `.exe` portable se actualizan solos.
+- Pendiente de hacer a mano: activar GitHub Pages en el repositorio (rama `gh-pages`), instalar una vez en cada equipo y la prueba de punta a punta con dos versiones.
+- Tests: `src/test/actualizador.test.ts` y `src/components/__tests__/AvisoActualizacion.test.tsx`. 55 archivos / 708 tests en verde.
+
 ## [1.27.8] - 2026-10-13
 
 ### Cambiado

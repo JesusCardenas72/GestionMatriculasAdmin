@@ -24,8 +24,19 @@ import type {
   NotasAnterioresGuardadas,
 } from "./notas-anteriores-store";
 
+import type { EstadoActualizacion } from "./actualizador";
+
 const adminAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
+  actualizacion: {
+    estado: (): Promise<EstadoActualizacion> => ipcRenderer.invoke("actualizacion:estado"),
+    instalar: (): Promise<void> => ipcRenderer.invoke("actualizacion:instalar"),
+    onCambio: (cb: (estado: EstadoActualizacion) => void): (() => void) => {
+      const listener = (_e: unknown, estado: EstadoActualizacion) => cb(estado);
+      ipcRenderer.on("actualizacion:cambio", listener);
+      return () => ipcRenderer.removeListener("actualizacion:cambio", listener);
+    },
+  },
   config: {
     has: (): Promise<boolean> => ipcRenderer.invoke("config:has"),
     load: (): Promise<AppConfig | null> => ipcRenderer.invoke("config:load"),
