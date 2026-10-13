@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.5] - 2026-10-13
+
+### Cambiado
+
+- **Cada ventana de diálogo carga solo su código** (fase C, punto 3, de `plan_GestionMatriculasAdmin_React_Vite_PWA.md`). `src/main.tsx` ya no importa la app y los siete diálogos de golpe: carga el diálogo que pide la ventana, o la app (`src/AppPrincipal.tsx`) en la ventana principal. Un diálogo pasa de cargar 4,04 MB a entre 0,23 y 0,92 MB; las ventanas se ven igual.
+  - `exceljs` se carga solo al leer un Excel (`horarioExcel.ts`, `fusionHorarios.ts`, `profesoradoArchivo.ts`); antes la arrastraban cinco diálogos sin usarla.
+- Tests: `src/test/tamanoPaquete.test.ts` falla si un diálogo carga más de 1200 KB. 51 archivos / 680 tests en verde.
+
 ## [1.27.4] - 2026-10-13
 
 ### Cambiado

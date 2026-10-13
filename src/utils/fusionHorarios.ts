@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import type { FilaInforme, MatriculaLocal } from "../api/types";
 import { cellText, norm } from "./horarioExcel";
 import { idCompuesto as calcIdCompuesto } from "./asigId";
@@ -99,7 +99,9 @@ function claveDe(fila: FilaCrudaHorario): string {
  */
 export async function parseHorariosExcelCrudo(base64: string): Promise<FilaCrudaHorario[]> {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const wb = new ExcelJS.Workbook();
+  // exceljs pesa casi 1 MB: se carga solo al leer un Excel, no con este módulo.
+  const { Workbook } = (await import("exceljs")).default;
+  const wb = new Workbook();
   await wb.xlsx.load(bytes as unknown as ArrayBuffer);
 
   const ws = wb.getWorksheet("Horarios") ?? wb.worksheets[0];

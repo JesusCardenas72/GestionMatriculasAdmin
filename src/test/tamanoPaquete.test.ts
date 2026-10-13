@@ -61,6 +61,54 @@ function tamanoCarpeta(ruta: string): number {
     }, 0);
 }
 
+const ASSETS = path.join(RAIZ, "dist", "assets");
+const LIMITE_DIALOGO_KB = 1200;
+
+/** Trozos que un archivo de `dist/assets` importa de forma fija (no con `import()`). */
+function importsFijos(archivo: string): string[] {
+  const codigo = fs.readFileSync(path.join(ASSETS, archivo), "utf-8");
+  const fijos = new Set<string>();
+  for (const m of codigo.matchAll(/(?:from|import)\s*"\.\/([^"]+\.js)"/g)) {
+    fijos.add(m[1]);
+  }
+  for (const m of codigo.matchAll(/import\(\s*"\.\/([^"]+\.js)"/g)) {
+    fijos.delete(m[1]);
+  }
+  return [...fijos];
+}
+
+/** KB de código que carga una ventana: la entrada, su trozo y lo que arrastran. */
+function cargaDeVentana(trozo: string, entrada: string): number {
+  const vistos = new Set<string>();
+  const recorrer = (archivo: string): void => {
+    if (vistos.has(archivo)) return;
+    vistos.add(archivo);
+    importsFijos(archivo).forEach(recorrer);
+  };
+  recorrer(entrada);
+  recorrer(trozo);
+  const bytes = [...vistos].reduce(
+    (total, archivo) => total + fs.statSync(path.join(ASSETS, archivo)).size,
+    0,
+  );
+  return bytes / 1024;
+}
+
+describe.skipIf(!fs.existsSync(ASSETS))("código que carga cada ventana", () => {
+  // Cada diálogo es una ventana nativa aparte: debe traer su formulario, no la
+  // app entera (que ronda los 3,5 MB) ni librerías como exceljs.
+  it(`ningún diálogo carga más de ${LIMITE_DIALOGO_KB} KB`, () => {
+    const archivos = fs.readdirSync(ASSETS);
+    const entrada = archivos.find((f) => /^index-.*\.js$/.test(f))!;
+    const dialogos = archivos.filter((f) => /^Dialogo.*\.js$/.test(f));
+    expect(dialogos.length).toBeGreaterThanOrEqual(7);
+    const pasados = dialogos
+      .map((f) => ({ dialogo: f, kb: Math.round(cargaDeVentana(f, entrada)) }))
+      .filter((d) => d.kb > LIMITE_DIALOGO_KB);
+    expect(pasados).toEqual([]);
+  });
+});
+
 describe("tamaño del paquete", () => {
   it("dependencies solo declara lo que se carga desde fuera", () => {
     const pkg = JSON.parse(

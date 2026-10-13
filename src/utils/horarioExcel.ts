@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 import type { CargaHorarios, ClaseHorario, HorarioAlumno } from '../horarios/types';
 import { CAMPOS_META, CAMPOS_ASIGNATURA } from '../data/informesConfig';
 
@@ -87,7 +87,9 @@ export async function extraerCamposInforme(base64: string): Promise<string[]> {
   }
 
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const wb = new ExcelJS.Workbook();
+  // exceljs pesa casi 1 MB: se carga solo al leer un Excel, no con este módulo.
+  const { Workbook } = (await import('exceljs')).default;
+  const wb = new Workbook();
   await wb.xlsx.load(bytes as any);
 
   const ws = wb.getWorksheet('Horarios') ?? wb.worksheets[0];
@@ -115,7 +117,9 @@ export async function parseHorariosExcel(
   fileName: string,
 ): Promise<CargaHorarios> {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const wb = new ExcelJS.Workbook();
+  // exceljs pesa casi 1 MB: se carga solo al leer un Excel, no con este módulo.
+  const { Workbook } = (await import('exceljs')).default;
+  const wb = new Workbook();
   await wb.xlsx.load(bytes as any);
 
   const ws = wb.getWorksheet('Horarios') ?? wb.worksheets[0];

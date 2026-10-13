@@ -1,16 +1,5 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import App from "./App";
-import { AppModeProvider } from "./contexts/AppModeProvider";
-import { CursoContextProvider } from "./contexts/CursoContextProvider";
-import { DialogoCorreccionHorarios } from "./screens/DialogoCorreccionHorarios";
-import { DialogoEnviarHorario } from "./screens/DialogoEnviarHorario";
-import { DialogoEnviarCampanya } from "./screens/DialogoEnviarCampanya";
-import { DialogoEnviarProfesorado } from "./screens/DialogoEnviarProfesorado";
-import { DialogoNuevoProfesor } from "./screens/DialogoNuevoProfesor";
-import { DialogoGruposProfesorado } from "./screens/DialogoGruposProfesorado";
-import { DialogoHorarioComplementario } from "./screens/DialogoHorarioComplementario";
 import "./styles/index.css";
 import { applyZoom, getStoredZoom, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "./hooks/useZoom";
 
@@ -57,79 +46,36 @@ try {
   });
 } catch { /* silencioso */ }
 
+// Cada ventana carga solo su código: un diálogo (ventana nativa con `#dialog-…`
+// en la dirección) trae su formulario, y la ventana principal trae la app. Así
+// abrir un diálogo no arranca la aplicación entera dentro de él.
+const DIALOGOS: Record<string, () => Promise<React.ComponentType>> = {
+  "dialog-horario-complementario": () =>
+    import("./screens/DialogoHorarioComplementario").then((m) => m.DialogoHorarioComplementario),
+  "dialog-grupos-profesorado": () =>
+    import("./screens/DialogoGruposProfesorado").then((m) => m.DialogoGruposProfesorado),
+  "dialog-nuevo-profesor": () =>
+    import("./screens/DialogoNuevoProfesor").then((m) => m.DialogoNuevoProfesor),
+  "dialog-correccion": () =>
+    import("./screens/DialogoCorreccionHorarios").then((m) => m.DialogoCorreccionHorarios),
+  "dialog-enviar-horario": () =>
+    import("./screens/DialogoEnviarHorario").then((m) => m.DialogoEnviarHorario),
+  "dialog-enviar-campanya": () =>
+    import("./screens/DialogoEnviarCampanya").then((m) => m.DialogoEnviarCampanya),
+  "dialog-enviar-profesorado": () =>
+    import("./screens/DialogoEnviarProfesorado").then((m) => m.DialogoEnviarProfesorado),
+};
+
 const hash = window.location.hash.slice(1); // sin '#'
-const isDialogCorreccion = hash.startsWith("dialog-correccion");
-const isDialogEnviarHorario = hash.startsWith("dialog-enviar-horario");
-const isDialogEnviarCampanya = hash.startsWith("dialog-enviar-campanya");
-const isDialogEnviarProfesorado = hash.startsWith("dialog-enviar-profesorado");
-const isDialogNuevoProfesor = hash.startsWith("dialog-nuevo-profesor");
-const isDialogGruposProfesorado = hash.startsWith("dialog-grupos-profesorado");
-const isDialogHorarioComplementario = hash.startsWith("dialog-horario-complementario");
+const cargarDialogo = Object.entries(DIALOGOS).find(([prefijo]) => hash.startsWith(prefijo))?.[1];
+const cargarVentana = cargarDialogo ?? (() => import("./AppPrincipal").then((m) => m.AppPrincipal));
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
-if (isDialogHorarioComplementario) {
+void cargarVentana().then((Ventana) => {
   root.render(
     <React.StrictMode>
-      <DialogoHorarioComplementario />
+      <Ventana />
     </React.StrictMode>,
   );
-} else if (isDialogGruposProfesorado) {
-  root.render(
-    <React.StrictMode>
-      <DialogoGruposProfesorado />
-    </React.StrictMode>,
-  );
-} else if (isDialogNuevoProfesor) {
-  root.render(
-    <React.StrictMode>
-      <DialogoNuevoProfesor />
-    </React.StrictMode>,
-  );
-} else if (isDialogCorreccion) {
-  root.render(
-    <React.StrictMode>
-      <DialogoCorreccionHorarios />
-    </React.StrictMode>,
-  );
-} else if (isDialogEnviarHorario) {
-  root.render(
-    <React.StrictMode>
-      <DialogoEnviarHorario />
-    </React.StrictMode>,
-  );
-} else if (isDialogEnviarCampanya) {
-  root.render(
-    <React.StrictMode>
-      <DialogoEnviarCampanya />
-    </React.StrictMode>,
-  );
-} else if (isDialogEnviarProfesorado) {
-  root.render(
-    <React.StrictMode>
-      <DialogoEnviarProfesorado />
-    </React.StrictMode>,
-  );
-} else {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30_000,
-        refetchOnWindowFocus: false,
-        retry: 1,
-      },
-    },
-  });
-
-  root.render(
-    <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <AppModeProvider>
-          <CursoContextProvider>
-            <App />
-          </CursoContextProvider>
-        </AppModeProvider>
-      </QueryClientProvider>
-    </React.StrictMode>,
-  );
-}
+});

@@ -1,4 +1,3 @@
-import ExcelJS from "exceljs";
 import { norm } from "./horarioExcel";
 import type { Profesor } from "../../electron/profesorado-store";
 
@@ -157,7 +156,9 @@ function celdaATexto(v: unknown): string {
 }
 
 async function filasDesdeExcel(bytes: Uint8Array): Promise<string[][]> {
-  const wb = new ExcelJS.Workbook();
+  // exceljs pesa casi 1 MB: se carga solo al leer un Excel, no con este módulo.
+  const { Workbook } = (await import("exceljs")).default;
+  const wb = new Workbook();
   await wb.xlsx.load(bytes.buffer as ArrayBuffer);
   const ws = wb.worksheets[0];
   if (!ws) return [];
