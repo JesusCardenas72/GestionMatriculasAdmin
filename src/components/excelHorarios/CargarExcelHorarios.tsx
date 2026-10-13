@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, ScanSearch, Trash2, Upload } from "lucide-react";
 import type { MatriculaLocal } from "../../api/types";
 import type { CargaHorarios } from "../../horarios/types";
-import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
+import type { HorariosCursoData, HorariosSnapshotRef } from "../../../electron/horarios-data-store";
 import { useEscenarioHorario } from "../../contexts/EscenarioHorarioContext";
 import { comprobarCoherenciaLocalHorario, type ComprobacionCoherencia } from "../../utils/comprobarCoherencia";
 import { ModalComprobacionCoherencia } from "../modals/ModalComprobacionCoherencia";
@@ -37,7 +37,7 @@ export function CargarExcelHorarios({
   onVerIndividuales: () => void;
 }) {
   const { escenarioActivo } = useEscenarioHorario();
-  const [ultimaCarga, setUltimaCarga] = useState<HorariosSnapshot | null>(null);
+  const [ultimaCarga, setUltimaCarga] = useState<HorariosSnapshotRef | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
@@ -56,7 +56,7 @@ export function CargarExcelHorarios({
         if (!vigente) return;
         const ultima = data.snapshots
           .filter((s) => s.accion === "carga_excel")
-          .reduce<HorariosSnapshot | null>((best, s) => (!best || s.timestamp > best.timestamp ? s : best), null);
+          .reduce<HorariosSnapshotRef | null>((best, s) => (!best || s.timestamp > best.timestamp ? s : best), null);
         setUltimaCarga(ultima);
       })
       .catch(() => {

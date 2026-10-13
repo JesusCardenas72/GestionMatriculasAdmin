@@ -61,8 +61,7 @@ export function EscenarioHorarioProvider({ children }: { children: React.ReactNo
 
   const cargarSnapshotPorId = useCallback(
     async (curso: string, id: string) => {
-      const storeData = await window.adminAPI.horarios.data.obtener(curso);
-      const snap = storeData.snapshots.find((s: HorariosSnapshot) => s.id === id);
+      const snap: HorariosSnapshot | null = await window.adminAPI.horarios.data.snapshot(curso, id);
       if (snap) activarEscenario(snap);
     },
     [activarEscenario],

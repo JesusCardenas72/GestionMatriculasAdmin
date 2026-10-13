@@ -11,7 +11,7 @@ import {
   detectarHuerfanasAlmacen,
   type HuerfanaAlmacen,
 } from "../../utils/horariosPersistencia";
-import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
+import type { HorariosCursoData, HorariosSnapshotRef } from "../../../electron/horarios-data-store";
 import { useEscenarioHorario } from "../../contexts/EscenarioHorarioContext";
 import { useAsistenteTemporales } from "../../hooks/useAsistenteTemporales";
 import { CabeceraApartado, MensajeError, MensajeOk } from "./Comunes";
@@ -362,7 +362,7 @@ function ModalGenerarHorarios({
         }
         const ultimaCarga = data.snapshots
           .filter((s) => s.accion === "carga_excel")
-          .reduce<HorariosSnapshot | null>(
+          .reduce<HorariosSnapshotRef | null>(
             (best, s) => (!best || s.timestamp > best.timestamp ? s : best),
             null,
           );

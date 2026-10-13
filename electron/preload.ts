@@ -326,6 +326,9 @@ const adminAPI = {
         ipcRenderer.invoke("horarios:data:obtener", curso),
       guardar: (curso: string, data: any): Promise<void> =>
         ipcRenderer.invoke("horarios:data:guardar", curso, data),
+      /** Una instantánea del historial con sus entradas (null si no existe). */
+      snapshot: (curso: string, id: string): Promise<any> =>
+        ipcRenderer.invoke("horarios:data:snapshot", curso, id),
       exportar: (curso: string): Promise<{ curso: string; snapshots: any[] }> =>
         ipcRenderer.invoke("horarios:data:exportar", curso),
       importar: (curso: string, json: { curso: string; snapshots: any[] }): Promise<{ importados: number }> =>

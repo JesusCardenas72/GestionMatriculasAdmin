@@ -17,7 +17,7 @@ import {
   UserCog,
   UserPlus,
 } from "lucide-react";
-import type { HorariosCursoData, HorariosSnapshot } from "../../../electron/horarios-data-store";
+import type { HorariosCursoData, HorariosSnapshot, HorariosSnapshotRef } from "../../../electron/horarios-data-store";
 
 const ACCION_LABELS: Record<HorariosSnapshot["accion"], string> = {
   carga_excel: "Carga de Excel",
@@ -45,6 +45,11 @@ const ACCION_COLORS: Record<HorariosSnapshot["accion"], string> = {
   sustitucion_profesorado: "text-indigo-500 bg-indigo-50 border-indigo-200",
   asignacion_alumnos: "text-teal-500 bg-teal-50 border-teal-200",
 };
+
+/** Nº de entradas de una carga: lo anota el almacén; la recién creada aún las lleva encima. */
+function numEntradas(snap: HorariosSnapshotRef): number {
+  return snap.total ?? snap.entries?.length ?? 0;
+}
 
 interface Props {
   curso: string;
@@ -136,21 +141,32 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
     }
   };
 
-  const handleRestaurar = async (snapshot: HorariosSnapshot) => {
+  // Las entradas de cada carga no vienen con el historial: se piden al almacén
+  // solo cuando hacen falta (restaurar o abrir).
+  const obtenerCompleta = async (ref: HorariosSnapshotRef): Promise<HorariosSnapshot | null> => {
+    if (ref.entries) return { ...ref, entries: ref.entries };
+    const completa: HorariosSnapshot | null = await window.adminAPI.horarios.data.snapshot(curso, ref.id);
+    if (!completa) window.alert("No se han encontrado los datos de esta carga.");
+    return completa;
+  };
+
+  const handleRestaurar = async (ref: HorariosSnapshotRef) => {
     if (!data) return;
     const msg = [
-      `¿Restaurar el estado del ${new Date(snapshot.timestamp).toLocaleString("es-ES")}?`,
+      `¿Restaurar el estado del ${new Date(ref.timestamp).toLocaleString("es-ES")}?`,
       "",
-      `Acción: ${ACCION_LABELS[snapshot.accion]}`,
-      `Entradas: ${snapshot.entries.length}`,
+      `Acción: ${ACCION_LABELS[ref.accion]}`,
+      `Entradas: ${numEntradas(ref)}`,
       "",
       "Esto reemplazará los horarios actuales con los de ese momento.",
       "Se creará un nuevo snapshot de restauración.",
     ].join("\n");
     if (!window.confirm(msg)) return;
 
-    setRestaurando(snapshot.id);
+    setRestaurando(ref.id);
     try {
+      const snapshot = await obtenerCompleta(ref);
+      if (!snapshot) return;
       const ahora = new Date().toISOString();
       const nuevoSnapshot: HorariosSnapshot = {
         id: crypto.randomUUID(),
@@ -191,7 +207,7 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
     }
   };
 
-  const empezarEdicion = (snap: HorariosSnapshot) => {
+  const empezarEdicion = (snap: HorariosSnapshotRef) => {
     setEditandoId(snap.id);
     setEditNombre(snap.nombre ?? "");
   };
@@ -216,9 +232,11 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
   // La carga "actual" es la más reciente (primera tras ordenar por fecha desc).
   const idActual = snapshotsOrdenados[0]?.id ?? null;
 
-  const handleAbrir = () => {
+  const handleAbrir = async () => {
     if (!onActivar) return;
-    const snap = snapshotsOrdenados.find((s) => s.id === seleccionId);
+    const ref = snapshotsOrdenados.find((s) => s.id === seleccionId);
+    if (!ref) return;
+    const snap = await obtenerCompleta(ref);
     if (!snap) return;
     onActivar(snap, snap.id === idActual);
     onClose?.();
@@ -378,7 +396,7 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
                               <Minus className="w-3 h-3" />{snap.resumen.eliminadas}
                             </span>
                           )}
-                          <span>· {snap.entries.length} entradas</span>
+                          <span>· {numEntradas(snap)} entradas</span>
                         </span>
                       </div>
                     </div>
@@ -418,7 +436,7 @@ export function HistorialHorariosContenido({ curso, onActivar, activoId, onClose
               : "Selecciona una carga para abrirla en la app."}
           </span>
           <button
-            onClick={handleAbrir}
+            onClick={() => void handleAbrir()}
             disabled={!seleccionId}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg bg-[var(--tc-primary,#6366f1)] hover:opacity-90 disabled:opacity-40 transition-colors"
           >

@@ -31,7 +31,8 @@ export interface HorariosEntry {
   updatedAt: string;
 }
 
-export interface HorariosSnapshot {
+/** Ficha de una instantánea del historial, sin sus entradas. */
+export interface HorariosSnapshotInfo {
   id: string;
   timestamp: string;
   accion:
@@ -45,8 +46,22 @@ export interface HorariosSnapshot {
   fileName?: string;
   /** Nombre dado a la carga (p. ej. «1ª ronda Piano»), editable en el historial. */
   nombre?: string;
+  /** Nº de entradas de la instantánea (lo anota el almacén al guardarla). */
+  total?: number;
+}
+
+/** Instantánea completa, con sus entradas. */
+export interface HorariosSnapshot extends HorariosSnapshotInfo {
   entries: HorariosEntry[];
 }
+
+/**
+ * Instantánea tal como viaja en `HorariosCursoData`: el almacén la devuelve
+ * SIN `entries` (están en su propio archivo; se piden con
+ * `horariosDataObtenerSnapshot`). Solo trae `entries` la que se acaba de crear
+ * y aún no se ha guardado.
+ */
+export type HorariosSnapshotRef = HorariosSnapshotInfo & { entries?: HorariosEntry[] };
 
 /** Formato de columnas del informe base que se usa para generar los Excel de horarios. */
 export interface FormatoHorarios {
@@ -65,7 +80,7 @@ export interface FormatoHorarios {
 export interface HorariosCursoData {
   curso: string;
   entries: HorariosEntry[];
-  snapshots: HorariosSnapshot[];
+  snapshots: HorariosSnapshotRef[];
   lastUpdated: string | null;
   /** Formato de columnas acordado para los Excel de horarios de este curso. */
   formatoHorarios?: FormatoHorarios;
@@ -73,64 +88,160 @@ export interface HorariosCursoData {
   docGrupalConfig?: Record<string, unknown>;
 }
 
+/** Como `HorariosCursoData`, pero con las entradas de cada instantánea. */
+export type HorariosCursoDataCompleto = Omit<HorariosCursoData, "snapshots"> & {
+  snapshots: HorariosSnapshot[];
+};
+
+// ── Rutas ──────────────────────────────────────────────────────────────────────
+//
+// horarios-data/
+//   horarios-26-27.json            archivo vivo: entradas actuales + fichas del historial
+//   instantaneas-26-27/<id>.json   una instantánea completa por archivo
+//
+// Hasta la v1.27 las instantáneas iban enteras dentro del archivo vivo, que
+// llegaba a pesar decenas de MB y se movía entero en cada lectura y guardado.
+
 function basePath(): string {
   return path.join(app.getPath("userData"), "horarios-data");
 }
 
-function cursoToFile(curso: string): string {
-  const safe = curso.replace(/\//g, "-");
-  return path.join(basePath(), `horarios-${safe}.json`);
+function cursoSafe(curso: string): string {
+  return curso.replace(/\//g, "-");
 }
 
-function ensureDir(): void {
-  const dir = basePath();
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+function cursoToFile(curso: string): string {
+  return path.join(basePath(), `horarios-${cursoSafe(curso)}.json`);
+}
+
+function instantaneasDir(curso: string): string {
+  return path.join(basePath(), `instantaneas-${cursoSafe(curso)}`);
+}
+
+function instantaneaFile(curso: string, id: string): string {
+  return path.join(instantaneasDir(curso), `${id.replace(/[^\w.-]/g, "_")}.json`);
+}
+
+function leerJson<T>(ruta: string): T | null {
+  if (!fs.existsSync(ruta)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(ruta, "utf-8")) as T;
+  } catch {
+    return null;
   }
 }
 
+/** Escritura atómica: se escribe en un temporal y se renombra. */
+function escribirAtomico(ruta: string, contenido: string): void {
+  fs.mkdirSync(path.dirname(ruta), { recursive: true });
+  const tmp = `${ruta}.tmp`;
+  fs.writeFileSync(tmp, contenido, "utf-8");
+  fs.renameSync(tmp, ruta);
+}
+
+// ── Instantáneas ───────────────────────────────────────────────────────────────
+
+/**
+ * Deja cada instantánea en su archivo y devuelve solo las fichas. Las entradas
+ * de una instantánea no cambian nunca, así que si su archivo ya existe no se
+ * reescribe.
+ */
+function separarInstantaneas(curso: string, snapshots: HorariosSnapshotRef[]): HorariosSnapshotInfo[] {
+  return snapshots.map((snap) => {
+    const { entries, ...info } = snap;
+    if (!Array.isArray(entries)) return info;
+    const file = instantaneaFile(curso, snap.id);
+    if (!fs.existsSync(file)) {
+      escribirAtomico(file, JSON.stringify({ ...info, entries }));
+    }
+    return { ...info, total: entries.length };
+  });
+}
+
+/** Borra los archivos de instantáneas que ya no figuran en el historial. */
+function borrarInstantaneasSobrantes(curso: string, fichas: HorariosSnapshotInfo[]): void {
+  const dir = instantaneasDir(curso);
+  if (!fs.existsSync(dir)) return;
+  const vigentes = new Set(fichas.map((s) => path.basename(instantaneaFile(curso, s.id))));
+  for (const nombre of fs.readdirSync(dir)) {
+    if (nombre.endsWith(".json") && !vigentes.has(nombre)) {
+      fs.rmSync(path.join(dir, nombre), { force: true });
+    }
+  }
+}
+
+function escribirVivo(curso: string, data: HorariosCursoData): void {
+  const file = cursoToFile(curso);
+  // Antes de pisar el archivo bueno, guardamos una copia .bak para poder
+  // recuperarlo si algo falla a mitad.
+  if (fs.existsSync(file)) {
+    fs.copyFileSync(file, `${file}.bak`);
+  }
+  escribirAtomico(file, JSON.stringify(data));
+}
+
+// ── API ────────────────────────────────────────────────────────────────────────
+
+/** Estado del curso. Las instantáneas vienen sin `entries` (solo su ficha). */
 export function horariosDataObtener(curso: string): HorariosCursoData {
   const file = cursoToFile(curso);
-  const vacio: HorariosCursoData = { curso, entries: [], snapshots: [], lastUpdated: null };
 
-  const leer = (ruta: string): HorariosCursoData | null => {
-    if (!fs.existsSync(ruta)) return null;
-    try {
-      return JSON.parse(fs.readFileSync(ruta, "utf-8")) as HorariosCursoData;
-    } catch {
-      return null;
-    }
-  };
+  // Si el archivo principal no existe o está corrupto, intentamos la copia .bak.
+  const data = leerJson<HorariosCursoData>(file) ?? leerJson<HorariosCursoData>(`${file}.bak`);
+  if (!data) return { curso, entries: [], snapshots: [], lastUpdated: null };
 
-  const principal = leer(file);
-  if (principal) return principal;
+  const snapshots = data.snapshots ?? [];
+  if (!snapshots.some((s) => Array.isArray(s.entries))) {
+    return { ...data, snapshots };
+  }
 
-  // El archivo principal no existe o está corrupto: intentamos la copia .bak.
-  const respaldo = leer(`${file}.bak`);
-  if (respaldo) return respaldo;
-
-  return vacio;
+  // Formato anterior: las instantáneas van dentro del archivo vivo. Se sacan a
+  // sus archivos una sola vez, dejando una copia del original por si hubiera
+  // que volver a una versión anterior de la app.
+  const copiaOriginal = file.replace(/\.json$/, ".antes-de-instantaneas.json");
+  if (fs.existsSync(file) && !fs.existsSync(copiaOriginal)) {
+    fs.copyFileSync(file, copiaOriginal);
+  }
+  const migrado: HorariosCursoData = { ...data, snapshots: separarInstantaneas(curso, snapshots) };
+  escribirVivo(curso, migrado);
+  return migrado;
 }
 
+/**
+ * Guarda el estado del curso. Las instantáneas que traigan `entries` (las
+ * nuevas) se escriben en su archivo; las que ya no estén en `data.snapshots`
+ * se borran del disco.
+ */
 export function horariosDataGuardar(curso: string, data: HorariosCursoData): void {
-  ensureDir();
-  const file = cursoToFile(curso);
-  const tmp = `${file}.tmp`;
-  const bak = `${file}.bak`;
+  const fichas = separarInstantaneas(curso, data.snapshots ?? []);
+  escribirVivo(curso, { ...data, snapshots: fichas });
+  borrarInstantaneasSobrantes(curso, fichas);
+}
 
-  // Escritura atómica: escribimos en un temporal y renombramos. Antes de
-  // pisar el archivo bueno, guardamos una copia .bak para poder recuperarlo
-  // si algo falla a mitad.
-  fs.writeFileSync(tmp, JSON.stringify(data), "utf-8");
-  if (fs.existsSync(file)) {
-    fs.copyFileSync(file, bak);
-  }
-  fs.renameSync(tmp, file);
+/** Una instantánea completa (con entradas), o null si no existe. */
+export function horariosDataObtenerSnapshot(curso: string, id: string): HorariosSnapshot | null {
+  const ficha = horariosDataObtener(curso).snapshots.find((s) => s.id === id);
+  return ficha ? leerInstantanea(curso, ficha) : null;
+}
+
+function leerInstantanea(curso: string, ficha: HorariosSnapshotInfo): HorariosSnapshot | null {
+  const guardada = leerJson<HorariosSnapshot>(instantaneaFile(curso, ficha.id));
+  if (!guardada || !Array.isArray(guardada.entries)) return null;
+  // La ficha del archivo vivo manda: el nombre se puede editar después.
+  return { ...ficha, entries: guardada.entries };
+}
+
+/** Estado del curso con todas las instantáneas completas (copias de seguridad). */
+export function horariosDataObtenerCompleto(curso: string): HorariosCursoDataCompleto {
+  const data = horariosDataObtener(curso);
+  const snapshots = data.snapshots
+    .map((s) => leerInstantanea(curso, s))
+    .filter((s): s is HorariosSnapshot => s !== null);
+  return { ...data, snapshots };
 }
 
 export function horariosDataExportarHistorial(curso: string): { curso: string; snapshots: HorariosSnapshot[] } {
-  const data = horariosDataObtener(curso);
-  return { curso, snapshots: data.snapshots };
+  return { curso, snapshots: horariosDataObtenerCompleto(curso).snapshots };
 }
 
 export function horariosDataImportarHistorial(curso: string, json: { curso: string; snapshots: HorariosSnapshot[] }): { importados: number } {

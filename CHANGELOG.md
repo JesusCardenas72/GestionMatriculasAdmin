@@ -9,6 +9,15 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.3] - 2026-10-13
+
+### Cambiado
+
+- **Horarios: cada carga del historial se guarda en su propio archivo** (fase C, punto 1, de `plan_GestionMatriculasAdmin_React_Vite_PWA.md`). El archivo vivo (`horarios-data/horarios-AA-AA.json`) guarda solo los horarios actuales y la ficha de cada carga; las entradas de cada carga van en `horarios-data/instantaneas-AA-AA/<id>.json` y solo se leen al restaurarla o abrirla. Con los datos del curso 26/27 el archivo vivo pasa de 22,4 MB a 0,9 MB, y cada lectura y cada guardado dejan de mover y duplicar esos 22 MB. La pantalla «Historial de horarios» se ve y funciona igual.
+  - La conversión es automática la primera vez que se leen los horarios de un curso y deja una copia del archivo original (`horarios-AA-AA.antes-de-instantaneas.json`). Una versión anterior de la app no puede abrir el historial ya convertido: para volver atrás hay que renombrar esa copia a `horarios-AA-AA.json`.
+  - Las copias de seguridad `.gmbackup` y el JSON de «Exportar historial» conservan su formato: las antiguas siguen sirviendo.
+- Tests: `src/test/horariosDataStore.test.ts`. 50 archivos / 674 tests en verde.
+
 ## [1.27.2] - 2026-10-13
 
 ### Cambiado

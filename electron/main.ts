@@ -98,6 +98,7 @@ import {
 import {
   horariosDataObtener,
   horariosDataGuardar,
+  horariosDataObtenerSnapshot,
   horariosDataExportarHistorial,
   horariosDataImportarHistorial,
   type HorariosCursoData,
@@ -787,6 +788,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle("horarios:data:guardar", (_e, curso: string, data: HorariosCursoData) => {
     horariosDataGuardar(curso, data);
+  });
+
+  ipcMain.handle("horarios:data:snapshot", (_e, curso: string, id: string) => {
+    return horariosDataObtenerSnapshot(curso, id);
   });
 
   ipcMain.handle("horarios:data:exportar", (_e, curso: string) => {

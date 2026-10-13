@@ -14,6 +14,12 @@ import {
   type Profesor,
   type ProfesoradoStore,
 } from "./profesorado-store";
+import {
+  horariosDataGuardar,
+  horariosDataObtener,
+  horariosDataObtenerCompleto,
+  type HorariosCursoData,
+} from "./horarios-data-store";
 
 /**
  * Copia de seguridad completa (Fase 1: GUARDAR).
@@ -253,14 +259,12 @@ export async function crearBackup(
       const file = horariosFile(curso);
       if (!fs.existsSync(file)) continue;
       cursos.add(curso);
-      if (conHistorico) {
-        zip.file(`horarios-data/horarios-${cursoSafe(curso)}.json`, fs.readFileSync(file));
-      } else {
-        // Estado actual sin el histórico de snapshots.
-        const data = leerJson<Record<string, unknown>>(file, {});
-        const sinHistorico = { ...data, snapshots: [] };
-        zip.file(`horarios-data/horarios-${cursoSafe(curso)}.json`, JSON.stringify(sinHistorico));
-      }
+      // En la copia, el historial va dentro del mismo JSON (en el equipo cada
+      // instantánea vive en su propio archivo).
+      const data = conHistorico
+        ? horariosDataObtenerCompleto(curso)
+        : { ...horariosDataObtener(curso), snapshots: [] };
+      zip.file(`horarios-data/horarios-${cursoSafe(curso)}.json`, JSON.stringify(data));
     }
   }
 
@@ -580,31 +584,27 @@ export async function restaurarBackup(
   // ── B) Horarios ──
   if (seleccion.horarios && seleccion.horarios.cursos.length > 0) {
     for (const curso of seleccion.horarios.cursos) {
-      const deLaCopia = await zipJson<{ entries?: any[]; snapshots?: any[]; lastUpdated?: string | null } & Record<string, unknown>>(
+      const deLaCopia = await zipJson<Partial<HorariosCursoData> | null>(
         zip,
         `horarios-data/horarios-${cursoSafe(curso)}.json`,
-        null as any,
+        null,
       );
       if (!deLaCopia) continue;
       cursosTocados.add(curso);
-      const destFile = horariosFile(curso);
-      ensureDir(path.dirname(destFile));
 
+      // Se guarda a través del almacén, que reparte cada instantánea en su archivo.
       if (modo === "reemplazar") {
-        fs.writeFileSync(destFile, JSON.stringify(deLaCopia), "utf-8");
+        horariosDataGuardar(curso, { curso, entries: [], snapshots: [], lastUpdated: null, ...deLaCopia });
       } else {
-        const existente = leerJson<{ entries?: any[]; snapshots?: any[] } & Record<string, unknown>>(
-          destFile,
-          { curso, entries: [], snapshots: [], lastUpdated: null },
-        );
+        const existente = horariosDataObtener(curso);
         const entries = existente.entries ?? [];
-        const keys = new Set(entries.map((e: any) => e.key));
+        const keys = new Set(entries.map((e) => e.key));
         for (const e of deLaCopia.entries ?? []) if (!keys.has(e.key)) entries.push(e);
-        const snaps = existente.snapshots ?? [];
-        const snapIds = new Set(snaps.map((s: any) => s.id));
+        const snaps = existente.snapshots;
+        const snapIds = new Set(snaps.map((s) => s.id));
         for (const s of deLaCopia.snapshots ?? []) if (!snapIds.has(s.id)) snaps.push(s);
-        snaps.sort((a: any, b: any) => String(a.timestamp).localeCompare(String(b.timestamp)));
-        fs.writeFileSync(destFile, JSON.stringify({ ...existente, entries, snapshots: snaps }), "utf-8");
+        snaps.sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+        horariosDataGuardar(curso, { ...existente, entries, snapshots: snaps });
       }
       tick();
     }
