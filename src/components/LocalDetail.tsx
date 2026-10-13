@@ -671,32 +671,40 @@ export default function LocalDetail({
             </div>
 
             {/* Meta */}
-            <div className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--tc-ink-soft)" }}>
-              <span className="font-bold uppercase tracking-wide text-[10.5px]">Curso</span>
+            {/* Línea 1: Curso | Especialidad (tamaño intermedio entre el meta y el nombre) */}
+            <div className="flex items-center gap-2.5" style={{ color: "var(--tc-ink-soft)", fontSize: 19 }}>
+              <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13 }}>Curso</span>
               <span
-                className="px-2 py-0.5 rounded font-bold text-xs"
-                style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)" }}
+                className="px-2 py-0.5 rounded font-bold"
+                style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)", fontSize: 18 }}
               >
                 {m.ensenanzaCurso ?? "—"}
               </span>
               <span style={{ color: "var(--tc-border)" }}>|</span>
-              <span className="font-bold uppercase tracking-wide text-[10.5px]">Esp.</span>
+              <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13 }}>Esp.</span>
               <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{m.especialidad ?? "—"}</span>
-              {tutor && (
-                <>
-                  <span style={{ whiteSpace: "pre" }}>{"\t"}</span>
-                  <span className="font-bold uppercase tracking-wide text-[10.5px]">Tutor/a</span>
-                  <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{tutor}</span>
-                </>
-              )}
-              {unidad && (
-                <>
-                  <span style={{ color: "var(--tc-border)" }}>|</span>
-                  <span className="font-bold uppercase tracking-wide text-[10.5px]">Unidad</span>
-                  <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{unidad}</span>
-                </>
-              )}
+              <span className="ml-auto font-bold uppercase tracking-wide" style={{ fontSize: 13 }}>Forma de Pago</span>
+              <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{form.formaPago || "—"}</span>
             </div>
+
+            {/* Línea 2: Tutor/a | Unidad (tamaño anterior + 2 pt) */}
+            {(tutor || unidad) && (
+              <div className="flex items-center gap-2 mt-1" style={{ color: "var(--tc-ink-soft)", fontSize: 14.5 }}>
+                {tutor && (
+                  <>
+                    <span className="font-bold uppercase tracking-wide" style={{ fontSize: 12.5 }}>Tutor/a</span>
+                    <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{tutor}</span>
+                  </>
+                )}
+                {tutor && unidad && <span style={{ color: "var(--tc-border)" }}>|</span>}
+                {unidad && (
+                  <>
+                    <span className="font-bold uppercase tracking-wide" style={{ fontSize: 12.5 }}>Unidad</span>
+                    <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{unidad}</span>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Temporal: aviso (el selector "Sustituye a…" de matrículas reales está en Datos Personales) */}
             {m.esTemporal && (

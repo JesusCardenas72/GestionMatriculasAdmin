@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle, Plus, Trash2, UserCog, X } from "lucide-react";
 import { norm } from "../../utils/horarioExcel";
 import {
@@ -147,12 +147,11 @@ export default function SustituirProfesoradoModal({
                       ))}
                     </select>
                     <ArrowRight className="w-4 h-4 shrink-0 text-[var(--tc-ink-mute)]" />
-                    <input
-                      value={par.entra}
-                      onChange={(e) => editarPar(idx, "entra", e.target.value)}
-                      list="sust-profesores-existentes"
-                      placeholder="Nombre nuevo: Apellidos, Nombre"
-                      className="flex-1 min-w-0 h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--tc-primary-border)]"
+                    <CampoEntra
+                      valor={par.entra}
+                      onChange={(v) => editarPar(idx, "entra", v)}
+                      lista={lista}
+                      clasesDe={clasesDe}
                     />
                     <button
                       onClick={() => quitarPar(idx)}
@@ -164,13 +163,6 @@ export default function SustituirProfesoradoModal({
                   </div>
                 ))}
               </div>
-
-              {/* Nombres ya conocidos, para autocompletar «Entra» */}
-              <datalist id="sust-profesores-existentes">
-                {lista.map((nombre) => (
-                  <option key={nombre} value={nombre} />
-                ))}
-              </datalist>
 
               <button
                 onClick={anadirPar}
@@ -239,6 +231,186 @@ export default function SustituirProfesoradoModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Posición del desplegable de «Entra» en coordenadas de la ventana. */
+type PosCampo = { left: number; width: number; top?: number; bottom?: number };
+
+/**
+ * Campo «Entra»: texto libre (también cabe un profesor nuevo) con un
+ * desplegable propio que replica el formato del «Sale» — mismo estilo y
+ * «Nombre (n clases)» —. El popup nativo del `<datalist>` no se puede dar
+ * formato, así que aquí se dibuja a mano.
+ */
+function CampoEntra({
+  valor,
+  onChange,
+  lista,
+  clasesDe,
+}: {
+  valor: string;
+  onChange: (v: string) => void;
+  lista: string[];
+  clasesDe: (nombre: string) => number;
+}) {
+  const uid = useId();
+  const [abierto, setAbierto] = useState(false);
+  const [activo, setActivo] = useState(0);
+  const [pos, setPos] = useState<PosCampo | null>(null);
+  const raizRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listaRef = useRef<HTMLUListElement>(null);
+
+  const sugerencias = useMemo(() => {
+    const q = norm(valor);
+    return q === "" ? lista : lista.filter((n) => norm(n).includes(q));
+  }, [lista, valor]);
+
+  const idx = Math.min(activo, Math.max(sugerencias.length - 1, 0));
+  const yaEstaEnLista =
+    valor.trim() !== "" && lista.some((n) => norm(n) === norm(valor));
+
+  /** Ancla el desplegable al campo; se abre hacia arriba si no cabe abajo. */
+  const medir = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const huecoAbajo = window.innerHeight - r.bottom;
+    const haciaArriba = huecoAbajo < 240 && r.top > huecoAbajo;
+    setPos(
+      haciaArriba
+        ? { left: r.left, width: r.width, bottom: window.innerHeight - r.top + 4 }
+        : { left: r.left, width: r.width, top: r.bottom + 4 },
+    );
+  }, []);
+
+  const abrir = () => {
+    setActivo(0);
+    medir();
+    setAbierto(true);
+  };
+
+  const elegir = (nombre: string) => {
+    onChange(nombre);
+    setAbierto(false);
+    inputRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => {
+      if (raizRef.current && !raizRef.current.contains(e.target as Node)) setAbierto(false);
+    };
+    document.addEventListener("mousedown", fuera);
+    window.addEventListener("resize", medir);
+    window.addEventListener("scroll", medir, true);
+    return () => {
+      document.removeEventListener("mousedown", fuera);
+      window.removeEventListener("resize", medir);
+      window.removeEventListener("scroll", medir, true);
+    };
+  }, [abierto, medir]);
+
+  useEffect(() => {
+    if (!abierto) return;
+    const op = listaRef.current?.children[idx] as HTMLElement | undefined;
+    op?.scrollIntoView?.({ block: "nearest" });
+  }, [abierto, idx]);
+
+  const alPulsar = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!abierto) {
+        abrir();
+        return;
+      }
+      const n = sugerencias.length;
+      if (n === 0) return;
+      setActivo((a) => {
+        const base = Math.min(a, n - 1);
+        return e.key === "ArrowDown" ? Math.min(base + 1, n - 1) : Math.max(base - 1, 0);
+      });
+    } else if (e.key === "Enter") {
+      if (abierto && sugerencias[idx]) {
+        e.preventDefault();
+        elegir(sugerencias[idx]);
+      }
+    } else if (e.key === "Escape" && abierto) {
+      e.preventDefault();
+      setAbierto(false);
+    }
+  };
+
+  return (
+    <div ref={raizRef} className="relative flex-1 min-w-0">
+      <input
+        ref={inputRef}
+        value={valor}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setActivo(0);
+          if (!abierto) abrir();
+        }}
+        onFocus={abrir}
+        onBlur={() => setAbierto(false)}
+        onKeyDown={alPulsar}
+        role="combobox"
+        aria-expanded={abierto}
+        aria-controls={`${uid}-lista`}
+        aria-autocomplete="list"
+        aria-activedescendant={abierto && sugerencias[idx] ? `${uid}-op-${idx}` : undefined}
+        placeholder="Nombre nuevo: Apellidos, Nombre"
+        className="w-full h-9 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] px-2 text-sm text-[var(--tc-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--tc-primary-border)]"
+      />
+      {abierto && pos && (
+        <ul
+          ref={listaRef}
+          id={`${uid}-lista`}
+          role="listbox"
+          onMouseDown={(e) => e.preventDefault()}
+          style={{
+            position: "fixed",
+            left: pos.left,
+            width: pos.width,
+            top: pos.top,
+            bottom: pos.bottom,
+            maxHeight: 240,
+          }}
+          className="z-[60] overflow-y-auto rounded-lg border border-[var(--tc-border)] bg-[var(--tc-card)] shadow-xl py-1"
+        >
+          {sugerencias.length === 0 ? (
+            <li className="px-3 py-2 text-xs text-[var(--tc-ink-mute)]">
+              Sin coincidencias: «{valor.trim()}» se usará como nombre nuevo.
+            </li>
+          ) : (
+            sugerencias.map((nombre, i) => (
+              <li
+                key={nombre}
+                id={`${uid}-op-${i}`}
+                role="option"
+                aria-selected={i === idx}
+                onClick={() => elegir(nombre)}
+                onMouseEnter={() => setActivo(i)}
+                className={`cursor-pointer px-2 py-1.5 text-sm text-[var(--tc-ink)] transition-colors ${
+                  i === idx ? "bg-[var(--tc-bg-panel)]" : ""
+                }`}
+              >
+                {nombre}
+                {clasesDe(nombre) > 0 ? (
+                  <span className="text-[var(--tc-ink-mute)]"> ({clasesDe(nombre)} clases)</span>
+                ) : null}
+              </li>
+            ))
+          )}
+          {valor.trim() !== "" && !yaEstaEnLista && sugerencias.length > 0 && (
+            <li className="border-t border-[var(--tc-border)] px-3 py-1.5 text-xs text-[var(--tc-ink-mute)]">
+              «{valor.trim()}» se usará como nombre nuevo.
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }

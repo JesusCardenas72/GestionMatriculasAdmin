@@ -9,6 +9,13 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.28.1] - 2026-10-13
+
+### Cambiado
+
+- **Matrículas Locales → cabecera de la ficha en dos líneas y con letra más grande** (`src/components/LocalDetail.tsx`): arriba Curso, Especialidad y, a la derecha, Forma de Pago; debajo, Tutor/a y Unidad.
+- **Profesorado → Sustituir profesorado: el campo «Entra» tiene desplegable propio** (`src/components/modals/SustituirProfesoradoModal.tsx`), con el mismo aspecto que «Sale» («Nombre (n clases)»). Filtra según se escribe, se maneja con flechas y Enter, se abre hacia arriba si no cabe abajo y sigue admitiendo un nombre que no esté en la lista.
+
 ## [1.28.0] - 2026-10-13
 
 ### Añadido
