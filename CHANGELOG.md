@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.7] - 2026-10-13
+
+### Cambiado
+
+- **La descarga de PDF en segundo plano va más suave** (fase C, punto 6; `src/hooks/usePdfBackgroundSync.ts`): empieza 5 segundos después de entrar y baja los PDF de uno en uno (antes, al instante y de tres en tres). No compite con el arranque en equipos modestos y gasta menos cupo de Power Automate cuando varios equipos descargan a la vez. Un equipo nuevo tarda más en tener todos los PDF en local; mientras tanto, cada PDF se sigue descargando al abrir su solicitud.
+- **Tope a lo que el motor guarda en disco por su cuenta** (fase C, punto 7; `electron/cache-chromium.ts`): la caché de red queda limitada a 50 MB y la de código se vacía al arrancar si pasa de 100 MB. En el equipo de desarrollo sumaban 386 MB. No son datos del usuario.
+- Tests: `src/hooks/usePdfBackgroundSync.test.ts` y `src/test/cacheChromium.test.ts`. 53 archivos / 688 tests en verde.
+
 ## [1.27.6] - 2026-10-13
 
 ### Cambiado

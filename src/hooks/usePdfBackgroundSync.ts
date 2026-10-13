@@ -5,8 +5,21 @@ import { cursosStore } from "../api/cursosStore";
 import { listarAsignaturasSolicitud, obtenerPDF } from "../api/solicitudes";
 import { solicitudALocal } from "../utils/solicitudALocal";
 
-const BATCH_SIZE = 3;       // descargas simultáneas
+// La descarga va despacio a propósito: de una en una y empezando cuando la app
+// ya lleva unos segundos abierta. Así no compite con el arranque en equipos
+// modestos ni agota el cupo de Power Automate cuando varios equipos descargan
+// a la vez (un equipo nuevo hace unas 500 llamadas la primera vez).
+export const ESPERA_INICIAL = 5000; // ms antes de la primera descarga
+const BATCH_SIZE = 1;       // descargas simultáneas
 const DELAY_ENTRE_LOTES = 800; // ms entre lotes para no saturar la API
+
+/** Espera `ms`, o menos si se cancela la descarga. */
+function esperar(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => { clearTimeout(t); resolve(); }, { once: true });
+  });
+}
 
 /**
  * Descarga en segundo plano el PDF de todas las solicitudes de la nube
@@ -38,6 +51,9 @@ export function usePdfBackgroundSync(
 
     void (async () => {
       try {
+        await esperar(ESPERA_INICIAL, signal);
+        if (signal.aborted) return;
+
         // 1 — Comprobar en bloque cuáles ya existen
         const rowIds = solicitudes.map((s) => s.rowId);
         const existentes = await cursosStore.tienePdfBatch(curso, rowIds);
@@ -99,10 +115,7 @@ export function usePdfBackgroundSync(
 
           // Pequeña pausa entre lotes
           if (!signal.aborted && i + BATCH_SIZE < pendientes.length) {
-            await new Promise<void>((resolve) => {
-              const t = setTimeout(resolve, DELAY_ENTRE_LOTES);
-              signal.addEventListener("abort", () => { clearTimeout(t); resolve(); }, { once: true });
-            });
+            await esperar(DELAY_ENTRE_LOTES, signal);
           }
         }
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, screen, Menu, MenuItem, shell } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, protocol, screen, session, Menu, MenuItem, shell } from "electron";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -104,6 +104,7 @@ import {
   type HorariosCursoData,
 } from "./horarios-data-store";
 import { cerrarVentanaPdf, generarPdfBase64 } from "./pdf-fabrica";
+import { limitarCacheDeRed, vaciarCacheDeCodigoSiSobra } from "./cache-chromium";
 import {
   temporalesGetAsistente,
   temporalesGetConfig,
@@ -121,6 +122,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // directamente la ventana del driver del sistema en lugar de la vista previa
 // de impresión propia de Chromium.
 app.commandLine.appendSwitch("disable-print-preview");
+
+// Tope a lo que el motor guarda en disco por su cuenta (ver cache-chromium.ts).
+limitarCacheDeRed();
 
 // Esquema propio para servir PDFs descargados al visor nativo embebido en un
 // <iframe>. El plugin PDF de Chromium no se activa con blob: en subframes, y un
@@ -1752,6 +1756,7 @@ app.whenReady().then(() => {
       headers: { "content-type": "application/pdf" },
     });
   });
+  void vaciarCacheDeCodigoSiSobra(session.defaultSession);
   registerIpcHandlers();
   cursosMigrarLegacy();
   cursosMigrarPdfAFicheros(); // one-shot: extrae _pdfBase64 del JSON a ficheros sueltos
