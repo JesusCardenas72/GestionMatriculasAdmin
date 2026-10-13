@@ -28,7 +28,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { AppConfig } from '../../electron/config-store';
 import type {
   CampoKey,
@@ -2381,16 +2381,17 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   async function handleExportarExcel() {
     setShowExportMenu(false);
     const rows = buildExportRows();
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Informe');
+    ws.addRows(rows);
 
     // Ancho de columnas automático
-    const colWidths = camposEnTabla.map(c => ({ wch: Math.max(c.label.length, 12) }));
-    ws['!cols'] = colWidths;
+    camposEnTabla.forEach((c, i) => {
+      ws.getColumn(i + 1).width = Math.max(c.label.length, 12);
+    });
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Informe');
-    const buf: ArrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const bytes = new Uint8Array(buf);
+    const buf = await wb.xlsx.writeBuffer();
+    const bytes = new Uint8Array(buf as ArrayBuffer);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
     const base64 = btoa(binary);

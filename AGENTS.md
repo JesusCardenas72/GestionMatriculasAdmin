@@ -8,8 +8,9 @@
 
 ## Build & dev commands
 - `npm run dev` — starts Vite dev server **and** launches Electron (opens DevTools automatically in dev).
-- `npm run build` — runs `tsc -b` then `vite build`. Produces `dist/` (renderer) and `dist-electron/` (main + preload).
-- `npm run dist` — runs `npm run build` then `electron-builder`. Outputs Windows NSIS installer to `release/`.
+- `npm run build` — empties `dist-electron/` (`npm run limpiar`), then runs `tsc -b` and `vite build`. Produces `dist/` (renderer) and `dist-electron/` (main + preload).
+- `npm run dist` — runs `npm run build`, then `electron-builder`, then the package-size test. Outputs to `release/`.
+- **Package weight rule:** `dependencies` holds **only `pdf-to-printer`** (the one module main loads from `node_modules` at runtime). Everything Vite bundles goes in `devDependencies`, otherwise electron-builder copies it again into the package. `src/test/tamanoPaquete.test.ts` enforces this and a 30 MB limit for the packaged app.
 - **No separate `lint` or `typecheck` scripts.** `tsc -b` during build is the only type-check step.
 
 ## Testing

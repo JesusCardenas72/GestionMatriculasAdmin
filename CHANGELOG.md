@@ -9,6 +9,17 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.2] - 2026-10-13
+
+### Cambiado
+
+- **El paquete que se instala pesa menos de la mitad** (fase A de `plan_GestionMatriculasAdmin_React_Vite_PWA.md`): la carpeta instalada baja de 636 MB a 289 MB y el `.exe` portable de 105 MB a 78 MB. La app funciona igual.
+  - `npm run build` vacía `dist-electron/` antes de compilar (`npm run limpiar`); antes se acumulaban las compilaciones antiguas (206 archivos, 157 MB).
+  - En `dependencies` solo queda `pdf-to-printer`, lo único que el proceso principal carga desde fuera. El resto ya lo empaqueta Vite y pasa a `devDependencies`, así electron-builder no lo copia por duplicado.
+  - Se quita `react-pdf`, que no se usaba.
+  - Informes → Exportar → Excel usa `exceljs` en lugar de `xlsx` (que tenía avisos de seguridad sin corrección); `xlsx` se desinstala.
+- Tests: `src/test/tamanoPaquete.test.ts` falla si el paquete de la app supera 30 MB o incluye una librería que no sea `pdf-to-printer`; `npm run dist` lo pasa al final. 49 archivos / 665 tests en verde.
+
 ## [1.27.1] - 2026-10-09
 
 ### Cambiado
