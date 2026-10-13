@@ -1,4 +1,3 @@
-import ExcelJS from "exceljs";
 import { ESTADO_ASIGNATURA, type MatriculaLocal } from "../api/types";
 import { normDescripcion } from "../data/catalogoLocal";
 import { cargaCiclo, cargaCurso } from "../data/planEstudiosEP";
@@ -773,7 +772,9 @@ function bytesABase64(bytes: Uint8Array): string {
  * hoja «Incidencias» con lo que conviene revisar antes de combinar en Word.
  */
 export async function construirExcelBecas(filas: FilaBeca[]): Promise<string> {
-  const wb = new ExcelJS.Workbook();
+  // exceljs pesa casi 1 MB: se carga solo al fabricar el Excel, no con este módulo.
+  const { Workbook } = (await import("exceljs")).default;
+  const wb = new Workbook();
   const ws = wb.addWorksheet("Hoja1");
   ws.addTable({
     name: "Tabla1",

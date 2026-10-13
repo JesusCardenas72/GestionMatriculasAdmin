@@ -62,6 +62,7 @@
 - List cards use `scale(1.04)` + elevated `z-index` on hover for an expand-over-neighbors effect. `LocalList.tsx` `StackedCardRow` swaps card z-order based on which card is selected.
 
 - **One window, one chunk.** `src/main.tsx` only sets up zoom and then `import()`s what the window needs: a dialog component when the URL hash starts with `dialog-…` (table `DIALOGOS`), otherwise `src/AppPrincipal.tsx` (the app with its providers). Never import `App` or a dialog statically from `main.tsx`. Modules reachable from a dialog must not import heavy libraries statically: `exceljs` is loaded with `await import("exceljs")` inside the function that reads the file (`horarioExcel.ts`, `fusionHorarios.ts`, `profesoradoArchivo.ts`). `src/test/tamanoPaquete.test.ts` fails if a dialog loads more than 1200 KB.
+- **Screens load on demand.** `App.tsx` loads `MainScreen` and `ConfigScreen` with `React.lazy` (the LaunchGate starts with ~260 KB), and `MainScreen.tsx` does the same with `LocalScreen`, `InformesScreen`, `HorariosAlumnosScreen` and `ProfesoradoScreen`. Keep new big screens lazy; the same test fails if the entry screen loads more than 600 KB.
 
 ## LaunchGate (pantalla de bienvenida)
 - `src/screens/LaunchGate.tsx` — menú con dos botones: **Administrador** y **Solo Lectura**.

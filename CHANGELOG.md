@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.6] - 2026-10-13
+
+### Cambiado
+
+- **Las pantallas se cargan al entrar en ellas** (fase C, punto 5, de `plan_GestionMatriculasAdmin_React_Vite_PWA.md`). La pantalla de entrada arranca con 0,26 MB de código en lugar de 3,6 MB; el resto se carga al elegir modo (Solicitudes, 1 MB) y al abrir cada pestaña (Matrículas Locales, Horarios, Informes y Profesorado). La primera vez que se abre una pestaña puede verse «Cargando…» un instante.
+  - `exceljs` se carga solo al fabricar el Excel de certificados de becas (`becasCertificados.ts`); antes venía con la pantalla de Solicitudes.
+- Tests: `src/test/tamanoPaquete.test.ts` falla si la pantalla de entrada carga más de 600 KB. 51 archivos / 681 tests en verde.
+
 ## [1.27.5] - 2026-10-13
 
 ### Cambiado

@@ -63,6 +63,7 @@ function tamanoCarpeta(ruta: string): number {
 
 const ASSETS = path.join(RAIZ, "dist", "assets");
 const LIMITE_DIALOGO_KB = 1200;
+const LIMITE_ENTRADA_KB = 600;
 
 /** Trozos que un archivo de `dist/assets` importa de forma fija (no con `import()`). */
 function importsFijos(archivo: string): string[] {
@@ -106,6 +107,15 @@ describe.skipIf(!fs.existsSync(ASSETS))("código que carga cada ventana", () => 
       .map((f) => ({ dialogo: f, kb: Math.round(cargaDeVentana(f, entrada)) }))
       .filter((d) => d.kb > LIMITE_DIALOGO_KB);
     expect(pasados).toEqual([]);
+  });
+
+  // La pantalla de entrada no debe arrastrar las pantallas de trabajo: esas
+  // se cargan al elegir modo y al entrar en cada pestaña.
+  it(`la pantalla de entrada carga menos de ${LIMITE_ENTRADA_KB} KB`, () => {
+    const archivos = fs.readdirSync(ASSETS);
+    const entrada = archivos.find((f) => /^index-.*\.js$/.test(f))!;
+    const app = archivos.find((f) => /^AppPrincipal.*\.js$/.test(f))!;
+    expect(cargaDeVentana(app, entrada)).toBeLessThan(LIMITE_ENTRADA_KB);
   });
 });
 

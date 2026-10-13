@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePdfBackgroundSync } from "../hooks/usePdfBackgroundSync";
 import { useQueryClient } from "@tanstack/react-query";
 import { Settings, ChevronDown, Lock, Eye, LogOut, Sun, Moon, Link2, GraduationCap, Trash2, HelpCircle, DatabaseBackup, FolderOpen, History, FileSpreadsheet } from "lucide-react";
@@ -17,11 +17,13 @@ import SolicitudDetail from "../components/SolicitudDetail";
 import ResizableColumns from "../components/ResizableColumns";
 import CursoSwitcherModal from "../components/CursoSwitcherModal";
 import GlobalSearch from "../components/GlobalSearch";
-import LocalScreen from "./LocalScreen";
-import InformesScreen from "./InformesScreen";
-import HorariosAlumnosScreen from "./HorariosAlumnosScreen";
-import ProfesoradoScreen from "./ProfesoradoScreen";
 import ConexionModal from "../components/modals/ConexionModal";
+
+// Las pantallas grandes se cargan al entrar en su pestaña, no al abrir la app.
+const LocalScreen = lazy(() => import("./LocalScreen"));
+const InformesScreen = lazy(() => import("./InformesScreen"));
+const HorariosAlumnosScreen = lazy(() => import("./HorariosAlumnosScreen"));
+const ProfesoradoScreen = lazy(() => import("./ProfesoradoScreen"));
 import CursosModal from "../components/modals/CursosModal";
 import NotasAnterioresModal from "../components/modals/NotasAnterioresModal";
 import { useNotasAnteriores } from "../hooks/useNotasAnteriores";
@@ -422,6 +424,13 @@ export default function MainScreen({ config, onConfigSave }: Props) {
       <EscenarioActivoBanner />
 
       <ErrorBoundary key={String(active)}>
+      <Suspense
+        fallback={
+          <div className="flex-1 flex items-center justify-center text-sm text-[var(--tc-ink-soft)]">
+            Cargando…
+          </div>
+        }
+      >
       {active === "local" ? (
         <LocalScreen config={config} />
       ) : active === "profesorado" ? (
@@ -477,6 +486,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
           }
         />
       )}
+      </Suspense>
       </ErrorBoundary>
 
       <CursoSwitcherModal
