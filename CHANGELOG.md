@@ -9,6 +9,16 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.27.4] - 2026-10-13
+
+### Cambiado
+
+- **Los PDF se fabrican con una sola ventana oculta que se reutiliza** (fase C, punto 2, de `plan_GestionMatriculasAdmin_React_Vite_PWA.md`; `electron/pdf-fabrica.ts`). Antes cada PDF creaba y destruía su propia ventana, es decir, un arranque de proceso por PDF. Afecta a todo lo que sale de HTML: horarios individuales y grupales, campañas de envío, informes, hojas de firmas y matrículas generadas en local. Los PDF son los mismos. En una prueba con 20 PDF sencillos en el equipo de desarrollo, de 4,7 s a 0,7 s.
+  - Los PDF se fabrican de uno en uno, en el orden en que se piden.
+  - La ventana se cierra sola al minuto de no usarse y al cerrar la ventana principal.
+  - Si un PDF falla o tarda más de 5 minutos, se devuelve el error y el siguiente estrena ventana.
+- Tests: `src/test/pdfFabrica.test.ts`. 51 archivos / 679 tests en verde.
+
 ## [1.27.3] - 2026-10-13
 
 ### Cambiado

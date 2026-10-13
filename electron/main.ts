@@ -103,6 +103,7 @@ import {
   horariosDataImportarHistorial,
   type HorariosCursoData,
 } from "./horarios-data-store";
+import { cerrarVentanaPdf, generarPdfBase64 } from "./pdf-fabrica";
 import {
   temporalesGetAsistente,
   temporalesGetConfig,
@@ -225,6 +226,8 @@ function createWindow() {
   win.on("move", persistStateDiferido);
   win.on("maximize", persistStateDiferido);
   win.on("unmaximize", persistStateDiferido);
+  // La ventana oculta que fabrica los PDF no debe impedir que la app se cierre.
+  win.on("closed", cerrarVentanaPdf);
   win.on("close", () => {
     if (persistTimer) {
       clearTimeout(persistTimer);
@@ -928,80 +931,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle(
     "pdf:generarPdfBase64",
-    async (
-      _e,
-      payload: { html: string; landscape?: boolean },
-    ): Promise<{ success: boolean; base64?: string; error?: string }> => {
-      const pdfWin = new BrowserWindow({
-        show: false,
-        width: payload.landscape ? 1200 : 900,
-        height: payload.landscape ? 900 : 1200,
-        webPreferences: {
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true,
-        },
-      });
-
-      // Escribimos el HTML a un .html temporal y lo cargamos con loadFile.
-      // Las data: URL de varios MB fallan con ERR_INVALID_URL en Chromium
-      // (sucede con listados por asignatura extensos); loadFile no tiene ese
-      // límite y es el mismo patrón que ya usa pdf:openForPrint.
-      const tmpHtmlPath = path.join(
-        app.getPath("temp"),
-        `pdfgen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.html`,
-      );
-      fs.writeFileSync(tmpHtmlPath, payload.html, "utf-8");
-
-      const cleanup = () => {
-        try {
-          if (!pdfWin.isDestroyed()) pdfWin.destroy();
-        } catch {
-          /* empty */
-        }
-        try {
-          fs.unlinkSync(tmpHtmlPath);
-        } catch {
-          /* empty */
-        }
-      };
-
-      try {
-        await pdfWin.loadFile(tmpHtmlPath);
-      } catch (err) {
-        cleanup();
-        return { success: false, error: (err as Error).message };
-      }
-
-      // Si la plantilla expone `window.__pdfReady` (horarios: fuentes cargadas +
-      // ajuste dinámico del texto de las notas), esperamos a que resuelva antes
-      // de capturar el PDF, con un margen de seguridad por si nunca resolviera.
-      try {
-        await Promise.race([
-          pdfWin.webContents.executeJavaScript(
-            "(window.__pdfReady || Promise.resolve())",
-            true,
-          ),
-          new Promise((resolve) => setTimeout(resolve, 2000)),
-        ]);
-      } catch {
-        /* si la espera falla, seguimos igualmente con el PDF ya cargado */
-      }
-
-      try {
-        const pdfBuffer = await pdfWin.webContents.printToPDF({
-          pageSize: "A4",
-          landscape: payload.landscape ?? false,
-          printBackground: true,
-          margins: { marginType: "none" },
-        });
-        cleanup();
-        return { success: true, base64: pdfBuffer.toString("base64") };
-      } catch (err) {
-        cleanup();
-        return { success: false, error: (err as Error).message };
-      }
-    },
+    (_e, payload: { html: string; landscape?: boolean }) => generarPdfBase64(payload),
   );
 
   ipcMain.handle(
