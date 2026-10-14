@@ -19,6 +19,7 @@ const RAIZ = process.cwd();
 const RAMA = "gh-pages";
 const LIMITE_MB = 95; // GitHub rechaza archivos de más de 100 MB
 const BLOCKMAPS_A_CONSERVAR = 10;
+const NOMBRE_FIJO = "GestionMatriculas-Instalador.exe";
 
 const pkg = JSON.parse(fs.readFileSync(path.join(RAIZ, "package.json"), "utf-8"));
 const builder = JSON.parse(fs.readFileSync(path.join(RAIZ, "electron-builder.json"), "utf-8"));
@@ -97,6 +98,10 @@ try {
   for (const { f } of blockmaps.slice(BLOCKMAPS_A_CONSERVAR)) fs.rmSync(path.join(tmp, f));
 
   for (const f of archivos) fs.copyFileSync(path.join(release, f), path.join(tmp, f));
+  // Copia con nombre fijo para instalar en un equipo nuevo: el enlace no cambia
+  // de una versión a otra. Git guarda el contenido una sola vez, así que no se
+  // sube dos veces.
+  fs.copyFileSync(path.join(release, instalador), path.join(tmp, NOMBRE_FIJO));
   fs.writeFileSync(path.join(tmp, ".nojekyll"), "");
 
   git(["add", "-A"], tmp);
@@ -109,5 +114,6 @@ try {
 
 console.log(
   `\n✔ Versión ${version} publicada.\n` +
-    `  GitHub Pages tarda uno o dos minutos en servirla. Compruébalo en:\n  ${direccion}latest.yml\n`,
+    `  GitHub Pages tarda uno o dos minutos en servirla. Compruébalo en:\n  ${direccion}latest.yml\n` +
+    `  Instalador para equipos nuevos (enlace fijo):\n  ${direccion}${NOMBRE_FIJO}\n`,
 );
