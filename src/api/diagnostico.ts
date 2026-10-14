@@ -106,6 +106,13 @@ const SONDAS: Sonda[] = [
     url: (c) => c.urlSubirMatricula,
     body: { rowId: ID_INEXISTENTE, asignaturas: [] },
   },
+  {
+    flow: "AdminSubirPdfSolicitud",
+    descripcion: "Sustituir el PDF de una solicitud",
+    url: (c) => c.urlSubirPdf,
+    // "JVBERi0=" es "%PDF-": la subida falla porque la fila no existe.
+    body: { rowId: ID_INEXISTENTE, pdfBase64: "JVBERi0=", fileName: "prueba.pdf" },
+  },
 ];
 
 /** Flows que NO se sondean: su primera acción ya causa un efecto real. */

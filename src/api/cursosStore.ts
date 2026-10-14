@@ -43,6 +43,19 @@ export const cursosStore = {
   eliminarPdf: (curso: string, localId: string): Promise<void> =>
     window.adminAPI.cursos.eliminarPdf(curso, localId),
 
+  fechaPdf: (curso: string, localId: string): Promise<number | null> =>
+    window.adminAPI.cursos.fechaPdf(curso, localId),
+
+  // ── PDF original antes de añadirle documentos (solo en este equipo) ──────
+  guardarPdfOriginal: (curso: string, localId: string, base64: string): Promise<boolean> =>
+    window.adminAPI.cursos.guardarPdfOriginal(curso, localId, base64),
+
+  leerPdfOriginal: (curso: string, localId: string): Promise<string | null> =>
+    window.adminAPI.cursos.leerPdfOriginal(curso, localId),
+
+  eliminarPdfOriginal: (curso: string, localId: string): Promise<void> =>
+    window.adminAPI.cursos.eliminarPdfOriginal(curso, localId),
+
   // ── Guardado en lote (una sola escritura del JSON) ───────────────────────
   guardarLote: (curso: string, records: MatriculaLocal[]): Promise<void> =>
     window.adminAPI.cursos.guardarLote(curso, records),

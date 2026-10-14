@@ -42,6 +42,7 @@ import { enviarEmail, type CorreoPreparado } from "../api/email";
 import { useEstadoYCorreo } from "../hooks/useEstadoYCorreo";
 import { cursosStore } from "../api/cursosStore";
 import PdfViewer from "./PdfViewer";
+import AnadirDocumentoPdf from "./AnadirDocumentoPdf";
 import ConfirmDialog from "./ConfirmDialog";
 import TramitarEmailModal from "./TramitarEmailModal";
 import ComprobacionNotasPanel from "./ComprobacionNotasPanel";
@@ -215,7 +216,12 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     }
   }, [solicitud.rowId]);
 
-  const pdfQuery = usePdf(config, solicitud.rowId, solicitud.cursoEscolar ?? undefined);
+  const pdfQuery = usePdf(
+    config,
+    solicitud.rowId,
+    solicitud.cursoEscolar ?? undefined,
+    solicitud.modifiedon,
+  );
   const pdfVacio =
     (pdfQuery.data !== undefined && !pdfQuery.data?.contentBase64) ||
     (pdfQuery.error instanceof FlowError &&
@@ -957,6 +963,9 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             </AccordionBlock>
 
             <AccordionBlock title="Solicitud en PDF" defaultOpen={false} forceOpen={allOpen}>
+              <div className="flex justify-end mb-2">
+                <AnadirDocumentoPdf config={config} solicitud={solicitud} pdfBase64={pdfBase64} />
+              </div>
               {pdfQuery.isLoading && (
                 <div className="flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
                   <Loader2 className="w-4 h-4 animate-spin" /> Descargando PDF...
@@ -1271,6 +1280,9 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             >
               Solicitud en PDF
             </h3>
+            <div className="ml-auto min-w-0">
+              <AnadirDocumentoPdf config={config} solicitud={solicitud} pdfBase64={pdfBase64} />
+            </div>
           </div>
           <div
             ref={pdfContainerRef}

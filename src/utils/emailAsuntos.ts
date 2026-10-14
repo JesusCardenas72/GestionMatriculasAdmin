@@ -18,6 +18,10 @@ export function asuntoDocumentacion(): string {
   return `Documentación requerida para tu matrícula — ${CENTRO}`;
 }
 
+export function asuntoDocumentoAdjuntado(): string {
+  return `Documentación incorporada a tu matrícula — ${CENTRO}`;
+}
+
 export function asuntoAmpliacion(nuevoCurso: string): string {
   return `Ampliación de matrícula al curso ${nuevoCurso} — ${CENTRO}`;
 }

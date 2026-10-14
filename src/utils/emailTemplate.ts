@@ -609,6 +609,161 @@ export function buildAmpliacionEmailHtml(params: {
 </html>`;
 }
 
+/**
+ * Aviso al alumno de que su documentación se ha incorporado a la solicitud.
+ * Va con el PDF completo de la solicitud adjunto.
+ */
+export function buildDocumentoAdjuntadoEmailHtml(params: {
+  nombre: string;
+  apellidos: string;
+  ensenanzaCurso: string;
+  especialidad: string | null;
+  /** Una línea por documento incorporado; vacío si no se quiere listar. */
+  documentos: string;
+  nombreAdjunto: string;
+}): string {
+  const { nombre, apellidos, ensenanzaCurso, especialidad, documentos, nombreAdjunto } = params;
+
+  const hoy = new Date().toLocaleDateString("es-ES", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+
+  const lineas = documentos.split("\n").map((l) => l.trim()).filter(Boolean);
+  const listaDocumentos = lineas.length
+    ? `
+    <!-- ░░ DOCUMENTOS ░░ -->
+    <tr>
+      <td style="padding:24px 40px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+          style="border-radius:12px;overflow:hidden;border:1.5px solid #5eead4;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0f766e,#14b8a6);padding:12px 20px;">
+              <p style="margin:0;font-size:12px;font-weight:800;color:#ffffff;text-transform:uppercase;letter-spacing:1.2px;">
+                📎 &nbsp;Documentación incorporada
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f0fdfa;padding:16px 20px;">
+              ${lineas
+                .map(
+                  (l) =>
+                    `<p style="margin:0 0 6px;font-size:14px;color:#134e4a;line-height:1.6;">✓ &nbsp;${esc(l)}</p>`,
+                )
+                .join("")}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Documentación incorporada</title>
+</head>
+<body style="margin:0;padding:0;background:#f0fdfa;font-family:Arial,Helvetica,sans-serif;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdfa;">
+<tr><td align="center" style="padding:40px 16px;">
+
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+    style="max-width:600px;width:100%;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 8px 40px rgba(15,118,110,0.12);">
+
+    <!-- ░░ CABECERA ░░ -->
+    <tr>
+      <td style="background:linear-gradient(135deg,#134e4a 0%,#0f766e 55%,#14b8a6 100%);padding:52px 40px 44px;text-align:center;">
+        <div style="display:inline-block;width:76px;height:76px;background:rgba(255,255,255,0.18);border-radius:50%;margin-bottom:22px;line-height:76px;text-align:center;">
+          <span style="font-size:40px;line-height:76px;display:inline-block;">📎</span>
+        </div>
+        <h1 style="margin:0;color:#ffffff;font-size:30px;font-weight:800;letter-spacing:-0.5px;text-shadow:0 2px 6px rgba(0,0,0,0.18);">Documentación recibida</h1>
+        <p style="margin:8px 0 0;color:#99f6e4;font-size:15px;font-weight:600;">Se ha incorporado correctamente a tu solicitud</p>
+        <p style="margin:8px 0 0;color:#5eead4;font-size:13px;letter-spacing:0.3px;">${esc(hoy)}</p>
+      </td>
+    </tr>
+
+    <!-- ░░ SALUDO ░░ -->
+    <tr>
+      <td style="padding:36px 40px 0;">
+        <p style="margin:0;font-size:19px;color:#0f172a;font-weight:700;">Estimado/a ${esc(nombre)} ${esc(apellidos)},</p>
+        <p style="margin:14px 0 0;font-size:15px;color:#475569;line-height:1.75;">
+          Te confirmamos que la documentación que nos has hecho llegar se ha
+          <strong style="color:#0f766e;">adjuntado correctamente</strong> a tu solicitud de matrícula.
+        </p>
+      </td>
+    </tr>
+
+    <!-- ░░ FICHA EXPEDIENTE ░░ -->
+    <tr>
+      <td style="padding:24px 40px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+          style="background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:12px;">
+          <tr>
+            <td style="padding:20px 24px;">
+              <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Alumno/a</span><br>
+              <span style="font-size:18px;color:#134e4a;font-weight:800;margin-top:4px;display:block;">${esc(nombre)} ${esc(apellidos)}</span>
+              <span style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;display:block;margin-top:12px;">Enseñanza · Especialidad</span>
+              <span style="font-size:16px;color:#0f766e;font-weight:700;margin-top:4px;display:block;">${esc(ensenanzaCurso)}${especialidad ? " &nbsp;·&nbsp; " + esc(especialidad) : ""}</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+${listaDocumentos}
+
+    <!-- ░░ ADJUNTO ░░ -->
+    <tr>
+      <td style="padding:24px 40px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+          style="background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="padding:18px 20px;font-size:14px;color:#4b5563;line-height:1.65;">
+              Te adjuntamos tu <strong style="color:#374151;">solicitud de matrícula completa en PDF</strong>,
+              con todos tus datos y la documentación incorporada
+              (<span style="color:#0f766e;font-weight:600;">${esc(nombreAdjunto)}</span>).
+              Consérvala para cualquier consulta.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ░░ CONTACTO ░░ -->
+    <tr>
+      <td style="padding:24px 40px 0;text-align:center;">
+        <div style="width:56px;height:3px;background:#14b8a6;margin:0 auto 24px;border-radius:2px;"></div>
+        <p style="margin:0;font-size:14px;color:#64748b;line-height:1.75;">
+          Si tienes cualquier duda puedes contactar con la Secretaría del Centro:
+        </p>
+        <p style="margin:12px 0 0;font-size:14px;color:#64748b;">
+          📞 <strong style="color:#374151;">926 27 41 54</strong> &nbsp;|&nbsp;
+          ✉️ <a href="mailto:13004341.cpm@educastillalamancha.es" style="color:#0f766e;font-weight:600;">13004341.cpm@educastillalamancha.es</a>
+        </p>
+      </td>
+    </tr>
+
+    <!-- ░░ PIE ░░ -->
+    <tr>
+      <td style="padding:32px 40px;background:#ccfbf1;border-top:1px solid #99f6e4;text-align:center;">
+        <div style="display:inline-block;padding:5px 18px;background:#5eead4;border-radius:20px;margin-bottom:14px;">
+          <span style="font-size:12px;color:#134e4a;font-weight:800;letter-spacing:0.5px;">Secretaría · CPM Marcos Redondo · Ciudad Real</span>
+        </div>
+        <p style="margin:0;font-size:11px;color:#0f766e;line-height:1.6;">Este mensaje ha sido generado automáticamente por el sistema de gestión de matrículas.</p>
+        <p style="margin:5px 0 0;font-size:11px;color:#0f766e;">Por favor, no respondas directamente a este correo electrónico.</p>
+      </td>
+    </tr>
+
+  </table>
+
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")

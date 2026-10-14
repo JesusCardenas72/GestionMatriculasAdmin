@@ -9,6 +9,22 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.29.0] - 2026-10-14
+
+### Añadido
+
+- **Añadir documentos al PDF de una solicitud** (`src/components/AnadirDocumentoPdf.tsx`, `src/utils/pdfAnadirDocumento.ts`). Botón «Añadir documento» junto al PDF de la solicitud. Admite PDF, JPG y PNG y lo añade al final de la solicitud. Antes de subirlo pide confirmación con el número de páginas.
+  - El PDF unido se sube a la nube con el flow nuevo **AdminSubirPdfSolicitud** (campo nuevo en la ventana de Conexión; «Probar conexión» lo comprueba con una fila inexistente). Si la subida falla no cambia nada.
+  - **PDF protegidos contra cambios** (p. ej. justificantes del modelo 046): sus páginas se dibujan con pdf.js y se añaden como imagen, con el mismo tamaño (`src/utils/pdfRasterizar.ts`). Se ven igual, pero su texto no se puede seleccionar.
+  - **«Quitar lo añadido»**: recupera el PDF original, también en la nube. El original se guarda solo en el equipo donde se añadió (`cursos/pdfs/<curso>/originales/`, fuera de las copias de seguridad).
+  - Si la solicitud cambió en la nube después de guardar la copia local de su PDF, al abrirla se vuelve a descargar. Así los demás equipos ven el PDF con lo añadido.
+- **«Enviar al alumno»**: correo que confirma que su documentación se ha adjuntado correctamente a la solicitud, con la solicitud completa en PDF adjunta (`src/components/EnviarSolicitudEmailModal.tsx`). Asunto y lista de documentos editables, con vista previa. Usa el flow AdminEnviarEmail y no cambia el estado de la solicitud.
+
+### Cambiado
+
+- El cargador de pdf.js pasa a `src/utils/pdfjsCargar.ts`, compartido con la lectura del horario complementario.
+- La prueba de peso del paquete toma la pantalla de entrada de `dist/index.html`: pdf-lib genera otro archivo `index-*.js` que la confundía.
+
 ## [1.28.1] - 2026-10-13
 
 ### Cambiado

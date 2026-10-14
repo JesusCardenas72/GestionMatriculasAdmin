@@ -136,6 +136,28 @@ export async function obtenerPDF(
   }
 }
 
+/** Sustituye el PDF de una solicitud en Dataverse (flow AdminSubirPdfSolicitud). */
+export function subirPdfSolicitud(
+  cfg: AppConfig,
+  rowId: string,
+  pdfBase64: string,
+  fileName: string,
+): Promise<{ ok: boolean }> {
+  assertEscribible("SubirPdfSolicitud");
+  if (!cfg.urlSubirPdf) {
+    return Promise.reject(
+      new Error("Falta la dirección del flow AdminSubirPdfSolicitud en la ventana de Conexión."),
+    );
+  }
+  return postFlow<{ ok: boolean }>(
+    cfg.urlSubirPdf,
+    cfg.apiKey,
+    { rowId, pdfBase64, fileName },
+    "AdminSubirPdfSolicitud",
+    120000,
+  );
+}
+
 export function actualizarSolicitud(
   cfg: AppConfig,
   input: ActualizarSolicitudInput,

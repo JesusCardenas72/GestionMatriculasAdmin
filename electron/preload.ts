@@ -165,6 +165,14 @@ const adminAPI = {
       ipcRenderer.invoke("cursos:tienePdfBatch", curso, keys),
     eliminarPdf: (curso: string, localId: string): Promise<void> =>
       ipcRenderer.invoke("cursos:eliminarPdf", curso, localId),
+    fechaPdf: (curso: string, localId: string): Promise<number | null> =>
+      ipcRenderer.invoke("cursos:fechaPdf", curso, localId),
+    guardarPdfOriginal: (curso: string, localId: string, base64: string): Promise<boolean> =>
+      ipcRenderer.invoke("cursos:guardarPdfOriginal", curso, localId, base64),
+    leerPdfOriginal: (curso: string, localId: string): Promise<string | null> =>
+      ipcRenderer.invoke("cursos:leerPdfOriginal", curso, localId),
+    eliminarPdfOriginal: (curso: string, localId: string): Promise<void> =>
+      ipcRenderer.invoke("cursos:eliminarPdfOriginal", curso, localId),
     guardarLote: (curso: string, records: MatriculaLocal[]): Promise<void> =>
       ipcRenderer.invoke("cursos:guardarLote", curso, records),
   },

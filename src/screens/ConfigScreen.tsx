@@ -55,6 +55,7 @@ const schema = z.object({
   urlSubirMatricula: urlHttps,
   urlCrearAmpliacion: urlHttps,
   urlEnviarEmail: z.union([urlHttps, z.literal("")]),
+  urlSubirPdf: z.union([urlHttps, z.literal("")]).optional(),
   apiKey: z.string().trim().min(20, "La api-key debe tener al menos 20 caracteres"),
 });
 
@@ -104,6 +105,7 @@ export default function ConfigScreen({
       urlSubirMatricula: "",
       urlCrearAmpliacion: "",
       urlEnviarEmail: "",
+      urlSubirPdf: "",
       apiKey: "",
     },
   });
@@ -406,6 +408,11 @@ export default function ConfigScreen({
                 label="AdminEnviarEmail (todos los correos)"
                 error={errors.urlEnviarEmail?.message}
                 {...register("urlEnviarEmail")}
+              />
+              <Field
+                label="AdminSubirPdfSolicitud (añadir documentos al PDF)"
+                error={errors.urlSubirPdf?.message}
+                {...register("urlSubirPdf")}
               />
               <ApiKeyField
                 label="API Key"

@@ -4,6 +4,7 @@ import {
   type FilaApoyo,
   type HorarioComplementario,
 } from "../../electron/profesorado-complementario";
+import { base64ABytes, cargarPdfJs, type PdfJs } from "./pdfjsCargar";
 
 /**
  * Lectura del PDF «Formulario comunicación horario complementario» que entrega
@@ -319,22 +320,6 @@ export function interpretarContenidoPdf(contenido: ContenidoPdf): LecturaComplem
 
 // ── Extracción con pdf.js ───────────────────────────────────────────────────
 
-type PdfJs = typeof import("pdfjs-dist");
-let pdfjsCargado: Promise<PdfJs> | null = null;
-
-function cargarPdfJs(): Promise<PdfJs> {
-  if (!pdfjsCargado) {
-    pdfjsCargado = Promise.all([
-      import("pdfjs-dist"),
-      import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
-    ]).then(([pdfjs, worker]) => {
-      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-      return pdfjs;
-    });
-  }
-  return pdfjsCargado;
-}
-
 /** Saca de un PDF sus campos de formulario y su texto, con posiciones. */
 export async function extraerContenidoPdf(
   datos: Uint8Array,
@@ -375,8 +360,5 @@ export async function extraerContenidoPdf(
 
 /** Lee un PDF (en base64) y devuelve su horario complementario. */
 export async function leerPdfComplementario(base64: string): Promise<LecturaComplementario> {
-  const bin = atob(base64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return interpretarContenidoPdf(await extraerContenidoPdf(bytes));
+  return interpretarContenidoPdf(await extraerContenidoPdf(base64ABytes(base64)));
 }

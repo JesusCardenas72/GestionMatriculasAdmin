@@ -41,6 +41,7 @@ const schema = z.object({
   urlSubirMatricula: urlHttps,
   urlCrearAmpliacion: urlHttps,
   urlEnviarEmail: z.union([urlHttps, z.literal("")]),
+  urlSubirPdf: z.union([urlHttps, z.literal("")]).optional(),
   apiKey: z.string().trim().min(20, "La api-key debe tener al menos 20 caracteres"),
 });
 
@@ -80,6 +81,7 @@ export default function ConexionModal({ initial, onSave, onClose }: Props) {
       urlSubirMatricula: "",
       urlCrearAmpliacion: "",
       urlEnviarEmail: "",
+      urlSubirPdf: "",
       apiKey: "",
     },
   });
@@ -145,6 +147,7 @@ export default function ConexionModal({ initial, onSave, onClose }: Props) {
           <Field label="AdminSubirMatriculaEditada" error={errors.urlSubirMatricula?.message} {...register("urlSubirMatricula")} />
           <Field label="AdminCrearAmpliacion" error={errors.urlCrearAmpliacion?.message} {...register("urlCrearAmpliacion")} />
           <Field label="AdminEnviarEmail (todos los correos)" error={errors.urlEnviarEmail?.message} {...register("urlEnviarEmail")} />
+          <Field label="AdminSubirPdfSolicitud (añadir documentos al PDF)" error={errors.urlSubirPdf?.message} {...register("urlSubirPdf")} />
           <ApiKeyField label="API Key" apiKey={watch("apiKey")} error={errors.apiKey?.message} {...register("apiKey")} />
 
           {test.status !== "idle" && (

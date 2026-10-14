@@ -39,18 +39,37 @@ export function useSolicitudes(cfg: AppConfig, estado: EstadoTramite, cursoEscol
   });
 }
 
-export function usePdf(cfg: AppConfig, rowId: string | null, curso?: string) {
+/**
+ * PDF de una solicitud: primero la copia de este equipo; de la nube si no hay
+ * copia o si la solicitud cambió en la nube después de guardarla (`modifiedon`
+ * posterior al fichero), p. ej. porque otro equipo le añadió un documento.
+ */
+export function usePdf(cfg: AppConfig, rowId: string | null, curso?: string, modifiedon?: string) {
   return useQuery({
-    queryKey: rowId ? keys.pdf(rowId) : ["pdf", "none"],
+    queryKey: rowId ? [...keys.pdf(rowId), modifiedon ?? ""] : ["pdf", "none"],
     queryFn: async () => {
       if (curso) {
         const local = await cursosStore.leerPdf(curso, rowId!);
         if (local) {
-          return {
+          const desdeLocal = {
             contentBase64: local,
             fileName: `matricula_${rowId}.pdf`,
             mimeType: "application/pdf",
           };
+          const fechaLocal = modifiedon ? await cursosStore.fechaPdf(curso, rowId!) : null;
+          const nubeMasNueva =
+            fechaLocal !== null && Date.parse(modifiedon!) > fechaLocal;
+          if (!nubeMasNueva) return desdeLocal;
+          try {
+            const nube = await obtenerPDF(cfg, rowId!);
+            if (nube.contentBase64) {
+              await cursosStore.guardarPdf(curso, rowId!, nube.contentBase64);
+              return nube;
+            }
+          } catch {
+            // Sin conexión o error del flow: vale la copia local.
+          }
+          return desdeLocal;
         }
       }
       return obtenerPDF(cfg, rowId!);

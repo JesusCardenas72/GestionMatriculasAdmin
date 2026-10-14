@@ -423,6 +423,59 @@ export function cursosEliminarPdf(curso: string, localId: string): void {
   } catch {
     // silencioso
   }
+  cursosEliminarPdfOriginal(curso, localId);
+}
+
+/**
+ * Fecha (ms) en que se escribió el PDF local, o null si no existe. Sirve para
+ * saber si la solicitud cambió en la nube después de descargarlo.
+ */
+export function cursosFechaPdf(curso: string, localId: string): number | null {
+  try {
+    return fs.statSync(pdfFilePath(curso, localId)).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+// ── PDF original antes de añadirle documentos ────────────────────────────────
+// Va en una subcarpeta para que no cuente como PDF de matrícula (sync de fondo,
+// copias de seguridad). Solo existe en el equipo donde se añadió el documento.
+
+function pdfOriginalPath(curso: string, localId: string): string {
+  return path.join(cursosPdfDir(curso), "originales", `${localId}.pdf`);
+}
+
+/** Guarda el PDF original solo si aún no hay uno: varias adiciones conservan el primero. */
+export function cursosGuardarPdfOriginal(curso: string, localId: string, base64: string): boolean {
+  try {
+    const file = pdfOriginalPath(curso, localId);
+    if (fs.existsSync(file)) return true;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, Buffer.from(base64, "base64"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function cursosLeerPdfOriginal(curso: string, localId: string): string | null {
+  try {
+    const file = pdfOriginalPath(curso, localId);
+    if (!fs.existsSync(file)) return null;
+    return fs.readFileSync(file).toString("base64");
+  } catch {
+    return null;
+  }
+}
+
+export function cursosEliminarPdfOriginal(curso: string, localId: string): void {
+  try {
+    const file = pdfOriginalPath(curso, localId);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  } catch {
+    // silencioso
+  }
 }
 
 /**

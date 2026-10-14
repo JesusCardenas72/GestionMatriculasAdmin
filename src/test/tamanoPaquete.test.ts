@@ -65,6 +65,15 @@ const ASSETS = path.join(RAIZ, "dist", "assets");
 const LIMITE_DIALOGO_KB = 1200;
 const LIMITE_ENTRADA_KB = 600;
 
+/**
+ * Trozo de entrada: el que carga `dist/index.html`. No vale buscar "index-*.js":
+ * las librerías cuyo archivo principal es index.js (pdf-lib) generan otro igual.
+ */
+function trozoDeEntrada(): string {
+  const html = fs.readFileSync(path.join(RAIZ, "dist", "index.html"), "utf-8");
+  return html.match(/src="\.\/assets\/([^"]+\.js)"/)![1];
+}
+
 /** Trozos que un archivo de `dist/assets` importa de forma fija (no con `import()`). */
 function importsFijos(archivo: string): string[] {
   const codigo = fs.readFileSync(path.join(ASSETS, archivo), "utf-8");
@@ -100,7 +109,7 @@ describe.skipIf(!fs.existsSync(ASSETS))("código que carga cada ventana", () => 
   // app entera (que ronda los 3,5 MB) ni librerías como exceljs.
   it(`ningún diálogo carga más de ${LIMITE_DIALOGO_KB} KB`, () => {
     const archivos = fs.readdirSync(ASSETS);
-    const entrada = archivos.find((f) => /^index-.*\.js$/.test(f))!;
+    const entrada = trozoDeEntrada();
     const dialogos = archivos.filter((f) => /^Dialogo.*\.js$/.test(f));
     expect(dialogos.length).toBeGreaterThanOrEqual(7);
     const pasados = dialogos
@@ -113,7 +122,7 @@ describe.skipIf(!fs.existsSync(ASSETS))("código que carga cada ventana", () => 
   // se cargan al elegir modo y al entrar en cada pestaña.
   it(`la pantalla de entrada carga menos de ${LIMITE_ENTRADA_KB} KB`, () => {
     const archivos = fs.readdirSync(ASSETS);
-    const entrada = archivos.find((f) => /^index-.*\.js$/.test(f))!;
+    const entrada = trozoDeEntrada();
     const app = archivos.find((f) => /^AppPrincipal.*\.js$/.test(f))!;
     expect(cargaDeVentana(app, entrada)).toBeLessThan(LIMITE_ENTRADA_KB);
   });

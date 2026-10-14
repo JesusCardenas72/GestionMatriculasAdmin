@@ -16,6 +16,8 @@ export interface AppConfig {
   urlCrearAmpliacion: string;
   /** Flow único de correo (AdminEnviarEmail): horarios, ampliación, tramitada y documentación. */
   urlEnviarEmail?: string;
+  /** Flow AdminSubirPdfSolicitud — sustituye el PDF de una solicitud en Dataverse. */
+  urlSubirPdf?: string;
   apiKey: string;
   /** Clave de acceso al modo Administrador (opcional; si falta se usa la por defecto). */
   adminPassword?: string;
