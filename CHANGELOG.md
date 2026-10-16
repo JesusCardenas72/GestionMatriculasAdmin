@@ -9,6 +9,19 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.30.0] - 2026-10-16
+
+### Añadido
+
+- **Profesorado → «Borrar profesor»** en la ficha (`profesoradoBorrar` en `electron/profesorado-store.ts`). A diferencia de «Dar de baja», que archiva la ficha, la borra del todo junto con su horario complementario y sus retoques en los grupos de correo y en las hojas de firmas. Pide confirmación, avisa si tiene clases en el curso (se quedan a su nombre sin ficha; para relevarle está «Sustituir profesorado») y no deja borrar a quien está en una sustitución temporal abierta, como titular o como sustituto.
+- **Segundo tirador a la derecha de la ficha** en Solicitudes y Matrículas Locales (`rightHandle` en `src/components/ResizableColumns.tsx`): permite estrechar la ficha desde su borde derecho. Por defecto ocupa todo el ancho; el botón de restablecer columnas lo devuelve a ese estado.
+
+### Cambiado
+
+- Las fichas de Solicitudes (Pnte. Tramitación/Validación) y de Matrículas Locales ocupan todo el ancho disponible (antes tenían un ancho máximo fijo).
+- Matrículas Locales: en la cabecera de la ficha, las etiquetas (Curso, Esp., Forma de Pago) van en gris más suave y la línea se parte si no cabe, dejando libre el hueco del botón de tres puntos.
+- Tests: `src/test/profesoradoStore.test.ts`. 57 archivos / 718 tests en verde.
+
 ## [1.29.0] - 2026-10-14
 
 ### Añadido

@@ -40,6 +40,11 @@ export function useProfesorado() {
     onSuccess: invalidar,
   });
 
+  const borrarMut = useMutation({
+    mutationFn: (id: string) => window.adminAPI.profesorado.borrar(id),
+    onSuccess: invalidar,
+  });
+
   const reemplazarMut = useMutation({
     mutationFn: ({
       profesores,
@@ -87,6 +92,8 @@ export function useProfesorado() {
     cargando: query.isLoading,
     error: query.error as Error | null,
     guardar: (profesores: Profesor[]) => guardarMut.mutateAsync(profesores),
+    /** Borra del todo una ficha (no se puede deshacer). */
+    borrar: (id: string) => borrarMut.mutateAsync(id),
     reemplazar: (profesores: Profesor[], origenArchivo: string | null) =>
       reemplazarMut.mutateAsync({ profesores, origenArchivo }),
     guardarGrupos: (grupos: ComposicionGrupos) => gruposMut.mutateAsync(grupos),

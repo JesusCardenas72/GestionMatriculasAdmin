@@ -18,6 +18,7 @@ import {
   PenLine,
   Plus,
   Search,
+  Trash2,
   Undo2,
   UserCog,
   UserPlus,
@@ -168,6 +169,7 @@ export default function ProfesoradoScreen({ config }: Props) {
     activos,
     cargando,
     guardar,
+    borrar,
     reemplazar,
     guardarGrupos,
     importar,
@@ -689,6 +691,49 @@ export default function ProfesoradoScreen({ config }: Props) {
           (vigente ? " Su sustitución temporal se ha dado por terminada." : "")
         : `«${p.apellidosNombre}» vuelve a estar en activo.`,
     );
+  };
+
+  /**
+   * Borra la ficha del todo. Quien está en una sustitución temporal abierta no
+   * se puede borrar: primero hay que terminarla desde su ficha.
+   */
+  const handleBorrar = async (p: Profesor) => {
+    limpiarAvisos();
+    const vigente = sustitucionAbierta(p);
+    const cubreA = sustituyeA(indiceSust, p.id).map((v) => v.titular.apellidosNombre);
+    if (vigente || cubreA.length > 0) {
+      setError(
+        vigente
+          ? `«${p.apellidosNombre}» está de baja temporal y le sustituye «${nombreDeId(profesores, vigente.sustitutoId)}». ` +
+              "Termina esa sustitución desde su ficha antes de borrarle."
+          : `«${p.apellidosNombre}» está sustituyendo a ${cubreA.join(", ")}. ` +
+              "Termina esa sustitución desde la ficha del titular antes de borrarle.",
+      );
+      return;
+    }
+    const clases = resumenDe(resumenes, p).clases;
+    const aviso =
+      `¿Borrar a «${p.apellidosNombre}»?\n\n` +
+      "Su ficha desaparece del todo, junto con su horario complementario y sus retoques " +
+      "en los grupos de correo y las hojas de firmas. No se puede deshacer.\n\n" +
+      (clases > 0
+        ? `OJO: tiene ${clases} clase(s) en el curso ${curso}. Esas clases se quedarán a su ` +
+          "nombre sin ficha. Si alguien ocupa su plaza, usa «Sustituir profesorado».\n\n"
+        : "") +
+      "Si solo se ha ido del centro, mejor «Dar de baja»: archiva la ficha sin perderla.";
+    if (!window.confirm(aviso)) return;
+    try {
+      await borrar(p.id);
+      setSeleccionadoId(null);
+      setMarcados((prev) => {
+        const next = new Set(prev);
+        next.delete(p.id);
+        return next;
+      });
+      setMensaje(`«${p.apellidosNombre}» borrado.`);
+    } catch (e) {
+      setError(`No se ha podido borrar: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   /** Descarga el profesorado visible como CSV (separador `;`, como el original). */
@@ -1565,6 +1610,7 @@ export default function ProfesoradoScreen({ config }: Props) {
           onCerrar={() => setSeleccionadoId(null)}
           onGuardar={(editada) => handleGuardarFicha(seleccionado, editada)}
           onAlternarActivo={() => handleAlternarActivo(seleccionado)}
+          onBorrar={() => handleBorrar(seleccionado)}
           onAsignarAlumnos={() => setAsignarA(seleccionado)}
           sustitutoDe={indiceSust.porTitular.get(seleccionado.id)?.sustituto ?? null}
           titularesQueSustituye={sustituyeA(indiceSust, seleccionado.id).map((v) => v.titular)}
@@ -1756,6 +1802,7 @@ function FichaProfesor({
   onCerrar,
   onGuardar,
   onAlternarActivo,
+  onBorrar,
   onAsignarAlumnos,
   sustitutoDe,
   titularesQueSustituye,
@@ -1772,6 +1819,7 @@ function FichaProfesor({
   onCerrar: () => void;
   onGuardar: (editada: Profesor) => void;
   onAlternarActivo: () => void;
+  onBorrar: () => void;
   onAsignarAlumnos: () => void;
   /** Quien le está sustituyendo ahora mismo, si está de baja temporal. */
   sustitutoDe: Profesor | null;
@@ -1917,6 +1965,14 @@ function FichaProfesor({
             Guardar
           </button>
         </div>
+        <button
+          onClick={onBorrar}
+          title="Borra la ficha del todo. Para alguien que se ha ido del centro, mejor «Dar de baja»."
+          className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-medium text-[var(--tc-danger-ink)] hover:bg-[var(--tc-danger-bg)] transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Borrar profesor
+        </button>
       </div>
     </aside>
   );

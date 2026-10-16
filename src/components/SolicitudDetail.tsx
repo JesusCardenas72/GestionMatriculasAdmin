@@ -885,7 +885,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
   if (isP3) {
     return (
       <div className="w-full h-full relative">
-      <div className="max-w-4xl h-full flex flex-col">
+      <div className="w-full h-full flex flex-col">
         <div
           className="rounded-xl overflow-hidden flex flex-col"
           style={{

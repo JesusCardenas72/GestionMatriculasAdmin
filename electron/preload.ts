@@ -253,6 +253,9 @@ const adminAPI = {
     /** Guarda altas, bajas y ediciones a mano hechas desde la pantalla. */
     guardar: (profesores: Profesor[]): Promise<ProfesoradoStore> =>
       ipcRenderer.invoke("profesorado:guardar", profesores),
+    /** Borra del todo una ficha (y sus retoques de grupos, firmas y complementario). */
+    borrar: (id: string): Promise<ProfesoradoStore> =>
+      ipcRenderer.invoke("profesorado:borrar", id),
     /** Reemplaza la lista entera (carga de archivo). Guarda copia de la anterior. */
     reemplazar: (
       profesores: Profesor[],

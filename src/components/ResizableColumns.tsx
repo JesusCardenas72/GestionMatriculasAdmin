@@ -10,6 +10,7 @@ import { Columns2 } from "lucide-react";
 
 const LEFT_ID = "left";
 const RIGHT_ID = "right";
+const SPACER_ID = "spacer";
 
 interface Props {
   id: string;
@@ -19,6 +20,12 @@ interface Props {
   left: ReactNode;
   right: ReactNode;
   className?: string;
+  /**
+   * Añade un segundo tirador a la derecha de la columna derecha para estrecharla.
+   * Por defecto la columna ocupa todo el ancho (el hueco de la derecha empieza en 0).
+   */
+  rightHandle?: boolean;
+  minRightSize?: string;
 }
 
 export default function ResizableColumns({
@@ -29,18 +36,32 @@ export default function ResizableColumns({
   left,
   right,
   className = "",
+  rightHandle = false,
+  minRightSize = "480px",
 }: Props) {
   const storageKey = `panel-${id}`;
   const leftPanelRef = usePanelRef();
+  const spacerPanelRef = usePanelRef();
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: storageKey,
     storage: localStorage,
+    panelIds: rightHandle ? [LEFT_ID, RIGHT_ID, SPACER_ID] : [LEFT_ID, RIGHT_ID],
   });
 
   function handleReset() {
     leftPanelRef.current?.resize(defaultLeftSize);
+    spacerPanelRef.current?.resize("0px");
   }
+
+  const separador = (
+    <Separator className="group relative w-3 mx-0.5 flex items-center justify-center cursor-col-resize">
+      <div className="flex flex-row gap-0.5">
+        <div className="w-0.5 h-4 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
+        <div className="w-0.5 h-4 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </Separator>
+  );
 
   return (
     <div className={`relative h-full ${className}`}>
@@ -59,15 +80,14 @@ export default function ResizableColumns({
         >
           {left}
         </Panel>
-        <Separator className="group relative w-3 mx-0.5 flex items-center justify-center cursor-col-resize">
-          <div className="flex flex-row gap-0.5">
-            <div className="w-0.5 h-4 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
-            <div className="w-0.5 h-4 rounded-full bg-[var(--tc-border)] opacity-50 group-hover:opacity-100 transition-opacity" />
-          </div>
-        </Separator>
-        <Panel id={RIGHT_ID}>
+        {separador}
+        <Panel id={RIGHT_ID} minSize={rightHandle ? minRightSize : undefined}>
           {right}
         </Panel>
+        {rightHandle && separador}
+        {rightHandle && (
+          <Panel id={SPACER_ID} defaultSize="0px" minSize="0px" panelRef={spacerPanelRef} />
+        )}
       </Group>
 
       <button

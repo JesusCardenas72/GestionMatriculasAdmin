@@ -41,6 +41,7 @@ import {
   deshacerUltimaCarga,
   hayCopiaAnterior,
   nombresProfesorado,
+  profesoradoBorrar,
   profesoradoGuardar,
   profesoradoGuardarComplementario,
   profesoradoGuardarFirmas,
@@ -580,6 +581,7 @@ function registerIpcHandlers() {
   ipcMain.handle("profesorado:guardar", (_e, profesores: Profesor[]) =>
     profesoradoGuardar(profesores),
   );
+  ipcMain.handle("profesorado:borrar", (_e, id: string) => profesoradoBorrar(id));
   ipcMain.handle(
     "profesorado:reemplazar",
     (_e, profesores: Profesor[], origenArchivo: string | null) =>

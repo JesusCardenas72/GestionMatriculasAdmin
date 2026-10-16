@@ -456,6 +456,37 @@ export function profesoradoGuardar(profesores: Profesor[]): ProfesoradoStore {
 }
 
 /**
+ * Borra del todo la ficha de un profesor (a diferencia de «Dar de baja», que
+ * la archiva). Se lleva también lo que cuelga de su `id`: sus retoques en los
+ * grupos de correo y en las hojas de firmas y su horario complementario de
+ * todos los cursos. Las clases del Excel de horarios no se tocan.
+ *
+ * La pantalla impide borrar a quien está en una sustitución temporal abierta
+ * (como titular o como sustituto): hay que terminarla antes.
+ */
+export function profesoradoBorrar(id: string): ProfesoradoStore {
+  const actual = leerStore();
+  const fuera = (a: AjusteGrupo): AjusteGrupo => ({
+    incluidos: a.incluidos.filter((x) => x !== id),
+    excluidos: a.excluidos.filter((x) => x !== id),
+  });
+  const complementario: Record<string, ComplementarioCurso> = {};
+  for (const [curso, datos] of Object.entries(actual.complementario ?? {})) {
+    const porProfesor = { ...datos.porProfesor };
+    delete porProfesor[id];
+    complementario[curso] = { ...datos, porProfesor };
+  }
+  const firmas = actual.firmas ?? firmasVacias();
+  return escribirStore({
+    ...actual,
+    profesores: actual.profesores.filter((p) => p.id !== id),
+    grupos: { claustro: fuera(actual.grupos.claustro), ccp: fuera(actual.grupos.ccp) },
+    complementario,
+    firmas: { ...firmas, claustro: fuera(firmas.claustro) },
+  });
+}
+
+/**
  * Lista de nombres del profesorado en activo. Es lo que consumen el desplegable
  * del Excel de horarios, la validación de la carga y las sustituciones.
  *

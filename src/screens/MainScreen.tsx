@@ -446,7 +446,8 @@ export default function MainScreen({ config, onConfigSave }: Props) {
         <ResizableColumns
           id="solicitudes"
           defaultLeftSize="320px"
-          className="flex-1 overflow-hidden"
+          rightHandle
+          className="flex-1 overflow-hidden pr-2"
           left={
             <div className="h-full py-6 pl-6 pr-3">
               <div className="h-full bg-[var(--tc-card)] rounded-2xl border border-[var(--tc-border)] shadow-sm overflow-hidden flex flex-col">
@@ -463,7 +464,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
             </div>
           }
           right={
-            <div className="h-full ml-3 mr-6 py-6 flex flex-col">
+            <div className="h-full ml-3 mr-3 py-6 flex flex-col">
               {selected ? (
                 <SolicitudDetail
                   config={config}

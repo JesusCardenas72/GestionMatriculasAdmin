@@ -18,6 +18,9 @@ import fs from "node:fs";
 import {
   leerStore,
   normNombre,
+  profesoradoBorrar,
+  profesoradoGuardarComplementario,
+  profesoradoGuardarFirmas,
   profesoradoGuardarGrupos,
   profesoradoReemplazar,
   type Profesor,
@@ -83,5 +86,30 @@ describe("profesoradoReemplazar — cambios de cargo", () => {
     );
 
     expect(store.grupos.ccp).toEqual({ incluidos: [idAna], excluidos: [idLuis] });
+  });
+});
+
+describe("profesoradoBorrar", () => {
+  it("quita la ficha y sus retoques de grupos, firmas y complementario", () => {
+    profesoradoReemplazar([prof(ANA, "FC"), prof(LUIS, "FC")], "lista.csv");
+    profesoradoGuardarGrupos({
+      claustro: { incluidos: [idAna, idLuis], excluidos: [] },
+      ccp: { incluidos: [], excluidos: [idAna] },
+    });
+    profesoradoGuardarFirmas({ claustro: { incluidos: [idAna], excluidos: [idLuis] } });
+    profesoradoGuardarComplementario("26/27", {
+      carpeta: null,
+      porProfesor: { [idAna]: { tramos: [] }, [idLuis]: { tramos: [] } } as never,
+      ignorados: [],
+    });
+
+    const tras = profesoradoBorrar(idAna);
+
+    expect(tras.profesores.map((p) => p.id)).toEqual([idLuis]);
+    expect(tras.grupos.claustro.incluidos).toEqual([idLuis]);
+    expect(tras.grupos.ccp.excluidos).toEqual([]);
+    expect(tras.firmas?.claustro).toEqual({ incluidos: [], excluidos: [idLuis] });
+    expect(Object.keys(tras.complementario?.["26/27"].porProfesor ?? {})).toEqual([idLuis]);
+    expect(leerStore().profesores.map((p) => p.id)).toEqual([idLuis]);
   });
 });

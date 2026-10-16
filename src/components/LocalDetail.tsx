@@ -484,7 +484,7 @@ export default function LocalDetail({
   const nOrdenColWidth = nOrdenDigits <= 2 ? 96 : nOrdenDigits === 3 ? 128 : 164;
 
   return (
-    <div className="max-w-4xl h-full flex flex-col">
+    <div className="w-full h-full flex flex-col">
       <div
         className="rounded-xl overflow-hidden flex flex-col"
         style={{
@@ -672,8 +672,12 @@ export default function LocalDetail({
 
             {/* Meta */}
             {/* Línea 1: Curso | Especialidad (tamaño intermedio entre el meta y el nombre) */}
-            <div className="flex items-center gap-2.5" style={{ color: "var(--tc-ink-soft)", fontSize: 19 }}>
-              <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13 }}>Curso</span>
+            {/* paddingRight deja libre el hueco del botón de tres puntos (posición absoluta) */}
+            <div
+              className="flex flex-wrap items-center gap-x-2.5 gap-y-1"
+              style={{ color: "var(--tc-ink-soft)", fontSize: 19, paddingRight: m.esTemporal ? 0 : 46 }}
+            >
+              <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13, color: "var(--tc-ink-mute)" }}>Curso</span>
               <span
                 className="px-2 py-0.5 rounded font-bold"
                 style={{ background: "var(--tc-bg-panel)", color: "var(--tc-ink)", fontSize: 18 }}
@@ -681,10 +685,10 @@ export default function LocalDetail({
                 {m.ensenanzaCurso ?? "—"}
               </span>
               <span style={{ color: "var(--tc-border)" }}>|</span>
-              <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13 }}>Esp.</span>
+              <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13, color: "var(--tc-ink-mute)" }}>Esp.</span>
               <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{m.especialidad ?? "—"}</span>
-              <span className="ml-auto font-bold uppercase tracking-wide" style={{ fontSize: 13 }}>Forma de Pago</span>
-              <span className="font-semibold" style={{ color: "var(--tc-ink)" }}>{form.formaPago || "—"}</span>
+              <span className="ml-auto font-bold uppercase tracking-wide whitespace-nowrap" style={{ fontSize: 13, color: "var(--tc-ink-mute)" }}>Forma de Pago</span>
+              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--tc-ink)" }}>{form.formaPago || "—"}</span>
             </div>
 
             {/* Línea 2: Tutor/a | Unidad (tamaño anterior + 2 pt) */}
