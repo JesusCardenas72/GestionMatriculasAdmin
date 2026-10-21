@@ -1326,6 +1326,7 @@ export default function LocalScreen({ config }: Props) {
             {selected ? (
               <LocalDetail
                 matricula={selected}
+                config={config}
                 estado={estadoSeleccionado}
                 isSaving={isSaving}
                 subirError={subirError}

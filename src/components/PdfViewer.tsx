@@ -5,6 +5,8 @@ interface Props {
   contentBase64: string;
   fileName: string;
   mimeType?: string;
+  /** Hoja (desde 1) en la que se abre el visor. */
+  pagina?: number;
 }
 
 // Muestra el PDF con el visor nativo de Chromium (el mismo que aparece al
@@ -13,7 +15,15 @@ interface Props {
 // (zoom, ajuste, rotación, descargar e imprimir). El PDF se sirve desde el
 // proceso principal por el esquema `localpdf://`, que activa el plugin PDF en
 // el <iframe> (los blob: no lo activan en subframes de Electron).
-export default function PdfViewer({ contentBase64, fileName }: Props) {
+/**
+ * Parámetros de apertura del visor de Chromium: `view=FitH` abre el PDF con
+ * «Se ajusta al ancho» (el mismo botón de su barra) y `page` en esa hoja.
+ */
+export function urlConAjuste(url: string, pagina?: number): string {
+  return `${url}#${pagina ? `page=${pagina}&` : ""}view=FitH`;
+}
+
+export default function PdfViewer({ contentBase64, fileName, pagina }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +72,7 @@ export default function PdfViewer({ contentBase64, fileName }: Props) {
     <div ref={containerRef} className="border border-slate-200 rounded-lg overflow-hidden bg-slate-100 w-full h-full">
       {url ? (
         <iframe
-          src={url}
+          src={urlConAjuste(url, pagina)}
           title={fileName || "Solicitud en PDF"}
           className="w-full"
           style={{ height: "100%", border: "none" }}

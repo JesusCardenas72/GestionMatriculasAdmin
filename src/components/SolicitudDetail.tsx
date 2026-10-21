@@ -42,7 +42,7 @@ import { enviarEmail, type CorreoPreparado } from "../api/email";
 import { useEstadoYCorreo } from "../hooks/useEstadoYCorreo";
 import { cursosStore } from "../api/cursosStore";
 import PdfViewer from "./PdfViewer";
-import AnadirDocumentoPdf from "./AnadirDocumentoPdf";
+import HerramientasPdf, { fichaDeSolicitud } from "./HerramientasPdf";
 import ConfirmDialog from "./ConfirmDialog";
 import TramitarEmailModal from "./TramitarEmailModal";
 import ComprobacionNotasPanel from "./ComprobacionNotasPanel";
@@ -964,7 +964,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
 
             <AccordionBlock title="Solicitud en PDF" defaultOpen={false} forceOpen={allOpen}>
               <div className="flex justify-end mb-2">
-                <AnadirDocumentoPdf config={config} solicitud={solicitud} pdfBase64={pdfBase64} />
+                <HerramientasPdf config={config} ficha={fichaDeSolicitud(solicitud)} pdfBase64={pdfBase64} />
               </div>
               {pdfQuery.isLoading && (
                 <div className="flex items-center gap-2 text-sm" style={{ color: "var(--tc-ink-soft)" }}>
@@ -1281,7 +1281,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               Solicitud en PDF
             </h3>
             <div className="ml-auto min-w-0">
-              <AnadirDocumentoPdf config={config} solicitud={solicitud} pdfBase64={pdfBase64} />
+              <HerramientasPdf config={config} ficha={fichaDeSolicitud(solicitud)} pdfBase64={pdfBase64} />
             </div>
           </div>
           <div

@@ -3,6 +3,7 @@ import { PDFDocument } from "pdf-lib";
 import {
   anadirDocumentoAlPdf,
   DocumentoNoValidoError,
+  quitarHojasPdf,
   tipoDocumento,
 } from "../pdfAnadirDocumento";
 
@@ -15,6 +16,27 @@ async function pdfConPaginas(n: number): Promise<string> {
   for (let i = 0; i < n; i++) doc.addPage();
   return doc.saveAsBase64();
 }
+
+describe("quitarHojasPdf", () => {
+  async function pdfConAnchos(anchos: number[]): Promise<string> {
+    const doc = await PDFDocument.create();
+    for (const w of anchos) doc.addPage([w, 800]);
+    return doc.saveAsBase64();
+  }
+
+  it("quita las hojas marcadas y conserva el orden del resto", async () => {
+    const r = await quitarHojasPdf(await pdfConAnchos([101, 102, 103, 104, 105]), [4, 2]);
+    expect(r.hojasRestantes).toBe(3);
+    const leido = await PDFDocument.load(r.base64);
+    expect(leido.getPages().map((p) => p.getWidth())).toEqual([101, 103, 105]);
+  });
+
+  it("no deja quitar todas las hojas ni ninguna", async () => {
+    const pdf = await pdfConAnchos([101, 102]);
+    await expect(quitarHojasPdf(pdf, [1, 2])).rejects.toThrow(/todas/);
+    await expect(quitarHojasPdf(pdf, [])).rejects.toThrow(/ninguna/);
+  });
+});
 
 describe("tipoDocumento", () => {
   it("reconoce PDF, JPG y PNG por su contenido", async () => {

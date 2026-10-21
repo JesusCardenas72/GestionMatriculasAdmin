@@ -423,7 +423,7 @@ export function cursosEliminarPdf(curso: string, localId: string): void {
   } catch {
     // silencioso
   }
-  cursosEliminarPdfOriginal(curso, localId);
+  cursosEliminarVersionesPdf(curso, localId);
 }
 
 /**
@@ -438,41 +438,96 @@ export function cursosFechaPdf(curso: string, localId: string): number | null {
   }
 }
 
-// ── PDF original antes de añadirle documentos ────────────────────────────────
-// Va en una subcarpeta para que no cuente como PDF de matrícula (sync de fondo,
-// copias de seguridad). Solo existe en el equipo donde se añadió el documento.
+// ── Versiones anteriores del PDF (para «Deshacer último cambio») ────────────
+// Cada cambio subido a la nube (añadir documento, quitar hojas) guarda antes la
+// versión que había. Van en una subcarpeta para que no cuenten como PDF de
+// matrícula (sync de fondo, copias de seguridad) y solo existen en el equipo
+// donde se hizo el cambio. Se conservan las MAX_VERSIONES_PDF más recientes.
 
-function pdfOriginalPath(curso: string, localId: string): string {
-  return path.join(cursosPdfDir(curso), "originales", `${localId}.pdf`);
+export const MAX_VERSIONES_PDF = 3;
+
+function pdfVersionesDir(curso: string, localId: string): string {
+  return path.join(cursosPdfDir(curso), "versiones", localId);
 }
 
-/** Guarda el PDF original solo si aún no hay uno: varias adiciones conservan el primero. */
-export function cursosGuardarPdfOriginal(curso: string, localId: string, base64: string): boolean {
+/**
+ * v1.29.0 guardaba un único original en `originales/<id>.pdf`. Se mueve al
+ * historial como la versión más antigua.
+ */
+function migrarOriginalAntiguo(curso: string, localId: string): void {
+  const antiguo = path.join(cursosPdfDir(curso), "originales", `${localId}.pdf`);
+  if (!fs.existsSync(antiguo)) return;
+  const dir = pdfVersionesDir(curso, localId);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.renameSync(antiguo, path.join(dir, `${"0".repeat(13)}.pdf`));
+}
+
+/** Ficheros del historial, del más antiguo al más reciente. */
+function versionesPdf(curso: string, localId: string): string[] {
   try {
-    const file = pdfOriginalPath(curso, localId);
-    if (fs.existsSync(file)) return true;
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, Buffer.from(base64, "base64"));
+    migrarOriginalAntiguo(curso, localId);
+  } catch {
+    // si no se puede mover, se ignora: el historial sigue funcionando
+  }
+  const dir = pdfVersionesDir(curso, localId);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".pdf"))
+    .sort()
+    .map((f) => path.join(dir, f));
+}
+
+/** Guarda la versión que había antes de un cambio y descarta las que sobran. */
+export function cursosGuardarVersionPdf(curso: string, localId: string, base64: string): boolean {
+  try {
+    const previas = versionesPdf(curso, localId);
+    const dir = pdfVersionesDir(curso, localId);
+    fs.mkdirSync(dir, { recursive: true });
+    // Nombre = instante con ceros delante: ordenar por nombre es ordenar por fecha.
+    let instante = Date.now();
+    const ultimo = previas.length ? Number(path.basename(previas[previas.length - 1], ".pdf")) : 0;
+    if (instante <= ultimo) instante = ultimo + 1;
+    fs.writeFileSync(
+      path.join(dir, `${String(instante).padStart(13, "0")}.pdf`),
+      Buffer.from(base64, "base64"),
+    );
+    for (const f of versionesPdf(curso, localId).slice(0, -MAX_VERSIONES_PDF)) fs.unlinkSync(f);
     return true;
   } catch {
     return false;
   }
 }
 
-export function cursosLeerPdfOriginal(curso: string, localId: string): string | null {
+export function cursosContarVersionesPdf(curso: string, localId: string): number {
+  return versionesPdf(curso, localId).length;
+}
+
+/** La versión más reciente del historial (la de justo antes del último cambio). */
+export function cursosLeerUltimaVersionPdf(curso: string, localId: string): string | null {
   try {
-    const file = pdfOriginalPath(curso, localId);
-    if (!fs.existsSync(file)) return null;
-    return fs.readFileSync(file).toString("base64");
+    const todas = versionesPdf(curso, localId);
+    if (todas.length === 0) return null;
+    return fs.readFileSync(todas[todas.length - 1]).toString("base64");
   } catch {
     return null;
   }
 }
 
-export function cursosEliminarPdfOriginal(curso: string, localId: string): void {
+/** Quita del historial la versión más reciente, una vez recuperada. */
+export function cursosDescartarUltimaVersionPdf(curso: string, localId: string): void {
   try {
-    const file = pdfOriginalPath(curso, localId);
-    if (fs.existsSync(file)) fs.unlinkSync(file);
+    const todas = versionesPdf(curso, localId);
+    if (todas.length) fs.unlinkSync(todas[todas.length - 1]);
+  } catch {
+    // silencioso
+  }
+}
+
+export function cursosEliminarVersionesPdf(curso: string, localId: string): void {
+  try {
+    migrarOriginalAntiguo(curso, localId);
+    fs.rmSync(pdfVersionesDir(curso, localId), { recursive: true, force: true });
   } catch {
     // silencioso
   }

@@ -7,15 +7,29 @@ export interface PaginaImagen {
   alto: number;
 }
 
-/** Resolución del dibujo: 2× los 72 ppp del PDF ≈ 144 ppp, legible al imprimir. */
+export interface OpcionesRasterizar {
+  /** Ancho del dibujo en píxeles (miniaturas). Si falta, 2× el tamaño real. */
+  anchoPx?: number;
+  /** Calidad del JPG, de 0 a 1. */
+  calidad?: number;
+  /** Se llama tras dibujar cada página (n desde 1). */
+  alAvanzar?: (n: number, total: number) => void;
+}
+
+/** Resolución por defecto: 2× los 72 ppp del PDF ≈ 144 ppp, legible al imprimir. */
 const ESCALA = 2;
 
 /**
  * Dibuja cada página de un PDF como imagen con pdf.js. Sirve para los PDF
  * protegidos contra cambios (se abren sin contraseña pero pdf-lib no puede
- * copiar sus páginas): la imagen se ve igual que el original.
+ * copiar sus páginas): la imagen se ve igual que el original. Con `anchoPx`
+ * sirve también para las miniaturas de «Quitar hojas».
  */
-export async function rasterizarPdf(base64: string): Promise<PaginaImagen[]> {
+export async function rasterizarPdf(
+  base64: string,
+  opciones: OpcionesRasterizar = {},
+): Promise<PaginaImagen[]> {
+  const { anchoPx, calidad = 0.85, alAvanzar } = opciones;
   const pdfjs = await cargarPdfJs();
   let doc;
   try {
@@ -31,7 +45,8 @@ export async function rasterizarPdf(base64: string): Promise<PaginaImagen[]> {
     for (let n = 1; n <= doc.numPages; n++) {
       const pagina = await doc.getPage(n);
       const tamano = pagina.getViewport({ scale: 1 });
-      const viewport = pagina.getViewport({ scale: ESCALA });
+      const escala = anchoPx ? anchoPx / tamano.width : ESCALA;
+      const viewport = pagina.getViewport({ scale: escala });
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -41,11 +56,12 @@ export async function rasterizarPdf(base64: string): Promise<PaginaImagen[]> {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       await pagina.render({ canvasContext: ctx, viewport }).promise;
       paginas.push({
-        jpgBase64: canvas.toDataURL("image/jpeg", 0.85).split(",")[1],
+        jpgBase64: canvas.toDataURL("image/jpeg", calidad).split(",")[1],
         ancho: tamano.width,
         alto: tamano.height,
       });
       canvas.width = canvas.height = 0; // libera la memoria del dibujo
+      alAvanzar?.(n, doc.numPages);
     }
   } finally {
     await doc.destroy();

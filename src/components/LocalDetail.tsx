@@ -69,6 +69,8 @@ import { buscarProfesorInstrumento } from "../utils/horariosPersistencia";
 import { indicePorNombre } from "../utils/profesorado";
 import { norm } from "../utils/horarioExcel";
 import { useProfesorado } from "../hooks/useProfesorado";
+import type { AppConfig } from "../../electron/config-store";
+import HerramientasPdf from "./HerramientasPdf";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
 
@@ -97,6 +99,8 @@ interface FormData {
 
 interface Props {
   matricula: MatriculaLocal;
+  /** Conexión a los flows: la necesitan las herramientas del PDF (subir, enviar al alumno). */
+  config?: AppConfig;
   estado?: EstadoTramite | null;
   isSaving: boolean;
   subirError?: string | null;
@@ -158,6 +162,7 @@ function initForm(m: MatriculaLocal): FormData {
 
 export default function LocalDetail({
   matricula: m,
+  config,
   estado,
   isSaving,
   subirError,
@@ -1540,6 +1545,26 @@ export default function LocalDetail({
                   </span>
                 )}
               </div>
+
+              {m._tienePdf && config && pdfBase64Preview && (
+                <div className="flex justify-end">
+                  <HerramientasPdf
+                    config={config}
+                    ficha={{
+                      clave: pdfKey,
+                      curso,
+                      rowId: m.rowId,
+                      nombre: m.nombre,
+                      apellidos: m.apellidos,
+                      email: m.email,
+                      ensenanzaCurso: m.ensenanzaCurso,
+                      especialidad: m.especialidad,
+                    }}
+                    pdfBase64={pdfBase64Preview}
+                    onPdfCambiado={setPdfBase64Preview}
+                  />
+                </div>
+              )}
 
               {m._tienePdf && (
                 <div

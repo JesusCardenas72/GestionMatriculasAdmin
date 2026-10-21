@@ -10,7 +10,8 @@ import { CampoAsunto } from "./CampoAsunto";
 interface Props {
   open: boolean;
   config: AppConfig;
-  solicitud: Solicitud;
+  /** Solicitud de Dataverse o matrícula local: basta con sus datos de contacto. */
+  solicitud: Pick<Solicitud, "nombre" | "apellidos" | "email" | "ensenanzaCurso" | "especialidad">;
   /** PDF completo de la solicitud (con lo añadido) que va adjunto. */
   pdfBase64: string;
   /** Documentos añadidos en esta sesión, uno por línea (editable). */

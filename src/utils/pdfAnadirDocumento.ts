@@ -1,5 +1,6 @@
 /**
- * Añade un documento (PDF, JPG o PNG) al final del PDF de una solicitud.
+ * Cambios en el PDF de una solicitud: añadir un documento (PDF, JPG o PNG) al
+ * final y quitar hojas.
  *
  * pdf-lib se carga bajo demanda para no engordar la pantalla que lo usa.
  */
@@ -121,4 +122,32 @@ export async function anadirDocumentoAlPdf(
     height: h,
   });
   return { base64: await base.saveAsBase64(), paginasAnadidas: 1, comoImagen: false };
+}
+
+/**
+ * Quita del PDF de una solicitud las hojas indicadas (números desde 1).
+ * Nunca deja el PDF vacío.
+ */
+export async function quitarHojasPdf(
+  base64: string,
+  hojas: number[],
+): Promise<{ base64: string; hojasRestantes: number }> {
+  const { PDFDocument } = await import("pdf-lib");
+  let doc: Awaited<ReturnType<typeof PDFDocument.load>>;
+  try {
+    doc = await PDFDocument.load(base64);
+  } catch (e) {
+    throw new DocumentoNoValidoError(
+      esProtegido(e)
+        ? "El PDF de la solicitud está protegido contra cambios y no se le pueden quitar hojas."
+        : "El PDF de la solicitud está dañado o no se puede leer.",
+    );
+  }
+  const total = doc.getPageCount();
+  const quitar = [...new Set(hojas)].filter((n) => n >= 1 && n <= total);
+  if (quitar.length === 0) throw new DocumentoNoValidoError("No has marcado ninguna hoja.");
+  if (quitar.length >= total) throw new DocumentoNoValidoError("No se pueden quitar todas las hojas.");
+  // De la última a la primera, para que no se muevan los números pendientes.
+  for (const n of quitar.sort((a, b) => b - a)) doc.removePage(n - 1);
+  return { base64: await doc.saveAsBase64(), hojasRestantes: doc.getPageCount() };
 }

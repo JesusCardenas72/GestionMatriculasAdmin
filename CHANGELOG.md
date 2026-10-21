@@ -9,6 +9,20 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.31.0] - 2026-10-21
+
+### Añadido
+
+- **Quitar hojas del PDF de una matrícula** (`src/components/EditarPdfModal.tsx`, `quitarHojasPdf` en `src/utils/pdfAnadirDocumento.ts`). Se marcan las hojas sobre miniaturas y «Ver cómo queda» enseña el resultado antes de guardar. Desde ahí se puede «Volver a elegir» sin perder lo marcado o cancelar sin cambiar nada. No deja quitar todas las hojas.
+- **Vista previa antes de guardar** también en «Añadir documento» (sustituye a la confirmación; se abre en la primera hoja añadida) y en «Deshacer».
+- **Historial de versiones del PDF**: cada cambio guarda antes la versión que había (como mucho 3 por matrícula, solo en el equipo donde se hizo) en `cursos/pdfs/<curso>/versiones/<id>/`. «Deshacer último cambio» (antes «Quitar lo añadido») retrocede paso a paso. El original que guardaba la v1.29.0 se aprovecha como la versión más antigua.
+- **Pestaña Local**: Enviar al alumno, Quitar hojas, Añadir documento y Deshacer, en el bloque «Gestión Local». Si la matrícula ya está en la nube, el cambio se sube al momento (comparte PDF e historial con las pestañas de estado). Si solo está en el equipo, se guarda allí y viaja con «Subir a la nube».
+
+### Cambiado
+
+- **Los visores de PDF se abren con «Se ajusta al ancho»** (`view=FitH` en `src/components/PdfViewer.tsx`).
+- Los botones del PDF pasan a `src/components/HerramientasPdf.tsx` (antes `AnadirDocumentoPdf.tsx`), compartido por la ficha de solicitud y la ficha local.
+
 ## [1.30.0] - 2026-10-16
 
 ### Añadido

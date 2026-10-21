@@ -167,12 +167,14 @@ const adminAPI = {
       ipcRenderer.invoke("cursos:eliminarPdf", curso, localId),
     fechaPdf: (curso: string, localId: string): Promise<number | null> =>
       ipcRenderer.invoke("cursos:fechaPdf", curso, localId),
-    guardarPdfOriginal: (curso: string, localId: string, base64: string): Promise<boolean> =>
-      ipcRenderer.invoke("cursos:guardarPdfOriginal", curso, localId, base64),
-    leerPdfOriginal: (curso: string, localId: string): Promise<string | null> =>
-      ipcRenderer.invoke("cursos:leerPdfOriginal", curso, localId),
-    eliminarPdfOriginal: (curso: string, localId: string): Promise<void> =>
-      ipcRenderer.invoke("cursos:eliminarPdfOriginal", curso, localId),
+    guardarVersionPdf: (curso: string, localId: string, base64: string): Promise<boolean> =>
+      ipcRenderer.invoke("cursos:guardarVersionPdf", curso, localId, base64),
+    contarVersionesPdf: (curso: string, localId: string): Promise<number> =>
+      ipcRenderer.invoke("cursos:contarVersionesPdf", curso, localId),
+    leerUltimaVersionPdf: (curso: string, localId: string): Promise<string | null> =>
+      ipcRenderer.invoke("cursos:leerUltimaVersionPdf", curso, localId),
+    descartarUltimaVersionPdf: (curso: string, localId: string): Promise<void> =>
+      ipcRenderer.invoke("cursos:descartarUltimaVersionPdf", curso, localId),
     guardarLote: (curso: string, records: MatriculaLocal[]): Promise<void> =>
       ipcRenderer.invoke("cursos:guardarLote", curso, records),
   },

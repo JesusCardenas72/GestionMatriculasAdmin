@@ -85,9 +85,10 @@ import {
   cursosTienePdfBatch,
   cursosEliminarPdf,
   cursosFechaPdf,
-  cursosGuardarPdfOriginal,
-  cursosLeerPdfOriginal,
-  cursosEliminarPdfOriginal,
+  cursosGuardarVersionPdf,
+  cursosContarVersionesPdf,
+  cursosLeerUltimaVersionPdf,
+  cursosDescartarUltimaVersionPdf,
   cursosGuardarLote,
   cursosMigrarPdfAFicheros,
 } from "./cursos-store";
@@ -514,14 +515,17 @@ function registerIpcHandlers() {
   ipcMain.handle("cursos:fechaPdf", (_e, curso: string, localId: string) =>
     cursosFechaPdf(curso, localId),
   );
-  ipcMain.handle("cursos:guardarPdfOriginal", (_e, curso: string, localId: string, base64: string) =>
-    cursosGuardarPdfOriginal(curso, localId, base64),
+  ipcMain.handle("cursos:guardarVersionPdf", (_e, curso: string, localId: string, base64: string) =>
+    cursosGuardarVersionPdf(curso, localId, base64),
   );
-  ipcMain.handle("cursos:leerPdfOriginal", (_e, curso: string, localId: string) =>
-    cursosLeerPdfOriginal(curso, localId),
+  ipcMain.handle("cursos:contarVersionesPdf", (_e, curso: string, localId: string) =>
+    cursosContarVersionesPdf(curso, localId),
   );
-  ipcMain.handle("cursos:eliminarPdfOriginal", (_e, curso: string, localId: string) =>
-    cursosEliminarPdfOriginal(curso, localId),
+  ipcMain.handle("cursos:leerUltimaVersionPdf", (_e, curso: string, localId: string) =>
+    cursosLeerUltimaVersionPdf(curso, localId),
+  );
+  ipcMain.handle("cursos:descartarUltimaVersionPdf", (_e, curso: string, localId: string) =>
+    cursosDescartarUltimaVersionPdf(curso, localId),
   );
   ipcMain.handle("cursos:guardarLote", (_e, curso: string, records: MatriculaLocal[]) =>
     cursosGuardarLote(curso, records),
