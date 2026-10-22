@@ -318,6 +318,7 @@ export async function crearBackup(
   // ── G) Preferencias ──
   if (seleccion.preferencias) {
     addFileIfExists(zip, path.join(dir, "curso-context.json"), "curso-context.json");
+    addFileIfExists(zip, path.join(dir, "certificado-horario.json"), "certificado-horario.json");
   }
 
   // ── Manifest ──
@@ -806,6 +807,8 @@ export async function restaurarBackup(
         fs.writeFileSync(path.join(dir, "curso-context.json"), buf);
         categorias.push("Preferencias");
       }
+      const firma = await zipFileBuffer(zip, "certificado-horario.json");
+      if (firma) fs.writeFileSync(path.join(dir, "certificado-horario.json"), firma);
     }
     tick();
   }

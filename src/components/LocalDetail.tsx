@@ -46,7 +46,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
-import { AlertTriangle, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
+import { AlertTriangle, Award, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -129,6 +129,8 @@ interface Props {
   onEnviarCorreo: () => void;
   /** Enviar el correo de horario (el mismo de la pestaña Horarios Individuales). */
   onEnviarHorario: () => void;
+  /** Certificado de horario firmado por Secretaría, para imprimir o guardar. */
+  onCertificadoHorario: () => void;
   /** Borra el registro local y lo vuelve a descargar de la nube (solo si tiene rowId). */
   onDescargarNube?: () => void;
   /** Borra todos los registros locales de Dataverse y los vuelve a descargar. */
@@ -183,6 +185,7 @@ export default function LocalDetail({
   onBorrar,
   onEnviarCorreo,
   onEnviarHorario,
+  onCertificadoHorario,
   onDescargarNube,
   onDescargarTodo,
 }: Props) {
@@ -915,6 +918,16 @@ export default function LocalDetail({
                         Enviar email Horario
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => { onCertificadoHorario(); setMenuOpen(false); }}
+                      title="Certificado del horario firmado por Secretaría, listo para imprimir"
+                      className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-[var(--tc-bg-panel)]"
+                      style={{ color: "var(--tc-ink)" }}
+                    >
+                      <Award className="w-4 h-4 shrink-0" />
+                      Certificado de horario
+                    </button>
                   </div>
                 </div>
               )}

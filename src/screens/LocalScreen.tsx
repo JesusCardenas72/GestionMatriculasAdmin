@@ -29,6 +29,10 @@ import { calcularCuantiaAmpliacion, cursoActualDesdeAmpliacion } from "../utils/
 import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { solicitudALocal } from "../utils/solicitudALocal";
 import { normNombre } from "../utils/horarioEnvio";
+import { buscarHorarioDeMatricula } from "../utils/certificadoHorario";
+import { construirCargaDesdeStore } from "../utils/horariosPersistencia";
+import type { HorarioAlumno } from "../horarios/types";
+import { CertificadoHorarioModal } from "../components/modals/CertificadoHorarioModal";
 import { ConflictoNubeModal } from "../components/modals/ConflictoNubeModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import ProgressDialog from "../components/modals/ProgressDialog";
@@ -724,6 +728,46 @@ export default function LocalScreen({ config }: Props) {
     );
   }
 
+  const [certificado, setCertificado] = useState<{
+    alumno: HorarioAlumno;
+    nombre: string;
+    dni: string;
+    aviso?: string;
+  } | null>(null);
+
+  async function handleCertificadoHorario() {
+    if (!selected) return;
+    const ensenanzaCurso = (selected.ensenanzaCurso ?? "").trim();
+    const especialidad = (selected.especialidad ?? "").trim();
+    let horario: HorarioAlumno | null = null;
+    let aviso: string | undefined;
+    try {
+      const store = await window.adminAPI.horarios.data.obtener(curso);
+      horario = buscarHorarioDeMatricula(construirCargaDesdeStore(store).alumnos, {
+        nOrden: selected.nOrden,
+        ensenanzaCurso,
+        especialidad,
+        candidatosNombre: candidatosNombreHorario,
+      });
+      if (!horario) aviso = "Este alumno no tiene horario cargado en Horarios: la tabla saldrá vacía.";
+    } catch (e) {
+      aviso = `No se pudo leer el horario: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    setCertificado({
+      alumno: {
+        clave: selected.localId,
+        nombre: `${selected.apellidos}, ${selected.nombre}`,
+        email: selected.email,
+        ensenanzaCurso,
+        especialidad,
+        clases: horario?.clases ?? [],
+      },
+      nombre: [selected.nombre, selected.apellidos].map((s) => (s ?? "").trim()).filter(Boolean).join(" "),
+      dni: (selected.dni ?? "").trim(),
+      aviso,
+    });
+  }
+
   function buscarEnNube(rowId: string): Solicitud | undefined {
     const remotas = [
       ...(pendienteTramitacionQuery.data?.solicitudes ?? []),
@@ -1356,6 +1400,7 @@ export default function LocalScreen({ config }: Props) {
                 onBorrar={() => { if (!isSoloLectura) void handleBorrar(); }}
                 onEnviarCorreo={() => void handleEnviarCorreo()}
                 onEnviarHorario={() => { if (!isSoloLectura) handleEnviarHorario(); }}
+                onCertificadoHorario={() => void handleCertificadoHorario()}
                 onDescargarNube={() => void handleDescargarNube()}
                 onDescargarTodo={() => void handleDescargarTodo()}
               />
@@ -1380,6 +1425,15 @@ export default function LocalScreen({ config }: Props) {
           </div>
         }
       />
+      {certificado && (
+        <CertificadoHorarioModal
+          alumno={certificado.alumno}
+          nombreInicial={certificado.nombre}
+          dniInicial={certificado.dni}
+          aviso={certificado.aviso}
+          onCerrar={() => setCertificado(null)}
+        />
+      )}
       {showAmpliacion && selected && !isSoloLectura && (
         <AmpliacionWizard
           matricula={selected}

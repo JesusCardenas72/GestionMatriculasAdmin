@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.32.0] - 2026-10-22
+
+### Añadido
+
+- **Certificado de horario del alumno** (`src/utils/certificadoHorario.ts`, `src/components/modals/CertificadoHorarioModal.tsx`). Es el modelo de Secretaría con el nombre, el DNI, la especialidad y el curso del alumno, la tabla de sus clases (Día, Hora comienzo, Hora fin, Asignatura, ordenada por día y hora) y la fecha del día. Una ventana con vista previa deja retocar el nombre, el DNI y «alumno/alumna», y desde ahí se imprime o se guarda en PDF.
+- Botón **«Certificado»** en Horarios › Horarios Individuales y opción **«Certificado de horario»** en Local › menú de 3 puntos. Desde Local, el horario se busca primero por nº de orden y luego por nombre, y si el alumno tiene dos instrumentos se toma el de esa matrícula. Si no tiene horario cargado, la ventana lo avisa.
+- **Firma editable**: «Secretario/Secretaria» y el nombre (por defecto D. Santiago Aguilar Rodero). «Guardar como secretario por defecto» lo deja fijo para las próximas veces (`electron/certificado-store.ts`, `certificado-horario.json`). Entra en la copia de seguridad, en «Preferencias».
+
 ## [1.31.0] - 2026-10-21
 
 ### Añadido

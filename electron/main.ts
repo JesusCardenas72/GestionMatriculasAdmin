@@ -93,6 +93,7 @@ import {
   cursosMigrarPdfAFicheros,
 } from "./cursos-store";
 import { loadCursoContext, saveCursoContext } from "./curso-context-store";
+import { loadFirmaCertificado, saveFirmaCertificado, type FirmaCertificado } from "./certificado-store";
 import {
   listarContenidoDisponible,
   crearBackup,
@@ -534,6 +535,10 @@ function registerIpcHandlers() {
   ipcMain.handle("cursoContext:load", () => loadCursoContext());
   ipcMain.handle("cursoContext:save", (_e, data: { cursoSeleccionado: string }) =>
     saveCursoContext(data),
+  );
+  ipcMain.handle("certificado:firmaLoad", () => loadFirmaCertificado());
+  ipcMain.handle("certificado:firmaSave", (_e, data: FirmaCertificado) =>
+    saveFirmaCertificado(data),
   );
 
   ipcMain.handle("presets:listar", () => presetsListar());

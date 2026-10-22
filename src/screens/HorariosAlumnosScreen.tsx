@@ -3,8 +3,9 @@ import {
   CalendarClock, FileSpreadsheet, Loader2, Download, Printer, AlertCircle,
   Search, Trash2, Mail, History, CheckSquare, Square, Send, X, Clock,
   CheckCircle2, XCircle, ClipboardList, FileCode2, Ghost, Filter, ListChecks,
-  RotateCcw, FileText, Settings2, ShieldCheck, AlertTriangle, Copy,
+  RotateCcw, FileText, Settings2, ShieldCheck, AlertTriangle, Copy, Award,
 } from "lucide-react";
+import { CertificadoHorarioModal } from "../components/modals/CertificadoHorarioModal";
 import { useCursoContext } from "../contexts/CursoContextProvider";
 import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
 import { useEscenarioHorario } from "../contexts/EscenarioHorarioContext";
@@ -20,6 +21,7 @@ import {
   nombreArchivoDocGrupal,
 } from "../utils/horarioGrupalDoc";
 import { normNombre } from "../utils/horarioEnvio";
+import { nombreNatural } from "../utils/certificadoHorario";
 import { nOrdenDeHorario, indiceAnulados, esHorarioAnulado, esEntryAnulado, type IndiceAnulados } from "../utils/anuladosHorarios";
 import type { CargaHorarios, HorarioAlumno, CampanyaEnvio, ConfigEnvioCampanya, FormatoHorario } from "../horarios/types";
 import { buildCursoLabel, FORMATO_HORARIO_DEFAULT } from "../horarios/types";
@@ -751,6 +753,26 @@ export default function HorariosAlumnosScreen({ config, onIrAProfesorado }: Prop
     }
   };
 
+  const [certificadoAbierto, setCertificadoAbierto] = useState(false);
+
+  const datosCertificado = useMemo(() => {
+    if (!seleccionado) return null;
+    const nOrden = nOrdenDeHorario(seleccionado);
+    const clave = normNombre(seleccionado.nombre);
+    const reales = localMatriculas.filter(m => !m.esTemporal);
+    const m =
+      (nOrden !== null ? reales.find(x => x.nOrden === nOrden) : undefined) ??
+      reales.find(x => {
+        const a = (x.apellidos ?? "").trim();
+        const n = (x.nombre ?? "").trim();
+        return normNombre(a && n ? `${a}, ${n}` : a || n) === clave;
+      });
+    const nombre = m
+      ? [m.nombre, m.apellidos].map(s => (s ?? "").trim()).filter(Boolean).join(" ")
+      : nombreNatural(seleccionado.nombre);
+    return { nombre, dni: (m?.dni ?? "").trim() };
+  }, [seleccionado, localMatriculas]);
+
   const handleImprimirPdf = async () => {
     if (!seleccionado) return;
     setImprimiendo(true);
@@ -1350,6 +1372,14 @@ export default function HorariosAlumnosScreen({ config, onIrAProfesorado }: Prop
                       ))}
                     </div>
                     <button
+                      onClick={() => setCertificadoAbierto(true)}
+                      title="Certificado de horario firmado por Secretaría, listo para imprimir"
+                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition"
+                    >
+                      <Award className="w-4 h-4" />
+                      Certificado
+                    </button>
+                    <button
                       onClick={handleImprimirPdf}
                       disabled={imprimiendo || generandoPdf || descargandoHtml}
                       className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-[var(--tc-border)] bg-[var(--tc-bg)] text-sm font-medium text-[var(--tc-ink)] hover:bg-[var(--tc-bg-panel)] transition disabled:opacity-60"
@@ -1381,6 +1411,15 @@ export default function HorariosAlumnosScreen({ config, onIrAProfesorado }: Prop
                   src={htmlUrl}
                   className="flex-1 w-full border-0 bg-white min-h-0"
                 />
+                {certificadoAbierto && datosCertificado && (
+                  <CertificadoHorarioModal
+                    key={seleccionado.clave}
+                    alumno={seleccionado}
+                    nombreInicial={datosCertificado.nombre}
+                    dniInicial={datosCertificado.dni}
+                    onCerrar={() => setCertificadoAbierto(false)}
+                  />
+                )}
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center text-sm text-[var(--tc-ink-mute)]">

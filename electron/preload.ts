@@ -25,6 +25,7 @@ import type {
 } from "./notas-anteriores-store";
 
 import type { EstadoActualizacion } from "./actualizador";
+import type { FirmaCertificado } from "./certificado-store";
 
 const adminAPI = {
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:getVersion"),
@@ -183,6 +184,13 @@ const adminAPI = {
       ipcRenderer.invoke("cursoContext:load"),
     save: (data: { cursoSeleccionado: string }): Promise<void> =>
       ipcRenderer.invoke("cursoContext:save", data),
+  },
+  certificado: {
+    /** Firma por defecto del certificado de horario (null = la de siempre). */
+    firmaLoad: (): Promise<FirmaCertificado | null> =>
+      ipcRenderer.invoke("certificado:firmaLoad"),
+    firmaSave: (data: FirmaCertificado): Promise<void> =>
+      ipcRenderer.invoke("certificado:firmaSave", data),
   },
   presets: {
     listar: (): Promise<ConfigInforme[]> =>
