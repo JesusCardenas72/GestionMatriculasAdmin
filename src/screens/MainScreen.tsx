@@ -28,6 +28,7 @@ import CursosModal from "../components/modals/CursosModal";
 import NotasAnterioresModal from "../components/modals/NotasAnterioresModal";
 import { useNotasAnteriores } from "../hooks/useNotasAnteriores";
 import { cursoAnterior } from "../utils/comprobarNotas";
+import { numerosAmpliacion, paresAmpliacion } from "../utils/enlaceAmpliacion";
 import BorrarModal from "../components/modals/BorrarModal";
 import AyudaModal from "../components/modals/AyudaModal";
 import CopiaSeguridadModal from "../components/modals/CopiaSeguridadModal";
@@ -186,6 +187,16 @@ export default function MainScreen({ config, onConfigSave }: Props) {
   }, [q1.data?.solicitudes, q2.data?.solicitudes, q3.data?.solicitudes]);
 
   usePdfBackgroundSync(config, curso, todasLasSolicitudes);
+
+  // «N,1» de las ampliaciones ya enlazadas con su matrícula original
+  const numerosAmpliaciones = useMemo(
+    () => numerosAmpliacion(todasLasSolicitudes ?? []),
+    [todasLasSolicitudes],
+  );
+  const paresAmpliaciones = useMemo(
+    () => paresAmpliacion(todasLasSolicitudes ?? []),
+    [todasLasSolicitudes],
+  );
 
   // Memorizar la transformación para no recalcular en cada render
   const currentSolicitudes = useMemo<Solicitud[] | undefined>(() => {
@@ -457,6 +468,8 @@ export default function MainScreen({ config, onConfigSave }: Props) {
                 isFetching={current!.isFetching}
                 error={current!.error as Error | null}
                 selectedId={selected?.rowId ?? null}
+                numerosAmpliacion={numerosAmpliaciones}
+                paresAmpliacion={paresAmpliaciones}
                 onSelect={setSelected}
                 onRefresh={() => qc.invalidateQueries({ queryKey: ["solicitudes", active] })}
               />
@@ -469,6 +482,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
                 <SolicitudDetail
                   config={config}
                   solicitud={selected}
+                  todasSolicitudes={todasLasSolicitudes}
                   onDone={() => setSelected(null)}
                   onConvalidacionDetected={(rowId, tiene) =>
                     setConvalidacionMap((prev) => {

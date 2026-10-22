@@ -36,6 +36,8 @@ import { CertificadoHorarioModal } from "../components/modals/CertificadoHorario
 import { ConflictoNubeModal } from "../components/modals/ConflictoNubeModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import ProgressDialog from "../components/modals/ProgressDialog";
+import EnlazarAmpliacionModal from "../components/modals/EnlazarAmpliacionModal";
+import { candidatasOriginal, enlacesLocalesReconstruidos, enlazarLocal } from "../utils/enlaceAmpliacion";
 
 
 function LocalEmailModal({
@@ -151,6 +153,7 @@ export default function LocalScreen({ config }: Props) {
   isSyncingRef.current = isSyncing;
   const [isSaving, setIsSaving] = useState(false);
   const [showAmpliacion, setShowAmpliacion] = useState(false);
+  const [showEnlazarAmpliacion, setShowEnlazarAmpliacion] = useState(false);
   const [subirError, setSubirError] = useState<string | null>(null);
   const [isSubiendoTodo, setIsSubiendoTodo] = useState(false);
   const [subirTodoError, setSubirTodoError] = useState<string | null>(null);
@@ -500,6 +503,29 @@ export default function LocalScreen({ config }: Props) {
       }
     })();
   }, [isLoading, matriculas, actualizar, curso]);
+
+  // Ampliaciones descargadas de la nube que ya están enlazadas allí (mismo curso
+  // y mismo nº de orden que su original) pero llegan a Local sin el vínculo:
+  // se les pone `origenRowId` y el «N,1». Solo toca Local; Dataverse ya está bien.
+  // La ref evita repetir la misma escritura mientras la query se recarga.
+  const enlacesEnCursoRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (isLoading || isSyncingRef.current) return;
+    const arreglos = enlacesLocalesReconstruidos(matriculas).filter(
+      (a) => !enlacesEnCursoRef.current.has(a.localId),
+    );
+    if (arreglos.length === 0) return;
+    for (const a of arreglos) enlacesEnCursoRef.current.add(a.localId);
+    (async () => {
+      for (const a of arreglos) {
+        try {
+          await actualizarRef.current(a.localId, a.cambios);
+        } finally {
+          enlacesEnCursoRef.current.delete(a.localId);
+        }
+      }
+    })();
+  }, [isLoading, matriculas]);
 
   // Mantiene el panel derecho actualizado si el registro seleccionado cambia en la lista
   useEffect(() => {
@@ -1238,6 +1264,28 @@ export default function LocalScreen({ config }: Props) {
   const estadoSeleccionado: EstadoTramite | null =
     selected?.rowId ? estadoPorRowId.get(selected.rowId) ?? null : null;
 
+  // Ampliación seleccionada: su matrícula original (si ya está enlazada) o las
+  // que pueden serlo (si no lo está todavía).
+  const matriculasReales = matriculas.filter((m) => !m.esTemporal);
+  const originalAmpliacion =
+    selected?.ampliacion && selected.origenRowId !== selected.rowId
+      ? matriculasReales.find(
+          (m) => !m.ampliacion && m.localId !== selected.localId && m.rowId === selected.origenRowId,
+        ) ?? null
+      : null;
+  const ampliacionSinEnlazar = !!selected?.ampliacion && !!selected.rowId && selected.origenRowId === selected.rowId;
+  const candidatasAmpliacion =
+    selected && ampliacionSinEnlazar ? candidatasOriginal(selected, matriculasReales) : [];
+
+  async function handleEnlazarAmpliacion(originalLocalId: string) {
+    const original = matriculasReales.find((m) => m.localId === originalLocalId);
+    if (!selected || !original) return;
+    const cambios = enlazarLocal(original);
+    await actualizar(selected.localId, cambios.ampliacion);
+    await actualizar(original.localId, cambios.original);
+    setShowEnlazarAmpliacion(false);
+  }
+
   const yaTieneAmpliacion = selected
     ? matriculas.some(
         (m) =>
@@ -1375,6 +1423,10 @@ export default function LocalScreen({ config }: Props) {
                 isSaving={isSaving}
                 subirError={subirError}
                 yaTieneAmpliacion={yaTieneAmpliacion}
+                originalAmpliacion={originalAmpliacion}
+                onEnlazarAmpliacion={
+                  ampliacionSinEnlazar && !isSoloLectura ? () => setShowEnlazarAmpliacion(true) : undefined
+                }
                 readOnly={isSoloLectura}
                 temporalesPendientes={temporalesPendientes}
                 todosTemporales={todosTemporales}
@@ -1432,6 +1484,22 @@ export default function LocalScreen({ config }: Props) {
           dniInicial={certificado.dni}
           aviso={certificado.aviso}
           onCerrar={() => setCertificado(null)}
+        />
+      )}
+      {selected && (
+        <EnlazarAmpliacionModal
+          open={showEnlazarAmpliacion && ampliacionSinEnlazar && !isSoloLectura}
+          alumno={`${selected.nombre} ${selected.apellidos} · ${selected.ensenanzaCurso} · ${selected.especialidad ?? "—"}`}
+          candidatas={candidatasAmpliacion.map((c) => ({
+            id: c.localId,
+            nOrden: c.nOrden,
+            nombre: `${c.nombre} ${c.apellidos}`,
+            ensenanzaCurso: c.ensenanzaCurso,
+            especialidad: c.especialidad,
+          }))}
+          confirmLabel="Enlazar"
+          onConfirm={(id) => void handleEnlazarAmpliacion(id)}
+          onCancel={() => setShowEnlazarAmpliacion(false)}
         />
       )}
       {showAmpliacion && selected && !isSoloLectura && (

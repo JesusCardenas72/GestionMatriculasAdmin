@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { MatriculaLocal } from "../api/types";
 import { nombresTemporalRealCoinciden } from "../utils/temporales";
+import BloqueAmpliacion from "./BloqueAmpliacion";
 
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
@@ -285,8 +286,9 @@ function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId, discrepanciaPorI
   );
 }
 
-// ── Tarjeta apilada (par ampliación+original) ─────────────────────────────────
-// Mantiene el efecto visual stacked con hover de CSS sobre el wrapper
+// ── Bloque ampliación + original ──────────────────────────────────────────────
+// Arriba la ampliación (en vigor) y debajo, sangrada, la original. Cada una se
+// puede abrir por separado.
 
 interface PairRowProps {
   ampliacion: MatriculaLocal;
@@ -298,75 +300,27 @@ interface PairRowProps {
 }
 
 function PairRow({ ampliacion, original, selectedId, onSelect, nuevoEstadoPorId, discrepanciaPorId }: PairRowProps) {
-  const OFFSET = 10;
-  const ampSelected = ampliacion.localId === selectedId;
-  const origSelected = original.localId === selectedId;
-  const [hovered, setHovered] = useState(false);
-
   return (
-    <div
-      className="relative mb-0.5"
-      style={{ paddingBottom: hovered ? 0 : OFFSET, transition: "padding 0.3s cubic-bezier(0.33,1,0.68,1)" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Ampliación (encima) */}
-      <button
-        onClick={() => onSelect(ampliacion)}
-        className={"w-full text-left cursor-pointer border-none" + (ampliacion.anulacion ? " opacity-50" : "")}
-        style={{
-          padding: "8px 14px",
-          borderRadius: 12,
-          background: ampSelected
-            ? "var(--tc-primary-tint)"
-            : hovered
-              ? "var(--tc-bg-panel)"
-              : origSelected
-                ? "transparent"
-                : "var(--tc-card)",
-          boxShadow: ampSelected
-            ? "inset 3px 0 0 var(--tc-primary)"
-            : hovered
-              ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
-              : "none",
-          transform: hovered ? "translateY(-2px)" : origSelected ? `translateY(${OFFSET}px)` : "translateY(0)",
-          opacity: origSelected && !hovered ? 0.85 : 1,
-          position: "relative",
-          zIndex: 2,
-          transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
-        }}
-      >
-        {renderCardContent(ampliacion, ampSelected, nuevoEstadoPorId.get(ampliacion.localId) ?? null, discrepanciaPorId.has(ampliacion.localId))}
-      </button>
-
-      {/* Original (debajo, asomando) */}
-      <button
-        onClick={() => onSelect(original)}
-        className={"w-full text-left cursor-pointer border-none" + (original.anulacion ? " opacity-50" : "")}
-        style={{
-          padding: "8px 14px",
-          borderRadius: 12,
-          background: origSelected
-            ? "var(--tc-primary-tint)"
-            : hovered
-              ? "var(--tc-bg-panel)"
-              : "transparent",
-          boxShadow: origSelected
-            ? "inset 3px 0 0 var(--tc-primary)"
-            : hovered
-              ? "0 6px 20px -4px rgba(0,0,0,0.18), 0 2px 8px -2px rgba(0,0,0,0.08)"
-              : "none",
-          transform: hovered ? "translateY(-2px)" : !origSelected ? `translateY(${OFFSET}px)` : "translateY(0)",
-          marginTop: hovered ? 2 : -OFFSET,
-          opacity: !origSelected && !hovered ? 0.85 : 1,
-          position: "relative",
-          zIndex: 1,
-          transition: "transform 0.3s cubic-bezier(0.33,1,0.68,1), margin-top 0.3s cubic-bezier(0.33,1,0.68,1), opacity 0.3s ease, box-shadow 0.22s ease, background 0.18s ease",
-        }}
-      >
-        {renderCardContent(original, origSelected, nuevoEstadoPorId.get(original.localId) ?? null, discrepanciaPorId.has(original.localId))}
-      </button>
-    </div>
+    <BloqueAmpliacion
+      ampliacion={
+        <SingleRow
+          m={ampliacion}
+          isSelected={ampliacion.localId === selectedId}
+          onSelect={onSelect}
+          nuevoEstadoPorId={nuevoEstadoPorId}
+          discrepanciaPorId={discrepanciaPorId}
+        />
+      }
+      original={
+        <SingleRow
+          m={original}
+          isSelected={original.localId === selectedId}
+          onSelect={onSelect}
+          nuevoEstadoPorId={nuevoEstadoPorId}
+          discrepanciaPorId={discrepanciaPorId}
+        />
+      }
+    />
   );
 }
 
@@ -570,7 +524,11 @@ export default function LocalList({
     estimateSize: (index) => {
       const item = grouped[index];
       if (!item) return 30;
-      if (item.type === "pair") return 100; // dos tarjetas apiladas
+      if (item.type === "pair") {
+        // bloque: ampliación + rótulo + original
+        const alto = (m: MatriculaLocal) => (m.localId === selectedId ? 88 : 30);
+        return alto(item.ampliacion) + alto(item.original) + 26;
+      }
       const m = item.matricula;
       const isSelected = m.localId === selectedId;
       return isSelected ? 88 : 30;
@@ -590,10 +548,14 @@ export default function LocalList({
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
 
-      if (filtered.length === 0) return;
+      // Orden de la pantalla: en un bloque, la ampliación y luego su original.
+      const orden = grouped.flatMap((g) =>
+        g.type === "single" ? [g.matricula] : [g.ampliacion, g.original],
+      );
+      if (orden.length === 0) return;
 
       const currentIndex = selectedId
-        ? filtered.findIndex((m) => m.localId === selectedId)
+        ? orden.findIndex((m) => m.localId === selectedId)
         : -1;
 
       let nextIndex: number;
@@ -602,12 +564,12 @@ export default function LocalList({
       } else {
         nextIndex =
           e.key === "ArrowDown"
-            ? Math.min(currentIndex + 1, filtered.length - 1)
+            ? Math.min(currentIndex + 1, orden.length - 1)
             : Math.max(currentIndex - 1, 0);
         if (nextIndex === currentIndex) return;
       }
 
-      const nextItem = filtered[nextIndex];
+      const nextItem = orden[nextIndex];
       onSelect(nextItem);
 
       const groupIndex = grouped.findIndex((g) =>

@@ -138,3 +138,47 @@ describe("SolicitudList", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 });
+
+describe("SolicitudList · ampliaciones", () => {
+  const original = makeSolicitud({ rowId: "orig", nOrden: 7, nombre: "Ana", apellidos: "Ruiz", ensenanzaCurso: "EP1" });
+  const ampliacion = makeSolicitud({ rowId: "amp", nOrden: 7, nombre: "Ana", apellidos: "Ruiz", ensenanzaCurso: "EP2", ampliacion: true });
+  const otra = makeSolicitud({ rowId: "otra", nOrden: 3, nombre: "Luis", apellidos: "Mora" });
+  const pares = new Map([["amp", "orig"]]);
+
+  it("muestra la ampliación y su original juntas en un solo bloque, con la original debajo", () => {
+    render(
+      <SolicitudList
+        {...defaultProps}
+        data={[original, otra, ampliacion]}
+        paresAmpliacion={pares}
+        numerosAmpliacion={new Map([["amp", "7,1"]])}
+      />,
+    );
+    const bloques = screen.getAllByTestId("bloque-ampliacion");
+    expect(bloques).toHaveLength(1);
+    const texto = bloques[0].textContent ?? "";
+    expect(texto).toContain("7,1");
+    expect(texto).toContain("Matrícula original");
+    expect(texto.indexOf("EP2")).toBeLessThan(texto.indexOf("EP1"));
+    // la original no sale otra vez suelta
+    const bloque = bloques[0];
+    const anas = screen.getAllByText("Ana Ruiz");
+    expect(anas.length).toBe(4); // 2 filas × (vista compacta + expandida)
+    expect(anas.every((n) => bloque.contains(n))).toBe(true);
+  });
+
+  it("se puede abrir cualquiera de las dos", async () => {
+    const onSelect = vi.fn();
+    render(<SolicitudList {...defaultProps} data={[original, ampliacion]} paresAmpliacion={pares} onSelect={onSelect} />);
+    const botones = screen.getByTestId("bloque-ampliacion").querySelectorAll("button");
+    await userEvent.click(botones[1]);
+    expect(onSelect).toHaveBeenCalledWith(original);
+    await userEvent.click(botones[0]);
+    expect(onSelect).toHaveBeenCalledWith(ampliacion);
+  });
+
+  it("si la original está en otra pestaña, la ampliación sale sola", () => {
+    render(<SolicitudList {...defaultProps} data={[ampliacion, otra]} paresAmpliacion={pares} />);
+    expect(screen.queryByTestId("bloque-ampliacion")).toBeNull();
+  });
+});

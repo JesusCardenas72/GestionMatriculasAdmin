@@ -105,6 +105,10 @@ interface Props {
   isSaving: boolean;
   subirError?: string | null;
   yaTieneAmpliacion: boolean;
+  /** Si la ficha es una ampliación ya enlazada: la matrícula que amplía. */
+  originalAmpliacion?: MatriculaLocal | null;
+  /** Si la ficha es una ampliación del formulario web sin enlazar: abre la ventana para enlazarla. */
+  onEnlazarAmpliacion?: () => void;
   /** Modo Solo Lectura: bloquea Borrar, Crear Ampliación y Subir a la Nube. */
   readOnly?: boolean;
   /** Alumnos fantasma pendientes del curso, para el selector "Sustituye a…" en matrículas reales. */
@@ -169,6 +173,8 @@ export default function LocalDetail({
   isSaving,
   subirError,
   yaTieneAmpliacion,
+  originalAmpliacion,
+  onEnlazarAmpliacion,
   readOnly = false,
   temporalesPendientes = [],
   todosTemporales = [],
@@ -553,7 +559,7 @@ export default function LocalDetail({
                 className="text-[10.5px] font-bold uppercase tracking-widest"
                 style={{ color: "var(--tc-ink-mute)" }}
               >
-                Matrícula Nº {m.nOrden ?? "—"}
+                Matrícula Nº {m._nOrdenDisplay ?? m.nOrden ?? "—"}
               </span>
               {estado != null && <EstadoBadge estado={estado} />}
               {m._fueEditado && !m._pendienteSubida && (
@@ -579,6 +585,21 @@ export default function LocalDetail({
                 >
                   Ampliación de matrícula
                 </span>
+              )}
+              {m.ampliacion && originalAmpliacion && (
+                <span className="text-[11px] font-semibold" style={{ color: "var(--tc-violet-ink)" }}>
+                  de la matrícula Nº {originalAmpliacion.nOrden ?? "—"} ({originalAmpliacion.ensenanzaCurso})
+                </span>
+              )}
+              {m.ampliacion && onEnlazarAmpliacion && (
+                <button
+                  onClick={onEnlazarAmpliacion}
+                  title="Buscar la matrícula que se amplía"
+                  className="text-[11px] font-semibold underline"
+                  style={{ color: "var(--tc-warn-ink)" }}
+                >
+                  Sin enlazar con su matrícula · Enlazar…
+                </button>
               )}
               {m.ampliada && !m.ampliacion && (
                 <span

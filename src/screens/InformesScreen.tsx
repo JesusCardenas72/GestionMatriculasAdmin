@@ -453,12 +453,22 @@ function solicitudToFila(s: Solicitud): FilaInforme {
  * Las matrículas locales sin solicitud remota se incluyen al final con su
  * estado conocido (TRAMITADO por defecto).
  */
+/**
+ * Registro de la nube que corresponde a una matrícula local. Una ampliación
+ * comparte `origenRowId` con su original, así que se usa su propio rowId (o su
+ * localId si aún no está subida) para no tapar a la original.
+ */
+function claveNube(m: MatriculaLocal): string {
+  if (m.rowId) return m.rowId;
+  return m.ampliacion ? m.localId : m.origenRowId;
+}
+
 function buildFilasAlumno(
   solicitudes: Solicitud[],
   matriculas: MatriculaLocal[],
 ): FilaInforme[] {
   const localByOrigen = new Map<string, MatriculaLocal>();
-  for (const m of matriculas) localByOrigen.set(m.origenRowId, m);
+  for (const m of matriculas) localByOrigen.set(claveNube(m), m);
 
   const filas: FilaInforme[] = [];
   const usados = new Set<string>();
@@ -492,7 +502,7 @@ function buildFilasAsignatura(
   const filas: FilaInforme[] = [];
   for (const m of matriculas) {
     if (m.esTemporal && m.temporalEstado === "sustituido") continue; // ya reemplazado por el alumno real
-    const estado = estadoByOrigen.get(m.origenRowId) ?? ESTADO.TRAMITADO;
+    const estado = estadoByOrigen.get(claveNube(m)) ?? ESTADO.TRAMITADO;
     const base = localToSolicitud(m, estado);
     for (const a of asignaturasCursadas(m, m.asignaturas)) {
       filas.push({

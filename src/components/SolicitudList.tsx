@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2, RefreshCw, Search, AlertCircle, Inbox, ChevronUp, ChevronDown, X } from "lucide-react";
 import type { Solicitud } from "../api/types";
+import { agruparConOriginal } from "../utils/enlaceAmpliacion";
+import BloqueAmpliacion from "./BloqueAmpliacion";
 
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
 type SortDir = "asc" | "desc";
@@ -25,6 +27,10 @@ interface Props {
   isFetching: boolean;
   error: Error | null;
   selectedId: string | null;
+  /** rowId → «N,1» de las ampliaciones enlazadas con su matrícula original. */
+  numerosAmpliacion?: Map<string, string>;
+  /** rowId de cada ampliación enlazada → rowId de su original (se muestran juntas). */
+  paresAmpliacion?: Map<string, string>;
   onSelect: (s: Solicitud) => void;
   onRefresh: () => void;
 }
@@ -35,6 +41,8 @@ export default function SolicitudList({
   isFetching,
   error,
   selectedId,
+  numerosAmpliacion,
+  paresAmpliacion,
   onSelect,
   onRefresh,
 }: Props) {
@@ -94,11 +102,25 @@ export default function SolicitudList({
     });
   }, [data, q, filterEnsenanza, filterEspecialidad, filterRepetidor, sort]);
 
+  // Cada ampliación lleva debajo su matrícula original, en un solo bloque.
+  const filas = useMemo(
+    () => agruparConOriginal(filtered, (s) => s.rowId, (s) => paresAmpliacion?.get(s.rowId)),
+    [filtered, paresAmpliacion],
+  );
+  // Orden de las flechas ↑/↓: el de la pantalla (ampliación y luego su original).
+  const orden = useMemo(
+    () => filas.flatMap((f) => (f.original ? [f.item, f.original] : [f.item])),
+    [filas],
+  );
+
   const rowVirtualizer = useVirtualizer({
-    count: filtered.length,
+    count: filas.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => {
-      return filtered[index]?.rowId === selectedId ? 88 : 30;
+      const f = filas[index];
+      if (!f) return 30;
+      const alto = (s: Solicitud) => (s.rowId === selectedId ? 88 : 30);
+      return f.original ? alto(f.item) + alto(f.original) + 26 : alto(f.item);
     },
     overscan: 8,
   });
@@ -113,10 +135,10 @@ export default function SolicitudList({
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       e.preventDefault();
 
-      if (filtered.length === 0) return;
+      if (orden.length === 0) return;
 
       const currentIndex = selectedId
-        ? filtered.findIndex((s) => s.rowId === selectedId)
+        ? orden.findIndex((s) => s.rowId === selectedId)
         : -1;
 
       let nextIndex: number;
@@ -125,18 +147,20 @@ export default function SolicitudList({
       } else {
         nextIndex =
           e.key === "ArrowDown"
-            ? Math.min(currentIndex + 1, filtered.length - 1)
+            ? Math.min(currentIndex + 1, orden.length - 1)
             : Math.max(currentIndex - 1, 0);
         if (nextIndex === currentIndex) return;
       }
 
-      onSelect(filtered[nextIndex]);
-      virtualizerRef.current.scrollToIndex(nextIndex, { align: "auto" });
+      const next = orden[nextIndex];
+      onSelect(next);
+      const filaIndex = filas.findIndex((f) => f.item === next || f.original === next);
+      if (filaIndex >= 0) virtualizerRef.current.scrollToIndex(filaIndex, { align: "auto" });
     }
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [filtered, selectedId, onSelect]);
+  }, [orden, filas, selectedId, onSelect]);
 
   function handleEnsenanzaChange(val: string) {
     setFilterEnsenanza(val);
@@ -337,8 +361,11 @@ export default function SolicitudList({
             className="px-2 py-1"
           >
             {rowVirtualizer.getVirtualItems().map((vRow) => {
-              const s = filtered[vRow.index];
-              const isSelected = s.rowId === selectedId;
+              const fila = filas[vRow.index];
+              if (!fila) return null;
+              const s = fila.item;
+              const original = fila.original;
+              const isSelected = s.rowId === selectedId || original?.rowId === selectedId;
               return (
                 <div
                   key={s.rowId}
@@ -353,11 +380,32 @@ export default function SolicitudList({
                     zIndex: isSelected ? 2 : 0,
                   }}
                 >
-                  <SolicitudRow
-                    solicitud={s}
-                    isSelected={isSelected}
-                    onSelect={onSelect}
-                  />
+                  {original ? (
+                    <BloqueAmpliacion
+                      ampliacion={
+                        <SolicitudRow
+                          solicitud={s}
+                          numero={numerosAmpliacion?.get(s.rowId)}
+                          isSelected={s.rowId === selectedId}
+                          onSelect={onSelect}
+                        />
+                      }
+                      original={
+                        <SolicitudRow
+                          solicitud={original}
+                          isSelected={original.rowId === selectedId}
+                          onSelect={onSelect}
+                        />
+                      }
+                    />
+                  ) : (
+                    <SolicitudRow
+                      solicitud={s}
+                      numero={numerosAmpliacion?.get(s.rowId)}
+                      isSelected={isSelected}
+                      onSelect={onSelect}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -372,11 +420,14 @@ export default function SolicitudList({
 
 interface RowProps {
   solicitud: Solicitud;
+  /** Número a mostrar si no es el nº de orden tal cual (ampliaciones: «N,1»). */
+  numero?: string;
   isSelected: boolean;
   onSelect: (s: Solicitud) => void;
 }
 
-function SolicitudRow({ solicitud: s, isSelected, onSelect }: RowProps) {
+function SolicitudRow({ solicitud: s, numero: numeroAmpliacion, isSelected, onSelect }: RowProps) {
+  const numero = numeroAmpliacion ?? (s.nOrden != null ? String(s.nOrden) : null);
   return (
     <button
       onClick={() => onSelect(s)}
@@ -394,7 +445,7 @@ function SolicitudRow({ solicitud: s, isSelected, onSelect }: RowProps) {
       <div className="sol-compact">
         <div className="flex items-center gap-1.5 min-w-0" style={{ height: 22 }}>
           <span className="shrink-0 tabular-nums font-bold" style={{ fontSize: 11, letterSpacing: -0.5, minWidth: 18, color: "var(--tc-ink-mute)" }}>
-            {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
+            {numero != null ? numero.padStart(2, "0") : "—"}
           </span>
           <span className="flex-1 min-w-0 truncate" style={{ fontSize: 12, fontWeight: 600, color: "var(--tc-ink)" }}>
             {s.nombre} {s.apellidos}
@@ -417,13 +468,13 @@ function SolicitudRow({ solicitud: s, isSelected, onSelect }: RowProps) {
       <div className="sol-expanded">
         <div className="flex items-center gap-3.5">
           {(() => {
-            const digits = s.nOrden != null ? String(s.nOrden).length : 1;
+            const digits = numero != null ? numero.length : 1;
             const fontSize = digits >= 3 ? 28 : digits === 2 ? 36 : 40;
             const minWidth = digits >= 3 ? 52 : digits === 2 ? 44 : 28;
             return (
               <div className="shrink-0 flex flex-col items-center" style={{ minWidth }}>
                 <div className="font-display text-center leading-none tabular-nums" style={{ fontSize, letterSpacing: -2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
-                  {s.nOrden != null ? String(s.nOrden).padStart(2, "0") : "—"}
+                  {numero != null ? numero.padStart(2, "0") : "—"}
                 </div>
                 <div className="text-center font-bold uppercase" style={{ fontSize: 9, letterSpacing: 0.5, marginTop: 2, color: isSelected ? "var(--tc-primary)" : "var(--tc-ink-mute)", opacity: isSelected ? 1 : 0.5 }}>
                   {s.cursoEscolar ?? "—"}

@@ -9,6 +9,25 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.33.0] - 2026-10-22
+
+### Añadido
+
+- **Ampliaciones de matrícula que llegan desde el formulario web** (`src/utils/enlaceAmpliacion.ts`, `src/utils/enlazarAmpliacionNube.ts`, `src/components/modals/EnlazarAmpliacionModal.tsx`). El formulario las envía con `cr955_ampliacion = true` y un nº de orden nuevo. Al tramitarlas («Aprobar y tramitar» o «Documentación recibida — Tramitar»), una ventana propone la matrícula original del alumno: mismo curso escolar, DNI y especialidad, ni anulada ni ampliación. Con una sola candidata basta con confirmar; con varias hay que elegir; sin ninguna se puede seguir sin enlazar. «Enlazar y tramitar» le da a la ampliación el nº de la original y marca la original como ampliada en Dataverse (Flow I), igual que hace el asistente de ampliación.
+- **Enlazar en cualquier momento**: aviso «Sin enlazar con su matrícula · Enlazar…» en la ficha de la solicitud y en la ficha local. En Local solo cambia el equipo y se sube con «Subir a la nube».
+- **Número «N,1»** en la ficha y en la lista de solicitudes, con la etiqueta «Ampliación de matrícula» y «de la matrícula Nº N».
+- **Ampliación y original en un solo bloque** en las listas de Pte. Tramitación, Pte. Validación, Tramitado y Local (`src/components/BloqueAmpliacion.tsx`). Arriba va la ampliación, que es la matrícula en vigor, y debajo, sangrada, la original («Matrícula original · sustituida por la ampliación»). Cada una se abre por separado y las flechas ↑/↓ siguen ese orden. En Local sustituye a las tarjetas apiladas.
+- **El vínculo se rehace solo en cualquier equipo**: se deduce de que las dos matrículas comparten curso escolar y nº de orden, sin columna nueva. Al descargarlas, Local les pone `origenRowId` y «N,1». Esto arregla también las ampliaciones del asistente, que perdían el vínculo al bajarse en otro equipo.
+
+### Corregido
+
+- **Informes**: una ampliación con datos en Local tapaba la fila de su matrícula original, porque se cruzaban por `origenRowId`. Ahora se cruzan por el rowId propio de cada una.
+
+### Requisitos en Power Automate
+
+- **AdminListarSolicitudes** debe incluir `cr955_anulacion,cr955_ampliacion,cr955_ampliada` en las columnas del *List rows*. Sin ellas, la app no sabe qué solicitudes son ampliaciones. Añadidas el 2026-10-22.
+- **AdminSubirMatriculaEditada** (Flow I) ya escribía `cr955_norden`, `cr955_ampliacion` y `cr955_ampliada`. Comprobado, sin cambios.
+
 ## [1.32.0] - 2026-10-22
 
 ### Añadido

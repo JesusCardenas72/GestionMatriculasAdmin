@@ -37,7 +37,7 @@ import {
 } from "../data/catalogoLocal";
 import { tieneSufijoCurso } from "../utils/repetidorSuelta";
 import { actualizarSolicitud } from "../api/solicitudes";
-import { FlowError } from "../api/client";
+import { FlowError, describirFlowError } from "../api/client";
 import { enviarEmail, type CorreoPreparado } from "../api/email";
 import { useEstadoYCorreo } from "../hooks/useEstadoYCorreo";
 import { cursosStore } from "../api/cursosStore";
@@ -46,6 +46,9 @@ import HerramientasPdf, { fichaDeSolicitud } from "./HerramientasPdf";
 import ConfirmDialog from "./ConfirmDialog";
 import TramitarEmailModal from "./TramitarEmailModal";
 import ComprobacionNotasPanel from "./ComprobacionNotasPanel";
+import EnlazarAmpliacionModal from "./modals/EnlazarAmpliacionModal";
+import { candidatasOriginal, numeroAmpliacion, originalPorNumero } from "../utils/enlaceAmpliacion";
+import { enlazarAmpliacionEnNube } from "../utils/enlazarAmpliacionNube";
 import { useAppMode } from "../contexts/AppModeProvider";
 import { useNotasAnteriores } from "../hooks/useNotasAnteriores";
 import {
@@ -62,7 +65,18 @@ interface Props {
   solicitud: Solicitud;
   onDone: () => void;
   onConvalidacionDetected?: (rowId: string, tiene: boolean) => void;
+  /**
+   * Todas las solicitudes del curso (las tres pestañas). Sirven para encontrar
+   * la matrícula original de una ampliación y mostrarla como «N,1».
+   */
+  todasSolicitudes?: Solicitud[];
 }
+
+const ESTADO_CORTO: Record<EstadoTramite, string> = {
+  [ESTADO.PENDIENTE_TRAMITACION]: "Pte. Tramitación",
+  [ESTADO.PENDIENTE_VALIDACION]: "Pte. Validación",
+  [ESTADO.TRAMITADO]: "Tramitado",
+};
 
 const SIN_DECISION: DecisionNotas = {};
 
@@ -155,10 +169,72 @@ function parseEnsenanzaCurso(ensenanzaCurso: string): { cursoActual: number; esp
   };
 }
 
-export default function SolicitudDetail({ config, solicitud, onDone, onConvalidacionDetected }: Props) {
+export default function SolicitudDetail({
+  config,
+  solicitud: solicitudProp,
+  onDone,
+  onConvalidacionDetected,
+  todasSolicitudes,
+}: Props) {
   const { isSoloLectura } = useAppMode();
   const { curso } = useCursoContext();
   const qc = useQueryClient();
+
+  // ── Ampliación de matrícula ───────────────────────────────────────────────
+  // Recién enlazada, la ficha muestra ya el nº de la original aunque la lista
+  // de la nube todavía no se haya recargado.
+  const [enlazadaA, setEnlazadaA] = useState<{ rowId: string; original: Solicitud } | null>(null);
+  const solicitud = useMemo(
+    () =>
+      enlazadaA?.rowId === solicitudProp.rowId
+        ? { ...solicitudProp, nOrden: enlazadaA.original.nOrden }
+        : solicitudProp,
+    [solicitudProp, enlazadaA],
+  );
+  const poolSolicitudes = useMemo(() => todasSolicitudes ?? [], [todasSolicitudes]);
+  const originalAmpliacion = useMemo(() => {
+    if (!solicitud.ampliacion) return null;
+    if (enlazadaA?.rowId === solicitud.rowId) return enlazadaA.original;
+    return originalPorNumero(solicitud, poolSolicitudes);
+  }, [solicitud, poolSolicitudes, enlazadaA]);
+  const candidatasAmpliacion = useMemo(
+    () => (solicitud.ampliacion ? candidatasOriginal(solicitud, poolSolicitudes) : []),
+    [solicitud, poolSolicitudes],
+  );
+  /** Ventana de enlazar abierta; `siguiente` es la acción que va después (tramitar). */
+  const [enlace, setEnlace] = useState<{ siguiente: "aprobar" | "tramitar" | null } | null>(null);
+  const [enlazando, setEnlazando] = useState(false);
+  const [errorEnlace, setErrorEnlace] = useState<string | null>(null);
+
+  async function confirmarEnlace(originalRowId: string) {
+    const original = candidatasAmpliacion.find((c) => c.rowId === originalRowId);
+    if (!original || !enlace) return;
+    setEnlazando(true);
+    setErrorEnlace(null);
+    try {
+      await enlazarAmpliacionEnNube(config, solicitudProp, original, curso);
+      setEnlazadaA({ rowId: solicitudProp.rowId, original });
+      void qc.invalidateQueries({ queryKey: ["solicitudes"] });
+      void qc.invalidateQueries({ queryKey: ["localMatriculas", curso] });
+      const siguiente = enlace.siguiente;
+      setEnlace(null);
+      if (siguiente) setPending(siguiente);
+    } catch (e) {
+      setErrorEnlace(`No se ha podido enlazar: ${describirFlowError(e)}`);
+    } finally {
+      setEnlazando(false);
+    }
+  }
+
+  /** Antes de tramitar una ampliación sin enlazar, se pide su matrícula original. */
+  function pedirTramitar(accion: "aprobar" | "tramitar") {
+    if (solicitud.ampliacion && !originalAmpliacion) {
+      setErrorEnlace(null);
+      setEnlace({ siguiente: accion });
+      return;
+    }
+    setPending(accion);
+  }
   // docFaltante pendiente de sync a local tras guardar asignaturas
   const pendingLocalSync = useRef<string | null>(null);
   const [docFaltante, setDocFaltante] = useState(solicitud.docFaltante ?? "");
@@ -704,11 +780,15 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
     );
   }
 
-  const nOrdenDisplay = solicitud.nOrden != null
-    ? String(solicitud.nOrden).padStart(2, "0")
-    : "—";
+  const nOrdenTexto =
+    solicitud.nOrden == null
+      ? null
+      : originalAmpliacion
+        ? numeroAmpliacion(solicitud.nOrden)
+        : String(solicitud.nOrden);
+  const nOrdenDisplay = nOrdenTexto != null ? nOrdenTexto.padStart(2, "0") : "—";
 
-  const nOrdenDigits = solicitud.nOrden != null ? String(solicitud.nOrden).length : 0;
+  const nOrdenDigits = nOrdenTexto != null ? nOrdenTexto.length : 0;
   const nOrdenColWidth = nOrdenDigits <= 2 ? 96 : nOrdenDigits === 3 ? 128 : 164;
 
   // ── Header compartido ────────────────────────────────────────────────────
@@ -758,9 +838,33 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
             className="text-[10.5px] font-bold uppercase tracking-widest"
             style={{ color: "var(--tc-ink-mute)" }}
           >
-            Solicitud Nº {solicitud.nOrden ?? "—"}
+            Solicitud Nº {nOrdenTexto ?? "—"}
           </span>
           <EstadoBadge estado={solicitud.estado} />
+          {solicitud.ampliacion && (
+            <span
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
+              style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-border)" }}
+            >
+              Ampliación de matrícula
+            </span>
+          )}
+          {solicitud.ampliacion && originalAmpliacion && (
+            <span className="text-[11px] font-semibold" style={{ color: "var(--tc-violet-ink)" }}>
+              de la matrícula Nº {originalAmpliacion.nOrden} ({originalAmpliacion.ensenanzaCurso})
+            </span>
+          )}
+          {solicitud.ampliacion && !originalAmpliacion && (
+            <button
+              onClick={() => { setErrorEnlace(null); setEnlace({ siguiente: null }); }}
+              disabled={isSoloLectura}
+              title={isSoloLectura ? "No disponible en modo Solo Lectura" : "Buscar la matrícula que se amplía"}
+              className="text-[11px] font-semibold underline disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ color: "var(--tc-warn-ink)" }}
+            >
+              Sin enlazar con su matrícula · Enlazar…
+            </button>
+          )}
           {solicitud.repetidor && (
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">
               REPETIDOR
@@ -1386,7 +1490,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
               Pedir documentación
             </button>
             <button
-              onClick={() => !isSoloLectura && !bloqueoNotas && setPending("aprobar")}
+              onClick={() => !isSoloLectura && !bloqueoNotas && pedirTramitar("aprobar")}
               disabled={mutation.isPending || isSoloLectura || bloqueoNotas}
               title={isSoloLectura ? "No disponible en modo Solo Lectura" : motivoBloqueoNotas}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1408,7 +1512,7 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         )}
         {isP2 && (
           <button
-            onClick={() => !isSoloLectura && !bloqueoNotas && setPending("tramitar")}
+            onClick={() => !isSoloLectura && !bloqueoNotas && pedirTramitar("tramitar")}
             disabled={mutation.isPending || isSoloLectura || bloqueoNotas}
             title={isSoloLectura ? "No disponible en modo Solo Lectura" : motivoBloqueoNotas}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1437,6 +1541,32 @@ export default function SolicitudDetail({ config, solicitud, onDone, onConvalida
         onConfirm={pending === "pedir" ? handleConfirmPedir : handleConfirmTramitar}
         onConfirmSinEmail={pending === "pedir" ? handleConfirmPedirSinEmail : undefined}
         onCancel={() => setPending(null)}
+      />
+      <EnlazarAmpliacionModal
+        open={enlace !== null}
+        alumno={`${solicitud.nombre} ${solicitud.apellidos} · ${solicitud.ensenanzaCurso} · ${solicitud.especialidad ?? "—"}`}
+        candidatas={candidatasAmpliacion.map((c) => ({
+          id: c.rowId,
+          nOrden: c.nOrden,
+          nombre: `${c.nombre} ${c.apellidos}`,
+          ensenanzaCurso: c.ensenanzaCurso,
+          especialidad: c.especialidad,
+          detalle: ESTADO_CORTO[c.estado],
+        }))}
+        confirmLabel={enlace?.siguiente ? "Enlazar y tramitar" : "Enlazar"}
+        onSinEnlazar={
+          enlace?.siguiente
+            ? () => {
+                const siguiente = enlace.siguiente;
+                setEnlace(null);
+                if (siguiente) setPending(siguiente);
+              }
+            : undefined
+        }
+        loading={enlazando}
+        error={errorEnlace}
+        onConfirm={(id) => void confirmarEnlace(id)}
+        onCancel={() => setEnlace(null)}
       />
       <ConfirmDialog
         open={pending === "borrar"}
