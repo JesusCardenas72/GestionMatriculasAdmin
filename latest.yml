@@ -1,0 +1,8 @@
+version: 1.33.0
+files:
+  - url: GestionMatriculas-v1.33.0-Instalador.exe
+    sha512: JzrXWZSlSfGYpdCYPouNjoUzUCqKkmRRMYbqoIoBc4Qz1Z9PiqarZecwyzmnLD9tSfvmdTqK0CotrshtmMfnkw==
+    size: 89669094
+path: GestionMatriculas-v1.33.0-Instalador.exe
+sha512: JzrXWZSlSfGYpdCYPouNjoUzUCqKkmRRMYbqoIoBc4Qz1Z9PiqarZecwyzmnLD9tSfvmdTqK0CotrshtmMfnkw==
+releaseDate: '2026-10-22T11:29:43.856Z'
