@@ -1,0 +1,8 @@
+version: 1.34.1
+files:
+  - url: GestionMatriculas-v1.34.1-Instalador.exe
+    sha512: 5MHQ0N19IUeGgVzfF1kG9Ov+sDrWimqjo9OfZ3XtLAc9cS8Ltcj0NDvZiC+QyRqGQOCj5UnRJuJxIyOqrQDrDA==
+    size: 89670555
+path: GestionMatriculas-v1.34.1-Instalador.exe
+sha512: 5MHQ0N19IUeGgVzfF1kG9Ov+sDrWimqjo9OfZ3XtLAc9cS8Ltcj0NDvZiC+QyRqGQOCj5UnRJuJxIyOqrQDrDA==
+releaseDate: '2026-10-26T12:30:02.563Z'
