@@ -9,6 +9,14 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.34.0] - 2026-10-26
+
+### Añadido
+
+- **Informes · botón «Notas curso AA/AA»** (`src/utils/informeNotasAnteriores.ts`). Nuevo modo junto a «Por alumno», «Por asignatura» y «Profesorado». Muestra el archivo de notas de Delphos del curso anterior que se carga desde el engranaje → «Notas del curso AA/AA», con una fila por alumno y asignatura. El año sale del curso elegido en la cabecera.
+- **Columnas del grupo «Notas del curso anterior»**: apellidos, nombre, nombre completo, matrícula Delphos, enseñanza/curso, especialidad, asignatura, código de materia, situación (Matriculada, Pendiente, Ya superada…), nota Ordinaria, nota Extraordinaria, nota final y si está superada. También el resumen del alumno, repetido en cada una de sus filas: n.º de asignaturas, n.º de suspensas y nota media. Las notas siguen las reglas de la comprobación de solicitudes: manda la Extraordinaria si tiene nota y un «No presentado» cuenta 2,5 en la media.
+- Funcionan los filtros, el orden, el agrupado, la exportación a Excel o CSV, el PDF y los informes guardados. En este modo no salen «Editar» ni el filtro de anulados, y si no hay archivo cargado la tabla explica dónde cargarlo.
+
 ## [1.33.0] - 2026-10-22
 
 ### Añadido

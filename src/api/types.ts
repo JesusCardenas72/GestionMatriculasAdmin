@@ -258,8 +258,21 @@ export type CampoKeyProfesorado =
   | 'prof_clases' | 'prof_alumnos' | 'prof_tutorias' | 'prof_horas'
   | 'prof_asignaturas' | 'prof_aulas' | 'prof_dias'
   | 'prof_comp' | 'prof_comp_apoyo' | CampoKeyComplementario;
+/**
+ * Campos del modo «notasAnterior»: una fila por alumno × asignatura del archivo
+ * de notas del curso anterior (CSV de Delphos cargado desde el engranaje →
+ * «Notas del curso AA/AA»). Los de resumen (`na_suspensas`, `na_media`…) son
+ * de la matrícula y se repiten en cada asignatura.
+ */
+export type CampoKeyNotasAnterior =
+  | 'na_apellidos' | 'na_nombre' | 'na_nombreCompleto' | 'na_matricula'
+  | 'na_ensenanzaCurso' | 'na_especialidad'
+  | 'na_asignatura' | 'na_codigo' | 'na_subgrupo'
+  | 'na_ordinaria' | 'na_extraordinaria' | 'na_notaFinal' | 'na_superada'
+  | 'na_matriculadas' | 'na_suspensas' | 'na_media';
 export type CampoKey =
   | CampoKeyAlumno
+  | CampoKeyNotasAnterior
   | CampoKeyAsignatura
   | CampoKeyHorario
   | CampoKeyTutoria
@@ -345,6 +358,31 @@ export interface FilaInforme extends Solicitud, TramosComplementarioFila {
   prof_comp?: string | null;
   /** Filas de «acompañamiento y clases de apoyo», separadas por «·». */
   prof_comp_apoyo?: string | null;
+  // ── Notas del curso anterior (solo modo «notasAnterior») ──
+  na_apellidos?: string;
+  na_nombre?: string;
+  na_nombreCompleto?: string;
+  /** Código de matrícula de Delphos (MATRICULA). */
+  na_matricula?: string;
+  /** "EP5", "EE2"… (como `ensenanzaCurso` de las matrículas). */
+  na_ensenanzaCurso?: string | null;
+  na_especialidad?: string | null;
+  na_asignatura?: string;
+  na_codigo?: string;
+  /** Matriculada, Pendiente, Ya superada, Convalidada… */
+  na_subgrupo?: string | null;
+  /** Nota numérica, «NP» (No presentado) o vacía. */
+  na_ordinaria?: number | 'NP' | null;
+  na_extraordinaria?: number | 'NP' | null;
+  /** La de la Extraordinaria si es numérica; si no, la de la Ordinaria. */
+  na_notaFinal?: number | 'NP' | null;
+  /** Nota final ≥ 5 (vacío si no tiene nota final). */
+  na_superada?: boolean | null;
+  /** Asignaturas que cuentan en la matrícula (del curso y pendientes). */
+  na_matriculadas?: number;
+  na_suspensas?: number;
+  /** Media de las notas finales (NP cuenta 2,5), con dos decimales. */
+  na_media?: number | null;
 }
 
 export type OperadorFiltro =
@@ -392,8 +430,10 @@ export interface ConfigInforme {
    *  un único `CampoKey` por compatibilidad con configuraciones antiguas. */
   agruparPor?: CampoKey | CampoKey[] | null;
   /** 'alumno' (una fila por alumno, por defecto), 'asignatura' (una fila por
-   *  alumno × asignatura) o 'profesorado' (una fila por profesor/a) */
-  modo?: 'alumno' | 'asignatura' | 'profesorado';
+   *  alumno × asignatura), 'profesorado' (una fila por profesor/a) o
+   *  'notasAnterior' (una fila por alumno × asignatura del archivo de notas
+   *  del curso anterior) */
+  modo?: 'alumno' | 'asignatura' | 'profesorado' | 'notasAnterior';
   /** Anchos manuales por columna en píxeles. Si no se indica, se calcula automáticamente. */
   anchoColumnas?: Partial<Record<CampoKey, number>>;
   /** Campos configurados pero temporalmente ocultos de la vista de tabla. */

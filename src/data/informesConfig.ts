@@ -135,6 +135,31 @@ export const CAMPOS_PROFESORADO_COMPLEMENTARIO: CampoMeta[] = [
   { key: 'prof_comp_apoyo',   label: 'Clases de apoyo',        tipo: 'texto' },
 ];
 
+/**
+ * Campos del modo «notasAnterior»: el archivo de notas del curso anterior
+ * (Delphos) cargado desde el engranaje, una fila por alumno × asignatura.
+ * No comparte columnas con los demás modos: el archivo no trae DNI, correo ni
+ * nada de la matrícula de este curso.
+ */
+export const CAMPOS_NOTAS_ANTERIOR: CampoMeta[] = [
+  { key: 'na_apellidos',      label: 'Apellidos',              tipo: 'texto'    },
+  { key: 'na_nombre',         label: 'Nombre',                 tipo: 'texto'    },
+  { key: 'na_nombreCompleto', label: 'Nombre Completo',        tipo: 'texto'    },
+  { key: 'na_matricula',      label: 'Matrícula Delphos',      tipo: 'texto'    },
+  { key: 'na_ensenanzaCurso', label: 'Enseñanza / Curso',      tipo: 'texto',   valorType: 'select_data' },
+  { key: 'na_especialidad',   label: 'Especialidad',           tipo: 'texto',   valorType: 'select_data' },
+  { key: 'na_asignatura',     label: 'Asignatura',             tipo: 'texto',   valorType: 'select_data' },
+  { key: 'na_codigo',         label: 'Código materia',         tipo: 'texto'    },
+  { key: 'na_subgrupo',       label: 'Situación',              tipo: 'texto',   valorType: 'select_data' },
+  { key: 'na_ordinaria',      label: 'Nota Ordinaria',         tipo: 'numero'   },
+  { key: 'na_extraordinaria', label: 'Nota Extraordinaria',    tipo: 'numero'   },
+  { key: 'na_notaFinal',      label: 'Nota final',             tipo: 'numero'   },
+  { key: 'na_superada',       label: 'Superada',               tipo: 'booleano' },
+  { key: 'na_matriculadas',   label: 'N.º asignaturas',        tipo: 'numero'   },
+  { key: 'na_suspensas',      label: 'N.º suspensas',          tipo: 'numero'   },
+  { key: 'na_media',          label: 'Nota media',             tipo: 'numero'   },
+];
+
 /** Claves del modo profesorado (ficha + carga docente + horario complementario). */
 export const PROFESORADO_KEYS = new Set<CampoKey>(
   [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA, ...CAMPOS_PROFESORADO_COMPLEMENTARIO].map(c => c.key),
@@ -159,6 +184,7 @@ export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
     ...CAMPOS_PROFESORADO,
     ...CAMPOS_PROFESORADO_CARGA,
     ...CAMPOS_PROFESORADO_COMPLEMENTARIO,
+    ...CAMPOS_NOTAS_ANTERIOR,
   ].map(c => [c.key, c]),
 );
 
@@ -167,9 +193,11 @@ export const CAMPO_MAP = new Map<CampoKey, CampoMeta>(
  * también los del alumno y los de horario. Tutor/a y Unidad salen en los dos
  * modos de matrícula: son de la matrícula, no de la asignatura. El modo
  * profesorado es aparte: sus filas son profesores, no alumnos, así que no
- * comparte ninguna columna con los otros dos.
+ * comparte ninguna columna con los otros dos. Lo mismo el de notas del curso
+ * anterior, que solo tiene las columnas del archivo de Delphos.
  */
 export function camposDeModo(modo: ConfigInforme['modo']): CampoMeta[] {
+  if (modo === 'notasAnterior') return [...CAMPOS_NOTAS_ANTERIOR];
   if (modo === 'profesorado') {
     return [...CAMPOS_PROFESORADO, ...CAMPOS_PROFESORADO_CARGA, ...CAMPOS_PROFESORADO_COMPLEMENTARIO];
   }
@@ -183,10 +211,11 @@ export function camposDeModo(modo: ConfigInforme['modo']): CampoMeta[] {
  * las que había sigue siendo válida (p. ej. al pasar a «Profesorado», donde no
  * sirve ningún campo de matrícula).
  */
-export const CAMPOS_DEFECTO_MODO: Record<'alumno' | 'asignatura' | 'profesorado', CampoKey[]> = {
+export const CAMPOS_DEFECTO_MODO: Record<NonNullable<ConfigInforme['modo']>, CampoKey[]> = {
   alumno: ['apellidos', 'nombre', 'ensenanzaCurso', 'email'],
   asignatura: ['apellidos', 'nombre', 'asigNombre', 'asigEstado'],
   profesorado: ['prof_nombre', 'prof_especialidad', 'prof_unidad', 'prof_email', 'prof_telefono'],
+  notasAnterior: ['na_apellidos', 'na_nombre', 'na_ensenanzaCurso', 'na_asignatura', 'na_notaFinal'],
 };
 
 // ── Operadores por tipo ────────────────────────────────────────────────────────

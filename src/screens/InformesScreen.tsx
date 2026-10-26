@@ -63,6 +63,7 @@ import {
   CAMPOS_DEFECTO_MODO,
   CAMPOS_HORARIO,
   CAMPOS_META,
+  CAMPOS_NOTAS_ANTERIOR,
   CAMPOS_PROFESORADO,
   CAMPOS_PROFESORADO_CARGA,
   CAMPOS_PROFESORADO_COMPLEMENTARIO,
@@ -78,6 +79,9 @@ import {
 import { buildHtmlInforme } from '../utils/pdfInforme';
 import { numerarPaginasPdf } from '../utils/pdfNumerarPaginas';
 import { buildFilasProfesorado } from '../utils/informeProfesorado';
+import { buildFilasNotasAnteriores } from '../utils/informeNotasAnteriores';
+import { useNotasAnteriores } from '../hooks/useNotasAnteriores';
+import { cursoAnterior } from '../utils/comprobarNotas';
 import { generarExcelHorarios, type OpcionesHorario } from '../utils/excelHorarios';
 import { fusionarHorarios, parseHorariosExcelCrudo, type ResultadoFusion, type FilaCrudaHorario } from '../utils/fusionHorarios';
 import { validarCrudasConVentanaNativa } from '../utils/validarHorariosCargados';
@@ -346,10 +350,11 @@ const ID_DEFECTO_ANULADOS = 'defecto-anulacion';
 /**
  * Filtros que de verdad se aplican: los del informe y, si no tiene ninguno de
  * «Anulación», el de por defecto (solo no anulados). No se guarda en el
- * informe; en modo profesorado no hay alumnado y no se añade.
+ * informe; en modo profesorado (y en el de notas del curso anterior) no hay
+ * matrículas de este curso y no se añade.
  */
 export function filtrosConDefectoAnulados(filtros: FiltroInforme[], modo: ConfigInforme['modo']): FiltroInforme[] {
-  if (modo === 'profesorado' || filtros.some(f => f.campo === 'anulacion')) return filtros;
+  if (modo === 'profesorado' || modo === 'notasAnterior' || filtros.some(f => f.campo === 'anulacion')) return filtros;
   return [...filtros, { id: ID_DEFECTO_ANULADOS, campo: 'anulacion', operador: 'en_lista', valor: '["No"]' }];
 }
 
@@ -775,6 +780,7 @@ function MenuAnadirCampo({
   profesoradoFicha,
   profesoradoCarga,
   profesoradoComplementario,
+  notasAnterior,
   onAddCampo,
   onAddGrupo,
 }: {
@@ -784,6 +790,7 @@ function MenuAnadirCampo({
   profesoradoFicha: CampoMeta[];
   profesoradoCarga: CampoMeta[];
   profesoradoComplementario: CampoMeta[];
+  notasAnterior: CampoMeta[];
   onAddCampo: (key: CampoKey) => void;
   onAddGrupo: (keys: CampoKey[]) => void;
 }) {
@@ -828,6 +835,13 @@ function MenuAnadirCampo({
         titulo="Horario complementario"
         campos={profesoradoComplementario}
         mostrarSeparador={profesoradoFicha.length > 0 || profesoradoCarga.length > 0}
+        onAddCampo={onAddCampo}
+        onAddGrupo={onAddGrupo}
+      />
+      <GrupoCamposDisponibles
+        titulo="Notas del curso anterior"
+        campos={notasAnterior}
+        mostrarSeparador={false}
         onAddCampo={onAddCampo}
         onAddGrupo={onAddGrupo}
       />
@@ -901,6 +915,8 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   const [entriesHorario, setEntriesHorario] = useState<HorariosEntry[]>([]);
   // Profesorado: aporta la unidad de cada tutor a las columnas Tutor/a y Unidad.
   const { profesores: profesorado, store: storeProfesorado } = useProfesorado();
+  // Notas del curso anterior (CSV de Delphos cargado desde el engranaje).
+  const { notas: notasAnteriores } = useNotasAnteriores(curso);
 
   const solicitudesRemotas = useMemo(
     () => [
@@ -916,6 +932,10 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
       // El modo profesorado no parte de matrículas: cada fila es un profesor/a
       // de la ficha, con su carga docente sacada de las clases guardadas y su
       // horario complementario (TIAL, TIF, RD…).
+      // Notas del curso anterior: una fila por alumno × asignatura del archivo.
+      if (informe.modo === 'notasAnterior') {
+        return buildFilasNotasAnteriores(notasAnteriores.data?.lectura);
+      }
       if (informe.modo === 'profesorado') {
         const complementario = storeProfesorado.complementario?.[curso]?.porProfesor ?? {};
         return buildFilasProfesorado(profesorado, entriesHorario, complementario);
@@ -931,7 +951,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
       const filas = buildFilasAlumno(solicitudesRemotas, matriculas);
       return enriquecerFilasConTutor(filas, entriesHorario, profesorado);
     },
-    [solicitudesRemotas, matriculas, informe.modo, entriesHorario, profesorado, storeProfesorado.complementario, curso],
+    [solicitudesRemotas, matriculas, informe.modo, entriesHorario, profesorado, storeProfesorado.complementario, curso, notasAnteriores.data],
   );
 
   const selectOptions = useMemo((): Map<CampoKey, string[]> => {
@@ -1331,6 +1351,9 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   // Modo del informe ('alumno' cuando el preset es antiguo y no lo trae).
   const modoActual = informe.modo ?? 'alumno';
   const esModoProfesorado = modoActual === 'profesorado';
+  const esModoNotas = modoActual === 'notasAnterior';
+  // Texto «25/26» del curso anterior al del selector de cabecera.
+  const textoCursoAnterior = cursoAnterior(curso)?.texto ?? 'anterior';
 
   // Subset que realmente se muestra en la tabla (excluye los ocultados con el ojo)
   const camposOcultos = informe.camposOcultos ?? [];
@@ -1424,6 +1447,10 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
     () => new Set(CAMPOS_PROFESORADO_COMPLEMENTARIO.map(c => c.key)),
     [],
   );
+  const notasKeys = useMemo(
+    () => new Set(CAMPOS_NOTAS_ANTERIOR.map(c => c.key)),
+    [],
+  );
   const sortByLabel = (a: CampoMeta, b: CampoMeta) =>
     a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
   const camposDispMatricula = camposDisponibles
@@ -1433,7 +1460,8 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
         !horarioKeys.has(c.key) &&
         !profFichaKeys.has(c.key) &&
         !profCargaKeys.has(c.key) &&
-        !profCompKeys.has(c.key),
+        !profCompKeys.has(c.key) &&
+        !notasKeys.has(c.key),
     )
     .slice()
     .sort(sortByLabel);
@@ -1448,6 +1476,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
   const camposDispProfFicha = camposDisponibles.filter(c => profFichaKeys.has(c.key));
   const camposDispProfCarga = camposDisponibles.filter(c => profCargaKeys.has(c.key));
   const camposDispProfComp = camposDisponibles.filter(c => profCompKeys.has(c.key));
+  const camposDispNotas = camposDisponibles.filter(c => notasKeys.has(c.key));
 
   // Profesores elegidos al abrir el listado (normalizados); null = sin filtro.
   const filtroProfesores = useMemo(
@@ -3255,6 +3284,13 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
             { modo: 'alumno' as const,      label: 'Por alumno',     titulo: 'Una fila por alumno' },
             { modo: 'asignatura' as const,  label: 'Por asignatura', titulo: 'Una fila por alumno y asignatura' },
             { modo: 'profesorado' as const, label: 'Profesorado',    titulo: 'Una fila por profesor/a, con su ficha y su carga docente' },
+            {
+              modo: 'notasAnterior' as const,
+              label: `Notas curso ${textoCursoAnterior}`,
+              titulo:
+                `Notas del curso anterior (${textoCursoAnterior}): una fila por alumno y asignatura del archivo de Delphos ` +
+                'cargado desde el engranaje → «Notas del curso»',
+            },
           ]).map(op => (
             <button
               key={op.modo}
@@ -3276,7 +3312,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
         {/* Botón global: activa/desactiva la edición en línea del informe. En
             modo profesorado no hay nada que editar aquí: las fichas se cambian
             desde la pantalla de Profesorado. */}
-        {!isSoloLectura && !esModoProfesorado && (
+        {!isSoloLectura && !esModoProfesorado && !esModoNotas && (
           <button
             onClick={() => setModoEdicion(v => !v)}
             title={
@@ -3300,7 +3336,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
             el filtro de la columna «Anulación», así se ve en las cápsulas, sale
             en el PDF y se guarda con el informe (también en el Listado
             Horarios.Delphos de Profesorado). */}
-        {!esModoProfesorado && (() => {
+        {!esModoProfesorado && !esModoNotas && (() => {
           const actual = estadoFiltroAnulados(filtrosEfectivos);
           return (
             <div className="flex items-center bg-slate-100 rounded-lg p-0.5" title="Filtrar alumnado por anulación">
@@ -3571,6 +3607,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
                         profesoradoFicha={camposDispProfFicha}
                         profesoradoCarga={camposDispProfCarga}
                         profesoradoComplementario={camposDispProfComp}
+                        notasAnterior={camposDispNotas}
                         onAddCampo={addCampoInline}
                         onAddGrupo={addCamposInline}
                       />
@@ -3915,6 +3952,7 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
                               profesoradoFicha={camposDispProfFicha}
                               profesoradoCarga={camposDispProfCarga}
                               profesoradoComplementario={camposDispProfComp}
+                              notasAnterior={camposDispNotas}
                               onAddCampo={addCampoInline}
                               onAddGrupo={addCamposInline}
                             />
@@ -3933,7 +3971,9 @@ export default function InformesScreen({ config, presetVinculado, onCerrar, solo
                       colSpan={camposEnTabla.length + 1}
                       className="text-center text-slate-400 text-sm py-16"
                     >
-                      No hay registros con los filtros aplicados
+                      {esModoNotas && allRows.length === 0
+                        ? `No hay notas del curso ${textoCursoAnterior} cargadas. Cárgalas desde el engranaje → «Notas del curso ${textoCursoAnterior}».`
+                        : 'No hay registros con los filtros aplicados'}
                     </td>
                   </tr>
                 ) : (() => {

@@ -30,7 +30,7 @@ import {
  */
 
 /** Parte «alumno» vacía: los informes de profesorado no la usan. */
-const BASE_SOLICITUD: Omit<Solicitud, 'rowId'> = {
+export const BASE_SOLICITUD: Omit<Solicitud, 'rowId'> = {
   nOrden: null,
   nombreMatricula: '',
   nombre: '',
