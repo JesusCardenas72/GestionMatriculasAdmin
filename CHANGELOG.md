@@ -9,6 +9,12 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.34.1] - 2026-10-26
+
+### Cambiado
+
+- **Republicación de la 1.34.0 con número nuevo.** Sin cambios de funcionamiento respecto a la 1.34.0: se sube el número de versión para que todos los equipos vuelvan a descargar e instalar la aplicación.
+
 ## [1.34.0] - 2026-10-26
 
 ### Añadido
