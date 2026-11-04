@@ -9,6 +9,16 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.35.0] - 2026-11-04
+
+### Añadido
+
+- **Pestañas agrupadas en dos cápsulas plegables** (`src/components/TabBar.tsx`). «Matrículas» (Pnte. Tramitación, Pnte. Validación, Tramitado) y «Gestión del Centro» (Local, Informes, Horarios, Profesorado). Cada una se pliega en un botón con su icono; al desplegarla, las pestañas se abren hacia la derecha con una animación y recolocan las que quedan a su derecha. El estado de cada cápsula se recuerda entre arranques.
+
+### Cambiado
+
+- La barra de pestañas se alinea a la izquierda de su zona (antes estaba centrada), para que al desplegar las cápsulas crezca hacia la derecha.
+
 ## [1.34.1] - 2026-10-26
 
 ### Cambiado

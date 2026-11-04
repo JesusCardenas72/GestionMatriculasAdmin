@@ -241,7 +241,7 @@ export default function MainScreen({ config, onConfigSave }: Props) {
             }}
           />
         </div>
-        <div className="flex-1 flex justify-center">
+        <div className="flex-1 flex justify-start">
           <TabBar
             active={active}
             counts={counts}
