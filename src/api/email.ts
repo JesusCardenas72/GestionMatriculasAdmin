@@ -1,6 +1,7 @@
 import type { AppConfig } from '../../electron/config-store';
 import { assertEscribible } from '../config/modeGuard';
-import { postFlow } from './client';
+import { describirFlowError, postFlow } from './client';
+import { separarEmails } from '../utils/emails';
 
 /**
  * Un adjunto listo para el Flow: nombre de archivo con extensión + contenido en
@@ -43,5 +44,22 @@ export async function enviarEmail(cfg: AppConfig, input: EnviarEmailInput): Prom
   if (!cfg.urlEnviarEmail) throw new Error(MENSAJE_SIN_URL_EMAIL);
   const asunto = input.asunto.trim();
   if (!asunto) throw new Error('El correo no tiene asunto.');
-  return postFlow<{ ok: boolean }>(cfg.urlEnviarEmail, cfg.apiKey, { ...input, asunto }, FLOW_EMAIL);
+  // El campo puede llevar varias direcciones («ana@x.com, padre@y.com»): se
+  // manda un correo a cada una, todos con el mismo contenido.
+  const destinos = separarEmails(input.email);
+  if (destinos.length <= 1) {
+    return postFlow<{ ok: boolean }>(cfg.urlEnviarEmail, cfg.apiKey, { ...input, email: destinos[0] ?? input.email, asunto }, FLOW_EMAIL);
+  }
+  const enviados: string[] = [];
+  for (const email of destinos) {
+    try {
+      await postFlow<{ ok: boolean }>(cfg.urlEnviarEmail, cfg.apiKey, { ...input, email, asunto }, FLOW_EMAIL);
+      enviados.push(email);
+    } catch (e) {
+      const motivo = describirFlowError(e);
+      const yaEnviados = enviados.length ? ` Sí se envió a: ${enviados.join(', ')}.` : '';
+      throw new Error(`No se pudo enviar el correo a ${email}.${yaEnviados}\n\n${motivo}`);
+    }
+  }
+  return { ok: true };
 }

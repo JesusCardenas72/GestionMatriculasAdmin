@@ -284,6 +284,7 @@ td.nombre{font-weight:600;}
 .pendiente-tag{display:inline-block;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
   color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:middle;white-space:nowrap;}
 td.email{color:var(--azul);}td.tel{white-space:nowrap;}
+.n-emails{display:inline-block;font-weight:700;font-size:10.5px;color:#fff;background:var(--azul);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
 td,th{overflow-wrap:break-word;}
 td.esp,th.esp{width:${esProfes ? '150px' : '180px'};}
 ${esProfes ? 'td.email,th.email{width:250px;}td.tel,th.tel{width:110px;}' : ''}
@@ -609,13 +610,19 @@ function renderSubgrupo(sg,cursoData){
 
   var chkGrupo=ES_PROFES?'<input type="checkbox" class="chk-grupo" id="chk-'+sgId+'" data-sg="'+sgId+'" onclick="event.stopPropagation()">':'';
 
+  /* Icono con el número de direcciones cuando el alumno tiene dos o más. */
+  function badgeEmails(s){
+    var n=(s||'').split(/[,;]/).filter(function(t){return t.trim();}).length;
+    return n>1?'<span class="n-emails" title="'+n+' direcciones de correo">&#9993; '+n+'</span>':'';
+  }
+
   var filas=sg.alumnos.map(function(al,n){
     return '<tr data-nombre="'+escH(normStr(al.nombre))+'" data-curso="'+escH(cursoData)+'" data-especialidad="'+escH(normStr(al.especialidad))+'"'+(al.pendiente?' data-pendiente="1"':'')+((ES_PROFES&&al.email)?' data-email="'+escH(al.email)+'"':'')+' data-hor="'+escH(Object.keys(al.hors||{}).join(';'))+'">'
       +(ES_PROFES?'<td class="chk-cell"><input type="checkbox" class="chk-alumno" data-sg="'+sgId+'"'+(al.email?' data-email="'+escH(al.email)+'"':'')+' onclick="event.stopPropagation()"></td>':'')
       +'<td class="num">'+(n+1)+'</td>'
       +'<td class="nombre">'+escH(al.nombre)+(al.pendiente?'<span class="pendiente-tag">Pendiente'+(al.cursoPendiente?' de '+escH(al.cursoPendiente):'')+'</span>':'')+'</td>'
       +'<td class="esp">'+(escH(al.especialidad)||'&mdash;')+'</td>'
-      +(ES_PROFES?'<td class="email">'+(escH(al.email)||'&mdash;')+'</td><td class="tel">'+(escH(al.telefono)||'&mdash;')+'</td>':'')
+      +(ES_PROFES?'<td class="email">'+(escH(al.email)||'&mdash;')+badgeEmails(al.email)+'</td><td class="tel">'+(escH(al.telefono)||'&mdash;')+'</td>':'')
       +'</tr>';
   }).join('');
 
@@ -1043,7 +1050,14 @@ if(btnCopiar){
     }
   });
   btnCopiar.addEventListener('click',function(){
-    var emails=Array.prototype.map.call(document.querySelectorAll('.chk-alumno:checked[data-email]'),function(c){return c.getAttribute('data-email');}).filter(Boolean);
+    /* Un alumno puede tener varias direcciones («ana@x.com, padre@y.com»): se
+       copian todas, sin repetir, separadas por punto y coma. */
+    var emails=[],vistos={};
+    Array.prototype.forEach.call(document.querySelectorAll('.chk-alumno:checked[data-email]'),function(c){
+      (c.getAttribute('data-email')||'').split(/[,;]/).forEach(function(t){
+        var e=t.trim();if(!e) return;var k=e.toLowerCase();if(vistos[k]) return;vistos[k]=1;emails.push(e);
+      });
+    });
     if(!emails.length) return;
     var txt=emails.join('; ');
     navigator.clipboard.writeText(txt).then(function(){

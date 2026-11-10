@@ -7,6 +7,7 @@ import {
   REDUCCIONES_TASAS_REVERSE,
 } from "../data/matriculaOpciones";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { ContadorEmails } from "./ContadorEmails";
 import type { AsignaturaLocal, MatriculaLocal, EstadoAsignatura } from "../api/types";
 import { ESTADO_ASIGNATURA, ESTADO_ASIGNATURA_LABEL } from "../api/types";
 import {
@@ -243,9 +244,9 @@ export default function LocalEditModal({ matricula, isSaving, onClose, onSave }:
                   />
                   <Field
                     label="Correo electrónico"
+                    extra={<ContadorEmails email={form.email} />}
                     value={form.email}
                     onChange={(v) => setField("email", v)}
-                    type="email"
                     required
                   />
                   <Field
@@ -492,6 +493,7 @@ function Field({
   type = "text",
   required,
   className,
+  extra,
 }: {
   label: string;
   value: string;
@@ -499,12 +501,15 @@ function Field({
   type?: string;
   required?: boolean;
   className?: string;
+  /** Se pinta junto a la etiqueta (p. ej. el contador de correos). */
+  extra?: React.ReactNode;
 }) {
   return (
     <div className={className}>
       <label className="block text-xs text-slate-500 mb-1">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
+        {extra}
       </label>
       <input
         type={type}

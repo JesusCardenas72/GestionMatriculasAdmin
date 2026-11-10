@@ -50,6 +50,7 @@ import EnlazarAmpliacionModal from "./modals/EnlazarAmpliacionModal";
 import { candidatasOriginal, numeroAmpliacion, originalPorNumero } from "../utils/enlaceAmpliacion";
 import { enlazarAmpliacionEnNube } from "../utils/enlazarAmpliacionNube";
 import { useAppMode } from "../contexts/AppModeProvider";
+import { ContadorEmails } from "./ContadorEmails";
 import { useNotasAnteriores } from "../hooks/useNotasAnteriores";
 import {
   comprobarMatricula,
@@ -1027,7 +1028,7 @@ export default function SolicitudDetail({
                   label="Fecha de nacimiento"
                   value={solicitud.fechaNacimiento ? new Date(solicitud.fechaNacimiento).toLocaleDateString("es-ES") : null}
                 />
-                <DataField label="Correo electrónico" value={solicitud.email} />
+                <DataField label="Correo electrónico" value={solicitud.email} extra={<ContadorEmails email={solicitud.email} />} />
                 <DataField label="Teléfono" value={solicitud.telefono} />
                 <DataField label="Domicilio" value={solicitud.domicilio} />
                 <DataField label="Localidad" value={solicitud.localidad} />
@@ -1757,11 +1758,11 @@ function AccordionBlock({
   );
 }
 
-function DataField({ label, value }: { label: string; value: string | null | undefined }) {
+function DataField({ label, value, extra }: { label: string; value: string | null | undefined; extra?: ReactNode }) {
   if (!value) return null;
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{label}</p>
+      <p className="text-xs uppercase tracking-wide" style={{ color: "var(--tc-ink-mute)" }}>{label}{extra}</p>
       <p className="text-sm font-medium mt-0.5" style={{ color: "var(--tc-ink)" }}>{value}</p>
     </div>
   );

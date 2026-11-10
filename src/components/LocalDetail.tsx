@@ -46,6 +46,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Violencia de Género": "violencia_genero",
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
+import { ContadorEmails } from "./ContadorEmails";
 import { AlertTriangle, Award, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
@@ -989,7 +990,7 @@ export default function LocalDetail({
               />
               <EditField
                 label="Correo electrónico"
-                type="email"
+                extra={<ContadorEmails email={form.email} />}
                 value={form.email}
                 estado={estadoCampo("email")}
                 onChange={(v) => setField("email", v)}
@@ -1768,11 +1769,14 @@ function EditField({
   className,
   disabled,
   estado,
+  extra,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   onBlur: () => void;
+  /** Se pinta junto a la etiqueta (p. ej. el contador de correos). */
+  extra?: ReactNode;
   type?: string;
   className?: string;
   disabled?: boolean;
@@ -1785,6 +1789,7 @@ function EditField({
         style={{ color: "var(--tc-ink-mute)" }}
       >
         {label}
+        {extra}
       </p>
       <input
         type={type}

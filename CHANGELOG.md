@@ -9,6 +9,17 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.36.0] - 2026-11-10
+
+### Añadido
+
+- **Varios correos por alumno.** El campo «Correo electrónico» admite dos o más direcciones separadas por coma (`ana@x.com, padre@y.com`; también vale el punto y coma). Cada dirección recibe su propio correo, con el mismo asunto, texto y adjuntos (`src/api/email.ts`, `src/utils/emails.ts`). Si una falla, el aviso dice cuál falló y a cuáles sí se envió.
+- **Icono con el número de correos** (`src/components/ContadorEmails.tsx`) junto a «Correo electrónico» en la ficha de la solicitud, la de la matrícula y la ventana de edición cuando hay dos o más direcciones; al pasar el ratón muestra la lista. También aparece en el listado de horarios para profesores.
+
+### Cambiado
+
+- «Copiar email» del listado de horarios copia todas las direcciones de cada alumno, sin repetir, separadas por «; ».
+
 ## [1.35.0] - 2026-11-04
 
 ### Añadido

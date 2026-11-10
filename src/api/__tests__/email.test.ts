@@ -32,6 +32,18 @@ describe("enviarEmail — Flow único", () => {
     expect(postFlow).not.toHaveBeenCalled();
   });
 
+  it("con dos direcciones separadas por coma manda un correo a cada una", async () => {
+    await enviarEmail(cfg, { ...correo, email: "a@b.es, padre@c.es" });
+    expect(postFlow).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(postFlow).mock.calls.map(c => (c[2] as { email: string }).email)).toEqual(["a@b.es", "padre@c.es"]);
+  });
+
+  it("si falla la segunda dirección, dice cuál falló y a cuál sí se envió", async () => {
+    vi.mocked(postFlow).mockResolvedValueOnce({ ok: true }).mockRejectedValueOnce(new Error("caído"));
+    await expect(enviarEmail(cfg, { ...correo, email: "a@b.es, padre@c.es" }))
+      .rejects.toThrow(/padre@c\.es[\s\S]*Sí se envió a: a@b\.es/);
+  });
+
   it("sin asunto no llama al Flow", async () => {
     await expect(enviarEmail(cfg, { ...correo, asunto: "   " })).rejects.toThrow(/asunto/);
     expect(postFlow).not.toHaveBeenCalled();
