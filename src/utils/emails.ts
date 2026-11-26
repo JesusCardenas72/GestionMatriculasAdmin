@@ -16,3 +16,19 @@ export function separarEmails(texto: string | null | undefined): string[] {
   }
   return salida;
 }
+
+/**
+ * Destinatarios de un correo: el de la matrícula (si se marca) y los que se
+ * escriban aparte, sin repetir. Devuelve el texto «a@x.com, b@y.com».
+ */
+export function unirDestinatarios(emailMatricula: string, usarEmailMatricula: boolean, otros: string): string {
+  const lista = [...(usarEmailMatricula ? separarEmails(emailMatricula) : []), ...separarEmails(otros)];
+  return separarEmails(lista.join(",")).join(", ");
+}
+
+const EMAIL_VALIDO = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+
+/** Direcciones escritas a mano que no tienen forma de correo. */
+export function emailsNoValidos(texto: string): string[] {
+  return separarEmails(texto).filter((e) => !EMAIL_VALIDO.test(e));
+}

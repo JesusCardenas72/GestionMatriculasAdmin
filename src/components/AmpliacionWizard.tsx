@@ -8,6 +8,7 @@ import { calcularCursoEscolar } from "../utils/cursoEscolar";
 import { buildAmpliacionEmailHtml } from "../utils/emailTemplate";
 import { asuntoAmpliacion } from "../utils/emailAsuntos";
 import { CampoAsunto } from "./CampoAsunto";
+import { CampoDestinatarios, useDestinatarios, type Destinatarios } from "./CampoDestinatarios";
 import type { AmpliacionPdfProps } from "../pdf/buildAmpliacionPdf";
 
 const FORMAS_PAGO = ["Pago Único", "Pago Fraccionado", "Solicita Beca", "Becado"];
@@ -75,6 +76,8 @@ type Paso = 1 | 2 | 3;
 
 /** Correo de la ampliación ya redactado. El PDF se genera y adjunta después, al crearla. */
 export interface CorreoAmpliacion {
+  /** Direcciones elegidas en «Enviar a» (varias separadas por coma). */
+  destinatarios: string;
   asunto: string;
   emailHtml: string;
   adjuntoPersonalizado?: { nombre: string; base64: string };
@@ -102,6 +105,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
   const [paso, setPaso] = useState<Paso>(1);
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
   const [asunto, setAsunto] = useState(() => asuntoAmpliacion(nuevoCurso));
+  const destinatarios = useDestinatarios(m.email ?? "");
   const [fechaInscripcion, setFechaInscripcion] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -262,7 +266,12 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
       observaciones,
       nOrden: m.nOrden,
     };
-    onCrear(nueva, pdfProps, { asunto, emailHtml, adjuntoPersonalizado: adjuntoPersonalizado ?? undefined });
+    onCrear(nueva, pdfProps, {
+      destinatarios: destinatarios.texto,
+      asunto,
+      emailHtml,
+      adjuntoPersonalizado: adjuntoPersonalizado ?? undefined,
+    });
   }
 
   function avanzar() {
@@ -385,6 +394,7 @@ export default function AmpliacionWizard({ matricula: m, isSaving, onClose, onCr
           nombre={m.nombre}
           apellidos={m.apellidos}
           email={m.email}
+          destinatarios={destinatarios}
           cursoActual={m.ensenanzaCurso}
           nuevoCurso={nuevoCurso}
           especialidad={m.especialidad}
@@ -683,6 +693,7 @@ function EmailPreviewOverlay({
   nombre,
   apellidos,
   email,
+  destinatarios,
   cursoActual,
   nuevoCurso,
   especialidad,
@@ -703,6 +714,7 @@ function EmailPreviewOverlay({
   nombre: string;
   apellidos: string;
   email: string;
+  destinatarios: Destinatarios;
   cursoActual: string;
   nuevoCurso: string;
   especialidad: string | null;
@@ -753,8 +765,7 @@ function EmailPreviewOverlay({
             <div>
               <h2 className="text-base font-semibold text-slate-800">Vista previa del email</h2>
               <p className="text-xs text-slate-500">
-                Revisa y edita el mensaje antes de enviarlo a{" "}
-                <span className="font-medium text-slate-700">{email}</span>
+                Revisa y edita el mensaje y elige a quién enviarlo
               </p>
             </div>
           </div>
@@ -770,6 +781,7 @@ function EmailPreviewOverlay({
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Panel izquierdo */}
           <div className="w-72 shrink-0 border-r border-slate-200 flex flex-col p-5 gap-4 overflow-y-auto">
+            <CampoDestinatarios emailMatricula={email ?? ""} destinatarios={destinatarios} disabled={isSaving} />
             <CampoAsunto value={asunto} onChange={onAsuntoChange} disabled={isSaving} />
             <div className="flex-1">
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
@@ -847,7 +859,8 @@ function EmailPreviewOverlay({
           </button>
           <button
             onClick={onConfirmar}
-            disabled={isSaving || !asunto.trim()}
+            disabled={isSaving || !asunto.trim() || !!destinatarios.motivo}
+            title={destinatarios.motivo ?? undefined}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm bg-violet-600 hover:bg-violet-700"
           >
             {isSaving ? (

@@ -506,6 +506,10 @@ export interface EnvioAmpliacion {
   enviadoEn: string;
   enviadoA: string;
   clave: string;
+  /** Asunto tal como se envió. */
+  asunto?: string;
+  /** Cuerpo del correo tal como se envió (HTML), para verlo después. */
+  emailHtml?: string;
 }
 
 export interface MatriculaLocal {

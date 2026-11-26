@@ -47,7 +47,7 @@ const REDUCCIONES_TASAS_REVERSE: Record<string, string> = {
   "Ingreso Mínimo de Solidaridad": "ingreso_minimo",
 };
 import { ContadorEmails } from "./ContadorEmails";
-import { AlertTriangle, Award, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
+import { AlertTriangle, Award, CalendarClock, Check, ChevronDown, ChevronUp, Cloud, CloudDownload, Eye, FileText, Link2Off, Loader2, Mail, MoreHorizontal, Plus, Trash2, TrendingUp, Undo2 } from "lucide-react";
 import {
   ESTADO_ASIGNATURA,
   ESTADO_ASIGNATURA_LABEL,
@@ -73,6 +73,7 @@ import { useProfesorado } from "../hooks/useProfesorado";
 import type { AppConfig } from "../../electron/config-store";
 import HerramientasPdf from "./HerramientasPdf";
 import ActivarAmpliacionModal from "./modals/ActivarAmpliacionModal";
+import CorreosEnviadosAmpliacionModal from "./modals/CorreosEnviadosAmpliacionModal";
 import ConfirmDialog from "./ConfirmDialog";
 import { enviosDe, estaEnEspera, motivoNoAmpliable } from "../utils/ampliacionEnEspera";
 
@@ -206,6 +207,8 @@ export default function LocalDetail({
   const [showActivarAmpliacion, setShowActivarAmpliacion] = useState(false);
   /** Reenviar el correo de una ampliación en espera (clave nueva). */
   const [showReenviarAmpliacion, setShowReenviarAmpliacion] = useState(false);
+  /** Ver los correos de ampliación tal como se enviaron. */
+  const [showCorreosAmpliacion, setShowCorreosAmpliacion] = useState(false);
   const [confirmDesactivarAmpliacion, setConfirmDesactivarAmpliacion] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [allOpen, setAllOpen] = useState(true);
@@ -643,6 +646,20 @@ export default function LocalDetail({
                 >
                   <Mail className="w-3.5 h-3.5" />
                   {enviosDe(m.ampliacionEnEspera).length > 0 ? "Reenviar correo" : "Enviar correo"}
+                </button>
+              )}
+              {enviosDe(m.ampliacionEnEspera).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowCorreosAmpliacion(true)}
+                  title="Ver el correo de ampliación tal como se envió, con su clave de acceso"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border"
+                  style={{ color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-border)", background: "var(--tc-card)" }}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  {enviosDe(m.ampliacionEnEspera).length > 1
+                    ? `Ver correos enviados (${enviosDe(m.ampliacionEnEspera).length})`
+                    : "Ver correo enviado"}
                 </button>
               )}
               {m._pendienteSubida && (
@@ -1750,6 +1767,13 @@ export default function LocalDetail({
             setShowActivarAmpliacion(false);
           }}
           onCancel={() => setShowActivarAmpliacion(false)}
+        />
+      )}
+      {showCorreosAmpliacion && (
+        <CorreosEnviadosAmpliacionModal
+          envios={enviosDe(m.ampliacionEnEspera)}
+          alumno={`${m.nombre} ${m.apellidos} · ${m.ensenanzaCurso} → ${m.ampliacionEnEspera?.cursoDestino ?? ""}`}
+          onCerrar={() => setShowCorreosAmpliacion(false)}
         />
       )}
       {showReenviarAmpliacion && config && m.ampliacionEnEspera && (

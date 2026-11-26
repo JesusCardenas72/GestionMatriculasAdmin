@@ -4,6 +4,7 @@ import { leerArchivoBase64 } from "../utils/fileUtils";
 import { adjuntoDesdeArchivo, type CorreoPreparado } from "../api/email";
 import { asuntoDocumentacion, asuntoTramitada } from "../utils/emailAsuntos";
 import { CampoAsunto } from "./CampoAsunto";
+import { CampoDestinatarios, useDestinatarios } from "./CampoDestinatarios";
 import type { Solicitud } from "../api/types";
 import type { AsignaturaEmail } from "../utils/emailTemplate";
 import { buildTramitadoEmailHtml, buildDocumentacionEmailHtml } from "../utils/emailTemplate";
@@ -43,14 +44,17 @@ export default function TramitarEmailModal({
   const [asunto, setAsunto] = useState("");
   const [adjuntoPersonalizado, setAdjuntoPersonalizado] = useState<{ nombre: string; base64: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const destinatarios = useDestinatarios(solicitud.email ?? "");
+  const { reiniciar: reiniciarDestinatarios } = destinatarios;
 
   useEffect(() => {
     if (open) {
+      reiniciarDestinatarios();
       setObservaciones(observacionesIniciales);
       setAdjuntoPersonalizado(null);
       setAsunto(mode === "documentacion" ? asuntoDocumentacion() : asuntoTramitada());
     }
-  }, [open, observacionesIniciales, mode]);
+  }, [open, observacionesIniciales, mode, reiniciarDestinatarios]);
 
   async function handleSeleccionarArchivo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -105,8 +109,7 @@ export default function TramitarEmailModal({
             <div>
               <h2 className="text-base font-semibold" style={{ color: "var(--tc-ink)" }}>Vista previa del email</h2>
               <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
-                Revisa y edita el mensaje antes de enviarlo a{" "}
-                <span className="font-medium" style={{ color: "var(--tc-ink-soft)" }}>{solicitud.email}</span>
+                Revisa y edita el mensaje y elige a quién enviarlo
               </p>
             </div>
           </div>
@@ -128,6 +131,8 @@ export default function TramitarEmailModal({
             className="w-72 shrink-0 flex flex-col p-5 gap-4 overflow-y-auto"
             style={{ borderRight: "1px solid var(--tc-border)" }}
           >
+            <CampoDestinatarios emailMatricula={solicitud.email ?? ""} destinatarios={destinatarios} disabled={loading} />
+
             <CampoAsunto value={asunto} onChange={setAsunto} disabled={loading} />
 
             <div className="flex-1">
@@ -274,12 +279,14 @@ export default function TramitarEmailModal({
           <button
             onClick={() =>
               onConfirm(observaciones, {
+                email: destinatarios.texto,
                 asunto,
                 emailHtml,
                 adjuntos: adjuntoPersonalizado ? [adjuntoDesdeArchivo(adjuntoPersonalizado)] : [],
               })
             }
-            disabled={loading || !asunto.trim() || (esDocumentacion && !observaciones.trim())}
+            disabled={loading || !asunto.trim() || !!destinatarios.motivo || (esDocumentacion && !observaciones.trim())}
+            title={destinatarios.motivo ?? undefined}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm"
             style={{ background: esDocumentacion ? "var(--tc-warn-ink)" : "var(--tc-success-ink)" }}
           >

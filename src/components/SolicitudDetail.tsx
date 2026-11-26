@@ -769,7 +769,7 @@ export default function SolicitudDetail({
     try {
       const ok = await envioCorreo.ejecutar(
         () => mutation.mutateAsync({ rowId: solicitud.rowId, nuevoEstado, docFaltante: texto, email: solicitud.email, enviarEmail: false }),
-        () => enviarEmail(config, { email: solicitud.email, nombre: `${solicitud.nombre} ${solicitud.apellidos}`, ...correo }),
+        () => enviarEmail(config, { nombre: `${solicitud.nombre} ${solicitud.apellidos}`, ...correo }),
       );
       if (ok) { setPending(null); onDone(); }
     } catch {

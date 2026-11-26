@@ -9,7 +9,6 @@
 
 import type { AmpliacionEnEspera, EnvioAmpliacion, MatriculaLocal } from "../api/types";
 import { REDUCCIONES_TASAS_MAP } from "../data/matriculaOpciones";
-import { separarEmails } from "./emails";
 
 export const URL_MATRICULA_DIGITAL = "https://matriculacion-digital.vercel.app/";
 
@@ -80,26 +79,6 @@ export function conEnvio(e: AmpliacionEnEspera, envio: EnvioAmpliacion): Ampliac
     clave: envio.clave,
     envios: [...enviosDe(e), envio],
   };
-}
-
-/**
- * Direcciones a las que va el correo: la de la matrícula (si se marca) y las
- * que se escriban aparte, sin repetir. Devuelve el texto «a@x.com, b@y.com».
- */
-export function destinatariosAmpliacion(
-  emailMatricula: string,
-  usarEmailMatricula: boolean,
-  otros: string,
-): string {
-  const lista = [...(usarEmailMatricula ? separarEmails(emailMatricula) : []), ...separarEmails(otros)];
-  return separarEmails(lista.join(",")).join(", ");
-}
-
-const EMAIL_VALIDO = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
-
-/** Direcciones escritas a mano que no tienen forma de correo. */
-export function emailsNoValidos(texto: string): string[] {
-  return separarEmails(texto).filter((e) => !EMAIL_VALIDO.test(e));
 }
 
 export type SituacionPago =

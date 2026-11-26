@@ -6,6 +6,7 @@ import { enviarEmail } from "../api/email";
 import { asuntoDocumentoAdjuntado } from "../utils/emailAsuntos";
 import { buildDocumentoAdjuntadoEmailHtml } from "../utils/emailTemplate";
 import { CampoAsunto } from "./CampoAsunto";
+import { CampoDestinatarios, useDestinatarios } from "./CampoDestinatarios";
 
 interface Props {
   open: boolean;
@@ -43,14 +44,17 @@ export default function EnviarSolicitudEmailModal({
   const [documentos, setDocumentos] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const destinatarios = useDestinatarios(solicitud.email ?? "");
+  const { reiniciar: reiniciarDestinatarios } = destinatarios;
 
   useEffect(() => {
     if (open) {
+      reiniciarDestinatarios();
       setAsunto(asuntoDocumentoAdjuntado());
       setDocumentos(documentosIniciales);
       setError(null);
     }
-  }, [open, documentosIniciales]);
+  }, [open, documentosIniciales, reiniciarDestinatarios]);
 
   if (!open) return null;
 
@@ -70,7 +74,7 @@ export default function EnviarSolicitudEmailModal({
     setError(null);
     try {
       await enviarEmail(config, {
-        email: solicitud.email,
+        email: destinatarios.texto,
         nombre: `${solicitud.nombre} ${solicitud.apellidos}`.trim(),
         asunto,
         emailHtml,
@@ -110,8 +114,7 @@ export default function EnviarSolicitudEmailModal({
                 Enviar la solicitud al alumno
               </h2>
               <p className="text-xs" style={{ color: "var(--tc-ink-mute)" }}>
-                Revisa el mensaje antes de enviarlo a{" "}
-                <span className="font-medium" style={{ color: "var(--tc-ink-soft)" }}>{solicitud.email}</span>
+                Revisa el mensaje y elige a quién enviarlo
               </p>
             </div>
           </div>
@@ -133,6 +136,8 @@ export default function EnviarSolicitudEmailModal({
             className="w-72 shrink-0 flex flex-col p-5 gap-4 overflow-y-auto"
             style={{ borderRight: "1px solid var(--tc-border)" }}
           >
+            <CampoDestinatarios emailMatricula={solicitud.email ?? ""} destinatarios={destinatarios} disabled={enviando} />
+
             <CampoAsunto value={asunto} onChange={setAsunto} disabled={enviando} />
 
             <div>
@@ -215,7 +220,8 @@ export default function EnviarSolicitudEmailModal({
           </button>
           <button
             onClick={() => void enviar()}
-            disabled={enviando || !asunto.trim()}
+            disabled={enviando || !asunto.trim() || !!destinatarios.motivo}
+            title={destinatarios.motivo ?? undefined}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-semibold shadow-sm"
             style={{ background: "var(--tc-success-ink)" }}
           >

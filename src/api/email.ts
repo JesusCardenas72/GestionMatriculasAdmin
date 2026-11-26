@@ -22,8 +22,11 @@ export interface EnviarEmailInput {
   adjuntos: AdjuntoEmail[];
 }
 
-/** Lo que una ventana de envío entrega ya preparado: todo menos el destinatario. */
-export type CorreoPreparado = Pick<EnviarEmailInput, 'asunto' | 'emailHtml' | 'adjuntos'>;
+/**
+ * Lo que una ventana de envío entrega ya preparado: los destinatarios elegidos
+ * en su campo «Enviar a» (varios separados por coma), asunto, cuerpo y adjuntos.
+ */
+export type CorreoPreparado = Pick<EnviarEmailInput, 'email' | 'asunto' | 'emailHtml' | 'adjuntos'>;
 
 export const FLOW_EMAIL = 'AdminEnviarEmail';
 

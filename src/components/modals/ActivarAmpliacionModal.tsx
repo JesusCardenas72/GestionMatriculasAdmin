@@ -9,9 +9,7 @@ import { subirPdfSolicitud } from "../../api/solicitudes";
 import {
   conEnvio,
   cursoSiguiente,
-  destinatariosAmpliacion,
   enviosDe,
-  emailsNoValidos,
   nombreCurso,
   situacionPago,
 } from "../../utils/ampliacionEnEspera";
@@ -25,6 +23,7 @@ import {
   EXTENSIONES_DOCUMENTO,
 } from "../../utils/pdfAnadirDocumento";
 import { CampoAsunto } from "../CampoAsunto";
+import { CampoDestinatarios, useDestinatarios } from "../CampoDestinatarios";
 
 /** Tope de la columna de archivo de Dataverse (32 MB por defecto), con margen. */
 const TAMANO_MAXIMO = 30 * 1024 * 1024;
@@ -158,8 +157,8 @@ export default function ActivarAmpliacionModal({
   const faltan = DOCUMENTOS.filter((d) => !anadidos[d.id]);
 
   // ── Paso 2: correo ──────────────────────────────────────────────────────
-  const [usarEmailMatricula, setUsarEmailMatricula] = useState(!!m.email.trim());
-  const [otroEmail, setOtroEmail] = useState(() => otrosDelUltimoEnvio(m.email, ultimoEnvio?.enviadoA));
+  const [otrosIniciales] = useState(() => otrosDelUltimoEnvio(m.email, ultimoEnvio?.enviadoA));
+  const destinatariosCampo = useDestinatarios(m.email ?? "", otrosIniciales);
   const [asunto, setAsunto] = useState(() =>
     ultimoEnvio ? asuntoReenvioAmpliacion(cursoDestino) : asuntoAmpliacionAutorizada(cursoDestino),
   );
@@ -201,21 +200,18 @@ export default function ActivarAmpliacionModal({
       }),
     [m.nombre, m.apellidos, m.ensenanzaCurso, m.especialidad, m.formaPago, m.reduccionTasas, cursoDestino, observaciones, urlFormulario, llave?.tipo, clave, ultimoEnvio?.enviadoEn],
   );
-  const destinatarios = destinatariosAmpliacion(m.email, usarEmailMatricula, otroEmail);
-  const malEscritos = emailsNoValidos(otroEmail);
+  const destinatarios = destinatariosCampo.texto;
   const motivoNoEnviar = !config.urlEnviarEmail
     ? "Falta la dirección del flow AdminEnviarEmail en la ventana de Conexión."
     : errorEnlace
       ? errorEnlace
       : !urlFormulario
         ? "Preparando el enlace…"
-        : malEscritos.length > 0
-      ? `Revisa ${malEscritos.length === 1 ? "esta dirección" : "estas direcciones"}: ${malEscritos.join(", ")}`
-      : !destinatarios
-        ? "Elige al menos un correo."
-        : !asunto.trim()
-          ? "El correo no tiene asunto."
-          : null;
+        : destinatariosCampo.motivo
+          ? destinatariosCampo.motivo
+          : !asunto.trim()
+            ? "El correo no tiene asunto."
+            : null;
 
   function datosActivacion(enviadoA: string | null): AmpliacionEnEspera {
     const ahora = new Date().toISOString();
@@ -228,7 +224,9 @@ export default function ActivarAmpliacionModal({
       clave: null,
       envios: [],
     };
-    return enviadoA && clave ? conEnvio(base, { enviadoEn: ahora, enviadoA, clave }) : base;
+    return enviadoA && clave
+      ? conEnvio(base, { enviadoEn: ahora, enviadoA, clave, asunto: asunto.trim(), emailHtml })
+      : base;
   }
 
   async function enviarYActivar() {
@@ -391,46 +389,12 @@ export default function ActivarAmpliacionModal({
               className="w-80 shrink-0 flex flex-col p-5 gap-4 overflow-y-auto"
               style={{ borderRight: "1px solid var(--tc-border)" }}
             >
-              <div>
-                <span className={etiqueta} style={{ color: "var(--tc-ink-soft)" }}>
-                  Enviar a
-                </span>
-                <label className="flex items-start gap-2 text-sm cursor-pointer" style={{ color: "var(--tc-ink)" }}>
-                  <input
-                    type="checkbox"
-                    checked={usarEmailMatricula}
-                    onChange={(e) => setUsarEmailMatricula(e.target.checked)}
-                    disabled={enviando || !m.email.trim()}
-                    className="mt-0.5"
-                  />
-                  <span className="min-w-0">
-                    Correo de la matrícula
-                    <span className="block text-xs break-all" style={{ color: "var(--tc-ink-mute)" }}>
-                      {m.email.trim() || "La matrícula no tiene correo"}
-                    </span>
-                  </span>
-                </label>
-                <label htmlFor="otro-email" className="block text-xs mt-3 mb-1" style={{ color: "var(--tc-ink-soft)" }}>
-                  Otro correo (el de la solicitud de ampliación, si es distinto)
-                </label>
-                <input
-                  id="otro-email"
-                  type="text"
-                  value={otroEmail}
-                  onChange={(e) => setOtroEmail(e.target.value)}
-                  disabled={enviando}
-                  placeholder="familia@correo.com"
-                  className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
-                  style={{
-                    borderColor: malEscritos.length ? "var(--tc-danger-ink)" : "var(--tc-border)",
-                    background: "var(--tc-bg-panel)",
-                    color: "var(--tc-ink)",
-                  }}
-                />
-                <p className="text-[11px] mt-1" style={{ color: "var(--tc-ink-mute)" }}>
-                  Varios, separados por coma. Cada dirección recibe su propio correo.
-                </p>
-              </div>
+              <CampoDestinatarios
+                emailMatricula={m.email ?? ""}
+                destinatarios={destinatariosCampo}
+                disabled={enviando}
+                etiquetaOtros="Otro correo (el de la solicitud de ampliación, si es distinto)"
+              />
 
               <CampoAsunto value={asunto} onChange={setAsunto} disabled={enviando} />
 

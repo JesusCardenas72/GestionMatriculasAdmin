@@ -87,6 +87,10 @@ describe("ActivarAmpliacionModal", () => {
     const clave = onActivada.mock.calls[0][0].clave as string;
     expect(clave).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
     expect(enviarEmail.mock.calls[0][1].emailHtml).toContain(clave);
+    // Se guarda el correo exacto que salió, para poder verlo después.
+    const envio = onActivada.mock.calls[0][0].envios[0];
+    expect(envio.emailHtml).toBe(enviarEmail.mock.calls[0][1].emailHtml);
+    expect(envio.asunto).toBe(enviarEmail.mock.calls[0][1].asunto);
   });
 
   it("no deja enviar con una dirección mal escrita", async () => {

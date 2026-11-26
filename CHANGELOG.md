@@ -9,6 +9,13 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.38.0] - 2026-11-26
+
+### Añadido
+
+- **Campo «Enviar a» en todas las ventanas de correo** (`src/components/CampoDestinatarios.tsx`): Tramitar / Pedir documentación (Solicitudes y Local), «Crear Ampliación», «Enviar al alumno» y Ampliación de matrícula. Casilla con el correo de la matrícula (marcada de entrada) y campo para **añadir otras direcciones**, separadas por coma; no deja enviar sin destinatarios o con una dirección mal escrita. Antes la cabecera solo decía a qué dirección iba.
+- **«Ver correo enviado»** en la ficha de Local (`src/components/modals/CorreosEnviadosAmpliacionModal.tsx`): muestra el correo de ampliación **exactamente como se envió** (destinatarios, asunto, **clave de acceso** y cuerpo). Con reenvíos se elige cuál ver. Solo para los correos enviados desde esta versión.
+
 ## [1.37.0] - 2026-11-26
 
 ### Añadido

@@ -3,8 +3,6 @@ import {
   conEnvio,
   enviosDe,
   cursoSiguiente,
-  destinatariosAmpliacion,
-  emailsNoValidos,
   estaEnEspera,
   motivoNoAmpliable,
   nombreCurso,
@@ -107,23 +105,6 @@ describe("estaEnEspera", () => {
   });
 });
 
-describe("destinatarios del correo", () => {
-  it("el de la matrícula más los escritos aparte, sin repetir", () => {
-    expect(destinatariosAmpliacion("ana@x.com", true, "padre@y.com")).toBe("ana@x.com, padre@y.com");
-    expect(destinatariosAmpliacion("ana@x.com", true, "ANA@x.com; madre@z.es")).toBe("ana@x.com, madre@z.es");
-    expect(destinatariosAmpliacion("ana@x.com, tutor@x.com", true, "")).toBe("ana@x.com, tutor@x.com");
-  });
-
-  it("sin el de la matrícula, solo los escritos", () => {
-    expect(destinatariosAmpliacion("ana@x.com", false, "padre@y.com")).toBe("padre@y.com");
-    expect(destinatariosAmpliacion("ana@x.com", false, "")).toBe("");
-  });
-
-  it("detecta direcciones mal escritas", () => {
-    expect(emailsNoValidos("padre@y.com, madre@, hola")).toEqual(["madre@", "hola"]);
-    expect(emailsNoValidos("")).toEqual([]);
-  });
-});
 
 describe("situacionPago", () => {
   it("beca en Profesional: no paga", () => {

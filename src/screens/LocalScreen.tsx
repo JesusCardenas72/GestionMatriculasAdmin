@@ -100,7 +100,6 @@ function LocalEmailModal({
           enviarEmail: false,
         }),
         () => enviarEmail(config, {
-          email: matricula.email,
           nombre: `${matricula.nombre} ${matricula.apellidos}`,
           ...correo,
         }),
@@ -686,7 +685,7 @@ export default function LocalScreen({ config }: Props) {
       if (correo.adjuntoPersonalizado) adjuntos.push(adjuntoDesdeArchivo(correo.adjuntoPersonalizado));
       try {
         await enviarEmail(config, {
-          email: nueva.email,
+          email: correo.destinatarios,
           nombre: `${nueva.nombre} ${nueva.apellidos}`,
           asunto: correo.asunto,
           emailHtml: correo.emailHtml,
