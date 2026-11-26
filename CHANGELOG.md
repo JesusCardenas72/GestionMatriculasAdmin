@@ -9,6 +9,22 @@ El número de versión tiene tres partes: **MAYOR.MENOR.PARCHE**
 
 ---
 
+## [1.37.0] - 2026-11-26
+
+### Añadido
+
+- **Interruptor «Ampliación de matrícula» en Local** (`src/components/modals/ActivarAmpliacionModal.tsx`). En la ficha de un alumno ya matriculado abre una ventana de dos pasos:
+  1. Añadir al PDF del expediente los escaneados de la **solicitud de matriculación en más de un curso (Anexo IV)** y del **Informe de ampliación** del Equipo Docente (como «Añadir documento»: se sube a la nube).
+  2. Enviar el correo **«Ampliación de matrícula autorizada»** al correo de la matrícula y/o a **otro correo**: aceptada y autorizada por Jefatura de Estudios y el Equipo Docente, matricularse con la mayor brevedad, pasos del formulario, si mantiene beca (solo Profesional), exención o el 50 % de familia numerosa general y, si paga, los datos del Modelo 046. El importe lo calcula el formulario web.
+  
+  La matrícula queda **«Ampliación a EE4 · esperando matrícula»** (ficha) y **«AMPL. EN ESPERA → EE4»** (lista). La marca es solo de este equipo y desaparece sola al enlazar la ampliación. No se ofrece en EE4/EP6, anuladas, temporales ni matrículas ya ampliadas.
+- **Enlace personal al formulario web** (`src/utils/enlaceFormularioAmpliacion.ts`). El botón del correo abre la matrícula digital **en modo ampliación solo para esa familia** y **con los datos de su matrícula ya rellenos** (los tutores no, porque Dataverse no los guarda). Los datos van **cifrados** dentro del enlace y se abren con una **clave de acceso de 8 caracteres, distinta en cada correo**, que va escrita en él. Vale 60 días.
+- **«Reenviar correo»** junto al interruptor: lo envía otra vez con **otra clave** y un aviso de que ya se envió otro y hay que matricularse una sola vez. Se guarda el historial de envíos con sus claves (al pasar el ratón por el interruptor).
+
+### Cambiado
+
+- Al enlazar una ampliación con su matrícula original (al tramitar), la ventana **marca sola la matrícula que la esperaba** («Esperaba ampliación a EE4») y avisa si ninguna la esperaba.
+
 ## [1.36.0] - 2026-11-10
 
 ### Añadido
