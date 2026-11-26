@@ -1,0 +1,8 @@
+version: 1.38.0
+files:
+  - url: GestionMatriculas-v1.38.0-Instalador.exe
+    sha512: 9H1PbiUTZPFMlGcxccXJ/61mQIuJ73zPhl7hjVHA2AVGy8AclCb+tb5bALdGey1jzroKkrfIgx72ZkTWN+wEig==
+    size: 89679948
+path: GestionMatriculas-v1.38.0-Instalador.exe
+sha512: 9H1PbiUTZPFMlGcxccXJ/61mQIuJ73zPhl7hjVHA2AVGy8AclCb+tb5bALdGey1jzroKkrfIgx72ZkTWN+wEig==
+releaseDate: '2026-11-26T10:47:51.512Z'
