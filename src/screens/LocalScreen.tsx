@@ -38,6 +38,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import ProgressDialog from "../components/modals/ProgressDialog";
 import EnlazarAmpliacionModal from "../components/modals/EnlazarAmpliacionModal";
 import { candidatasOriginal, enlacesLocalesReconstruidos, enlazarLocal } from "../utils/enlaceAmpliacion";
+import { estaEnEspera } from "../utils/ampliacionEnEspera";
 
 
 function LocalEmailModal({
@@ -1490,12 +1491,14 @@ export default function LocalScreen({ config }: Props) {
         <EnlazarAmpliacionModal
           open={showEnlazarAmpliacion && ampliacionSinEnlazar && !isSoloLectura}
           alumno={`${selected.nombre} ${selected.apellidos} · ${selected.ensenanzaCurso} · ${selected.especialidad ?? "—"}`}
+          cursoAmpliacion={selected.ensenanzaCurso}
           candidatas={candidatasAmpliacion.map((c) => ({
             id: c.localId,
             nOrden: c.nOrden,
             nombre: `${c.nombre} ${c.apellidos}`,
             ensenanzaCurso: c.ensenanzaCurso,
             especialidad: c.especialidad,
+            enEspera: estaEnEspera(c) ? c.ampliacionEnEspera!.cursoDestino : null,
           }))}
           confirmLabel="Enlazar"
           onConfirm={(id) => void handleEnlazarAmpliacion(id)}

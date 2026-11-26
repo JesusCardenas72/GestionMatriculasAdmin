@@ -483,6 +483,31 @@ export interface AsignaturaLocal {
   horario: string | null;    // solo local: día y hora de clase
 }
 
+/** Datos del interruptor «Ampliación de matrícula» de una matrícula de Local. */
+export interface AmpliacionEnEspera {
+  /** Cuándo se activó (ISO). */
+  activadaEn: string;
+  /** Curso al que amplía, p. ej. "EE4". */
+  cursoDestino: string;
+  /** Documentos añadidos al PDF al activarla (nombres de archivo). */
+  documentos: string[];
+  /** Direcciones a las que se envió el ÚLTIMO correo, separadas por coma. */
+  correoEnviadoA: string | null;
+  /** Cuándo se envió el último correo (ISO). */
+  correoEnviadoEn: string | null;
+  /** Clave de acceso del último correo (por si la familia la pierde). */
+  clave?: string | null;
+  /** Todos los correos enviados, del primero al último (cada uno con su clave). */
+  envios?: EnvioAmpliacion[];
+}
+
+/** Un correo de ampliación enviado: cada uno lleva su propia clave de acceso. */
+export interface EnvioAmpliacion {
+  enviadoEn: string;
+  enviadoA: string;
+  clave: string;
+}
+
 export interface MatriculaLocal {
   localId: string;
   rowId: string | null;
@@ -519,6 +544,11 @@ export interface MatriculaLocal {
   ampliacion: boolean;
   ampliada: boolean;
   textoFormateado?: boolean;
+  /**
+   * Ampliación autorizada: la matrícula espera a que llegue del formulario web
+   * la del curso siguiente. Solo vive en este equipo (no se sube a Dataverse).
+   */
+  ampliacionEnEspera?: AmpliacionEnEspera | null;
 
   // ── Alumnos temporales (placeholders para horarios) ──
   /** true si es un registro placeholder creado desde la pestaña Temporales */

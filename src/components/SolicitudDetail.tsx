@@ -49,6 +49,8 @@ import ComprobacionNotasPanel from "./ComprobacionNotasPanel";
 import EnlazarAmpliacionModal from "./modals/EnlazarAmpliacionModal";
 import { candidatasOriginal, numeroAmpliacion, originalPorNumero } from "../utils/enlaceAmpliacion";
 import { enlazarAmpliacionEnNube } from "../utils/enlazarAmpliacionNube";
+import { useLocalMatriculas } from "../hooks/useLocalMatriculas";
+import { estaEnEspera } from "../utils/ampliacionEnEspera";
 import { useAppMode } from "../contexts/AppModeProvider";
 import { ContadorEmails } from "./ContadorEmails";
 import { useNotasAnteriores } from "../hooks/useNotasAnteriores";
@@ -202,6 +204,16 @@ export default function SolicitudDetail({
     () => (solicitud.ampliacion ? candidatasOriginal(solicitud, poolSolicitudes) : []),
     [solicitud, poolSolicitudes],
   );
+  // Matrículas de Local con el interruptor «Ampliación de matrícula» activado
+  // (solo en este equipo): rowId → curso al que se autorizó ampliar.
+  const { matriculas: matriculasLocales } = useLocalMatriculas(curso);
+  const enEsperaPorRowId = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const ml of matriculasLocales) {
+      if (ml.rowId && estaEnEspera(ml)) mapa.set(ml.rowId, ml.ampliacionEnEspera!.cursoDestino);
+    }
+    return mapa;
+  }, [matriculasLocales]);
   /** Ventana de enlazar abierta; `siguiente` es la acción que va después (tramitar). */
   const [enlace, setEnlace] = useState<{ siguiente: "aprobar" | "tramitar" | null } | null>(null);
   const [enlazando, setEnlazando] = useState(false);
@@ -1546,6 +1558,7 @@ export default function SolicitudDetail({
       <EnlazarAmpliacionModal
         open={enlace !== null}
         alumno={`${solicitud.nombre} ${solicitud.apellidos} · ${solicitud.ensenanzaCurso} · ${solicitud.especialidad ?? "—"}`}
+        cursoAmpliacion={solicitud.ensenanzaCurso}
         candidatas={candidatasAmpliacion.map((c) => ({
           id: c.rowId,
           nOrden: c.nOrden,
@@ -1553,6 +1566,7 @@ export default function SolicitudDetail({
           ensenanzaCurso: c.ensenanzaCurso,
           especialidad: c.especialidad,
           detalle: ESTADO_CORTO[c.estado],
+          enEspera: enEsperaPorRowId.get(c.rowId) ?? null,
         }))}
         confirmLabel={enlace?.siguiente ? "Enlazar y tramitar" : "Enlazar"}
         onSinEnlazar={
