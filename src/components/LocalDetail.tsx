@@ -72,6 +72,9 @@ import { norm } from "../utils/horarioExcel";
 import { useProfesorado } from "../hooks/useProfesorado";
 import type { AppConfig } from "../../electron/config-store";
 import HerramientasPdf from "./HerramientasPdf";
+import ActivarAmpliacionModal from "./modals/ActivarAmpliacionModal";
+import ConfirmDialog from "./ConfirmDialog";
+import { enviosDe, estaEnEspera, motivoNoAmpliable } from "../utils/ampliacionEnEspera";
 
 type AsignaturaEdit = AsignaturaLocal & { _deleted?: boolean };
 
@@ -199,6 +202,11 @@ export default function LocalDetail({
   const { curso } = useCursoContext();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmAmpliacion, setConfirmAmpliacion] = useState(false);
+  // Interruptor «Ampliación de matrícula» (espera a que llegue del formulario web).
+  const [showActivarAmpliacion, setShowActivarAmpliacion] = useState(false);
+  /** Reenviar el correo de una ampliación en espera (clave nueva). */
+  const [showReenviarAmpliacion, setShowReenviarAmpliacion] = useState(false);
+  const [confirmDesactivarAmpliacion, setConfirmDesactivarAmpliacion] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [allOpen, setAllOpen] = useState(true);
   const [form, setForm] = useState<FormData>(() => initForm(m));
@@ -268,6 +276,10 @@ export default function LocalDetail({
   //   - rowId  si la matrícula viene de Dataverse (descargas de la nube)
   //   - localId si es un registro puramente local (ampliación sin subir, etc.)
   const pdfKey = m.rowId ?? m.localId;
+
+  const enEsperaAmpliacion = estaEnEspera(m);
+  // El interruptor necesita la conexión (correo y subida del PDF).
+  const puedeActivarAmpliacion = !!config && motivoNoAmpliable(m, yaTieneAmpliacion) === null;
 
   // Discrepancia de nombres entre el alumno fantasma y la matrícula real
   // vinculada/sustituta: si no coinciden (salvando sufijo _Temp, acentos,
@@ -609,6 +621,29 @@ export default function LocalDetail({
                 >
                   Matrícula ampliada
                 </span>
+              )}
+              {(enEsperaAmpliacion || (puedeActivarAmpliacion && !readOnly)) && (
+                <InterruptorAmpliacion
+                  matricula={m}
+                  activo={enEsperaAmpliacion}
+                  disabled={readOnly || isSaving}
+                  onClick={() =>
+                    enEsperaAmpliacion ? setConfirmDesactivarAmpliacion(true) : setShowActivarAmpliacion(true)
+                  }
+                />
+              )}
+              {enEsperaAmpliacion && !readOnly && config && (
+                <button
+                  type="button"
+                  onClick={() => setShowReenviarAmpliacion(true)}
+                  disabled={isSaving}
+                  title="Envía otra vez el correo con una clave de acceso nueva y el aviso de que solo hay que matricularse una vez"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border disabled:opacity-50"
+                  style={{ color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-border)", background: "var(--tc-card)" }}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  {enviosDe(m.ampliacionEnEspera).length > 0 ? "Reenviar correo" : "Enviar correo"}
+                </button>
               )}
               {m._pendienteSubida && (
                 <span
@@ -1700,6 +1735,50 @@ export default function LocalDetail({
         </div>
       )}
 
+      {showActivarAmpliacion && config && (
+        <ActivarAmpliacionModal
+          config={config}
+          matricula={m}
+          curso={curso}
+          clavePdf={pdfKey}
+          onPdfCambiado={(b64) => {
+            setPdfBase64Preview(b64);
+            if (!m._tienePdf) onSave({ _tienePdf: true });
+          }}
+          onActivada={(datos) => {
+            onSave({ ampliacionEnEspera: datos });
+            setShowActivarAmpliacion(false);
+          }}
+          onCancel={() => setShowActivarAmpliacion(false)}
+        />
+      )}
+      {showReenviarAmpliacion && config && m.ampliacionEnEspera && (
+        <ActivarAmpliacionModal
+          config={config}
+          matricula={m}
+          curso={curso}
+          clavePdf={pdfKey}
+          reenviar={m.ampliacionEnEspera}
+          onPdfCambiado={setPdfBase64Preview}
+          onActivada={(datos) => {
+            onSave({ ampliacionEnEspera: datos });
+            setShowReenviarAmpliacion(false);
+          }}
+          onCancel={() => setShowReenviarAmpliacion(false)}
+        />
+      )}
+      <ConfirmDialog
+        open={confirmDesactivarAmpliacion}
+        title="Desactivar la ampliación"
+        message="La matrícula deja de estar en espera de su ampliación. No se quita nada del PDF ni se avisa al alumno."
+        confirmLabel="Desactivar"
+        tone="danger"
+        onConfirm={() => {
+          onSave({ ampliacionEnEspera: null });
+          setConfirmDesactivarAmpliacion(false);
+        }}
+        onCancel={() => setConfirmDesactivarAmpliacion(false)}
+      />
     </div>
   );
 }
@@ -1918,5 +1997,66 @@ function ToggleField({
       </button>
       </div>
     </div>
+  );
+}
+
+/** Interruptor «Ampliación de matrícula» de la cabecera de la ficha. */
+function InterruptorAmpliacion({
+  matricula: m,
+  activo,
+  disabled,
+  onClick,
+}: {
+  matricula: MatriculaLocal;
+  activo: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const e = m.ampliacionEnEspera;
+  const fecha = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString("es-ES") : "";
+  const detalle =
+    activo && e
+      ? [
+          `Ampliación a ${e.cursoDestino} autorizada el ${fecha(e.activadaEn)}.`,
+          ...(enviosDe(e).length
+            ? enviosDe(e).map(
+                (envio, i) => `Correo ${i + 1}: ${fecha(envio.enviadoEn)} a ${envio.enviadoA} · clave ${envio.clave}`,
+              )
+            : ["No se envió correo."]),
+          e.documentos.length ? `Documentos añadidos: ${e.documentos.join(", ")}.` : "No se añadieron documentos.",
+          "Se cierra sola al enlazar la ampliación que llegue del formulario web.",
+          disabled ? "" : "Pulsa para desactivarla.",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "Activa la ampliación: añade los escaneados al PDF y envía el correo con el enlace a la matrícula digital";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={activo}
+      onClick={onClick}
+      disabled={disabled}
+      title={detalle}
+      className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold border transition-colors disabled:cursor-default"
+      style={{
+        background: activo ? "var(--tc-violet-bg)" : "var(--tc-card)",
+        color: activo ? "var(--tc-violet-ink)" : "var(--tc-ink-soft)",
+        borderColor: activo ? "var(--tc-violet-border)" : "var(--tc-border)",
+      }}
+    >
+      <span
+        aria-hidden
+        className="relative inline-block w-7 h-4 rounded-full transition-colors"
+        style={{ background: activo ? "var(--tc-violet-ink)" : "var(--tc-border)" }}
+      >
+        <span
+          className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all"
+          style={{ left: activo ? 14 : 2 }}
+        />
+      </span>
+      {activo && e ? `Ampliación a ${e.cursoDestino} · esperando matrícula` : "Ampliación de matrícula"}
+    </button>
   );
 }

@@ -26,6 +26,16 @@ export function asuntoAmpliacion(nuevoCurso: string): string {
   return `Ampliación de matrícula al curso ${nuevoCurso} — ${CENTRO}`;
 }
 
+/** Aviso de ampliación autorizada, con el enlace a la matrícula digital. */
+export function asuntoAmpliacionAutorizada(cursoDestino: string): string {
+  return `Ampliación de matrícula autorizada: matricúlese en ${cursoDestino} — ${CENTRO}`;
+}
+
+/** Reenvío del aviso de ampliación (con una clave nueva). */
+export function asuntoReenvioAmpliacion(cursoDestino: string): string {
+  return `Reenvío: ${asuntoAmpliacionAutorizada(cursoDestino)}`;
+}
+
 /** Correo al Claustro desde la pestaña Profesorado. */
 export function asuntoClaustro(curso: string): string {
   return `Claustro — Curso ${curso}`;

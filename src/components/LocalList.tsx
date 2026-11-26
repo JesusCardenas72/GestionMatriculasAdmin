@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { MatriculaLocal } from "../api/types";
 import { nombresTemporalRealCoinciden } from "../utils/temporales";
+import { estaEnEspera } from "../utils/ampliacionEnEspera";
 import BloqueAmpliacion from "./BloqueAmpliacion";
 
 type SortField = "nOrden" | "nombre" | "ensenanza" | "especialidad";
@@ -202,6 +203,15 @@ function renderCardContent(m: MatriculaLocal, selected: boolean, sustEstado: Sus
               AMPLIACIÓN
             </span>
           )}
+          {estaEnEspera(m) && (
+            <span
+              className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold border"
+              style={{ background: "var(--tc-card)", color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-ink)" }}
+              title={`Ampliación a ${m.ampliacionEnEspera!.cursoDestino} autorizada: esperando su matrícula del formulario web`}
+            >
+              AMPL. EN ESPERA → {m.ampliacionEnEspera!.cursoDestino}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -264,6 +274,15 @@ function SingleRow({ m, isSelected, onSelect, nuevoEstadoPorId, discrepanciaPorI
           )}
           {m.ampliacion && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-semibold" style={{ background: "var(--tc-violet-bg)", color: "var(--tc-violet-ink)" }}>Amp.</span>
+          )}
+          {estaEnEspera(m) && (
+            <span
+              className="shrink-0 px-1 py-px rounded text-[9px] font-semibold border"
+              style={{ color: "var(--tc-violet-ink)", borderColor: "var(--tc-violet-ink)" }}
+              title={`Ampliación a ${m.ampliacionEnEspera!.cursoDestino} autorizada: esperando su matrícula del formulario web`}
+            >
+              Espera {m.ampliacionEnEspera!.cursoDestino}
+            </span>
           )}
           {m.repetidor && (
             <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-red-100 text-red-600">REP</span>
